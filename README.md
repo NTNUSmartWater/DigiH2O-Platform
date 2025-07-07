@@ -1,2 +1,2 @@
 # NTNUSmartWater.github.io
-Site for deploying water quality digital twin.
+Home page for NTNU Ålesund Smart Water group projects.
