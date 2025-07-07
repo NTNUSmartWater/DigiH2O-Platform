@@ -1,0 +1,246 @@
+html, body {
+  margin: 0; padding: 0;
+  box-sizing: border-box; height: 100%;
+}
+
+header {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 80px;
+  text-align: center; align-items: center;
+  background-color: #71d8e6;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #0a0a0a;z-index: 1000;
+  border: 2px solid #f7f7f8;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+#menuBtn {
+  position: absolute; top: 10px; left: 10px;
+  font-size: 30px; color: rgb(17, 17, 17);
+  background-color: transparent;
+  border: none; cursor: pointer; z-index: 1000;
+}
+
+#offCanvasMenu {
+  height: 100%; width: 250px; position: fixed;
+  top: 85px; left: 0px; transition: width 0.5s ease;
+  background-color: #71d8e6; overflow-x: hidden; 
+  z-index: 1050; padding-top: 10px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  border: 2px solid #f7f7f8;
+  border-radius: 12px 12px 12px 12px;
+  -webkit-user-select: none; /* Safari, Chrome */
+  -moz-user-select: none;    /* Firefox */
+  -ms-user-select: none;     /* IE/Edge Legacy */
+  user-select: none;
+}
+#offCanvasMenu a {
+  padding: 5px 5px 5px 15px; text-decoration: none;
+  font-size: 20px; color: #030303; cursor: pointer;
+  display: block; transition: 0.3s;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+#offCanvasMenu a:hover {
+  color: #f1f1f1;
+}
+#offCanvasMenu .menu-item-with-submenu .submenu a {
+  font-size: 15px; padding: 7px 0 0 15px; 
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+}
+
+
+#infoPanel {
+  position: fixed; bottom: 0; right: 0; width: 250px; 
+  background-color: #71d8e6; max-height: 650px; z-index: 1050; 
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  border: 2px solid #f7f7f8; overflow: hidden;
+  border-top-left-radius: 12px; transition: max-height 0.5s ease;
+  -webkit-user-select: none; /* Safari, Chrome */
+  -moz-user-select: none;    /* Firefox */
+  -ms-user-select: none;     /* IE/Edge Legacy */
+  user-select: none;
+}
+
+#infoPanelHeader {
+  background-color: #eef0f3; color: #0a0a0a;
+  padding: 5px; text-align: center; font-size: 18px;
+  font-weight: bold; cursor: pointer; display: flex;
+  justify-content: space-between; align-items: center;
+  border: 2px solid #f7f7f8;
+}
+
+#infoPanel .menu-item-with-submenu .submenu a {
+  font-size: 15px; padding: 7px 0 0 15px;
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+}
+#infoPanel a {
+  padding: 5px 5px 5px 15px; text-decoration: none;
+  font-size: 20px; color: #030303; cursor: pointer;
+  display: block; transition: 0.3s;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+#infoPanel a:hover {
+  color: #f1f1f1;
+}
+
+#infoDetails {
+  display: none; background: #373837;
+  flex-direction: column; overflow-y: auto;  
+  margin-top: 10px; color: white;
+  border-top-left-radius: 12px; 
+  border-top-right-radius: 12px;
+}
+#infoDetailsHeader {
+  font-weight: bold;  font-size: 15px; text-align: center;
+  padding-bottom: 5px; padding-top: 5px;
+}
+#infoDetailsContent {
+  overflow-y: auto; margin-top: auto; padding-bottom: 15px;
+  background-color: #192e19; padding-top: 15px;
+}
+
+#map_container {
+  position: relative; width: 100%; height: 100%;
+}
+
+#leaflet_map, #iframe_map {
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 100%;
+}
+
+#iframe_map {
+  border: none; display: none;
+}
+
+#custom_compass_btn {
+  position: absolute;
+  top: 85px; right: 2px;
+  z-index: 1000; background: none;
+  border: none; padding: 0;cursor: pointer;
+}
+
+#custom_compass_btn img {
+  width: 110px; height: 110px; pointer-events: none;
+  background-color: #e9ecec; border-radius: 10%;
+}
+
+#infoWindow {
+  position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%);
+  width: 500px; height: 300px; background-color: #fff; border: 1px solid #999;
+  box-shadow: 2px 2px 12px rgba(0,0,0,0.3); min-width: 200px; min-height: 100px;
+  display: none; z-index: 2000; resize: both; overflow: auto;
+  -webkit-user-select: none; /* Safari, Chrome */
+  -moz-user-select: none;    /* Firefox */
+  -ms-user-select: none;     /* IE/Edge Legacy */
+  user-select: none;
+}
+#infoHeader {
+  padding: 8px; background-color: #2c3e50; color: white;
+  cursor: move; user-select: none; display: flex;
+  justify-content: space-between; align-items: center;
+}
+#infoContent {
+  padding: 10px; max-height: 300px; overflow-y: auto;
+}
+#infoWindow table {
+  width: 100%; border-collapse: collapse;
+}
+#infoWindow th, #infoWindow td {
+  border: 1px solid #ccc; padding: 6px; text-align: left;
+}
+#closeInfoBtn {
+  cursor: pointer; font-size: 20px;
+}
+
+
+
+.menu-item-with-submenu {
+  position: relative;
+}
+.submenu {
+  display: none; padding-left: 15px;
+}
+
+.submenu.open {
+  display: block;
+}
+
+.menu-link {
+  cursor: pointer; display: flex; padding: 5px 0;
+  justify-content: space-between;
+}
+
+.arrow {
+  display: inline-block; transition: transform 0.3s ease; margin-left: 5px;
+}
+
+.menu-item-with-submenu > .menu-link.active > .arrow {
+  transform: rotate(90deg);
+}
+
+.menu-item-with-submenu .submenu {
+  position: relative; left: 0; top: 100%; min-width: 150px; z-index: 10;
+}
+.submenu a::before {
+  content: "•"; position: absolute; left: 5px; color: #f1f1f1;
+}
+.submenu > a {
+  display: block; padding-left: 20px; position: relative;
+}
+
+
+
+
+#loadingOverlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background-color: rgba(255, 255, 255, 1.0);
+  z-index: 9998; display: flex;
+  flex-direction: column; align-items: center;
+  justify-content: center; font-size: 30px;
+  font-family: Arial, Helvetica, sans-serif;
+}
+.loading-text {
+  margin-bottom: 20px; font-size: 24px;
+  font-family: Arial, sans-serif;
+  color: #333; z-index: 9999;
+}
+.spinner {
+  border: 8px solid #f3f3f3; z-index: 9999;
+  border-top: 8px solid #3498db;
+  border-radius: 50%; width: 60px; height: 60px;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+0%   { transform: rotate(0deg); }
+100% { transform: rotate(360deg); }
+}
+
+.leaflet-control-scale {
+  transform: translate(0, -670px);
+}
+
+#chartPanel {
+  position: fixed; bottom: -100%; left: 0; 
+  width: auto; height: 300px; background: white;
+  box-shadow: 0 -2px 5px rgba(0,0,0,0.2); padding: 0;
+  z-index: 900; padding: 20px; overflow: auto;
+  transition: bottom 0.3s ease; right: 260px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  display: flex; flex-direction: column;
+  resize: vertical; min-height: 150px; max-height: 80vh;
+}
+#chartHeader button {
+  font-size: 12px; cursor: pointer;
+}
+#chartHeader {
+  display: flex; gap: 10px; 
+  background-color: white; border-bottom: 1px solid #ccc;
+}
+#myChart {
+  flex: 1; width: 100%; height: 100%;
+}
+
+
+
+

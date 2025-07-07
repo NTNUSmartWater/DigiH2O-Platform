@@ -1,0 +1,34 @@
+[
+   {
+      "parameter": "Start Date",
+      "value": "2024-04-25 00:00:00"
+   },
+   {
+      "parameter": "End Date",
+      "value": "2024-11-20 00:00:00"
+   },
+   {
+      "parameter": "Number of Layers",
+      "value": 40
+   },
+   {
+      "parameter": "Number of Time Steps",
+      "value": 837
+   },
+   {
+      "parameter": "Computation started",
+      "value": "2025-06-10 10:13:32"
+   },
+   {
+      "parameter": "Computation finished",
+      "value": "2025-06-11 21:11:43"
+   },
+   {
+      "parameter": "Area (m2)",
+      "value": 7549217.331
+   },
+   {
+      "parameter": "Volume (m3)",
+      "value": 254478989.9
+   }
+]
