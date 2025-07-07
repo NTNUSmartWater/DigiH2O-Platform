@@ -1,0 +1,12 @@
+# Folders
+/output
+/template_files
+
+
+
+# Additional files
+*.ipynb
+
+
+# Environment
+.env

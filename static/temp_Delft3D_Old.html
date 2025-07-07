@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Delft3D Project Example</title>
+        <meta charset="UTF-8">
+        <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+        <link rel="stylesheet" href="static/map_style.css">
+    </head>
+    <body>
+        <button id="menuBtn" onclick="toggleMenu()" onmouseover="toggleMenu()">
+            <img src="images/menu.png" width="60" alt="Menu">
+        </button>
+
+        <div id="map_container">
+            <div id="leaflet_map"></div>
+            <iframe id="iframe_map"></iframe>
+            <div id="processing" style="background-color: rgb(77, 81, 83);">
+               <div id="loadingOverlay">
+                   <div class="loading-text">Loading Map. Please wait...</div>
+                   <div class="spinner"></div>
+               </div>
+            </div>
+        </div>
+
+        <!-- Side-bar menu -->
+        <div id="offCanvasMenu">
+            <a href="javascript:void(0)" class="closebtn" onclick="toggleMenu()">&times;</a>
+            <a href="javascript:void(0)" onclick="history.back()">Home</a>
+            <a href="javascript:void(0)" onclick="loadJSON('stations.geojson', 'station')">Stations</a>
+            <a href="javascript:void(0)" onclick="loadJSON('crosssections.geojson', 'cross_section')">Cross-sections</a>
+            <div class="menu-item-with-submenu">
+                <a href="javascript:void(0)">Water Balance▾</a>
+                <div class="submenu">
+                    <a href="javascript:void(0)" style="font-size: 20px;" onclick="plotChart('None','waterbalance_totalvolume_timeseries.json')">Total Volume</a>
+                    <a href="javascript:void(0)" style="font-size: 20px;" onclick="plotChart('None','waterbalance_storage_timeseries.json')">Storage</a>
+                    <a href="javascript:void(0)" style="font-size: 20px;" onclick="plotChart('None','waterbalance_boundariesin_timeseries.json')">Inflow (Boundaries)</a>
+                    <a href="javascript:void(0)" style="font-size: 20px;" onclick="plotChart('None','waterbalance_boundariesout_timeseries.json')">Outflow (Boundaries)</a>
+                    <a href="javascript:void(0)" style="font-size: 20px;" onclick="plotChart('None','waterbalance_boundaries_total_timeseries.json')">Total (Boundaries)</a>
+                    <a href="javascript:void(0)" style="font-size: 20px;" onclick="plotChart('None','waterbalance_precipitation_total_timeseries.json')">Total (Precipitation)</a>
+                    <a href="javascript:void(0)" style="font-size: 20px;" onclick="plotChart('None','waterbalance_evaporation_timeseries.json')">Total (Evaporation)</a>
+                    <a href="javascript:void(0)" style="font-size: 20px;" onclick="plotChart('None','waterbalance_sourcesink_timeseries.json')">Source/Sink</a>
+                    <a href="javascript:void(0)" style="font-size: 20px;" onclick="plotChart('None','waterbalance_groundwaterin_timeseries.json')"> Inflow (Groundwater)</a>
+                    <a href="javascript:void(0)" style="font-size: 20px;" onclick="plotChart('None','waterbalance_groundwaterout_timeseries.json')">Outflow (Groundwater)</a>
+                    <a href="javascript:void(0)" style="font-size: 20px;" onclick="plotChart('None','waterbalance_groundwatertotal_timeseries.json')">Total (Groundwater)</a>
+                    <a href="javascript:void(0)" style="font-size: 20px;" onclick="plotChart('None','waterbalance_precipitationonground_timeseries.json')">Precipitation on Ground</a>
+                    <a href="javascript:void(0)" style="font-size: 20px;" onclick="plotChart('None','waterbalance_volumeerror_timeseries.json')"> Volume Error</a>
+                </div>
+            </div>
+            
+
+
+            <div class="menu-item-with-submenu">
+                <a href="javascript:void(0)">2D-dynamic Maps ▾</a>
+                <div class="submenu">
+                    <a href="javascript:void(0)" style="font-size: 20px;" onclick="loadHtml('temperature_toplayer_dynamic_2D.html')">Temperature (Top Layer)</a></a>
+                    <a href="javascript:void(0)" style="font-size: 20px;" onclick="loadHtml('waterlevel_dynamic_2D.html')">Water Level</a>
+                    <a href="javascript:void(0)" style="font-size: 20px;" onclick="loadHtml('waterdepth_dynamic_2D.html')">Water Depth</a>
+                </div>
+            </div>
+
+            <div class="menu-item-with-submenu">
+                <a href="javascript:void(0)">3D-dynamic Maps ▾</a>
+                <div class="submenu">
+                    <a href="javascript:void(0)" style="font-size: 20px;" onclick="loadHtml('waterlevel_2D.html')">Water Level</a>
+                </div>
+            </div>
+            
+            <div class="menu-item-with-submenu">
+                <a href="javascript:void(0)">2D-static Maps ▾</a>
+                <div class="submenu">
+                    <a href="javascript:void(0)" style="font-size: 20px;" onclick="loadHtml('depth_area_static.html')">Bottom Depth</a>
+                </div>
+            </div>
+            
+        </div>
+
+        <!-- Bottom bar -->
+        <div id="chartPanel">
+            <div id="chartHeader">
+                <button id="closeChartBtn" onclick="toggleChart()">&times;</button>
+                <button id="downloadBtn" onclick="downloadChartData()">Download CSV</button>
+            </div>
+            <div id="myChart" style="width: 100%; height: 260px;"></div>
+        </div>
+
+    </body>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.26.1.min.js"></script>
+    <script>
+        let stationLayer = null; crossSectionLayer = null; ZOOM = 13; CENTER = [62.476969, 6.471598];
+        function showLeafletMap() {
+            document.getElementById("leaflet_map").style.display = "block";
+            document.getElementById("iframe_map").style.display = "none";
+            document.getElementById("processing").style.display = "none";
+        }
+        function showIframeMap() {
+            document.getElementById("leaflet_map").style.display = "none";
+            document.getElementById("iframe_map").style.display = "block";
+            document.getElementById("processing").style.display = "block";
+            const menu = document.getElementById("offCanvasMenu");
+            if (menu.style.width === "300px") {toggleMenu();}
+        }
+        // Generate the map
+        showLeafletMap();
+        var map = L.map('leaflet_map', {center:CENTER, zoom: ZOOM, zoomControl: false});
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);        
+        document.addEventListener('click', function(event) {
+            // Hide the menu and chart if user clicks outside of it
+            const menu = document.getElementById('offCanvasMenu');
+            const button = document.getElementById('menuBtn');
+            const chart = document.getElementById('chartPanel');
+            if (menu && button) {
+                const isClickedInsideMenu = menu.contains(event.target) || button.contains(event.target);
+                const isMenuOpen = window.getComputedStyle(menu).width !== '0px';
+                if (!isClickedInsideMenu && isMenuOpen) {toggleMenu();}
+            }
+            if (chart) {
+                const isClickedInsideChart = chart.contains(event.target);
+                const isChartOpen = window.getComputedStyle(chart).bottom === '0px';
+                if (!isClickedInsideChart && isChartOpen) {toggleChart();}
+            }
+        })
+        
+        // Function to toggle the menu
+        function toggleMenu() {
+            var menu = document.getElementById("offCanvasMenu");
+            if (menu.style.width === "300px") {
+                menu.style.width = "0";
+            } else {menu.style.width = "300px";}
+        }
+        
+        // Function to toggle the chart
+        function toggleChart() {
+            var chart = document.getElementById("chartPanel");
+            if (window.getComputedStyle(chart).bottom === "0px") {
+                chart.style.bottom = "-100%";
+            } else {chart.style.bottom = "0";}
+        }
+        
+        // Load GeoJSON
+        function loadJSON(filename, key) {
+            fetch(`/get_json?data_filename=${filename}&station=None`)
+            .then(response => response.json()).then(data => {
+                if (data.status === "ok") {
+                    if (key === "station") {
+                        // Add station layer to the map
+                        if (!stationLayer) {
+                            stationLayer = L.geoJSON(data.content, {
+                                // Custom marker icon
+                                pointToLayer: function (feature, latlng) {
+                                    const customIcon = L.icon({
+                                        iconUrl: 'images/station.png?v=${Date.now()}',
+                                        iconSize: [30, 30],
+                                        popupAnchor: [1, -34],
+                                    });
+                                    const marker = L.marker(latlng, {icon: customIcon});
+                                    const id = feature.properties.name;
+                                    const popupContent = `
+                                        <div style="font-family: Arial; width: 230px;">
+                                            <h4>Station: ${id}</h4>
+                                            <hr>
+                                            <b>Plot Attribute:</b>
+                                            <ul>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'waterlevel_timeseries.json')">Water Level (m)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'waterdepth_timeseries.json')">Water Depth (m)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'precipitation_timeseries.json')">Precipitation (mm)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'totalrunoff_timeseries.json')">Total Runoff (m<sup>3</sup>)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'wind_timeseries.json')">Wind (m/s)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'airtemperature_timeseries.json')">Air Temperature (°C)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'evaporation_timeseries.json')">Evaporation (mm)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'evaporationfrequency_timeseries.json')">Evaporation Frequency (%)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'relativehumidity_timeseries.json')">Realative Humidity (%)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'bed_shear_stress_timeseries.json')">Bed Shear Stress (kPa)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'solarradiation_timeseries.json')">Solar Radiation (W/m<sup>2</sup>)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'longwaveradiation_timeseries.json')">Longwave Radiation (W/m<sup>2</sup>)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'convection_timeseries.json')">Convection (W/m<sup>2</sup>)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'convectionfrequency_timeseries.json')">Convection Frequency (%)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'cloudcover_timeseries.json')">Cloud Cover (%)</a></li>                                            
+                                            </ul>
+                                        </div>
+                                    `;
+                                    marker.bindPopup(popupContent, {offset: [0, 40]});
+                                    return marker;
+                                }
+                            }).addTo(map);
+                            // Zoom to the extent of the station layer
+                            if (stationLayer && stationLayer.getBounds().isValid()) {
+                                const center = stationLayer.getBounds().getCenter();
+                                map.setView(center, ZOOM);
+                            }
+                            
+                            // Create a tooltip for the map
+                            const tooltip = L.tooltip({
+                                permanent: true, direction: 'top', className: 'station-tooltip',
+                                offset: [0, -20], opacity: 0.8
+                            }).setContent('Click on a station marker to plot data');
+                            map.addLayer(tooltip);
+
+                        showLeafletMap();
+                        } else {
+                            if (confirm("Station layer already loaded. Do you want to remove it?")){
+                                stationLayer.clearLayers(); stationLayer = null;
+                            }
+                        }
+                    } else if (key === "cross_section") {
+                        // Add cross section layer to the map
+                        if (!crossSectionLayer) {
+                            crossSectionLayer = L.geoJSON(data.content, {
+                                pointToLayer: function (feature, latlng) {
+                                    const customIcon = L.icon({
+                                        iconUrl: 'images/cross_section.png?v=${Date.now()}',
+                                        iconSize: [30, 30],
+                                        popupAnchor: [1, -34],
+                                    });
+                                    const marker = L.marker(latlng, {icon: customIcon});
+                                    const id = feature.properties.name;
+                                    const popupContent = `
+                                        <div style="font-family: Arial; width: 250px;">
+                                            <h4>Station: ${id}</h4>
+                                            <hr>
+                                            <b>Plot Attribute:</b>
+                                            <ul>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'crossdischarge_timeseries.json')">Discharge (m<sup>3</sup>/s)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'crossvelocity_timeseries.json')">Velocity (m/s)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'crosssalinity_timeseries.json')">Salinity (m<sup>3</sup>/s)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'crosstemperature_timeseries.json')">Temperature (°C)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'crosscontaminant_timeseries.json')">Contaminant (m<sup>3</sup>/s)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'crosscumulative_discharge_timeseries.json')">Cumulative Discharge (m<sup>3</sup>/s)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'crosscumulative_salinity_timeseries.json')">Cumulative Salinity (m<sup>3</sup>/s)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'crosscumulative_temperature_timeseries.json')">Cumulative Temperature (°C)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'crosscumulative_contaminant_timeseries.json')">Cumulative Contaminant (m<sup>3</sup>/s)</a></li>
+                                                <li><a href="javascript:void(0)" onclick="plotChart('${id}', 'crossarea_timeseries.json')">Area (m<sup>2</sup>)</a></li>
+                                            </ul>
+                                        </div>
+                                    `;
+                                    marker.bindPopup(popupContent, {offset: [0, 40]});
+                                    return marker;
+                                }
+                            }).addTo(map);
+                        // Zoom to the extent of the station layer
+                        if (crossSectionLayer && crossSectionLayer.getBounds().isValid()) {
+                            const center = crossSectionLayer.getBounds().getCenter();
+                            map.setView(center, ZOOM);
+                        }
+                        showLeafletMap();
+                        } else {
+                            if (confirm("Cross section layer already loaded. Do you want to remove it?")){
+                                crossSectionLayer.clearLayers(); crossSectionLayer = null;
+                            }
+                        }
+                    }
+                } else if (data.status === "error") {alert(data.message);}                
+            });
+        }
+
+        function draw(data, station, title_y) {
+            try {
+                let traces
+                // Check number of columns in the data
+                if (Object.keys(data[0]).length === 2) { // If there are 2 columns
+                    // Only use available data
+                    let xData = [], yData = []
+                    for (let i = 0; i < data.length; i++) {
+                        if (data[i][station] !== null) {
+                            xData.push(data[i].index);
+                            yData.push(parseFloat(data[i][station]));
+                        }
+                    }
+                    const trace = {
+                        x: xData, y: yData,
+                        type: "scatter",
+                        mode: "lines", line: { color: "blue" }
+                    }
+                    traces = [trace];
+                }
+                else if (Object.keys(data[0]).length === 3) { // If there are 3 columns
+                    // Only use available data
+                    let xData = [], yData1 = [], yData2 = []
+                    for (let i = 0; i < data.length; i++) {
+                        if (data[i][station + "_x"] !== null && data[i][station + "_y"] !== null) {
+                            xData.push(data[i].index);
+                            yData1.push(parseFloat(data[i][station + "_x"]));
+                            yData2.push(parseFloat(data[i][station + "_y"]));
+                        }
+                    }
+                    // Create traces
+                    const trace1 = {
+                        x: xData, y: yData1,
+                        type: "scatter", name: "x-axis",
+                        mode: "lines", line: { color: "blue" }
+                    }
+                    const trace2 = {
+                        x: xData, y: yData2,
+                        type: "scatter", name: "y-axis",
+                        mode: "lines", line: { color: "red" }
+                    }
+                    traces = [trace1, trace2];
+                }
+                const layout = {
+                    title: {text: station, font: { size: 24, weight: 'bold' }},
+                    xaxis: {
+                        title:{text: 'Time', font: { size: 16, weight: 'bold' }},
+                        showgrid: true, gridcolor: '#ccc' 
+                    },
+                    yaxis: {
+                        title:{text: title_y, font: { size: 12, weight: 'bold' }}, 
+                        showgrid: true, gridcolor: '#ccc'
+                    },
+                    margin: { t: 40, b: 40, l: 80, r: 40 },
+                    legend: { x: 0.02, y: 0.98, xanchor: 'left', yanchor: 'top',
+                        bgcolor: 'rgba(255,255,255,0.7)', },
+                    hovermode: "x unified",
+                };
+                var plotArea = document.getElementById('myChart');
+                Plotly.purge(plotArea); // Clear the chart
+                Plotly.newPlot('myChart', traces, layout, {responsive: true});
+                // Resize the chart
+                Plotly.Plots.resize(plotArea);
+                // Open the bottom panel
+                toggleChart();
+            }
+            catch (error) {alert('Error drawing chart' + error.message);}
+        }
+
+        // Click marker event
+        function plotChart(station, filename) {
+            let parsedData, title, title_y
+            // Set for the stations
+            if (filename === 'waterlevel_timeseries.json') {title_y = 'Water Level (m)';}
+            else if (filename === 'waterdepth_timeseries.json') {title_y = 'Water Depth (m)';}
+            else if (filename === 'precipitation_timeseries.json') {title_y = 'Precipitation (mm)';}
+            else if (filename === 'totalrunoff_timeseries.json') {title_y = 'Total Runoff (m<sup>3</sup>)';}
+            else if (filename === 'wind_timeseries.json') {title_y = 'Wind (m/s)';}
+            else if (filename === 'airtemperature_timeseries.json') {title_y = 'Air Temperature (°C)';}
+            else if (filename === 'evaporation_timeseries.json') {title_y = 'Evaporation (mm)';}
+            else if (filename === 'evaporationfrequency_timeseries.json') {title_y = 'Evaporation Frequency (%)';}
+            else if (filename === 'relativehumidity_timeseries.json') {title_y = 'Relative Humidity (%)';}
+            else if (filename === 'bed_shear_stress_timeseries.json') {title_y = 'Bed Shear Stress (kPa)';}            
+            else if (filename === 'solarradiation_timeseries.json') {title_y = 'Solar Radiation (W/m<sup>2</sup>)';}
+            else if (filename === 'longwaveradiation_timeseries.json') {title_y = 'Longwave Radiation (W/m<sup>2</sup>)';}
+            else if (filename === 'convection_timeseries.json') {title_y = 'Convection (W/m<sup>2</sup>)';}
+            else if (filename === 'convectionfrequency_timeseries.json') {title_y = 'Convection Frequency (%)';}
+            else if (filename === 'cloudcover_timeseries.json') {title_y = 'Cloud Cover (%)';}
+            // Set for the cross sections
+            else if (filename === 'crossdischarge_timeseries.json') {title_y = 'Discharge (m<sup>3</sup>/s)';}
+            else if (filename === 'crossvelocity_timeseries.json') {title_y = 'Velocity (m/s)';}
+            else if (filename === 'crosssalinity_timeseries.json') {title_y = 'Salinity (kg/m<sup>3</sup>)';}
+            else if (filename === 'crosstemperature_timeseries.json') {title_y = 'Temperature (°C)';}
+            else if (filename === 'crosscontaminant_timeseries.json') {title_y = 'Contaminant (kg/m<sup>3</sup>)';}
+            else if (filename === 'crosscumulative_discharge_timeseries.json') {title_y = 'Cumulative Discharge (m<sup>3</sup>)';}
+            else if (filename === 'crosscumulative_salinity_timeseries.json') {title_y = 'Cumulative Salinity (kg/m<sup>3</sup>)';}
+            else if (filename === 'crosscumulative_temperature_timeseries.json') {title_y = 'Cumulative Temperature (°C)';}
+            else if (filename === 'crosscumulative_contaminant_timeseries.json') {title_y = 'Cumulative Contaminant (kg/m<sup>3</sup>)';}
+            else if (filename === 'crossarea_timeseries.json') {title_y = 'Area (m<sup>2</sup>)';}
+            // Set for the water balance
+            else if (filename === 'waterbalance_totalvolume_timeseries.json') {title_y = 'Total Volume (m<sup>3</sup>)';}
+            else if (filename === 'waterbalance_storage_timeseries.json') {title_y = 'Storage (m<sup>3</sup>)';}
+            else if (filename === 'waterbalance_boundariesin_timeseries.json') {title_y = 'Inflow (Boundaries) (m<sup>3</sup>)';}
+            else if (filename === 'waterbalance_boundariesout_timeseries.json') {title_y = 'Outflow (Boundaries) (m<sup>3</sup>)';}
+            else if (filename === 'waterbalance_boundaries_total_timeseries.json') {title_y = 'Total (Boundaries) (m<sup>3</sup>)';}
+            else if (filename === 'waterbalance_precipitation_total_timeseries.json') {title_y = 'Precipitation (m<sup>3</sup>)';}
+            else if (filename === 'waterbalance_evaporation_timeseries.json') {title_y = 'Evaporation (m<sup>3</sup>)';}
+            else if (filename === 'waterbalance_sourcesink_timeseries.json') {title_y = 'Source/Sink (m<sup>3</sup>)';}
+            else if (filename === 'waterbalance_groundwaterin_timeseries.json') {title_y = 'Inflow (Groundwater) (m<sup>3</sup>)';}
+            else if (filename === 'waterbalance_groundwaterout_timeseries.json') {title_y = 'Outflow (Groundwater) (m<sup>3</sup>)';}
+            else if (filename === 'waterbalance_groundwatertotal_timeseries.json') {title_y = 'Total (Groundwater) (m<sup>3</sup>)';}
+            else if (filename === 'waterbalance_precipitationonground_timeseries.json') {title_y = 'Precipitation on Ground (m<sup>3</sup>)';}
+            else if (filename === 'waterbalance_volumeerror_timeseries.json') {title_y = 'Volume Error (%)';}
+            // Get the JSON data
+            fetch(`/get_json?data_filename=${filename}&station=${station}`)
+            .then(response => response.json()).then(data => {
+                if (data.status === "ok") {
+                    if (station === 'None') {
+                        title = 'Water Balance';
+                        parsedData = data.content;
+                        map.setView(center=CENTER, zoom=ZOOM)
+                        if (stationLayer) { stationLayer.clearLayers(); stationLayer = null; }
+                        if (crossSectionLayer) {crossSectionLayer.clearLayers(); crossSectionLayer = null;}
+                    } else {
+                        title = station;
+                        parsedData = JSON.parse(data.content);
+                    }
+                    // Plot the chart using Plotly
+                    draw(parsedData, title, title_y);
+                } else if (data.status === "error") {alert(data.message);}                
+            });
+            
+        }
+        // Export chart data to new tab as CSV format
+        function downloadChartData() {
+            const chartDiv = document.getElementById('myChart');
+            const data = chartDiv.data[0];
+            if (!data) {
+                alert("No data to download.");
+                return;
+            }
+            const x = data.x;
+            // Get the y values
+            const numTraces = chartDiv.data.length;
+            const title = chartDiv.layout.title.text||"Chart";
+            const titleText = title.includes(':') ? title.split(':')[1].trim() : title;
+            const titleY = chartDiv.layout.yaxis.title.text;
+            let csvHeader = 'Time';
+            for (let i = 0; i < numTraces; i++) {
+                const traceName = chartDiv.data[i].name || `${titleText}_${titleY}_${i}`;
+                csvHeader += `,${traceName}`;
+            }
+            let csvContent = `${csvHeader}\n`;
+            
+            for (let i = 0; i < chartDiv.data[0].x.length; i++) {
+                let row = `${chartDiv.data[0].x[i]}`;
+                for (let j = 0; j < numTraces; j++) {
+                    row += `,${chartDiv.data[j].y[i]}`;
+                }
+                csvContent += `${row}\n`;
+            }
+            
+            const newWindow = window.open();
+            if (newWindow) {
+                newWindow.document.write(`
+                <pre style="font-family: monospace; white-space: pre-wrap;">${csvContent}</pre>
+                `);
+                newWindow.document.title = "Data Export";
+                newWindow.document.close();
+            }else {
+                alert("Pop-up blocked. Please allow popups for this site.");
+            }
+        }
+
+        // Plot dynamically
+        function loadHtml(filename) {
+            fetch(`/get_temp_html?filename=${filename}`)
+            .then(response => response.json()).then(data => {
+                if (data.status === "ok") {
+                    if (stationLayer) { stationLayer.clearLayers(); stationLayer = null; }
+                    if (crossSectionLayer) {crossSectionLayer.clearLayers(); crossSectionLayer = null;}
+                    const iframe = document.getElementById('iframe_map');
+                    const loading = document.getElementById('loadingOverlay');
+                    // Start loading the iframe
+                    loading.style.display = 'block';
+                    // Load the iframe when file is large
+                    iframe.src = `${data.content}?ts=${Date.now()}`;
+                    iframe.onload = () => {loading.style.display = 'none';};
+                // Hide the Leaflet map and clear the layers
+                showIframeMap();
+                if (stationLayer) { stationLayer.clearLayers(); stationLayer = null; }
+                if (gridLayer) { gridLayer.clearLayers(); gridLayer = null; }
+                } else if (data.status === "error") {
+                    alert(data.message);
+                    return;
+                }                
+            });
+        }
+    
+    </script>
+
+</html>
+
