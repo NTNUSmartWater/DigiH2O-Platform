@@ -31,6 +31,9 @@ his_file = f'{nc_folder}/FlowFM_his.nc'
 map_file = f'{nc_folder}/FlowFM_map.nc'
 dia_file = f'{nc_folder}/FlowFM.dia'
 
+@app.get("/favicon.ico")
+def favicon():
+    return FileResponse("Logo.png")
 
 # Route for the home page
 @app.get("/")
@@ -89,35 +92,52 @@ async def process_data(request: Request):
     # Get body data
     body = await request.json()
     data_filename, key = body.get('data_filename'), body.get('key')
+    if 'multilayers' in data_filename:
+        data_filename = data_filename.replace('multilayers', 'toplayer')
     # Check if the file exists
     filename = [f for f in temp_files if f.name == data_filename]
     if filename:
         # print('File exists')
-        # File exists
+        # Load the JSON/GeoJSON file that exists
         with open(filename[0], 'r', encoding='utf-8') as f:
             data = json.load(f)
         status, message = 'ok', 'JSON loaded successfully.'
     else:
+        # print('File not found')
         # File not found, need to read the NetCDF file
         try:
-            # print('File not found')
             delft3d = functions.Delft3D(his_file, map_file, dia_file)
             if key == 'stations':
-                gdf = getattr(delft3d, key)[['name', 'geometry']]
-                data = functions.convert_to_geojson(gdf)
-            elif key == 'default_map':
-                temperature_mesh = functions.assign_values_to_meshes(delft3d.unstructured_grid, 
-                                    delft3d.map_timestamps, delft3d.mesh2d_tem1[:, :, -1])
-                temp = temperature_mesh[['geometry', delft3d.map_timestamps[-1]]]
-                temp = temp.rename(columns={delft3d.map_timestamps[-1]: 'value'}).reset_index()
+                # Create station data
+                temp = getattr(delft3d, key)[['name', 'geometry']]
+                data = json.loads(temp.to_json())
+            elif 'static' in data_filename:
+                # Create static data
+                temp = getattr(delft3d, key).reset_index()
                 temp['value'] = temp['value'].apply(lambda x: round(x, 2))
-                data = functions.convert_to_geojson(temp)
+                data = json.loads(temp.to_json())
+            elif 'toplayer' in data_filename:
+                # Create dynamic data on top layer
+                temp_toplayer = getattr(delft3d, key)[:, :, -1]
+                temp_mesh = functions.assign_values_to_meshes(delft3d.unstructured_grid, delft3d.map_timestamps, temp_toplayer)
+                data = json.loads(temp_mesh.to_json())
+            elif 'dynamic' in data_filename:
+                # Create dynamic data
+                temp = getattr(delft3d, key)
+                temp_mesh = functions.assign_values_to_meshes(delft3d.unstructured_grid, delft3d.map_timestamps, delft3d.mesh2d_s1)
+                data = json.loads(temp_mesh.to_json())
+            elif 'velocity' in data_filename:
+                if key == 'depth_velocity':
+                    temp_mesh = functions.vector_map(delft3d.mesh2d_face_x, delft3d.mesh2d_face_y, delft3d.map_timestamps,
+                                                 delft3d.mesh2d_ucxa, delft3d.mesh2d_ucya, delft3d.mesh2d_ucmaga)
+                data = json.loads(temp_mesh.to_json())
             elif key == 'bed_shear_stress':
                 # df_x = delft3d.tausx.rename(columns={key: f'{key}_x' for key in delft3d.tausx.columns})
                 # df_y = delft3d.tausy.rename(columns={key: f'{key}_y' for key in delft3d.tausy.columns})
                 # df_bss = pd.concat([df_x, df_y], axis=1)
                 pass
             else:
+                # Create time series data
                 temp = getattr(delft3d, key).reset_index()
                 temp = temp.to_json(orient='split', date_format='iso', indent=3)
                 data = json.loads(temp)
@@ -127,8 +147,22 @@ async def process_data(request: Request):
     result = {'content': data, 'status': status, 'message': message}
     return JSONResponse(content=result)
     
-    
-
+@app.post("/select_polygon")
+async def select_polygon(request: Request):
+    body = await request.json()
+    filename, id = body.get('filename'), int(body.get('id'))
+    if 'temperature' in filename: key = 'mesh2d_tem1'
+    elif 'salinity' in filename: key = 'mesh2d_sa1'
+    elif 'contaminant' in filename: key = 'mesh2d_contaminant'
+    try:
+        delft3d = functions.Delft3D(his_file, map_file, dia_file)
+        temp = getattr(delft3d, key)
+        data = functions.select_polygon(delft3d.map_timestamps, delft3d.mesh2d_layer_z, temp, id)
+        status, message = 'ok', 'Data loaded successfully.'
+    except:
+        data, status, message = None, 'error', 'File not found.'
+    result = {'content': data, 'status': status, 'message': message}
+    return JSONResponse(content=result)
 
 
 if __name__ == "__main__":
