@@ -1,4 +1,4 @@
-# NTNUSmartWater.github.io
+# DigiH2O Platform
 Home page for NTNU Ålesund Smart Water group projects.
 
 Current projects underway
