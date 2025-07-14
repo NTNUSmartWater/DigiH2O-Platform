@@ -1,29 +1,31 @@
-import folium, shapely, json
+import shapely, json
 from netCDF4 import Dataset, num2date
 import geopandas as gpd
 import pandas as pd
 import numpy as np
 import pyvista as pv
 from datetime import datetime
-from branca.colormap import LinearColormap
-from matplotlib import colormaps
-import matplotlib.colors as mpl_colors
 from scipy.spatial import cKDTree
-from jinja2 import Template
 
 
 CENTER, ZOOM = [62.47541795739599, 6.464416589996501], 13
 
 class Delft3D:
     def __init__(self, his_nc, map_nc, dialog_file):
+        self.x, self.y, self.z = False, False, False
         if not his_nc.endswith('.nc') or not map_nc.endswith('.nc'):
             raise ValueError("Both his_nc and map_nc must be NetCDF files with .nc extension.")
         self.his_data = Dataset(his_nc)
         self.map_data = Dataset(map_nc)
         self.read_his()
         self.read_map()
-        self.read_dialog(dialog_file)
         self.unstructured_grid()
+        self.read_dialog(dialog_file)
+        # Compute depth
+        if self.x and self.y and self.z:
+            df = self.unstructured_grid.copy()
+            df['value'] = interpolation_Z(df, self.mesh2d_node_x, self.mesh2d_node_y, self.mesh2d_node_z)
+            self.depth = df
 
     def read_dialog(self, dialog_file):
         data = {}
@@ -135,11 +137,12 @@ class Delft3D:
             self.waterdepth = pd.DataFrame(index=self.his_timestamps, data=his_variables['waterdepth'][:], columns=stations.keys())
         # Get velocity at stations
         if 'x_velocity' in his_variables.keys():
-            self.x_velocity = his_variables['x_velocity'][:].data
+            self.x_velocity, self.x_v = his_variables['x_velocity'][:].data, True
         if 'y_velocity' in his_variables.keys():
-            self.y_velocity = his_variables['y_velocity'][:].data
+            self.y_velocity, self.y_v = his_variables['y_velocity'][:].data, True
         if 'z_velocity' in his_variables.keys():
-            self.z_velocity = his_variables['z_velocity'][:].data
+            self.z_velocity, self.z_v = his_variables['z_velocity'][:].data, True
+        
         # Get depth-averaged velocity at stations
         if 'depth-averaged_x_velocity' in his_variables.keys():
             self.depth_averaged_x_velocity = pd.DataFrame(index=self.his_timestamps, data=his_variables['depth-averaged_x_velocity'][:], columns=stations.keys())
@@ -195,9 +198,9 @@ class Delft3D:
         # Get convection frequency at stations
         if 'Qfrcon' in his_variables.keys(): 
             self.frequency_convection = pd.DataFrame(index=self.his_timestamps, data=his_variables['Qfrcon'][:], columns=stations.keys())
-        # Get total runoff at stations
+        # Get total energy at stations
         if 'Qtot' in his_variables.keys(): 
-            self.total_runoff = pd.DataFrame(index=self.his_timestamps, data=his_variables['Qtot'][:], columns=stations.keys())
+            self.total_energy = pd.DataFrame(index=self.his_timestamps, data=his_variables['Qtot'][:], columns=stations.keys())
         # Get precipitation at stations
         if 'rain' in his_variables.keys(): 
             self.precipitation = pd.DataFrame(index=self.his_timestamps, data=his_variables['rain'][:], columns=stations.keys())
@@ -271,10 +274,13 @@ class Delft3D:
         # Get mesh2d_node_x, mesh2d_node_y, mesh2d_node_z: x, y, z of the nodes
         if 'mesh2d_node_x' in map_variables:
             self.mesh2d_node_x = map_variables['mesh2d_node_x'][:].data # x coordinates of the nodes in the net (nNodes,)
+            self.x = True
         if 'mesh2d_node_y' in map_variables:
             self.mesh2d_node_y = map_variables['mesh2d_node_y'][:].data # y coordinates of the nodes in the net (nNodes,)
+            self.y = True
         if 'mesh2d_node_z' in map_variables:
             self.mesh2d_node_z = map_variables['mesh2d_node_z'][:].data # bottom elevation (nNodes,)
+            self.z = True
         # Get mesh2d_edge_x, mesh2d_edge_y
         if 'mesh2d_edge_x' in map_variables:
             self.mesh2d_edge_x = map_variables['mesh2d_edge_x'][:].data # x coordinates of the edges (nEdges,)
@@ -349,7 +355,7 @@ class Delft3D:
         # Get mesh2d_ucmag, mesh2d_ucmaga
         if 'mesh2d_ucmag' in map_variables.keys(): 
             self.mesh2d_ucmag = map_variables['mesh2d_ucmag'][:].data
-        if 'mesh2d_ucmaga' in map_variables.keys(): 
+        if 'mesh2d_ucmaga' in map_variables.keys():
             self.mesh2d_ucmaga = map_variables['mesh2d_ucmaga'][:].data
         # Get mesh2d_ww1
         if 'mesh2d_ww1' in map_variables.keys(): 
@@ -386,26 +392,8 @@ class Delft3D:
         # Create GeoDataFrame from polygons
         self.unstructured_grid = gpd.GeoDataFrame(geometry=polygons, crs='EPSG:4326')
 
-def convert_to_geojson(data: gpd.GeoDataFrame) -> json:
-    """
-    Convert a GeoDataFrame to a json.
-
-    """
-    geojson = data.to_json()
-    data = json.loads(geojson)
-    return data
-
-
-
-
-
-
-
-
-
-
 def interpolation_Z(grid_net: gpd.GeoDataFrame, x_coords: np.ndarray, y_coords: np.ndarray,
-        z_values: np.ndarray, n_neighbors: int) -> np.ndarray:
+        z_values: np.ndarray, n_neighbors: int=2) -> np.ndarray:
     """
     Interpolate or extrapolate z values for grid from known points
     using Inverse Distance Weighting (IDW) method.
@@ -438,79 +426,6 @@ def interpolation_Z(grid_net: gpd.GeoDataFrame, x_coords: np.ndarray, y_coords: 
     weight_val = weight * z_values[idx]
     value = np.sum(weight_val, axis=1)/np.sum(weight, axis=1)
     return value
-
-def folium_mesh_static_2D(grid: gpd.GeoDataFrame, x_coords: np.ndarray, y_coords: np.ndarray, 
-                         z_values: np.ndarray, colorbar_label: str) -> folium.Map:
-    """
-    Create a static folium map by using the unstructured grid.
-
-    Parameters:
-    ----------
-    grid: gpd.GeoDataFrame
-        The GeoDataFrame containing the unstructured grid.
-    x_coords: np.ndarray
-        The x coordinates of computed values.
-    y_coords: np.ndarray
-        The y coordinates of computed values.
-    z_values: np.ndarray
-        The z values of computed values.
-    colorbar_label: str
-        The label of the colorbar.
-
-    Returns:
-    -------
-    folium.Map
-        A folium map with points representing the data.
-    """
-
-    # Prepare data
-    gdf = grid.copy().assign(value=interpolation_Z(grid, x_coords, y_coords, z_values))
-    # Create map
-    m = folium.Map(location=CENTER, zoom_start=ZOOM, zoom_control=False)
-    # Add basemap
-    folium.TileLayer(
-        tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        attr='Esri', name='Esri Satellite', overlay=False, control=True
-    ).add_to(m)
-    # Generate GeoJSON
-    geojson = json.loads(gdf.to_json())
-    vmin, vmax = np.min(gdf['value'].values), np.max(gdf['value'].values)
-    # Create colorbar
-    cmap = colormaps['winter']
-    mpl_colors.Normalize(vmin=vmin, vmax=vmax)
-    branca_colormap = LinearColormap(
-        colors=[mpl_colors.to_hex(cmap(i)) for i in np.linspace(0, 1, 256)],
-        vmin=vmin, vmax=vmax)
-    branca_colormap.caption = colorbar_label
-    # Create style function
-    def style_function(feature):
-        return {
-            'fillColor': branca_colormap(feature['properties']['value']),
-            'color': 'black', 'weight': 0, 'fillOpacity': 1.0
-        }
-    # Add polygons
-    folium.GeoJson(geojson, style_function=style_function).add_to(m)
-    # Add colorbar
-    branca_colormap.add_to(m)
-    # Change style of colorbar legend
-    style = """
-        <style>
-            .legend {
-                font-size: 12px !important;
-                color: white !important;
-                background-color: white !important;
-                padding: 5px;
-                border-radius: 5px;
-            }
-            .legend .caption {
-                font-size: 14px !important;
-                font-weight: bold;
-                color: white !important;
-            }
-        </style>
-    """
-    m.get_root().html.add_child(folium.Element(style))
-    return m
 
 def assign_values_to_meshes(grid: gpd.GeoDataFrame, time_stamps: pd.DatetimeIndex, data, stations: gpd.GeoDataFrame=None) -> gpd.GeoDataFrame:
     """
@@ -545,69 +460,71 @@ def assign_values_to_meshes(grid: gpd.GeoDataFrame, time_stamps: pd.DatetimeInde
             result[time_stamps[i]] = np.array(data[i,:]).flatten()
     result = pd.DataFrame(result).replace(-999.0, np.nan)
     result = temp_grid.join(result).to_crs(temp_grid.crs)
+    result[time_stamps] = result[time_stamps].round(2)
+    result = result.rename(columns={i: i.strftime('%Y-%m-%d %H:%M:%S') for i in time_stamps}).reset_index()
     return result
 
-def prepare_dynamic_map_2D(grid_net: gpd.GeoDataFrame, min_max_each_time_step: bool, label: str, output_path: str, title_page: str='Demo',
-                    html_template_path: str='./temp_delft3d/maps/temp_dynamic_2D.html') -> None:
+def select_polygon(time_stamps: pd.DatetimeIndex, h_layer: np.ndarray, arr: np.ndarray, idx: int) -> dict:
     """
-    Prepare time-series data for dynamic 2D visualization.
+    Get attributes of a selected polygon during the simulation.
 
     Parameters:
     ----------
-    grid_net: gpd.GeoDataFrame
-        The GeoDataFrame containing the unstructured grid and time-series data.
-    min_max_each_time_step: bool
-        Whether to calculate min and max values for each time step.
-        If True, min and max values will be calculated for each time step.
-        If False, min and max values will be calculated for all time steps.
-    label: str
-        The label shown in the legend.
-    output_path: str
-        The path to save the HTML file.
-    title_page: str
-        The title of the page.
-    html_template_path: str
-        The path to the HTML template file, default is './temp_delft3d/maps/temp_dynamic_map.html'.
+    time_stamps: pd.DatetimeIndex
+        The time stamps of simulation.
+    h_layer: np.ndarray (1D)
+        The array containing the heights of each layer.
+    arr: np.ndarray (3D)
+        The array containing the attributes of the selected polygons.
+    idx: int
+        The index of the selected polygon.
 
     Returns:
     -------
-        An HTML file containing the dynamic 2D visualization.
+    dict
+        A dictionary containing the attributes of the selected polygon.
     """
-    # Prepare data
-    grid, bbox = grid_net.copy(), grid_net.total_bounds.tolist()
-    polygon_coords, min_max, values, layers = [], [], [], []
-    time_stamps = [i for i in grid.columns if i not in ['geometry']]
-    # Extract timestamps
-    times = [t.strftime('%Y-%m-%d %H:%M:%S') for t in time_stamps]
-    # Extract min and max values
-    if min_max_each_time_step:
-        # Extract min and max values for each time stamp
-        for t in time_stamps:
-            value_ = grid[t].values
-            min_max.append([round(float(value_.min()), 2), round(float(value_.max()), 2)])
-    else:
-        # Extract min and max values for all time stamps
-        temp_grid = grid.drop(columns=['geometry'])
-        min_, max_ = round(temp_grid.min().min(), 2), round(temp_grid.max().max(), 2)
-        for t in time_stamps: min_max.append([min_, max_])
-    # Extract polygons
-    for geo in grid.geometry:
-        if not geo.geom_type in ['Polygon', 'MultiPolygon']: continue
-        if geo.geom_type == 'MultiPolygon': geo = geo.geoms[0]
-        coords = [[x, y] for x, y in geo.exterior.coords]
-        polygon_coords.append([coords, 0])
-        value_ = grid[time_stamps].loc[grid.index[grid.geometry == geo]].values[0]
-        values.append(value_)
-    values_ = [[round(float(x), 2) for x in arr] for arr in values]
-    # Convert to json
-    values_json, bound_latlon_json = json.dumps(values_), json.dumps(bbox + [ZOOM])
-    polygons_json = json.dumps(polygon_coords)
-    times_json, min_max_json = json.dumps(times), json.dumps(min_max)
-    # Read html template
-    with open(html_template_path, 'r') as f:
-        html_template = Template(f.read())
-    # Render template
-    html = html_template.render(title=title_page, colorbar_title=label, bound_latlon_json=bound_latlon_json,
-            polygons_json=polygons_json, timestamps_json=times_json, min_max_json=min_max_json, values_json=values_json)
-    with open(f'{output_path}', 'w') as f:
-        f.write(html)
+    result, depth = pd.DataFrame(index=time_stamps), np.round(h_layer, 2)[::-1]
+    # Reverse the array
+    depth_rev = depth[::-1]
+    for i in range(arr.shape[2]):
+        i_rev = -(i+1)
+        arr_rev = np.round(arr[:, idx, i_rev], 2)
+        result[f'Layer {i} - H: {depth_rev[i_rev]} (m)'] = arr_rev
+    result = result.replace(-999.0, np.nan)
+    temp = result.reset_index().to_json(orient='split', date_format='iso', indent=3)
+    return json.loads(temp)
+
+def vector_map(node_x: np.ndarray, node_y: np.ndarray, timestamps: pd.DatetimeIndex,
+        v_xaxis: np.ndarray, v_yaxis: np.ndarray, v_value: np.ndarray) -> gpd.GeoDataFrame:
+    """
+    Create a vector map of the mesh.
+
+    Parameters:  
+    ----------
+    node_x: np.ndarray
+        The array containing the x coordinates of the centroids of the nodes.
+    node_y: np.ndarray
+        The array containing the y coordinates of the centroids of the nodes.
+    timestamps: pd.DatetimeIndex
+        The time stamps of simulation (in _map.nc file).
+    v_xaxis: np.ndarray
+        The array containing the x coordinates of the vectors.
+    v_yaxis: np.ndarray
+        The array containing the y coordinates of the vectors.
+    v_value: np.ndarray
+        The array containing the values of the vectors.
+
+    Returns:
+    -------
+    gpd.GeoDataFrame
+        The GeoDataFrame containing the vector map of the mesh.
+    """
+    result = gpd.GeoDataFrame(geometry=gpd.points_from_xy(node_x, node_y),
+                      columns=np.arange(len(timestamps)), crs='epsg:4326')
+    for item in range(len(timestamps)):
+        result[item] = [(round(x, 7), round(y, 7), round(z, 2)) for x, y, z in zip(v_xaxis[item, :], v_yaxis[item, :], v_value[item, :])]
+    result = result.rename(columns={i: timestamps[i].strftime('%Y-%m-%d %H:%M:%S') for i in range(len(timestamps))})
+    return result
+
+
