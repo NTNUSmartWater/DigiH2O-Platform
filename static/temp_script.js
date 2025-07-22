@@ -1,17 +1,22 @@
 let stationLayer = null, crossSectionLayer = null, isOpen = true; 
 let isDragging_infor = false, offsetX_infor = 0, offsetY_infor = 0;
 let isDragging_plot = false, offsetX_plot = 0, offsetY_plot = 0;
-let queryPoint = true, queryPath = true, currentMarker = null;
+let queryPoint = false, queryPath = false, currentMarker = null;
 let layerStatic = null, layerDynamic = null, isPlaying = null; 
-let playHandlerAttached = false, isinfoOpen = true, currentIndex = 0;
+let playHandlerAttached = false, isinfoOpen = false, currentIndex = 0;
 let colorbarControl = L.control({ position: 'topright' });
-CENTER = [62.476969, 6.471598]; ZOOM = 13; 
+let parsedDataAllFrames = null, pointContainer = []; isPath = false;
+let selectedMarkers = [], pathLine = null, marker = null;
+let storedLayer = false, clickedInsideLayer = false;
+let isPathQuery = false, polygonCentroids = [];
+const CENTER = [62.476969, 6.471598], ZOOM = 13;
+const pathQueryCheckbox = document.getElementById("pathQuery");
+const pointQueryCheckbox = document.getElementById("pointQuery");
 const chartDiv = document.getElementById('myChart');
 const content = document.getElementById("infoContent");
 const menu = document.getElementById("offCanvasMenu");
 const button = document.getElementById('menuBtn');
 const loading = document.getElementById('loadingOverlay');
-const iframe = document.getElementById('iframe_map');
 const leaflet_map = document.getElementById('leaflet_map');
 const arrow = document.getElementById("arrowToggle");
 const infoDetails = document.getElementById("infoDetails");
@@ -21,59 +26,97 @@ const slider = document.getElementById("time-slider");
 const playBtn = document.getElementById("play-btn");
 const timeControl = document.getElementById("time-controls");
 const exportVideoBtn = document.getElementById("export-video-btn");
+const selectObject = document.getElementById("select-object");
+const velocityObject = document.getElementById("velocity-object");
 let colorbar_title = document.getElementById("colorbar-title");
-let colorbar_min = document.getElementById("colorbar-min");
-let colorbar_max = document.getElementById("colorbar-max");
 let colorbar_color = document.getElementById("colorbar-gradient");
 let infor = document.getElementById("infoDetailsContent");
 let infoHeader = document.getElementById("infoHeader");
 let infoWindow = document.getElementById("infoWindow");
 let plotHeader = document.getElementById("plotHeader");
 let plotWindow = document.getElementById("plotWindow");
+let globalChartData = {
+    filename: "", data: null, title: "", validColumns: [], columnIndexMap: {}
+};
+const hoverTooltip = L.tooltip({
+  permanent: false, direction: 'bottom',
+  sticky: true, offset: [0, 10],
+  className: 'custom-tooltip' // optional: for styling
+});
+
+const arrowShape = new Path2D();
+arrowShape.moveTo(0, 0);          // Origin
+arrowShape.lineTo(1, 0);          // Main length
+arrowShape.moveTo(1, 0);
+arrowShape.lineTo(0.8, 0.1);      // Left branch
+arrowShape.moveTo(1, 0);
+arrowShape.lineTo(0.8, -0.1);     // Right branch
 
 
-// Convert value to color
-function getColorFromValue(value, vmin, vmax) {
-    if (typeof value !== 'number' || isNaN(value)) {
-        return { r: 150, g: 150, b: 150, a: 0 };
+// Define CanvasLayer
+L.CanvasLayer = L.Layer.extend({
+    initialize: function (options) { L.setOptions(this, options);},
+    onAdd: function (map) {
+        this._map = map;
+        this._canvas = L.DomUtil.create('canvas', 'leaflet-layer');
+        const size = map.getSize();
+        this._canvas.width = size.x;
+        this._canvas.height = size.y;
+        const pane = map.getPane(this.options.pane || 'overlayPane');
+        pane.appendChild(this._canvas);
+        this._ctx = this._canvas.getContext('2d');
+        map.on('moveend zoomend resize', this._reset, this);
+        this._reset();
+    },
+    onRemove: function (map) {
+        const pane = map.getPane(this.options.pane || 'overlayPane');
+        if (this._canvas) pane.removeChild(this._canvas);
+        map.off('moveend zoomend resize', this._reset, this);
+    },
+    _reset: function () {
+        const size = this._map.getSize();
+        this._canvas.width = size.x;
+        this._canvas.height = size.y;
+        const topLeft = this._map.containerPointToLayerPoint([0, 0]);
+        L.DomUtil.setPosition(this._canvas, topLeft);
+        this._redraw();
+    },
+    _redraw: function () {
+        if (typeof this.options.drawLayer === 'function') {
+            this.options.drawLayer.call(this);
+        }
     }
-    if (vmin === vmax) return { r: 0, g: 0, b: 100, a: 1 };
-    // Clamp value
-    value = Math.max(vmin, Math.min(vmax, value));
-    const t = (value - vmin) / (vmax - vmin);
-    // Map value to color: blue green
-    const r = 0;
-    const g = Math.round(255 * t);
-    const b = Math.round(255 * (1 - t));
-    return { r, g, b, a: 1 };
-}
+});
 
 // Show spinner when loading
 function startLoading() {
     loading.style.display = 'flex';
-    iframe.style.display = 'none';
     leaflet_map.style.display = 'none';
 }
-
 function showLeafletMap() {
     leaflet_map.style.display = "block";
-    iframe.style.display = "none";
     loading.style.display = "none";
-}
-function showIframeMap() {
-    leaflet_map.style.display = "none";
-    iframe.style.display = "block";
-    loading.style.display = "block";
 }
 
 // Generate the map
-showLeafletMap();
 var map = L.map('leaflet_map', {center:CENTER, zoom: ZOOM, zoomControl: false});
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);        
 // Add scale bar
 L.control.scale({
     position: 'bottomright', imperial: false, metric: true, maxWidth: 200
 }).addTo(map);
+
+// Add tooltip
+map.on('mousemove', function (e) {
+    if (!isPath) {
+        map.closeTooltip(hoverTooltip);
+        return;
+    }
+    const html = `- Click the left mouse button to select a point.<br>- Right-click to finish the selection.`;
+    hoverTooltip.setLatLng(e.latlng).setContent(html);
+    map.openTooltip(hoverTooltip);
+});
+
 // Move the control to the top right corner
 const scaleElem = document.querySelector('.leaflet-control-scale');
 document.getElementById('right-side-controls').appendChild(scaleElem);
@@ -84,25 +127,21 @@ document.addEventListener('click', function(event) {
         const isClickedInsideMenu = menu.contains(event.target) || button.contains(event.target);
         if (!isClickedInsideMenu && isOpen) {toggleMenu();}
     }
-    if (!queryPoint){return;}
-    if (infoPanel && infoPanelHeader) {
+    if (queryPoint){return;}
+    if (infoPanelHeader) {
         const isClickedInsideInfo = infoPanel.contains(event.target);
-        const currentHeight = parseFloat(window.getComputedStyle(infoPanel).height);
-        const isInfoOpen = currentHeight > 35;
-        if (!isClickedInsideInfo && isInfoOpen) {toggleinfoMenu();}
+        if (!isClickedInsideInfo && isinfoOpen) {toggleinfoMenu();}
     }
 })
 
 // Function to toggle the menu
 function toggleMenu() {
-    menu.style.width = isOpen ? "0" : "250px";
-    isOpen = !isOpen;    
+    menu.style.width = isOpen ? "0" : "320px"; isOpen = !isOpen;    
 }
 
 function toggleinfoMenu() {
     if (isinfoOpen) {
-        infoPanel.style.height = "35px";
-        arrow.textContent = "▼";
+        infoPanel.style.height = "35px"; arrow.textContent = "▼";
     } else {
         // Open the info menu with measured height
         infoPanel.style.height = infoPanel.scrollHeight + "px";
@@ -144,8 +183,7 @@ document.querySelectorAll('.menu-item-with-submenu .menu-link').forEach(link => 
             }
         });
         // Toggle class open
-        submenu.classList.toggle('open');
-        this.classList.toggle('active');
+        submenu.classList.toggle('open'); this.classList.toggle('active');
     });
 });
 
@@ -237,16 +275,18 @@ document.addEventListener("mouseup", function() {
     Plotly.Plots.resize(chartDiv);
 });
 
-
-
 // Load JSON file (including JSON and GeoJSON)
-async function loadData(filename, key, title='') {
+async function loadData(filename, key, title, colorbarKey='depth', station='') {
     // Show spinner
     startLoading();
+    // Deselect checkbox
+    if (pathQueryCheckbox.checked) pathQueryCheckbox.checked = false;
+    if (pointQueryCheckbox.checked) pointQueryCheckbox.checked = false;
+    hideQuery('path'); hideQuery('point');
     try {
         const response = await fetch('/process_data', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({data_filename: filename, key: key})});
+        body: JSON.stringify({data_filename: filename, key: key, station: station})});
         const data = await response.json();
         if (data.status === "ok") {
             if (key === "stations") {
@@ -257,15 +297,32 @@ async function loadData(filename, key, title='') {
                         pointToLayer: function (feature, latlng) {
                             const customIcon = L.icon({
                                 iconUrl: 'images/station.png?v=${Date.now()}',
-                                iconSize: [30, 30],
-                                popupAnchor: [1, -34],
+                                iconSize: [30, 30], popupAnchor: [1, -34],
                             });
                             const marker = L.marker(latlng, {icon: customIcon});
                             const id = feature.properties.name || 'Unknown';
                             // Add tooltip
-                            marker.bindTooltip(id, {
+                            const value = `
+                                <div style="text-align: center;">
+                                    <b>${id}</b><br>Select object to see more parameters
+                                </div>
+                            `;
+                            marker.bindTooltip(value, {
                                 permanent: false, direction: 'top', offset: [0, 0]
                             });
+                            // Add popup
+                            const popupContent = `
+                                <div style="font-family: Arial;">
+                                    <h3 style="text-align: center;">${id}</h3>
+                                    <hr style="margin: 0;">
+                                    <ul style="left: 0; cursor: pointer; padding-left: 0; list-style: none;">
+                                        <li><a  onclick="loadData('temperature_in-situ.json', 'temperature', 'Temperature (°C)', 'temperature', '${id}')">• Temperature</a></li>
+                                        <li><a  onclick="loadData('salinity_in-situ.json', 'salinity', 'Salinity (PSU)', undefined, '${id}')">• Salinity</a></li>
+                                        <li><a  onclick="loadData('contaminant_in-situ.json', 'Contaminant', 'Contaminant (μg/L)', undefined, '${id}')">• Contaminant</a></li>
+                                    </ul>
+                                </div>
+                            `;
+                            marker.bindPopup(popupContent, {offset: [0, 40]});
                             return marker;
                         }   
                     }).addTo(map);
@@ -281,108 +338,124 @@ async function loadData(filename, key, title='') {
                     
 
 
-
-
-
-
                 }
             } else if (filename.includes(".json")) {
                 // Plot data
-                drawChart(data.content, title);
+                drawChart(filename, data.content, title);
+                toggleMenu();
             } else if (filename.includes("velocity")){
                 // Plot a vector map
-                plotVectorMap(data.content, filename, title);
+                plotVectorMap(data.content, title, colorbarKey);
             } else {
                 // Plot a 2D map
-                plotMap(data.content, filename, title);            
+                plotMap(data.content, filename, title, colorbarKey);            
             }
         } else if (data.status === "error") {alert(data.message);}
     } catch (error) {alert(error);}
+    showLeafletMap(); // Hide the spinner and show the map
+}
+
+async function initiateVelocity() {
+    startLoading();
+    try {
+        const response = await fetch('/process_velocity', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})});
+        const data = await response.json();
+        if (data.status === "ok") {
+            velocityObject.innerHTML = '';
+            // Add hint to the velocity object
+            const hint = document.createElement('option');
+            hint.value = ''; hint.selected = true;
+            hint.textContent = '-- Select a type --'; 
+            velocityObject.add(hint);
+            // Add options
+            data.content.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item; option.text = item;
+                velocityObject.add(option);
+            });
+        } else if (data.status === "error") {alert(data.message);}
+    } catch (error) {alert(error);}
     // Hide the spinner and show the map
-    loading.style.display = "none";
     showLeafletMap();
 }
 
-function getMinMaxFromGeoJSON_Vector(data, columns) {
-    let globalMin = Infinity, globalMax = -Infinity;
-    data.features.forEach(feature => {
-        columns.forEach(field => {
-            let value = feature.properties[field];
-            if (typeof value === 'string') {
-                // Convert string to number or array
-                value = JSON.parse(value.replace(/[()]/g, '[').replace(/,/g, ','));
-            }
-            const c = value[2];
-            if (typeof c === 'number') {
-                if (c < globalMin) globalMin = c;
-                if (c > globalMax) globalMax = c;
-            }
-        });
-    });
-    if (!isFinite(globalMin)) globalMin = null;
-    if (!isFinite(globalMax)) globalMax = null;
-    return { min: globalMin, max: globalMax };
+function changeVelocity(object) {
+    if (object.selectedIndex === 0) return;
+    const index = object.selectedIndex - 1;
+    loadData(`${object.value}_velocity`, index, 'Velocity (m/s)', 'velocity');
 }
 
-function buildFrameData(data, index) {
-    
+function buildFrameData(data, i) {
+    const coordsArray = data.coordinates, values = data.values[i];
+    const result = [];    
+    for (let i = 0; i < coordsArray.length; i++) {
+        const coords = coordsArray[i];
+        const val = values[i];
+        if (typeof val === 'string') {
+            const temp = val.replace(/[()]/g, '');
+            parts = temp.split(',').map(s => parseFloat(s.trim()));
+        } else if (Array.isArray(val)) { parts = val.map(Number); }
+        if (!isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+            result.push({
+                x: coords[0], y: coords[1], a: parts[0], b: parts[1], c: parts[2]
+            });
+        }
+    }
+    return result;
 }
 
-function getColorFromC(c, vmin, vmax) {
-    const norm = Math.max(0, Math.min(1, (c - vmin) / (vmax - vmin)));
-    const red = Math.round(255 * norm);
-    const blue = 255 - red;
-    return `rgb(${red},0,${blue})`;
-}
-function vectorCreator() {
+function vectorCreator(parsedData, vmin, vmax, title, colorbarKey) {
     if (layerStatic && map.hasLayer(layerStatic)) {
         map.removeLayer(layerStatic); layerStatic = null;
     };
     if (layerDynamic && map.hasLayer(layerDynamic)) {
         map.removeLayer(layerDynamic); layerDynamic = null;
     };
-    const layer = new L.CanvasLayer({
-        data: buildFrameData(data, index),
-        drawLayer: function() {
-            const ctx = this._ctx;
-            const map = this._map;
-            const scale = 10;
-            const data = this.options.data;
-            ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-            data.forEach(pt => {
-                const latlng = L.latLng(pt.y, pt.x);
-                const p = map.latLngToContainerPoint(latlng);
-                const dx = pt.a * scale;
-                const dy = -pt.b * scale;
-                ctx.beginPath();
-                ctx.moveTo(p.x, p.y);
-                ctx.lineTo(p.x + dx, p.y + dy);
-                ctx.strokeStyle = getColorFromC(pt.c, vmin, vmax);
-                ctx.lineWidth = 1;
-                ctx.stroke();
-            });
+    const scale = 900, arrowLength = 1;
+    const layer = new L.CanvasLayer({ data: parsedData,
+        drawLayer: function () {
+            const ctx = this._ctx, map = this._map;
+            const canvas = ctx.canvas, data = this.options.data;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = 0; i < data.length; i++) {
+                const pt = data[i];
+                const p = map.latLngToContainerPoint([pt.y, pt.x]);
+                if (p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height) continue;
+                const dx = pt.a * scale, dy = -pt.b * scale;
+                const length = Math.sqrt(dx * dx + dy * dy);
+                if (length < 0.1) continue;
+                const angle = Math.atan2(dy, dx);
+                ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(angle);
+                ctx.scale(length / arrowLength, length / arrowLength);
+                const color = getColorFromValue(pt.c, vmin, vmax, colorbarKey);
+                ctx.strokeStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
+                ctx.lineWidth = 1 / (length / arrowLength);
+                ctx.stroke(arrowShape); ctx.restore();
+            }
         }
     });
+    // Adjust Colorbar Control
+    updateColorbar(vmin, vmax, title, colorbarKey);
     return layer;
 }
 
-
-
-function plotVectorMap(data, filename, title) {
+function plotVectorMap(data, title, colorbarKey) {
     timeControl.style.display = "flex"; // Show time slider
     // Get column name
-    const timestamp = Object.keys(data.features[0].properties);
+    const timestamp = data.time;
     // Get min and max values
-    const { min: vmin, max: vmax } = getMinMaxFromGeoJSON_Vector(data, timestamp);
-    alert(vmin + " " + vmax);
+    const vmin = data.min_max[0], vmax = data.min_max[1];
     currentIndex = timestamp.length - 1;
+    parsedDataAllFrames = timestamp.map((_, i) => buildFrameData(data, i));
+    layerDynamic = vectorCreator(parsedDataAllFrames[currentIndex], vmin, vmax, title, colorbarKey);
+    map.addLayer(layerDynamic);
     // Destroy slider if it exists
     if (slider.noUiSlider) { 
-        slider.noUiSlider.destroy();
-        clearInterval(isPlaying); isPlaying = null;
+        slider.noUiSlider.destroy(); clearInterval(isPlaying); isPlaying = null;
         playBtn.textContent = "▶ Play";
     }
-    layerDynamic = vectorCreator();
     // Recreate Slider
     noUiSlider.create(slider, {
         start: currentIndex, step: 1,
@@ -396,8 +469,9 @@ function plotVectorMap(data, filename, title) {
     slider.noUiSlider.on('update', (values, handle, unencoded) => {
         if (isPlaying) return;
         currentIndex = Math.floor(unencoded[handle]);
-        layerDynamic.options.data = buildFrameData(data, timestamp[currentIndex]);
-        layerDynamic.drawLayer();
+        // Update vector canvas
+        layerDynamic.options.data = parsedDataAllFrames[currentIndex];
+        layerDynamic._redraw();
     });
     // Play/Pause button
     if (!playHandlerAttached) {
@@ -406,11 +480,12 @@ function plotVectorMap(data, filename, title) {
                 clearInterval(isPlaying); isPlaying = null;
                 playBtn.textContent = "▶ Play";
             } else {
-                currentIndex = Math.floor(slider.noUiSlider.get());
+                currentIndex = Number(slider.noUiSlider.get());
                 isPlaying = setInterval(() => {
                     currentIndex = (currentIndex + 1) % timestamp.length;
+                    layerDynamic.options.data = parsedDataAllFrames[currentIndex];
+                    layerDynamic._redraw();
                     slider.noUiSlider.set(currentIndex);
-                    updateMapByTime(data, layerDynamic, timestamp, currentIndex, vmin, vmax);
                 }, 800);
                 playBtn.textContent = "⏸ Pause";
             }
@@ -418,12 +493,6 @@ function plotVectorMap(data, filename, title) {
         playHandlerAttached = true;
     }
 }
-
-
-
-
-
-
 
 function hideComponent(key) {
     if (key === "stations") {
@@ -435,8 +504,7 @@ function hideComponent(key) {
 
 // Click event for the map
 function mapPoint(e) {
-    const lat = e.latlng.lat.toFixed(6);
-    const lng = e.latlng.lng.toFixed(6);
+    const lat = e.latlng.lat.toFixed(6), lng = e.latlng.lng.toFixed(6);
     if (currentMarker) { map.removeLayer(currentMarker); }
     currentMarker = L.marker(e.latlng).addTo(map);
     let html = `
@@ -466,10 +534,130 @@ function mapPoint(e) {
     infoPanel.style.height = 'auto';
 }
 
+function interpolateValue(location, centroids, power = 5, maxDistance = Infinity) {
+    const weights = [], values = [];
+    for (const c of centroids){
+        const d = turf.distance(
+            turf.point([location.lng, location.lat]),
+            turf.point([c.lng, c.lat]), {unit: 'meters'}
+        );
+        if (d > maxDistance || d === 0) continue;
+        const w = 1 / Math.pow(d, power);
+        weights.push(w); values.push(c.value * w);
+    }
+    if (weights.length === 0) return null;
+    const sumWeughts = weights.reduce((a, b) => a + b, 0);
+    const sumValues = values.reduce((a, b) => a + b, 0);
+    return Number((sumValues / sumWeughts).toFixed(2));
+}
+
+function plotProfile(pointContainer, titleY, titleX='Distance (m)') {
+    const subset_dis = 100, interpolatedPoints = [];
+    // Convert Lat, Long to x, y
+    const originLocation = L.Projection.SphericalMercator.project(
+        L.latLng(pointContainer[0].lat, pointContainer[0].lng));
+    for (let i = 0; i < pointContainer.length - 1; i++) {
+        const p1 = pointContainer[i], p2 = pointContainer[i + 1];
+        const pt1 = L.Projection.SphericalMercator.project(L.latLng(p1.lat, p1.lng));
+        const pt2 = L.Projection.SphericalMercator.project(L.latLng(p2.lat, p2.lng));
+        const dx = pt2.x - pt1.x, dy = pt2.y - pt1.y;
+        const segmentDist = Math.sqrt(dx * dx + dy * dy);
+        const segments = Math.floor(segmentDist / subset_dis);
+        // Add the first point
+        const originDx = pt1.x - originLocation.x;
+        const originDy = pt1.y - originLocation.y;
+        const originDist = Number(Math.sqrt(originDx * originDx + originDy * originDy).toFixed(2));
+        interpolatedPoints.push([originDist, p1.value]);
+        // Add the intermediate points        
+        for (let j = 1; j < segments; j++) {
+            const ratio = j / segments;
+            const interpX = pt1.x + ratio * dx, interpY = pt1.y + ratio * dy;
+            const latlngInterp = L.Projection.SphericalMercator.unproject(L.point(interpX, interpY));
+            // Interpolate
+            const location = L.latLng(latlngInterp.lat, latlngInterp.lng);
+            const interpValue = interpolateValue(location, polygonCentroids);
+            // Compute distance
+            const originDx1 = interpX - originLocation.x;
+            const originDy1 = interpY - originLocation.y;
+            const distInterp = Number(Math.sqrt(originDx1 * originDx1 + originDy1 * originDy1).toFixed(2));
+            if (interpValue !== null) {
+                interpolatedPoints.push([distInterp, interpValue]);
+            }
+        }
+        // Add the last point
+        const lastPt = pointContainer[pointContainer.length - 1];
+        const lastPtProj = L.Projection.SphericalMercator.project(L.latLng(lastPt.lat, lastPt.lng));
+        const lastDx = lastPtProj.x - originLocation.x;
+        const lastDy = lastPtProj.y - originLocation.y;
+        const lastDist = Number(Math.sqrt(lastDx * lastDx + lastDy * lastDy).toFixed(2));
+        interpolatedPoints.push([lastDist, lastPt.value]);
+    }
+    // Sort by distance
+    interpolatedPoints.sort((a, b) => a[0] - b[0]);
+    const input = {
+        columns: [titleX, titleY], data: interpolatedPoints
+    };
+    drawChart('', input, titleY, titleX);
+    toggleMenu();
+}
+
+function mapPath(e) {
+    if (!isPath) return;
+    // Right-click
+    if (e.type === "contextmenu") {
+        e.originalEvent.preventDefault(); // Suppress context menu
+        if (pointContainer.length < 2) {
+            alert("Not enough points selected. Please select at least two points.");
+            return;
+        }
+        // TODO:
+        const title = colorbar_title.textContent;
+        plotProfile(pointContainer, title);
+    }
+    // Left-click
+    if (e.type === "click" && e.originalEvent.button === 0) {
+        // Check which layer selected
+        if (clickedInsideLayer) {
+            // Add marker
+            marker = L.circleMarker(e.latlng, {
+                radius: 5, color: 'blue', fillColor: 'cyan', fillOpacity: 0.9
+            }).addTo(map);
+            selectedMarkers.push(marker);
+            // Get selected value
+            const value = e.layerProps?.[storedLayer?.columnName] ?? null;
+            // Add point
+            pointContainer.push({
+                lat: e.latlng.lat, lng: e.latlng.lng, value: value
+            });
+            // Plot line
+            const latlngs = pointContainer.map(p => [p.lat, p.lng]);
+            if (pathLine) {
+                pathLine.setLatLngs(latlngs);
+            } else {
+                pathLine = L.polyline(latlngs, {
+                    color: 'orange', weight: 2, dashArray: '5,5'
+                }).addTo(map);
+            }
+        }
+        clickedInsideLayer = false;
+    }
+}
+
+map.on("click", mapPath);
+map.on("contextmenu", mapPath);
+
+function pathQueryReset() {
+    // Reset
+    selectedMarkers.forEach(m => map.removeLayer(m));
+    selectedMarkers = []; pointContainer = [];
+    if (pathLine) { map.removeLayer(pathLine); pathLine = null; }
+    if (plotWindow.style.display === "flex") { plotWindow.style.display = "none"; }
+}
+
 function hideQuery(key) {
     const mapContainer = map.getContainer();
     if (key === "point") {
-        toggleinfoMenu();
+        queryPoint = false; toggleinfoMenu();
         mapContainer.style.cursor = "grab"; infor.innerHTML = "";
         infoDetails.style.display = "none";
         if (currentMarker) {
@@ -477,86 +665,121 @@ function hideQuery(key) {
             currentMarker = null;
         }
         map.off('click', mapPoint);
-        queryPoint = !queryPoint;
+        if (plotWindow.style.display === "flex") { plotWindow.style.display = "none"; }
     } else if (key === "path") {
-
-
-
-
-        crossSectionLayer.clearLayers(); crossSectionLayer = null;
+        queryPath = false; isPath = false;
+        map.closeTooltip(hoverTooltip);
+        mapContainer.style.cursor = "grab";
+        map.off('click', mapPath);
+        // Reset
+        pathQueryReset();
     }
 } 
 // Make query for points
 function makeQuery(key) {
     const mapContainer = map.getContainer();
     if (key === "point") {
-        if (queryPoint){
-            mapContainer.style.cursor = "help";
-            infoDetails.style.display = "block";
-            map.on('click', mapPoint);
-            isinfoOpen = false; toggleinfoMenu();
-            queryPoint = !queryPoint;
-        }
+        queryPoint = true;
+        mapContainer.style.cursor = "help";
+        infoDetails.style.display = "block";
+        map.on('click', mapPoint);
+        isinfoOpen = false; toggleinfoMenu();
     } else if (key === "path") {
-        if (queryPath){
+        queryPath = true; isPath = true;
+        if (!isPathQuery) {
+            alert("This type of map does not support path queries.\nOnly static and dynamic (with single layer) maps are supported.");
+            // Deselect checkbox
+            if (pathQueryCheckbox.checked) pathQueryCheckbox.checked = false;
+            return;
+        }
+        if (!layerStatic && !layerDynamic) {
+            alert("To use this feature, you need to load a layer first.");
+            return;
+        } else {
             mapContainer.style.cursor = "crosshair";
-            
-            
-            
-            
-            
-            queryPath = !queryPath;
-        } 
+            pathQueryReset();
+        }
     }
 }
 
+// Convert value to color
+function getColorFromValue(value, vmin, vmax, colorbarKey) {
+    if (typeof value !== 'number' || isNaN(value)) {
+        return { r: 150, g: 150, b: 150, a: 0 };
+    }
+    if (vmin === vmax) return { r: 0, g: 0, b: 100, a: 1 };
+    // Clamp value
+    value = Math.max(vmin, Math.min(vmax, value));
+    const t = (value - vmin) / (vmax - vmin);
+    let colors;
+    if (colorbarKey === "depth") {
+        colors = [
+            { r: 0,   g: 51,  b: 102 }, // dark blue
+            { r: 0,   g: 119, b: 190 }, // light blue
+            { r: 160, g: 216, b: 239 }  // very light blue
+        ];
+    }else if (colorbarKey === "velocity") {
+        colors = [
+            { r: 255, g: 255, b: 255 },  // White
+            { r: 255, g: 255, b: 85  },  // Yellow
+            { r: 255, g: 4,   b: 0   }   // Red
+        ];
+    }else {
+        colors = [
+            { r: 0,   g: 0,   b: 255 }, // blue
+            { r: 255, g: 165, b: 0   }, // orange
+            { r: 255, g: 0,   b: 0   }  // red
+        ];
+    }
+    const binCount = colors.length - 1;
+    const scaledT = t * binCount;
+    const lower = Math.floor(scaledT);
+    const upper = Math.min(colors.length - 1, lower + 1);
+    const frac = scaledT - lower;
+    const c1 = colors[lower];
+    const c2 = colors[upper];
+    const r = Math.round(c1.r + (c2.r - c1.r) * frac);
+    const g = Math.round(c1.g + (c2.g - c1.g) * frac);
+    const b = Math.round(c1.b + (c2.b - c1.b) * frac);
+    return { r, g, b, a: 1 };
+}
+
 // Update color for colorbar
-function updateColorbar(min, max, title) {
+function updateColorbar(min, max, title, colorbarKey) {
     colorbar_title.textContent = title;
-    colorbar_min.textContent = min.toFixed(2);
-    colorbar_max.textContent = max.toFixed(2);
     const midValue = (min + max) / 2;
-    const minColor = getColorFromValue(min, min, max);
-    const midColor = getColorFromValue(midValue, min, max);
-    const maxColor = getColorFromValue(max, min, max);
+    const minColor = getColorFromValue(min, min, max, colorbarKey);
+    const midColor = getColorFromValue(midValue, min, max, colorbarKey);
+    const maxColor = getColorFromValue(max, min, max, colorbarKey);
+    // Update gradient
     const gradient = `linear-gradient(to top,
         rgb(${minColor.r}, ${minColor.g}, ${minColor.b}) 0%,
         rgb(${midColor.r}, ${midColor.g}, ${midColor.b}) 50%,
         rgb(${maxColor.r}, ${maxColor.g}, ${maxColor.b}) 100%
     )`;
     colorbar_color.style.background = gradient;
-}
-
-// Get min and max values from geojson
-function getMinMaxFromGeoJSON(data, columns) {
-    let globalMin = Infinity; globalMax = -Infinity;
-    data.features.forEach(feature => {
-        columns.forEach(field => {
-            const value = feature.properties[field];
-            if (typeof value === "number" && !isNaN(value)) {
-                if (value < globalMin) globalMin = value;
-                if (value > globalMax) globalMax = value;
-            }
-        });
-    });
-    if (!isFinite(globalMin)) globalMin = null;
-    if (!isFinite(globalMax)) globalMax = null;
-    return { min: globalMin, max: globalMax };
+    // Update 5 labels
+    const labels = document.getElementById("colorbar-labels").children;
+    for (let i = 0; i < 5; i++) {
+        const percent = i / 4; // 0.0, 0.25, ..., 1.0
+        const value = min + (max - min) * (1 - percent); // Top to bottom
+        labels[i].textContent = value.toFixed(2);
+    }
 }
 
 // Create dynamic layer
-function layerCreator(data, columnName, vmin, vmax, title, filename) {
+function layerCreator(data, columnName, vmin, vmax, filename, title, colorbarKey) {
     if (layerStatic && map.hasLayer(layerStatic)) {
         map.removeLayer(layerStatic); layerStatic = null;
-    };
+    }
     if (layerDynamic && map.hasLayer(layerDynamic)) {
         map.removeLayer(layerDynamic); layerDynamic = null;
-    };
+    }
     const layer = L.vectorGrid.slicer(data, {
         rendererFactory: L.canvas.tile, vectorTileLayerStyles: {
             sliced: function(properties) {
                 const value = properties[columnName];
-                const { r, g, b, a } = getColorFromValue(value, vmin, vmax);
+                const { r, g, b, a } = getColorFromValue(value, vmin, vmax, colorbarKey);
                 return {
                     fill: true, fillColor: `rgb(${r},${g},${b})`, fillOpacity: a,
                     weight: 0, opacity: 1
@@ -567,20 +790,31 @@ function layerCreator(data, columnName, vmin, vmax, title, filename) {
     let txt = '';
     if (filename.includes('multilayers')) {
         txt = `<br>Select object to see values in each layer`;
+        isPathQuery = false;
+    } else {
+        // Assign value to use later
+        isPathQuery = true; polygonCentroids = [];
+        polygonCentroids = data.features.map(f => {
+            const center = turf.centroid(f).geometry.coordinates;
+            return {
+                lat: center[1], lng: center[0],
+                value: f.properties[columnName],
+            };
+        });
     }
-    // Assign column name to use later
-    layer.columnName = columnName;
     map.addLayer(layer);
+    // Assign column name to use later
+    layer.columnName = columnName; storedLayer = layer;
     const hoverTooltip = L.tooltip({ direction: 'top', sticky: true });
     layer.on('mouseover', function(e) {
         if (isPlaying) return;
         const props = e.layer.properties;
-        const value = props[layer.columnName];
+        const value = props[columnName];
         // Show tooltip
         const html = `
-        <div style="text-align: center;">
-            <b>Value:</b> ${value ?? 'N/A'}${txt}
-        </div>
+            <div style="text-align: center;">
+                <b>${title}:</b> ${value ?? 'N/A'}${txt}
+            </div>
         `;
         hoverTooltip.setContent(html).setLatLng(e.latlng)
         map.openTooltip(hoverTooltip);
@@ -589,24 +823,31 @@ function layerCreator(data, columnName, vmin, vmax, title, filename) {
         layer.resetFeatureStyle(e.layer._id);
     });
     // Adjust Colorbar Control
-    updateColorbar(vmin, vmax, title);
-    if (filename.includes('multilayers')) {
-        // Add click event to the layer
-        layer.on('click', function(e) {
-            const feature = e.layer;
+    updateColorbar(vmin, vmax, title, colorbarKey);
+    // Add click event to the layer
+    layer.on('click', function(e) {
+        clickedInsideLayer = true;
+        const feature = e.layer;
+        const props = feature.properties;
+        if (isPath){
+            mapPath({
+                ...e, layerProps: props
+            });
+        }
+        if (filename.includes('multilayers')) {
             // Get index of the feature
-            const selectedFeatureId = feature.properties.index;
+            const selectedFeatureId = props.index;
             // Highlight feature 
             layer.resetFeatureStyle(feature.leaflet_id);
             feature.setStyle({ fillColor: 'red', color: 'yellow', fillOpacity: 1 });
             // Load data to plot
-            plotMultilayer(selectedFeatureId, title, filename);
-        });
-    }
+            plotMultilayer(selectedFeatureId, filename, title);
+        }
+    });
     return layer;
 }
 
-async function plotMultilayer(id, title, filename) {
+async function plotMultilayer(id, filename, title) {
     startLoading();
     try {
         const response = await fetch('/select_polygon', {
@@ -614,21 +855,20 @@ async function plotMultilayer(id, title, filename) {
         body: JSON.stringify({filename: filename, id: id})});
         const data = await response.json();
         if (data.status === "ok") {
-            drawChart(data.content, title);
+            drawChart(filename, data.content, title);
             toggleMenu();
         } else if (data.status === "error") {alert(data.message);}
     } catch (error) {alert(error);}
-    loading.style.display = "none";
     showLeafletMap();
 }
 
 // Update dynamic layer
-function updateMapByTime(data, layer, time, index, vmin, vmax) {
+function updateMapByTime(data, layer, time, index, vmin, vmax, colorbarKey) {
     const columnName = time[index];
     if (!layer || !map.hasLayer(layer)) return;
     data.features.forEach(f => {
         const value = f.properties[columnName];
-        const { r, g, b, a } = getColorFromValue(value, vmin, vmax);
+        const { r, g, b, a } = getColorFromValue(value, vmin, vmax, colorbarKey);
         const style = {
             fill: true, fillColor: `rgb(${r},${g},${b})`,
             fillOpacity: a, weight: 0, opacity: 1
@@ -639,8 +879,33 @@ function updateMapByTime(data, layer, time, index, vmin, vmax) {
     layer.columnName = columnName;
 }
 
+// Get min and max values from GeoJSON
+function getMinMaxFromGeoJSON(data, columns) {
+    let globalMin = Infinity; globalMax = -Infinity;
+    data.features.forEach(feature => {
+        columns.forEach(field => {
+            const value = feature.properties[field];
+            if (typeof value === "number" && !isNaN(value)) {
+                if (value < globalMin) globalMin = value;
+                if (value > globalMax) globalMax = value;
+            } else if (typeof value === 'string') {
+                const temp = value.replace(/[()]/g, '');
+                const parts = temp.split(',').map(s => parseFloat(s.trim()));
+                const c = parts[2];
+                if (typeof c === 'number') {
+                    if (c < globalMin) globalMin = c;
+                    if (c > globalMax) globalMax = c;
+                }
+            }
+        });
+    });
+    if (!isFinite(globalMin)) globalMin = null;
+    if (!isFinite(globalMax)) globalMax = null;
+    return { min: globalMin, max: globalMax };
+}
+
 // Init dynamic map
-function initDynamicMap(data, title, filename) {
+function initDynamicMap(data, filename, title, colorbarKey) {
     timeControl.style.display = "flex"; // Show time slider
     // Get column name
     const allColumns = Object.keys(data.features[0].properties);
@@ -654,7 +919,7 @@ function initDynamicMap(data, title, filename) {
         clearInterval(isPlaying); isPlaying = null;
         playBtn.textContent = "▶ Play";
     }
-    layerDynamic = layerCreator(data, timestamp[currentIndex], vmin, vmax, title, filename);
+    layerDynamic = layerCreator(data, timestamp[currentIndex], vmin, vmax, filename, title, colorbarKey);
     // Recreate Slider
     noUiSlider.create(slider, {
         start: currentIndex, step: 1,
@@ -668,7 +933,7 @@ function initDynamicMap(data, title, filename) {
     slider.noUiSlider.on('update', (values, handle, unencoded) => {
         if (isPlaying) return;
         currentIndex = Math.floor(unencoded[handle]);
-        updateMapByTime(data, layerDynamic, timestamp, currentIndex, vmin, vmax);
+        updateMapByTime(data, layerDynamic, timestamp, currentIndex, vmin, vmax, colorbarKey);
     });
     // Play/Pause button
     if (!playHandlerAttached) {
@@ -681,7 +946,7 @@ function initDynamicMap(data, title, filename) {
                 isPlaying = setInterval(() => {
                     currentIndex = (currentIndex + 1) % timestamp.length;
                     slider.noUiSlider.set(currentIndex);
-                    updateMapByTime(data, layerDynamic, timestamp, currentIndex, vmin, vmax);
+                    updateMapByTime(data, layerDynamic, timestamp, currentIndex, vmin, vmax, colorbarKey);
                 }, 800);
                 playBtn.textContent = "⏸ Pause";
             }
@@ -702,7 +967,7 @@ function initDynamicMap(data, title, filename) {
 }
 
 // Plot dynamic map
-function plotMap(data, filename, title) {
+function plotMap(data, filename, title, colorbarKey) {
     if (filename.includes("static")) {
         isPlaying = null;
         // Plot static map
@@ -712,10 +977,10 @@ function plotMap(data, filename, title) {
                         .filter(v => typeof v === 'number' && !isNaN(v));
         const vmin = Math.min(...values);
         const vmax = Math.max(...values);
-        layerStatic = layerCreator(data, "value", vmin, vmax, title, 'static');
+        layerStatic = layerCreator(data, "value", vmin, vmax, filename, title, colorbarKey);
     }else{
         // Plot dynamic map
-        initDynamicMap(data, title, filename);
+        initDynamicMap(data, filename, title, colorbarKey);
     }
 }
 
@@ -726,28 +991,94 @@ function openPlotChart(key='NaN') {
     toggleMenu();
 }
 
+// Change object to plot
+function changeData(value) {
+    const { filename, data, title } = globalChartData;
+    if (data) { drawChart(filename, data, title, undefined, value);
+    } else { alert("No data available to update chart.");}
+}
+
 // Draw the chart using Plotly
-function drawChart(data, title) {
+function drawChart(filename, data, titleY, titleX='Time', selectedColumnName = "All") {
     const cols = data.columns, rows = data.data;
+    // alert(cols);
     const x = rows.map(r => r[0]);
     const traces = [];
+    const validColumns = [];
+    const columnIndexMap = {};
     for (let i = 1; i < cols.length; i++) {
         const y = rows.map(r => r[i]);
         const hasValid = y.some(val => val !== null && !isNaN(val));
-        if (!hasValid) continue;
+        if (hasValid) {
+            validColumns.push(i);
+            columnIndexMap[cols[i]] = i;
+        };
+    }
+    selectObject.innerHTML = '';
+    if (validColumns.length > 1) {
+        // Add "All" option
+        const allOption = document.createElement('option');
+        allOption.value = "All";
+        allOption.textContent = "All";
+        if (selectedColumnName === "All") { allOption.selected = true; }
+        selectObject.appendChild(allOption);
+    }
+    // Add other options
+    validColumns.forEach(i => {
+        const colName = cols[i];
+        const opt = document.createElement('option');
+        opt.value = colName;
+        opt.textContent = colName;
+        if (colName === selectedColumnName) { opt.selected = true; }
+        selectObject.appendChild(opt);
+    })
+    // Update global variable
+    globalChartData = { filename, data, titleY, validColumns, columnIndexMap };
+    let drawColumns;
+    if (selectedColumnName === "All" || !selectedColumnName) {
+        drawColumns = validColumns;
+    } else {
+        const selectedIndex = columnIndexMap[selectedColumnName];
+        drawColumns = [selectedIndex];
+    }
+    let traceIndex = 0;
+    const n = drawColumns.length;
+    function interpolateJet(t) {
+        const jetColors = [
+            [0.0, [0, 0, 128]], [0.35, [0, 255, 255]],
+            [0.5, [0, 255, 0]], [0.75, [255, 255, 0]], [1.0, [255, 0, 0]]
+        ];
+        for (let i = 0; i < jetColors.length - 1; i++) {
+            const [t1, c1] = jetColors[i];
+            const [t2, c2] = jetColors[i + 1];
+            if (t >= t1 && t <= t2) {
+                const f = (t - t1) / (t2 - t1);
+                const r = Math.round(c1[0] + (c2[0] - c1[0]) * f);
+                const g = Math.round(c1[1] + (c2[1] - c1[1]) * f);
+                const b = Math.round(c1[2] + (c2[2] - c1[2]) * f);
+                return `rgb(${r},${g},${b})`;
+            }
+        }
+        return `rgb(255,0,0)`;
+    }
+    for (const i of drawColumns) {
+        const y = rows.map(r => r[i]);
+        const t = n <= 1 ? 0 : traceIndex / (n - 1);
+        const color = interpolateJet(1-t);
         traces.push({
         x: x, y: y, name: cols[i],
-        type: 'scatter', mode: 'lines'
+        type: 'scatter', mode: 'lines', line: { color: color }
       });
+      traceIndex++;
     }
     const layout = {
         margin: {l: 60, r: 0, t: 5, b: 40},
         xaxis: {
-            title:{text: 'Time', font: { size: 16, weight: 'bold' }},
+            title:{text: titleX, font: { size: 16, weight: 'bold' }},
             showgrid: true, gridcolor: '#ccc' 
         },
         yaxis: {
-            title:{text: title, font: { size: 13, weight: 'bold' }}, 
+            title:{text: titleY, font: { size: 13, weight: 'bold' }}, 
             showgrid: true, gridcolor: '#ccc'
         },
     };
@@ -771,7 +1102,7 @@ function viewData() {
         ? (title.includes(':') ? title.split(':')[1].trim() : title)
         : "Chart";
     const titleY = chartDiv.layout?.yaxis?.title?.text || "Value";
-    let csvHeader = 'Time';
+    let csvHeader = chartDiv.layout?.xaxis?.title?.text || 'Unknown';
     for (let i = 0; i < numTraces; i++) {
         const traceName = chartDiv.data[i].name || `${titleText}_${titleY}_${i}`;
         csvHeader += `,${traceName}`;
@@ -814,7 +1145,8 @@ function saveToExcel() {
         ? (title.includes(':') ? title.split(':')[1].trim() : title): "Chart";
     const titleY = chartDiv.layout?.yaxis?.title?.text || "Value";
     // Prepare the data
-    const headers = ['Time'];
+    const title_ = chartDiv.layout?.xaxis?.title?.text || 'Unknown';
+    const headers = [title_];
     for (let i = 0; i < numTraces; i++) {
         const traceName = chartDiv.data[i].name || `${titleText}_${titleY}_${i}`;
         headers.push(traceName);
@@ -837,35 +1169,10 @@ function saveToExcel() {
 }
 
 // Load default map
-loadData('temperature_toplayer.geojson', 'mesh2d_tem1', 'Temperature (°C)');
-// loadData('depth_static.geojson', 'depth', 'Depth (m)');
-
-
-// // Plot dynamically
-// function loadHtml(filename) {
-//     fetch(`/get_temp_html?filename=${filename}`)
-//     .then(response => response.json()).then(data => {
-//         if (data.status === "ok") {
-//             if (stationLayer) { stationLayer.clearLayers(); stationLayer = null; }
-//             if (crossSectionLayer) {crossSectionLayer.clearLayers(); crossSectionLayer = null;}
-//             const iframe = document.getElementById('iframe_map');
-//             const loading = document.getElementById('loadingOverlay');
-//             // Start loading the iframe
-//             loading.style.display = 'block';
-//             // Load the iframe when file is large
-//             iframe.src = `${data.content}?ts=${Date.now()}`;
-//             iframe.onload = () => {loading.style.display = 'none';};
-//         // Hide the Leaflet map and clear the layers
-//         showIframeMap();
-//         if (stationLayer) { stationLayer.clearLayers(); stationLayer = null; }
-//         if (gridLayer) { gridLayer.clearLayers(); gridLayer = null; }
-//         } else if (data.status === "error") {
-//             alert(data.message);
-//             return;
-//         }                
-//     });
-// }
-
+// loadData('temperature_multilayers.geojson', 'temperature_multilayers', 'Temperature (°C)', 'temperature');
+loadData('depth_static.geojson', 'depth', 'Depth (m)');
+// Add layers for velocity
+initiateVelocity();
 
 // // Export video
 // async function exportAnimationToVideo({ data, layer, timestamps, vmin, vmax,
