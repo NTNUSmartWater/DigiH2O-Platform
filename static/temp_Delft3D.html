@@ -29,9 +29,12 @@
                 <div class="colorbar-wrapper">
                     <div class="colorbar-title" id="colorbar-title">Legend</div>
                     <div class="colorbar-gradient" id="colorbar-gradient"></div>
-                    <div class="colorbar-labels">
-                        <div id="colorbar-max">max</div>
-                        <div id="colorbar-min">min</div>
+                    <div class="colorbar-labels" id="colorbar-labels">
+                        <div></div> <!-- max -->
+                        <div></div> <!-- 75% -->
+                        <div></div> <!-- 50% -->
+                        <div></div> <!-- 25% -->
+                        <div></div> <!-- min -->
                     </div>
                 </div>
             </div>
@@ -48,18 +51,18 @@
                         <input type="checkbox" onchange="this.checked ? loadData('stations.geojson', 'stations') : hideComponent('stations')"> Stations</input>
                     </label> <br>
                     <label class="submenu-label">
-                        <input type="checkbox" onchange="this.checked ? makeQuery('point') : hideQuery('point')"> Query Point</input>
+                        <input type="checkbox" id="pointQuery" onchange="this.checked ? makeQuery('point') : hideQuery('point')"> Query Point</input>
                     </label>
                 </div>
             </div>
             <div class="menu-item-with-submenu">
                 <a class="menu-link">Profile <span class="arrow">&#x25B8;</span></a>
                 <div class="submenu">
-                    <label class="submenu-label">
+                    <!-- <label class="submenu-label">
                         <input type="checkbox" onchange="this.checked ? loadData('cross_sections.geojson', 'cross_sections') : hideComponent('cross_sections')"> Cross-sections</input>
-                    </label> <br>
+                    </label> <br> -->
                     <label class="submenu-label">
-                        <input type="checkbox" onchange="this.checked ? makeQuery('path') : hideQuery('path')"> Query Profile</input>
+                        <input type="checkbox" id="pathQuery" onchange="this.checked ? makeQuery('path') : hideQuery('path')"> Query Profile</input>
                     </label>
                 </div>
             </div>
@@ -70,54 +73,45 @@
                     <div class="menu-item-with-submenu_1">
                         <a class="menu-link_1">• Hydrodynamics <span class="arrow_1">&#x25B8;</span></a>
                         <div class="submenu_1">
-                            <a onclick="loadData('waterlevel.json', 'waterlevel', 'Water Level (m)')">• Water Level</a>
-                            <a onclick="loadData('waterdepth.json', 'waterdepth', 'Water Depth (m)')">• Water Depth</a>
+                            <a onclick="loadData('waterlevel.json', 'waterlevel', 'Water Level (m)')">- Water Level</a>
+                            <a onclick="loadData('waterdepth.json', 'waterdepth', 'Water Depth (m)')">- Water Depth</a>
                         </div>
                     </div>
-                    <!-- Water Quality
-                    <div class="menu-item-with-submenu_1">
-                        <a class="menu-link_1">• Water Quality <span class="arrow_1">&#x25B8;</span></a>
-                        <div class="submenu_1">
-                            <a onclick="loadData('temperature.json', 'waterlevel', 'Temperature (°C)')">• Temperature</a>
-
-
-
-                        </div>
-                    </div> -->
                     <!-- Water Balance -->
                     <div class="menu-item-with-submenu_1">
                         <a class="menu-link_1">• Water Balance <span class="arrow_1">&#x25B8;</span></a>
                         <div class="submenu_1">
-                            <a onclick="loadData('waterbalance_totalvolume.json', 'waterbalance_totalvolume', 'Total Volume (m<sup>3</sup>)')">• Total Volume</a>
-                            <a onclick="loadData('waterbalance_storage.json', 'waterbalance_storage', 'Storage (m<sup>3</sup>)')">• Storage</a>
-                            <a onclick="loadData('waterbalance_boundariesin.json', 'waterbalance_boundariesin', 'Inflow (Boundaries) (m<sup>3</sup>)')">• Inflow from Boundaries</a>
-                            <a onclick="loadData('waterbalance_boundariesout.json', 'waterbalance_boundariesout', 'Outflow (Boundaries) (m<sup>3</sup>)')">• Outflow from Boundaries</a>
-                            <a onclick="loadData('waterbalance_boundariestotal.json', 'waterbalance_boundariestotal', 'Total (Boundaries) (m<sup>3</sup>)')">• Total from Boundaries</a>
-                            <a onclick="loadData('waterbalance_precipitation.json', 'waterbalance_precipitation', 'Total (Precipitation) (m<sup>3</sup>)')">• Total from Precipitation</a>
-                            <a onclick="loadData('waterbalance_evaporation.json', 'waterbalance_evaporation', 'Total (Precipitation) (m<sup>3</sup>)')">• Total from Evaporation</a>
-                            <a onclick="loadData('waterbalance_sourcesink.json', 'waterbalance_sourcesink', 'Source/Sink (m<sup>3</sup>)')">• Source/Sink</a>
-                            <a onclick="loadData('waterbalance_groundwaterin.json', 'waterbalance_groundwaterin', 'Inflow (Groundwater) (m<sup>3</sup>)')">• Inflow from Groundwater</a>
-                            <a onclick="loadData('waterbalance_groundwaterout.json', 'waterbalance_groundwaterout', 'Outflow (Groundwater) (m<sup>3</sup>)')">• Outflow from Groundwater</a>
-                            <a onclick="loadData('waterbalance_groundwatertotal.json', 'waterbalance_groundwatertotal', 'Total (Groundwater) (m<sup>3</sup>)')">• Total from Groundwater</a>
-                            <a onclick="loadData('waterbalance_precipitationonground.json', 'waterbalance_precipitationonground', 'Precipitation on Ground (m<sup>3</sup>)')">• Precipitation on Ground</a>
-                            <a onclick="loadData('waterbalance_volumeerror.json', 'waterbalance_volumeerror', 'Volume Error (%)')">• Volume Error</a>
+                            <a onclick="loadData('water_balance_total_volume.json', 'water_balance_total_volume', 'Total Volume (m<sup>3</sup>)')">- Total Volume</a>
+                            <a onclick="loadData('water_balance_storage.json', 'water_balance_storage', 'Storage (m<sup>3</sup>)')">- Storage</a>
+                            <a onclick="loadData('water_balance_boundaries_in.json', 'water_balance_boundaries_in', 'Inflow (Boundaries) (m<sup>3</sup>)')">- Inflow from Boundaries</a>
+                            <a onclick="loadData('water_balance_boundaries_out.json', 'water_balance_boundaries_out', 'Outflow (Boundaries) (m<sup>3</sup>)')">- Outflow from Boundaries</a>
+                            <a onclick="loadData('water_balance_boundaries_total.json', 'water_balance_boundaries_total', 'Total (Boundaries) (m<sup>3</sup>)')">- Total from Boundaries</a>
+                            <a onclick="loadData('water_balance_precipitation_total.json', 'water_balance_precipitation_total', 'Total (Precipitation) (m<sup>3</sup>)')">- Total from Precipitation</a>
+                            <a onclick="loadData('water_balance_evaporation.json', 'water_balance_evaporation', 'Total (Precipitation) (m<sup>3</sup>)')">- Total from Evaporation</a>
+                            <a onclick="loadData('water_balance_source_sink.json', 'water_balance_source_sink', 'Source/Sink (m<sup>3</sup>)')">- Source/Sink</a>
+                            <a onclick="loadData('water_balance_groundwater_in.json', 'water_balance_groundwater_in', 'Inflow (Groundwater) (m<sup>3</sup>)')">- Inflow from Groundwater</a>
+                            <a onclick="loadData('water_balance_groundwater_out.json', 'water_balance_groundwater_out', 'Outflow (Groundwater) (m<sup>3</sup>)')">- Outflow from Groundwater</a>
+                            <a onclick="loadData('water_balance_groundwater_total.json', 'water_balance_groundwater_total', 'Total (Groundwater) (m<sup>3</sup>)')">- Total from Groundwater</a>
+                            <a onclick="loadData('water_balance_precipitation_on_ground.json', 'water_balance_precipitation_on_ground', 'Precipitation on Ground (m<sup>3</sup>)')">- Precipitation on Ground</a>
+                            <a onclick="loadData('water_balance_volume_error.json', 'water_balance_volume_error', 'Volume Error (%)')">- Volume Error</a>
                         </div>
                     </div>
                     <!-- Meteorological -->
                     <div class="menu-item-with-submenu_1">
                         <a class="menu-link_1">• Meteorological <span class="arrow_1">&#x25B8;</span></a>
                         <div class="submenu_1">
-                            <a onclick="loadData('total_energy.json', 'total_energy', 'Total Energy (W/m<sup>2</sup>)')">• Total Energy</a>
-                            <a onclick="loadData('precipitation.json', 'precipitation', 'Precipitation (mm)')">• Precipitation</a>
-                            <a onclick="loadData('wind.json', 'wind', 'Wind (m/s)')">• Wind</a>
-                            <a onclick="loadData('air_temperature.json', 'air_temperature', 'Air Temperature (°C)')">• Air Temperature</a>
-                            <a onclick="loadData('relative_humidity.json', 'relative_humidity', 'Relative Humidity (%)')">• Relative Humidity</a>
-                            <a onclick="loadData('solar_radiation.json', 'solar_radiation', 'Solar Radiation (W/m<sup>2</sup>)')">• Solar Radiation</a>
-                            <a onclick="loadData('evaporation.json', 'evaporation', 'Evaporation (mm)')">• Evaporation</a>
-                            <a onclick="loadData('longwave_radiation.json', 'longwave_radiation', 'Longwave Radiation (W/m<sup>2</sup>)')">• Longwave Radiation</a>
-                            <a onclick="loadData('frequency_evaporation.json', 'frequency_evaporation', 'Evaporation Frequency (%)')">• Evaporation Frequency</a>
-                            <a onclick="loadData('frequency_convection.json', 'frequency_convection', 'Convection Frequency (%)')">• Convection Frequency</a>
-                            <a onclick="loadData('cloud_cover.json', 'cloud_cover', 'Cloud Cover (%)')">• Cloud Cover</a>
+                            <a onclick="loadData('total_heat_flux.json', 'total_heat_flux', 'Total Heat Flux (W/m<sup>2</sup>)')">- Total Heat Flux</a>
+                            <a onclick="loadData('precipitation_rate.json', 'precipitation_rate', 'Precipitation rate (mm/day)')">- Precipitation Rate</a>
+                            <a onclick="loadData('wind_speed.json', 'wind_speed', 'Wind speed (m/s)')">- Wind Speed</a>
+                            <a onclick="loadData('air_temperature.json', 'air_temperature', 'Air Temperature (°C)')">- Air Temperature</a>
+                            <a onclick="loadData('relative_humidity.json', 'relative_humidity', 'Relative Humidity (%)')">- Relative Humidity</a>
+                            <a onclick="loadData('solar_influx.json', 'solar_influx', 'Solar Influx (W/m<sup>2</sup>)')">- Solar Influx</a>
+                            <a onclick="loadData('evaporative_heat_flux.json', 'evaporative_heat_flux', 'Evaporative Heat Flux (W/m<sup>2</sup>)')">- Evaporative Heat Flux</a>
+                            <a onclick="loadData('free_convection_evaporative_heat_flux.json', 'free_convection_evaporative_heat_flux', 'Free Convection Evaporative Heat Flux (W/m<sup>2</sup>)')">- Free Convection Evaporative Heat Flux</a>
+                            <a onclick="loadData('sensible_heat_flux.json', 'sensible_heat_flux', 'Sensible Heat Flux (W/m<sup>2</sup>)')">- Sensible Heat Flux</a>
+                            <a onclick="loadData('free_convection_sensible_heat_flux.json', 'free_convection_sensible_heat_flux', 'Free Convection Sensible Heat Flux (W/m<sup>2</sup>)')">- Free Convection Sensible Heat Flux</a>
+                            <a onclick="loadData('long_wave_back_radiation.json', 'long_wave_back_radiation', 'Long Wave Back Radiation (W/m<sup>2</sup>)')">- Long Wave Back Radiation</a>
+                            <a onclick="loadData('cloudiness.json', 'cloudiness', 'Cloudiness (%)')">- Cloudiness</a>
                         </div>
                     </div>
                 </div>
@@ -127,7 +121,6 @@
         <!-- Add the map -->
         <div id="map_container">
             <div id="leaflet_map"></div>
-            <iframe id="iframe_map" title="Map"></iframe>
             <!-- Add time slider -->
             <div id="time-controls">
                 <button id="play-btn">▶ Play</button>
@@ -146,16 +139,19 @@
 
         <!-- Add the right side-bar menu -->
         <div id="infoPanel">
-            <div id="infoPanelHeader">Map Properties<span id="arrowToggle">▲</span></div>
+            <div id="infoPanelHeader">Spatial Parameters<span id="arrowToggle">▲</span></div>
             <div class="menu-item-with-submenu">
                 <a class="menu-link">Hydrodynamics <span class="arrow">&#x25B8;</span></a>
                 <div class="submenu">
-                    <a onclick="loadData('temperature_toplayer.geojson', 'mesh2d_tem1', 'Temperature (°C)')">• Temperature (Top Layer)</a>
-                    <a onclick="loadData('salinity_toplayer.geojson', 'mesh2d_sa1', 'Salinity (PSU)')">• Sanlinity (Top Layer)</a>
-                    <a onclick="loadData('contaminant_toplayer.geojson', 'mesh2d_contaminant', 'Contaminant (μg/L)')">• Contaminant (Top Layer)</a>
-                    <a onclick="loadData('waterlevel_dynamic.geojson', 'mesh2d_s1', 'Water Surface Level (m)')">• Water Surface Level</a>
-                    <a onclick="loadData('waterdepth_dynamic.geojson', 'mesh2d_waterdepth', 'Depth Water Level (m)')">• Depth Water Level</a>
-                    <a onclick="loadData('depth_velocity.geojson', 'depth_velocity', 'Depth-averaged Velocity (m/s)')">• Depth-averaged Velocity</a>
+                    <a onclick="loadData('water_surface_dynamic.geojson', 'water_surface_dynamic', 'Water Surface Level (m)')">• Water Surface Level</a>
+                    <a onclick="loadData('water_depth_dynamic.geojson', 'water_depth_dynamic', 'Depth Water Level (m)')">• Depth Water Level</a>
+                    
+                    <div class="submenu-item">
+                        <span class="submenu-label">• Velocity:</span>
+                        <select id="velocity-object" onchange="changeVelocity(this)">
+                            <option value="" disabled selected hidden>-- Select a type --</option>
+                        </select>
+                    </div>
                     
                     
                     
@@ -171,9 +167,9 @@
             <div class="menu-item-with-submenu">
                 <a class="menu-link">Water Quality <span class="arrow">&#x25B8;</span></a>
                 <div class="submenu">
-                    <a onclick="loadData('temperature_multilayers.geojson', 'mesh2d_tem1', 'Temperature (°C)')">• Temperature</a>
-                    <a onclick="loadData('salinity_multilayers.geojson', 'mesh2d_sa1', 'Salinity (PSU)')">• Salinity</a>
-                    <a onclick="loadData('contaminant_multilayers.geojson', 'mesh2d_contaminant', 'Contaminant (μg/L)')">• Contaminant</a>
+                    <a onclick="loadData('temperature_multilayers.geojson', 'temperature_multilayers', 'Temperature (°C)', 'temperature')">• Temperature</a>
+                    <a onclick="loadData('salinity_multilayers.geojson', 'salinity_multilayers', 'Salinity (ppt)')">• Salinity</a>
+                    <a onclick="loadData('contaminant_multilayers.geojson', 'contaminant_multilayers', 'Contaminant (μg/L)')">• Contaminant</a>
                 </div>
             </div>
 
@@ -201,6 +197,8 @@
         <div id="plotWindow">
             <div id="plotHeader">Plot Window<span onclick="openPlotChart()" id="closePlotBtn">×</span></div>
             <div style="padding: 0 8px;">
+                <label for="select-object">Select:</label>
+                <select id="select-object" onchange="changeData(this.value)"></select>
                 <button type="button" id="downloadBtn" onclick="viewData()">View Data</button>
                 <button type="button" id="downloadExcel" onclick="saveToExcel()">Download Excel</button>
             </div>
@@ -218,7 +216,8 @@
     <script src="https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/antimatter15/whammy/whammy.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    
     <!-- Load the newest version of the script -->
     <script>
         const script = document.createElement('script');
