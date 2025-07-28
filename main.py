@@ -132,7 +132,29 @@ async def process_velocity(request: Request):
     result = {'content': data, 'status': status, 'message': message}
     return JSONResponse(content=result)
 
-
+@app.post("/process_layer")
+async def process_layer(request: Request):
+    body = await request.json()
+    key = body.get('key')
+    try:
+        data, result = {}, {'Temperature':'temperature_multilayers', 'Salinity':'salinity_multilayers',
+            'Contaminant':'contaminant_multilayers', 'Water Surface Level':'water_surface_dynamic',
+            'Depth Water Level':'water_depth_dynamic'}
+        if key == 'init_layers':
+            data['below'] = [value for value in list(result.keys())]
+            data['above'] = [value for value in list(n_layers.values())[:2]]
+        elif key == 'process_layers':
+            below_layer, above_layer = body.get('below_layer'), body.get('above_layer')
+            key_below = result[below_layer]
+            temp_mesh = functions.assignValuesToMeshes(grid, data_map, key_below)
+            data['below'] = json.loads(temp_mesh.to_json())
+            key_above = len(data_map['mesh2d_layer_z'].values) - int(layer_reverse[above_layer]) - 1
+            data['above'] = functions.velocityComputer(data_map, above_layer, key_above)
+        status, message = 'ok', 'Data loaded successfully.'
+    except:
+        data, status, message = None, 'error', 'File not found.'
+    result = {'content': data, 'status': status, 'message': message}
+    return JSONResponse(content=result)
 
 
 if __name__ == "__main__":
