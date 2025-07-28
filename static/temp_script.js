@@ -2,7 +2,8 @@ let stationLayer = null, crossSectionLayer = null, isOpen = true;
 let isDragging_infor = false, offsetX_infor = 0, offsetY_infor = 0;
 let isDragging_plot = false, offsetX_plot = 0, offsetY_plot = 0;
 let queryPoint = false, queryPath = false, currentMarker = null;
-let layerStatic = null, layerDynamic = null, isPlaying = null; 
+let layerStatic = null, layerDynamic = null, isPlaying = null;
+let layerBelow = null, layerAbove = null;
 let playHandlerAttached = false, isinfoOpen = false, currentIndex = 0;
 let colorbarControl = L.control({ position: 'topright' });
 let parsedDataAllFrames = null, pointContainer = []; isPath = false;
@@ -35,6 +36,9 @@ let infoHeader = document.getElementById("infoHeader");
 let infoWindow = document.getElementById("infoWindow");
 let plotHeader = document.getElementById("plotHeader");
 let plotWindow = document.getElementById("plotWindow");
+const belowLayer = document.getElementById("below-object");
+const aboveLayer = document.getElementById("above-object");
+const plotLayersBtn = document.getElementById("plotLayersBtn");
 let globalChartData = {
     filename: "", data: null, title: "", validColumns: [], columnIndexMap: {}
 };
@@ -355,7 +359,13 @@ async function loadData(filename, key, title, colorbarKey='depth', station='') {
     showLeafletMap(); // Hide the spinner and show the map
 }
 
-async function initiateVelocity() {
+function changeVelocity(object) {
+    if (object.selectedIndex === 0) return;
+    const index = object.selectedIndex - 1;
+    loadData(`${object.value}_velocity`, index, 'Velocity (m/s)', 'velocity');
+}
+
+async function initiateVelocities() {
     startLoading();
     try {
         const response = await fetch('/process_velocity', {
@@ -363,12 +373,13 @@ async function initiateVelocity() {
         body: JSON.stringify({})});
         const data = await response.json();
         if (data.status === "ok") {
+            // Add options to the velocity object
             velocityObject.innerHTML = '';
             // Add hint to the velocity object
-            const hint = document.createElement('option');
-            hint.value = ''; hint.selected = true;
-            hint.textContent = '-- Select a type --'; 
-            velocityObject.add(hint);
+            const hint_velocity = document.createElement('option');
+            hint_velocity.value = ''; hint_velocity.selected = true;
+            hint_velocity.textContent = '-- Select a type --'; 
+            velocityObject.add(hint_velocity);
             // Add options
             data.content.forEach(item => {
                 const option = document.createElement('option');
@@ -379,12 +390,6 @@ async function initiateVelocity() {
     } catch (error) {alert(error);}
     // Hide the spinner and show the map
     showLeafletMap();
-}
-
-function changeVelocity(object) {
-    if (object.selectedIndex === 0) return;
-    const index = object.selectedIndex - 1;
-    loadData(`${object.value}_velocity`, index, 'Velocity (m/s)', 'velocity');
 }
 
 function buildFrameData(data, i) {
@@ -406,7 +411,7 @@ function buildFrameData(data, i) {
     return result;
 }
 
-function vectorCreator(parsedData, vmin, vmax, title, colorbarKey) {
+function vectorCreator(parsedData, vmin, vmax, title, colorbarKey, key='velocity') {
     if (layerStatic && map.hasLayer(layerStatic)) {
         map.removeLayer(layerStatic); layerStatic = null;
     };
@@ -429,8 +434,12 @@ function vectorCreator(parsedData, vmin, vmax, title, colorbarKey) {
                 const angle = Math.atan2(dy, dx);
                 ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(angle);
                 ctx.scale(length / arrowLength, length / arrowLength);
-                const color = getColorFromValue(pt.c, vmin, vmax, colorbarKey);
-                ctx.strokeStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
+                if (key === "velocity") {
+                    const color = getColorFromValue(pt.c, vmin, vmax, colorbarKey);
+                    ctx.strokeStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
+                } else {
+                    ctx.strokeStyle = "rgba(255, 255, 255, 1)";
+                }
                 ctx.lineWidth = 1 / (length / arrowLength);
                 ctx.stroke(arrowShape); ctx.restore();
             }
@@ -453,7 +462,8 @@ function plotVectorMap(data, title, colorbarKey) {
     map.addLayer(layerDynamic);
     // Destroy slider if it exists
     if (slider.noUiSlider) { 
-        slider.noUiSlider.destroy(); clearInterval(isPlaying); isPlaying = null;
+        slider.noUiSlider.destroy(); 
+        clearInterval(isPlaying); isPlaying = null;
         playBtn.textContent = "▶ Play";
     }
     // Recreate Slider
@@ -461,14 +471,13 @@ function plotVectorMap(data, title, colorbarKey) {
         start: currentIndex, step: 1,
         range: { min: 0, max: timestamp.length - 1 },
         tooltips: {
-            to: value => timestamp[Math.floor(value)],
+            to: value => timestamp[Math.round(value)],
             from: value => timestamp.indexOf(value)
         }
     });
     // Update map by time
     slider.noUiSlider.on('update', (values, handle, unencoded) => {
-        if (isPlaying) return;
-        currentIndex = Math.floor(unencoded[handle]);
+        currentIndex = Math.round(unencoded[handle]);
         // Update vector canvas
         layerDynamic.options.data = parsedDataAllFrames[currentIndex];
         layerDynamic._redraw();
@@ -480,11 +489,9 @@ function plotVectorMap(data, title, colorbarKey) {
                 clearInterval(isPlaying); isPlaying = null;
                 playBtn.textContent = "▶ Play";
             } else {
-                currentIndex = Number(slider.noUiSlider.get());
+                currentIndex = parseInt(Math.round(slider.noUiSlider.get()));
                 isPlaying = setInterval(() => {
                     currentIndex = (currentIndex + 1) % timestamp.length;
-                    layerDynamic.options.data = parsedDataAllFrames[currentIndex];
-                    layerDynamic._redraw();
                     slider.noUiSlider.set(currentIndex);
                 }, 800);
                 playBtn.textContent = "⏸ Pause";
@@ -802,7 +809,6 @@ function layerCreator(data, columnName, vmin, vmax, filename, title, colorbarKey
             };
         });
     }
-    map.addLayer(layer);
     // Assign column name to use later
     layer.columnName = columnName; storedLayer = layer;
     const hoverTooltip = L.tooltip({ direction: 'top', sticky: true });
@@ -822,8 +828,6 @@ function layerCreator(data, columnName, vmin, vmax, filename, title, colorbarKey
         map.closeTooltip(hoverTooltip);
         layer.resetFeatureStyle(e.layer._id);
     });
-    // Adjust Colorbar Control
-    updateColorbar(vmin, vmax, title, colorbarKey);
     // Add click event to the layer
     layer.on('click', function(e) {
         clickedInsideLayer = true;
@@ -844,6 +848,8 @@ function layerCreator(data, columnName, vmin, vmax, filename, title, colorbarKey
             plotMultilayer(selectedFeatureId, filename, title);
         }
     });
+    // Adjust Colorbar Control
+    updateColorbar(vmin, vmax, title, colorbarKey);
     return layer;
 }
 
@@ -920,19 +926,19 @@ function initDynamicMap(data, filename, title, colorbarKey) {
         playBtn.textContent = "▶ Play";
     }
     layerDynamic = layerCreator(data, timestamp[currentIndex], vmin, vmax, filename, title, colorbarKey);
+    map.addLayer(layerDynamic);
     // Recreate Slider
     noUiSlider.create(slider, {
         start: currentIndex, step: 1,
         range: { min: 0, max: timestamp.length - 1 },
         tooltips: {
-            to: value => timestamp[Math.floor(value)],
+            to: value => timestamp[Math.round(value)],
             from: value => timestamp.indexOf(value)
         }
     });
     // Update map by time
     slider.noUiSlider.on('update', (values, handle, unencoded) => {
-        if (isPlaying) return;
-        currentIndex = Math.floor(unencoded[handle]);
+        currentIndex = Math.round(unencoded[handle]);
         updateMapByTime(data, layerDynamic, timestamp, currentIndex, vmin, vmax, colorbarKey);
     });
     // Play/Pause button
@@ -942,11 +948,10 @@ function initDynamicMap(data, filename, title, colorbarKey) {
                 clearInterval(isPlaying); isPlaying = null;
                 playBtn.textContent = "▶ Play";
             } else {
-                currentIndex = Math.floor(slider.noUiSlider.get());
+                currentIndex = parseInt(Math.floor(slider.noUiSlider.get()));
                 isPlaying = setInterval(() => {
                     currentIndex = (currentIndex + 1) % timestamp.length;
                     slider.noUiSlider.set(currentIndex);
-                    updateMapByTime(data, layerDynamic, timestamp, currentIndex, vmin, vmax, colorbarKey);
                 }, 800);
                 playBtn.textContent = "⏸ Pause";
             }
@@ -978,6 +983,7 @@ function plotMap(data, filename, title, colorbarKey) {
         const vmin = Math.min(...values);
         const vmax = Math.max(...values);
         layerStatic = layerCreator(data, "value", vmin, vmax, filename, title, colorbarKey);
+        map.addLayer(layerStatic);
     }else{
         // Plot dynamic map
         initDynamicMap(data, filename, title, colorbarKey);
@@ -1168,11 +1174,142 @@ function saveToExcel() {
     XLSX.writeFile(workbook, `${titleY.split(' (')[0]}.xlsx`);
 }
 
+async function initiateLayers() {
+    startLoading();
+    try {
+        const response = await fetch('/process_layer', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({'key':'init_layers'})});
+        const data = await response.json();
+        if (data.status === "ok") {
+            // Add options to the below layer object
+            belowLayer.innerHTML = '';
+            // Add hint to the velocity object
+            const hint_below = document.createElement('option');
+            hint_below.value = ''; hint_below.selected = true;
+            hint_below.textContent = '-- Select a type --'; 
+            belowLayer.add(hint_below);
+            // Add options
+            data.content.below.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item; option.text = item;
+                belowLayer.add(option);
+            });
+            // Add options to the above layer object
+            aboveLayer.innerHTML = '';
+            // Add hint to the velocity object
+            const hint_above = document.createElement('option');
+            hint_above.value = ''; hint_above.selected = true;
+            hint_above.textContent = '-- Select a type --'; 
+            aboveLayer.add(hint_above);
+            // Add options
+            data.content.above.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item; option.text = item;
+                aboveLayer.add(option);
+            });
+        } else if (data.status === "error") {alert(data.message);}
+    } catch (error) {alert(error);}
+    // Hide the spinner and show the map
+    showLeafletMap();
+}
+
+async function plotLayers() {
+    const below_value = belowLayer.value, above_value = aboveLayer.value;
+    if (belowLayer.selectedIndex === 0 || aboveLayer.selectedIndex === 0){
+        alert('Please select below and above layers.');
+        return;
+    }
+    // Process data
+    startLoading();
+    try {
+        const response = await fetch('/process_layer', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({'key':'process_layers',
+            'below_layer': below_value, 'above_layer': above_value})});
+        const data = await response.json();
+        if (data.status === "ok") {
+            // const temp = ['Temperature', 'Salinity', 'Contaminant'];
+            const depth = ['Depth Water Level', 'Water Surface Level'];
+            const title = belowLayer.value, filename = '';
+            let colorbarKey = '';
+            if (depth.includes(belowLayer.value)) {
+                colorbarKey = 'depth';
+            }
+            // Remove existing layers
+            if (layerBelow && map.hasLayer(layerBelow)) {
+                map.removeLayer(layerBelow); layerBelow = null;
+            }
+            if (layerAbove && map.hasLayer(layerAbove)) {
+                map.removeLayer(layerAbove); layerAbove = null;
+            }
+            const data_below = data.content.below;
+            const data_above = data.content.above;
+            timeControl.style.display = "flex"; // Show time slider
+            // Destroy slider if it exists
+            if (slider.noUiSlider) { 
+                slider.noUiSlider.destroy();
+                clearInterval(isPlaying); isPlaying = null;
+                playBtn.textContent = "▶ Play";
+            }
+            const timestamp = data_above.time;
+            currentIndex = timestamp.length - 1;
+            // Process below layer
+            const { min: vmin_below, max: vmax_below } = getMinMaxFromGeoJSON(data_below, timestamp);
+            layerBelow = layerCreator(data_below, timestamp[currentIndex], vmin_below, vmax_below, filename, title, colorbarKey);
+            map.addLayer(layerBelow);
+            // Process above layer
+            const vmin_above = data_above.min_max[0], vmax_above = data_above.min_max[1];
+            parsedDataAllFrames = timestamp.map((_, i) => buildFrameData(data_above, i));
+            layerAbove = vectorCreator(parsedDataAllFrames[currentIndex], vmin_above, vmax_above, title, colorbarKey, '');
+            map.addLayer(layerAbove);
+            // Recreate Slider
+            noUiSlider.create(slider, {
+                start: currentIndex, step: 1,
+                range: { min: 0, max: timestamp.length - 1 },
+                tooltips: {
+                    to: value => timestamp[Math.round(value)],
+                    from: value => timestamp.indexOf(value)
+                }
+            });
+            // Update map by time
+            slider.noUiSlider.on('update', (values, handle, unencoded) => {
+                currentIndex = Math.round(unencoded[handle]);
+                // Update vector canvas
+                updateMapByTime(data_below, layerBelow, timestamp, currentIndex, vmin_below, vmax_below, colorbarKey);
+                layerAbove.options.data = parsedDataAllFrames[currentIndex];
+                layerAbove._redraw();
+            });
+            // Play/Pause button
+            if (!playHandlerAttached) {
+                playBtn.addEventListener("click", () => {
+                    if (isPlaying) {
+                        clearInterval(isPlaying); isPlaying = null;
+                        playBtn.textContent = "▶ Play";
+                    } else {
+                        currentIndex = Math.round(slider.noUiSlider.get());
+                        isPlaying = setInterval(() => {
+                            currentIndex = (currentIndex + 1) % timestamp.length;
+                            slider.noUiSlider.set(currentIndex);
+                        }, 800);
+                        playBtn.textContent = "⏸ Pause";
+                    }
+                });
+                playHandlerAttached = true;
+            }
+        } else if (data.status === "error") {alert(data.message);}
+    } catch (error) {alert(error);}
+    // Hide the spinner and show the map
+    showLeafletMap(); toggleinfoMenu();
+}
+
+
 // Load default map
 // loadData('temperature_multilayers.geojson', 'temperature_multilayers', 'Temperature (°C)', 'temperature');
 loadData('depth_static.geojson', 'depth', 'Depth (m)');
-// Add layers for velocity
-initiateVelocity();
+// Add layers for velocity and layers
+initiateVelocities();
+initiateLayers();
 
 // // Export video
 // async function exportAnimationToVideo({ data, layer, timestamps, vmin, vmax,

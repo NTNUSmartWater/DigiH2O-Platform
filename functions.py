@@ -12,6 +12,10 @@ variablesNames = {'total_heat_flux':'Qtot', 'air_temperature':'Tair', 'relative_
     'temperature_multilayers':'mesh2d_tem1', 'salinity_multilayers':'mesh2d_sa1',
     'contaminant_multilayers':'mesh2d_contaminant',}
 
+
+
+
+
 def stationCreator(data_his: xr.Dataset) -> gpd.GeoDataFrame:
     """
     Create a GeoDataFrame of stations.
@@ -290,4 +294,10 @@ def velocityComputer(data_map: xr.Dataset, value_type: str, key: int) -> gpd.Geo
         result["values"].append(big_list[start:end])
     return result
 
+def layerDefinder() -> dict:
+    result = {'Temperature':'temperature_multilayers', 'Salinity':'salinity_multilayers',
+            'Contaminant':'contaminant_multilayers', 'Water Surface Level':'water_surface_dynamic',
+            'Depth Water Level':'water_depth_dynamic'}
+    # result = {}
 
+    return result

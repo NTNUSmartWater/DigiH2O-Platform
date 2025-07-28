@@ -145,14 +145,12 @@
                 <div class="submenu">
                     <a onclick="loadData('water_surface_dynamic.geojson', 'water_surface_dynamic', 'Water Surface Level (m)')">• Water Surface Level</a>
                     <a onclick="loadData('water_depth_dynamic.geojson', 'water_depth_dynamic', 'Depth Water Level (m)')">• Depth Water Level</a>
-                    
                     <div class="submenu-item">
                         <span class="submenu-label">• Velocity:</span>
-                        <select id="velocity-object" onchange="changeVelocity(this)">
+                        <select id="velocity-object" style="flex: 1; margin-right: 5px;" onchange="changeVelocity(this)">
                             <option value="" disabled selected hidden>-- Select a type --</option>
                         </select>
                     </div>
-                    
                     
                     
                     <!-- <a onclick="loadData('bed_shear_stress.json', 'bed_shear_stress', 'Bed Shear Stress (kPa)')">• Bed Shear Stress</a> -->
@@ -162,8 +160,6 @@
                 </div>
             </div>
 
-
-
             <div class="menu-item-with-submenu">
                 <a class="menu-link">Water Quality <span class="arrow">&#x25B8;</span></a>
                 <div class="submenu">
@@ -172,7 +168,27 @@
                     <a onclick="loadData('contaminant_multilayers.geojson', 'contaminant_multilayers', 'Contaminant (μg/L)')">• Contaminant</a>
                 </div>
             </div>
-
+            
+            <div class="menu-item-with-submenu">
+                <a class="menu-link">Multilayers <span class="arrow">&#x25B8;</span></a>
+                <div class="submenu">
+                    <div class="inline-group" style="display: flex; align-items: center;">
+                        <span class="submenu-label" style="margin-left: 30px; min-width: 100px;">• Below layer:</span>
+                        <select id="below-object" style="flex: 1; margin-right: 5px;" onchange="changeLayer(this)">
+                            <option value="" disabled selected hidden>-- Select a type --</option>
+                        </select>
+                    </div>
+                    <div class="inline-group" style="display: flex; align-items: center;">
+                        <span class="submenu-label" style="margin-left: 30px; min-width: 100px;">• Above layer:</span>
+                        <select id="above-object" style="flex: 1; margin-right: 5px;" onchange="changeLayer(this)">
+                            <option value="" disabled selected hidden>-- Select a type --</option>
+                        </select>
+                    </div>
+                    <div id="plotLayers" style="margin-left: 30px; align-items: center; display: flex; margin-top: 10px; margin-bottom: 10px;">
+                        <button type="button" id="plotLayersBtn" style="flex: 1; margin-right: 5px;" onclick="plotLayers()">Plot Layers</button>
+                    </div>              
+                </div>
+            </div>
             <div class="menu-item-with-submenu">
                 <a class="menu-link">Static <span class="arrow">&#x25B8;</span></a>
                 <div class="submenu">
