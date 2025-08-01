@@ -6,7 +6,7 @@
         <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
         <link rel="stylesheet" href="https://unpkg.com/leaflet-compass/dist/leaflet-compass.css">
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.css">
-        <link rel="stylesheet" href="static/temp_style.css?v=12">
+        <link rel="stylesheet" href="/static/temp_style.css?v=123">
         <link rel="icon" type="image/png" href="/images/Logo.png">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
@@ -71,7 +71,7 @@
                 <div class="submenu">
                     <!-- Hydrodynamics -->
                     <div class="menu-item-with-submenu_1">
-                        <a class="menu-link_1">• Hydrodynamics <span class="arrow_1">&#x25B8;</span></a>
+                        <a class="menu-link_1">• Hydrodynamic <span class="arrow_1">&#x25B8;</span></a>
                         <div class="submenu_1">
                             <a onclick="loadData('waterlevel.json', 'waterlevel', 'Water Level (m)')">- Water Level</a>
                             <a onclick="loadData('waterdepth.json', 'waterdepth', 'Water Depth (m)')">- Water Depth</a>
@@ -141,18 +141,17 @@
         <div id="infoPanel">
             <div id="infoPanelHeader">Spatial Parameters<span id="arrowToggle">▲</span></div>
             <div class="menu-item-with-submenu">
-                <a class="menu-link">Hydrodynamics <span class="arrow">&#x25B8;</span></a>
+                <a class="menu-link">Hydrodynamic <span class="arrow">&#x25B8;</span></a>
                 <div class="submenu">
-                    <a onclick="loadData('water_surface_dynamic.geojson', 'water_surface_dynamic', 'Water Surface Level (m)')">• Water Surface Level</a>
-                    <a onclick="loadData('water_depth_dynamic.geojson', 'water_depth_dynamic', 'Depth Water Level (m)')">• Depth Water Level</a>
+                    <a onclick="loadData('thermocline.json', 'thermocline', 'Depth (m)')">• Thermocline Chart</a>
+                    <a onclick="loadData('water_level_dynamic.geojson', 'water_level_dynamic', 'Water Level (m)')">• Water Level</a>
+                    <a onclick="loadData('water_depth_dynamic.geojson', 'water_depth_dynamic', 'Water Depth (m)')">• Water Depth</a>
                     <div class="submenu-item">
                         <span class="submenu-label">• Velocity:</span>
                         <select id="velocity-object" style="flex: 1; margin-right: 5px;" onchange="changeVelocity(this)">
                             <option value="" disabled selected hidden>-- Select a type --</option>
                         </select>
                     </div>
-                    
-                    
                     <!-- <a onclick="loadData('bed_shear_stress.json', 'bed_shear_stress', 'Bed Shear Stress (kPa)')">• Bed Shear Stress</a> -->
                     <!-- <a >• Velocity (2D)</a>
                     <a >• Velocity (3D)</a>
@@ -161,13 +160,87 @@
             </div>
 
             <div class="menu-item-with-submenu">
-                <a class="menu-link">Water Quality <span class="arrow">&#x25B8;</span></a>
+                <a class="menu-link">Physical <span class="arrow">&#x25B8;</span></a>
                 <div class="submenu">
                     <a onclick="loadData('temperature_multilayers.geojson', 'temperature_multilayers', 'Temperature (°C)', 'temperature')">• Temperature</a>
-                    <a onclick="loadData('salinity_multilayers.geojson', 'salinity_multilayers', 'Salinity (ppt)')">• Salinity</a>
-                    <a onclick="loadData('contaminant_multilayers.geojson', 'contaminant_multilayers', 'Contaminant (μg/L)')">• Contaminant</a>
+
+
+
+
+
+
+
                 </div>
             </div>
+
+            <div class="menu-item-with-submenu">
+                <a class="menu-link">Chemical <span class="arrow">&#x25B8;</span></a>
+                <div class="submenu">
+                    <!-- Particulate Organic -->
+                    <div class="menu-item-with-submenu_1">
+                        <a class="menu-link_1">• Fast Decomposing Fraction (average)<span class="arrow_1">&#x25B8;</span></a>
+                        <div class="submenu_1">
+                            <a onclick="loadData('fdf_carbon_water_quality_multilayers.geojson', 'fdf_carbon_water_quality', 'POC1 (gC/m³)')">- Carbon</a>
+                            <a onclick="loadData('fdf_nitrogen_water_quality_multilayers.geojson', 'fdf_nitrogen_water_quality', 'PON1 (gN/m³)')">- Nitrogen</a>
+                            <a onclick="loadData('fdf_phosphate_water_quality_multilayers.geojson', 'fdf_phosphate_water_quality', 'POP1 (gP/m³)')">- Phosphate</a>
+                        </div>
+                    </div>
+                    <!-- Dissolved Form -->
+                    <div class="menu-item-with-submenu_1">
+                        <a class="menu-link_1">• Dissolved Form (average)<span class="arrow_1">&#x25B8;</span></a>
+                        <div class="submenu_1">
+                            <a onclick="loadData('dissolved_ammonium_water_quality_multilayers.geojson', 'dissolved_ammonium_water_quality', 'NH₄ (gN/m³)')">- Ammonium (NH₄)</a>
+                            <a onclick="loadData('dissolved_nitrate_water_quality_multilayers.geojson', 'dissolved_nitrate_water_quality', 'NO₃ (gN/m³)')">- Nitrate (NO₃)</a>
+                            <a onclick="loadData('dissolved_phosphate_water_quality_multilayers.geojson', 'dissolved_phosphate_water_quality', 'PO₄ (gP/m³)')">- Ortho-Phosphate (PO₄)</a>
+                            <a onclick="loadData('dissolved_oxygen_water_quality_multilayers.geojson', 'dissolved_oxygen_water_quality', 'DO (g/m³)')">- Oxygen (DO)</a>
+                            <a onclick="loadData('dissolved_chloride_water_quality_multilayers.geojson', 'dissolved_chloride_water_quality', 'Chloride (g/m³)')">- Chloride</a>
+                        </div>
+                    </div>
+                    <!-- Nitrogen -->
+                    <div class="menu-item-with-submenu_1">
+                        <a class="menu-link_1">• Nitrogen (average)<span class="arrow_1">&#x25B8;</span></a>
+                        <div class="submenu_1">
+                            <a onclick="loadData('total_nitrogen_multilayers.geojson', 'total_nitrogen_multilayers', 'Total Nitrogen (gN/m³)')">- Total</a>
+                            <a onclick="loadData('total_nitrogen_algae_multilayers.geojson', 'total_nitrogen_algae_multilayers', 'AlgN (gN/m³)')">- Total (in Algae)</a>
+                            <a onclick="loadData('kjeldahl_nitrogen_multilayers.geojson', 'kjeldahl_nitrogen_multilayers', 'Kjeldahl Nitrogen (gN/m³)')">- Kjeldahl</a>
+                        </div>
+                    </div>
+                    <!-- Phosphorus -->
+                    <div class="menu-item-with-submenu_1">
+                        <a class="menu-link_1">• Phosphorus (average)<span class="arrow_1">&#x25B8;</span></a>
+                        <div class="submenu_1">
+                            <a onclick="loadData('total_phosphorus_multilayers.geojson', 'total_phosphorus_multilayers', 'Total Phosphorus (gP/m³)')">- Total</a>
+                            <a onclick="loadData('total_phosphorus_algae_multilayers.geojson', 'total_phosphorus_algae_multilayers', 'AlgP (gP/m³)')">- Total (in Algae)</a>
+                        </div>
+                    </div>
+                    <!-- Limitation Function for Greens -->
+                    <div class="menu-item-with-submenu_1">
+                        <a class="menu-link_1">• Limitation Function for Greens (average)<span class="arrow_1">&#x25B8;</span></a>
+                        <div class="submenu_1">
+                            <a onclick="loadData('daylength_limitation_greens_multilayers.geojson', 'daylength_limitation_greens_multilayers', 'Daylength')">- Daylength</a>
+                            <a onclick="loadData('nutrient_limitation_greens_multilayers.geojson', 'nutrient_limitation_greens_multilayers', 'Nutrient')">- Nutrient</a>
+                            <a onclick="loadData('radiation_limitation_greens_multilayers.geojson', 'radiation_limitation_greens_multilayers', 'Radiation')">- Radiation</a>
+                        </div>
+                    </div>
+
+
+
+
+                    <a onclick="loadData('inorganic_matter_multilayers.geojson', 'inorganic_matter_multilayers', 'Inorganic Matter (gDM/m³)')">• Inorganic Matter (average)</a>
+                    <a onclick="loadData('opal_si_multilayers.geojson', 'opal_si_multilayers', 'Opal-Si (gSi/m³)')">• Opal-Si (average)</a>
+                    <a onclick="loadData('sediment_oxygen_demand_multilayers.geojson', 'sediment_oxygen_demand_multilayers', 'SOD (gO₂/m²)')">• Sediment Oxygen Demand (SOD) (average)</a>
+                    <a onclick="loadData('suspended_solids_multilayers.geojson', 'suspended_solids_multilayers', 'SS (g/m³)')">• Suspended Solids (SS) (average)</a>
+                    <a onclick="loadData('chlorophyll_concentration_multilayers.geojson', 'chlorophyll_concentration_multilayers', 'Chlorophyll-a (mg/m³)')">• Chlorophyll-a Concentration (average)</a>
+                    <a onclick="loadData('extinction_phytoplankton_multilayers.geojson', 'extinction_phytoplankton_multilayers', 'Chlorophyll-VLEP (1/m)')">• VL Extinction by Phytoplankton (VLEP) (average)</a>
+                    <a onclick="loadData('volume_multilayers.geojson', 'volume_multilayers', 'Volume (m³)')">• Volume (average)</a>
+                    <a onclick="loadData('salinity_multilayers.geojson', 'salinity_multilayers', 'Salinity (ppt)')">• Salinity</a>
+                    <a onclick="loadData('adsorbed_ortho_phosphate_water_quality_multilayers.geojson', 'adsorbed_ortho_phosphate_water_quality', 'AOP (gP/m³)')">• Adsorbed Ortho Phosphate (average)</a>                   
+                    <!-- <a onclick="loadData('contaminant_multilayers.geojson', 'contaminant_multilayers', 'Contaminant (μg/L)')">• Contaminant</a> -->
+                </div>
+            </div>
+
+
+
             
             <div class="menu-item-with-submenu">
                 <a class="menu-link">Multilayers <span class="arrow">&#x25B8;</span></a>
@@ -222,22 +295,22 @@
                 <div id="myChart"></div>
             </div>
         </div>
+        
+        <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+        <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+        <script src="https://unpkg.com/leaflet-compass/dist/leaflet-compass.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+        <script src="https://cdn.plot.ly/plotly-2.26.1.min.js"></script>
+        <script src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/gh/antimatter15/whammy/whammy.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+        <!-- Load the newest version of the script -->
+        <script>
+            const script = document.createElement('script');
+            script.src = `/static/temp_script.js?v=${Date.now()}`;
+            document.body.appendChild(script);
+        </script>
     </body>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-compass/dist/leaflet-compass.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
-    <script src="https://cdn.plot.ly/plotly-2.26.1.min.js"></script>
-    <script src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/antimatter15/whammy/whammy.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
-    
-    <!-- Load the newest version of the script -->
-    <script>
-        const script = document.createElement('script');
-        script.src = `static/temp_script.js?v=${Date.now()}`;
-        document.body.appendChild(script);
-    </script>
 </html>

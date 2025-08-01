@@ -1,16 +1,44 @@
-import shapely, orjson
+import shapely
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr
 from scipy.spatial import cKDTree
 
 
-variablesNames = {'total_heat_flux':'Qtot', 'air_temperature':'Tair', 'relative_humidity':'rhum',
-    'precipitation_rate':'rain', 'solar_influx':'Qsun', 'sensible_heat_flux':'Qcon', 'wind_speed':'wind',
-    'free_convection_sensible_heat_flux':'Qfrcon', 'long_wave_back_radiation':'Qlong', 
-    'cloudiness':'clou', 'evaporative_heat_flux':'Qeva', 'free_convection_evaporative_heat_flux':'Qfreva',
-    'water_surface_dynamic':'mesh2d_s1', 'water_depth_dynamic':'mesh2d_waterdepth', 
-    'temperature_multilayers':'mesh2d_tem1', 'salinity_multilayers':'mesh2d_sa1',
-    'contaminant_multilayers':'mesh2d_contaminant',}
+variablesNames = {'total_heat_flux':'Qtot', 'air_temperature':'Tair', 'relative_humidity':'rhum', 'precipitation_rate':'rain',
+    'solar_influx':'Qsun', 'sensible_heat_flux':'Qcon', 'wind_speed':'wind', 'free_convection_sensible_heat_flux':'Qfrcon',
+    'long_wave_back_radiation':'Qlong', 'cloudiness':'clou', 'evaporative_heat_flux':'Qeva', 'free_convection_evaporative_heat_flux':'Qfreva',
+    'water_level_dynamic':'mesh2d_s1', 'water_depth_dynamic':'mesh2d_waterdepth', 'temperature_multilayers':'mesh2d_tem1',
+    'salinity_multilayers':'mesh2d_sa1', 'contaminant_multilayers':'mesh2d_contaminant',
+    'adsorbed_ortho_phosphate_water_quality':'mesh2d_2d_AAP', 'adsorbed_ortho_phosphate_water_quality_multilayers':'mesh2d_AAP',
+    'fdf_carbon_water_quality':'mesh2d_2d_DetC', 'fdf_carbon_water_quality_multilayers':'mesh2d_DetC',
+    'fdf_nitrogen_water_quality':'mesh2d_2d_DetN', 'fdf_nitrogen_water_quality_multilayers':'mesh2d_DetN',
+    'fdf_phosphate_water_quality':'mesh2d_2d_DetP', 'fdf_phosphate_water_quality_multilayers':'mesh2d_DetP',
+    'green_algae_biomass_water_quality':'mesh2d_2d_GREEN', 'green_algae_biomass_water_quality_multilayers':'mesh2d_GREEN',
+    'dissolved_ammonium_water_quality':'mesh2d_2d_NH4', 'dissolved_ammonium_water_quality_multilayers':'mesh2d_NH4',
+    'dissolved_nitrate_water_quality':'mesh2d_2d_NO3', 'dissolved_nitrate_water_quality_multilayers':'mesh2d_NO3',
+    'dissolved_phosphate_water_quality':'mesh2d_2d_PO4', 'dissolved_phosphate_water_quality_multilayers':'mesh2d_PO4',
+    'dissolved_oxygen_water_quality':'mesh2d_2d_OXY', 'dissolved_oxygen_water_quality_multilayers':'mesh2d_OXY',
+    'dissolved_chloride_water_quality':'mesh2d_2d_Cl', 'dissolved_chloride_water_quality_multilayers':'mesh2d_Cl',
+    'inorganic_matter_water_quality':'mesh2d_2d_IM1', 'inorganic_matter_water_quality_multilayers':'mesh2d_IM1',
+    'opal_si_water_quality':'mesh2d_2d_Opal', 'opal_si_water_quality_multilayers':'mesh2d_Opal',
+    'sediment_oxygen_demand_water_quality':'mesh2d_2d_SOD', 'sediment_oxygen_demand_water_quality_multilayers':'mesh2d_SOD',
+    'total_nitrogen_algae_water_quality':'mesh2d_2d_AlgN', 'total_nitrogen_algae_water_quality_multilayers':'mesh2d_AlgN',
+    'total_phosphorus_algae_water_quality':'mesh2d_2d_AlgP', 'total_phosphorus_algae_water_quality_multilayers':'mesh2d_AlgP',
+    'suspended_solids_water_quality':'mesh2d_2d_SS', 'suspended_solids_water_quality_multilayers':'mesh2d_SS',
+    'total_nitrogen_water_quality':'mesh2d_2d_TotN', 'total_nitrogen_water_quality_multilayers':'mesh2d_TotN',
+    'kjeldahl_nitrogen_water_quality':'mesh2d_2d_KjelN', 'kjeldahl_nitrogen_water_quality_multilayers':'mesh2d_KjelN',
+    'total_phosphorus_water_quality':'mesh2d_2d_TotP', 'total_phosphorus_water_quality_multilayers':'mesh2d_TotP',
+    'daylength_limitation_greens_water_quality':'mesh2d_2d_LimDLGreen', 'daylength_limitation_greens_water_quality_multilayers':'mesh2d_LimDLGreen',
+    'nutrient_limitation_greens_water_quality':'mesh2d_2d_LimNutGree', 'nutrient_limitation_greens_water_quality_multilayers':'mesh2d_LimNutGree',
+    'radiation_limitation_greens_water_quality':'mesh2d_2d_LimRadGree', 'radiation_limitation_greens_water_quality_multilayers':'mesh2d_LimRadGree',
+    'chlorophyll_concentration_water_quality':'mesh2d_2d_Chlfa', 'chlorophyll_concentration_water_quality_multilayers':'mesh2d_Chlfa',
+    'extinction_phytoplankton_water_quality':'mesh2d_2d_ExtVlPhyt', 'extinction_phytoplankton_water_quality_multilayers':'mesh2d_ExtVlPhyt',
+    'volume_water_quality':'mesh2d_2d_volume', 'volume_water_quality_multilayers':'mesh2d_volume',
+
+
+
+    
+    }
 
 
 
@@ -82,7 +110,10 @@ def unstructuredGridCreator(data_map: xr.Dataset) -> gpd.GeoDataFrame:
         xy = coords[ids]
         polygons.append(shapely.geometry.Polygon(xy))
     # Create GeoDataFrame from polygons
-    grid = gpd.GeoDataFrame(geometry=polygons, crs=data_map['wgs84'].attrs['EPSG_code'])
+    try:
+        crs_code = data_map['wgs84'].attrs['EPSG_code']
+    except: raise ValueError ("EPSG code not found.")
+    grid = gpd.GeoDataFrame(geometry=polygons, crs=crs_code)
     return grid
 
 def interpolation_Z(grid_net: gpd.GeoDataFrame, x_coords: np.ndarray, y_coords: np.ndarray,
@@ -120,7 +151,7 @@ def interpolation_Z(grid_net: gpd.GeoDataFrame, x_coords: np.ndarray, y_coords: 
     value = np.sum(weight_val, axis=1)/np.sum(weight, axis=1)
     return value
 
-def assignValuesToMeshes(grid: gpd.GeoDataFrame, data_map: xr.Dataset, key) -> gpd.GeoDataFrame:
+def assignValuesToMeshes(grid: gpd.GeoDataFrame, data_map: xr.Dataset, key: str, time_column: str='time') -> gpd.GeoDataFrame:
     """
     Interpolate or extrapolate z values for grid from known points
     using Inverse Distance Weighting (IDW) method.
@@ -133,6 +164,8 @@ def assignValuesToMeshes(grid: gpd.GeoDataFrame, data_map: xr.Dataset, key) -> g
         The dataset received from _map.nc file.
     key: str
         The key of the array received from _map.nc file.
+    time_column: str
+        The name of the time column.
 
     Returns:
     -------
@@ -141,19 +174,18 @@ def assignValuesToMeshes(grid: gpd.GeoDataFrame, data_map: xr.Dataset, key) -> g
     """
     name = variablesNames[key] if key in variablesNames.keys() else key
     result, temp_grid = {}, grid.copy()
-    time_stamps = [pd.to_datetime(id).strftime('%Y-%m-%d %H:%M:%S') for id in data_map['time'].values]
+    time_stamps = [pd.to_datetime(id).strftime('%Y-%m-%d %H:%M:%S') for id in data_map[time_column].values]
     values = data_map[name].values
     if len(data_map[name].values.shape) == 3:
         values = data_map[name].values[:,:,-1]
     for i in range(len(time_stamps)):
         result[time_stamps[i]] = np.array(values[i,:]).flatten()
     result = pd.DataFrame(result).replace(-999.0, np.nan)
-    result = temp_grid.join(result).to_crs(temp_grid.crs)
+    result = temp_grid.join(result)
     result[time_stamps] = result[time_stamps].round(2)
-    result = result.reset_index()
-    return result
+    return result.reset_index()
 
-def selectPolygon(data_map: xr.Dataset, idx: int, key:str) -> dict:
+def selectPolygon(data_map: xr.Dataset, idx: int, key:str, time_column: str='time', column_layer: str='mesh2d_layer_z') -> dict:
     """
     Get attributes of a selected polygon during the simulation.
 
@@ -165,6 +197,12 @@ def selectPolygon(data_map: xr.Dataset, idx: int, key:str) -> dict:
         The array containing the attributes of the selected polygons.
     idx: int
         The index of the selected polygon.
+    key: str
+        The key of the array received from _map.nc file.
+    time_column: str
+        The name of the time column.
+    column_layer: str
+        The name of the layer column.
 
     Returns:
     -------
@@ -172,14 +210,17 @@ def selectPolygon(data_map: xr.Dataset, idx: int, key:str) -> dict:
         A dictionary containing the attributes of the selected polygon.
     """
     name = variablesNames[key] if key in variablesNames.keys() else key
-    index = [pd.to_datetime(id).strftime('%Y-%m-%d %H:%M:%S') for id in data_map['time'].values]
-    z_layer = np.round(data_map['mesh2d_layer_z'].values, 2)
-    arr = data_map[name].values[:, idx, :]
+    index = [pd.to_datetime(id).strftime('%Y-%m-%d %H:%M:%S') for id in data_map[time_column].values]
+    z_layer = data_map[column_layer].values
     result = pd.DataFrame(index=index)
+    if column_layer == 'mesh2d_layer_z':
+        arr, kt = data_map[name].values[:, idx, :], 'm'
+    elif column_layer == 'mesh2d_layer_dlwq':
+        arr, kt = data_map[name].values[:, :, idx], ''
     for i in range(arr.shape[1]):
         i_rev = -(i+1)
         arr_rev = np.round(arr[:, i_rev], 2)
-        result[f'Depth: {z_layer[i_rev]} m'] = arr_rev
+        result[f'Layer: {z_layer[i_rev]:.2f} {kt}'] = arr_rev
     result = result.replace(-999.0, np.nan).reset_index()
     return result
 
@@ -294,10 +335,27 @@ def velocityComputer(data_map: xr.Dataset, value_type: str, key: int) -> gpd.Geo
         result["values"].append(big_list[start:end])
     return result
 
-def layerDefinder() -> dict:
-    result = {'Temperature':'temperature_multilayers', 'Salinity':'salinity_multilayers',
-            'Contaminant':'contaminant_multilayers', 'Water Surface Level':'water_surface_dynamic',
-            'Depth Water Level':'water_depth_dynamic'}
-    # result = {}
+def thermoclineComputer(data_map: xr.Dataset) -> pd.DataFrame:
+    """
+    Compute thermocline in each time step.
 
-    return result
+    Parameters:
+    ----------
+    data_map: xr.Dataset
+        The dataset received from _map.nc file.
+
+    Returns:
+    -------
+    pd.DataFrame
+        The DataFrame containing the thermocline in each time step.
+    """
+    index_ = list(data_map['mesh2d_layer_z'].values)
+    times = data_map['time'].values
+    columns, data_list = [], []
+    for i in range(len(times)):
+        col_name = pd.to_datetime(times[i]).strftime('%Y-%m-%d %H:%M:%S')
+        value = np.nanmean(data_map['mesh2d_tem1'].values[i,:,:], axis=0)
+        columns.append(col_name)
+        data_list.append(value)
+    df = pd.DataFrame(np.column_stack(data_list), index=index_, columns=columns).reset_index()
+    return df
