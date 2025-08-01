@@ -39,8 +39,9 @@ let plotWindow = document.getElementById("plotWindow");
 const belowLayer = document.getElementById("below-object");
 const aboveLayer = document.getElementById("above-object");
 const plotLayersBtn = document.getElementById("plotLayersBtn");
+const chart = document.getElementById("chartPanel");
 let globalChartData = {
-    filename: "", data: null, title: "", validColumns: [], columnIndexMap: {}
+    filename: "", data: null, titleX: "", titleY: "", validColumns: [], columnIndexMap: {}, swap: false
 };
 const hoverTooltip = L.tooltip({
   permanent: false, direction: 'bottom',
@@ -163,7 +164,6 @@ infoPanelHeader.addEventListener("click", toggleinfoMenu);
 
 // Function to toggle the chart
 function toggleChart(key=NaN) {
-    const chart = document.getElementById("chartPanel");
     const bottomPx = parseFloat(window.getComputedStyle(chart).bottom);
     if (bottomPx !== 0) { chart.style.bottom = "0";}
     if (key === '') { chart.style.bottom = "-100%"; }
@@ -246,7 +246,7 @@ function openProjectSummary(filename) {
                     `;
                     content.innerHTML = html;
                     // Open the summary window
-                    infoWindow.style.display = "block";
+                    infoWindow.style.display = "flex";
                 } else if (data.status === "error") {alert(data.message);}  
             });
     } else { infoWindow.style.display = "none";}
@@ -336,20 +336,24 @@ async function loadData(filename, key, title, colorbarKey='depth', station='') {
                         map.setView(center, ZOOM);
                     }
                 }   
-            } else if (key === "cross_sections") {
-                // Add cross section layer to the map
-                if (!crossSectionLayer) {
+            // } else if (key === "cross_sections") {
+            //     // Add cross section layer to the map
+            //     if (!crossSectionLayer) {
                     
 
 
-                }
-            } else if (filename.includes(".json")) {
+            //     }
+            } else if (key === "thermocline") {
                 // Plot data
-                drawChart(filename, data.content, title);
+                drawChart(filename, data.content, 'Temperature (°C)', title, undefined, true);
                 toggleMenu();
-            } else if (filename.includes("velocity")){
+            }  else if (filename.includes("velocity")){
                 // Plot a vector map
                 plotVectorMap(data.content, title, colorbarKey);
+            } else if (filename.includes(".json")) {
+                // Plot data
+                drawChart(filename, data.content, 'Time', title);
+                toggleMenu();
             } else {
                 // Plot a 2D map
                 plotMap(data.content, filename, title, colorbarKey);            
@@ -418,7 +422,7 @@ function vectorCreator(parsedData, vmin, vmax, title, colorbarKey, key='velocity
     if (layerDynamic && map.hasLayer(layerDynamic)) {
         map.removeLayer(layerDynamic); layerDynamic = null;
     };
-    const scale = 900, arrowLength = 1;
+    const scale = 400, arrowLength = 1;
     const layer = new L.CanvasLayer({ data: parsedData,
         drawLayer: function () {
             const ctx = this._ctx, map = this._map;
@@ -561,8 +565,6 @@ function interpolateValue(location, centroids, power = 5, maxDistance = Infinity
 function plotProfile(pointContainer, titleY, titleX='Distance (m)') {
     const subset_dis = 100, interpolatedPoints = [];
     // Convert Lat, Long to x, y
-    const originLocation = L.Projection.SphericalMercator.project(
-        L.latLng(pointContainer[0].lat, pointContainer[0].lng));
     for (let i = 0; i < pointContainer.length - 1; i++) {
         const p1 = pointContainer[i], p2 = pointContainer[i + 1];
         const pt1 = L.Projection.SphericalMercator.project(L.latLng(p1.lat, p1.lng));
@@ -571,9 +573,7 @@ function plotProfile(pointContainer, titleY, titleX='Distance (m)') {
         const segmentDist = Math.sqrt(dx * dx + dy * dy);
         const segments = Math.floor(segmentDist / subset_dis);
         // Add the first point
-        const originDx = pt1.x - originLocation.x;
-        const originDy = pt1.y - originLocation.y;
-        const originDist = Number(Math.sqrt(originDx * originDx + originDy * originDy).toFixed(2));
+        const originDist = Number(L.latLng(p1.lat, p1.lng).distanceTo(pointContainer[0]).toFixed(2));
         interpolatedPoints.push([originDist, p1.value]);
         // Add the intermediate points        
         for (let j = 1; j < segments; j++) {
@@ -583,20 +583,15 @@ function plotProfile(pointContainer, titleY, titleX='Distance (m)') {
             // Interpolate
             const location = L.latLng(latlngInterp.lat, latlngInterp.lng);
             const interpValue = interpolateValue(location, polygonCentroids);
-            // Compute distance
-            const originDx1 = interpX - originLocation.x;
-            const originDy1 = interpY - originLocation.y;
-            const distInterp = Number(Math.sqrt(originDx1 * originDx1 + originDy1 * originDy1).toFixed(2));
+            // Compute distance            
+            const distInterp = Number(L.latLng(latlngInterp.lat, latlngInterp.lng).distanceTo(pointContainer[0])).toFixed(2);
             if (interpValue !== null) {
                 interpolatedPoints.push([distInterp, interpValue]);
             }
         }
         // Add the last point
         const lastPt = pointContainer[pointContainer.length - 1];
-        const lastPtProj = L.Projection.SphericalMercator.project(L.latLng(lastPt.lat, lastPt.lng));
-        const lastDx = lastPtProj.x - originLocation.x;
-        const lastDy = lastPtProj.y - originLocation.y;
-        const lastDist = Number(Math.sqrt(lastDx * lastDx + lastDy * lastDy).toFixed(2));
+        const lastDist = Number(L.latLng(lastPt.lat, lastPt.lng).distanceTo(pointContainer[0])).toFixed(2);
         interpolatedPoints.push([lastDist, lastPt.value]);
     }
     // Sort by distance
@@ -604,7 +599,7 @@ function plotProfile(pointContainer, titleY, titleX='Distance (m)') {
     const input = {
         columns: [titleX, titleY], data: interpolatedPoints
     };
-    drawChart('', input, titleY, titleX);
+    drawChart('', input, titleX, titleY);
     toggleMenu();
 }
 
@@ -861,7 +856,7 @@ async function plotMultilayer(id, filename, title) {
         body: JSON.stringify({filename: filename, id: id})});
         const data = await response.json();
         if (data.status === "ok") {
-            drawChart(filename, data.content, title);
+            drawChart(filename, data.content, 'Time', title);
             toggleMenu();
         } else if (data.status === "error") {alert(data.message);}
     } catch (error) {alert(error);}
@@ -999,21 +994,22 @@ function openPlotChart(key='NaN') {
 
 // Change object to plot
 function changeData(value) {
-    const { filename, data, title } = globalChartData;
-    if (data) { drawChart(filename, data, title, undefined, value);
+    const { filename, data, titleX, titleY, swap } = globalChartData;
+    if (data) { drawChart(filename, data, titleX, titleY, value, swap);
     } else { alert("No data available to update chart.");}
 }
 
 // Draw the chart using Plotly
-function drawChart(filename, data, titleY, titleX='Time', selectedColumnName = "All") {
+function drawChart(filename, data, titleX='Time', titleY, selectedColumnName = "All", swap=false) {
     const cols = data.columns, rows = data.data;
-    // alert(cols);
-    const x = rows.map(r => r[0]);
+    // const x = rows.map(r => r[0]);
+    const x = rows.map(r => swap ? r.slice(1) : r[0]);
     const traces = [];
     const validColumns = [];
     const columnIndexMap = {};
-    for (let i = 1; i < cols.length; i++) {
-        const y = rows.map(r => r[i]);
+    const startCol = swap ? 1 : 1;
+    for (let i = startCol; i < cols.length; i++) {
+        const y = rows.map(r => swap ? r[0] : r[i]);
         const hasValid = y.some(val => val !== null && !isNaN(val));
         if (hasValid) {
             validColumns.push(i);
@@ -1039,7 +1035,7 @@ function drawChart(filename, data, titleY, titleX='Time', selectedColumnName = "
         selectObject.appendChild(opt);
     })
     // Update global variable
-    globalChartData = { filename, data, titleY, validColumns, columnIndexMap };
+    globalChartData = { filename, data, titleX, titleY, validColumns, columnIndexMap, swap };
     let drawColumns;
     if (selectedColumnName === "All" || !selectedColumnName) {
         drawColumns = validColumns;
@@ -1068,11 +1064,12 @@ function drawChart(filename, data, titleY, titleX='Time', selectedColumnName = "
         return `rgb(255,0,0)`;
     }
     for (const i of drawColumns) {
-        const y = rows.map(r => r[i]);
+        const y = rows.map(r => swap ? r[0] : r[i]);
+        const xVals = swap ? rows.map(r => r[i]) : x;      
         const t = n <= 1 ? 0 : traceIndex / (n - 1);
         const color = interpolateJet(1-t);
         traces.push({
-        x: x, y: y, name: cols[i],
+        x: xVals, y: y, name: cols[i],
         type: 'scatter', mode: 'lines', line: { color: color }
       });
       traceIndex++;
@@ -1091,6 +1088,7 @@ function drawChart(filename, data, titleY, titleX='Time', selectedColumnName = "
     Plotly.purge(chartDiv); // Clear the chart
     Plotly.newPlot('myChart', traces, layout, {responsive: true});
     Plotly.Plots.resize(chartDiv); // Resize the chart
+    swap = false;
     openPlotChart(''); // Show the chart
 }
 

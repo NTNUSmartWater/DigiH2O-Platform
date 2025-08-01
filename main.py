@@ -6,7 +6,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.templating import Jinja2Templates
 from jinja2 import TemplateNotFound
 from pathlib import Path
-import xarray as xr
+import xarray as xr, pandas as pd
 
 
 app = FastAPI()
@@ -30,7 +30,10 @@ nc_folder = 'output'
 his_file = f'{nc_folder}/FlowFM_his.nc'
 map_file = f'{nc_folder}/FlowFM_map.nc'
 # dia_file = f'{nc_folder}/FlowFM.dia'
+wq_his = f'{nc_folder}/deltashell_his.nc'
+wq_map = f'{nc_folder}/deltashell_map.nc'
 data_his, data_map = xr.open_dataset(his_file), xr.open_dataset(map_file)
+data_wq_map, data_wq_his = xr.open_dataset(wq_map), xr.open_dataset(wq_his)
 grid = functions.unstructuredGridCreator(data_map)
 n_layers = functions.velocityChecker(data_map)
 layer_reverse = {v: k for k, v in n_layers.items()}
@@ -44,6 +47,26 @@ def favicon():
 @app.get("/")
 async def show_home():
     return FileResponse("index.html")
+
+@app.get("/get_json")
+async def get_json(data_filename: str, station: str = 'None'):
+    # Check if the file exists
+    filename = [f for f in temp_files if f.name == data_filename]
+    if filename:
+        # Read the JSON file
+        with open(filename[0], 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        # Check station is available
+        if station != 'None':
+            # Convert data to DataFrame
+            df = pd.DataFrame(data)
+            columns = [i for i in df.columns if station in i]
+            data = df[['index'] + columns].to_json(orient='records', date_format='iso', indent=3)
+        status, message = 'ok', 'JSON loaded successfully.'
+    else:
+        data, status, message = None, 'error', 'File not found.'
+    result = {'content': data, 'status': status, 'message': message}
+    return JSONResponse(content=result)
 
 # Route for the template page
 @app.get("/temp_delft3d", response_class=HTMLResponse)
@@ -75,6 +98,9 @@ async def process_data(request: Request):
             if key == 'stations':
                 # Create station data
                 data = json.loads(functions.stationCreator(data_his).to_json())
+            elif key == 'thermocline':
+                temp = functions.thermoclineComputer(data_map)
+                data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
             elif 'static' in data_filename:
                 # Create static data
                 temp = grid.copy()
@@ -83,7 +109,10 @@ async def process_data(request: Request):
                 data = json.loads(temp.to_json())
             elif 'dynamic' in data_filename or 'multilayers' in data_filename:
                 # Create dynamic data
-                temp_mesh = functions.assignValuesToMeshes(grid, data_map, key)
+                data_, time_column = data_map, 'time'
+                if 'water_quality' in key:
+                    data_, time_column = data_wq_map, 'nTimesDlwq'
+                temp_mesh = functions.assignValuesToMeshes(grid, data_, key, time_column)
                 data = json.loads(temp_mesh.to_json())
             elif 'in-situ' in data_filename:
                 temp = functions.selectInsitu(data_his, data_map, key, station)
@@ -111,9 +140,12 @@ async def process_data(request: Request):
 async def select_polygon(request: Request):
     body = await request.json()
     filename, id = body.get('filename'), int(body.get('id'))
-    key = filename.split('.')[0]
     try:
-        temp = functions.selectPolygon(data_map, id, key)
+        key, data_ = filename.split('.')[0], data_map
+        time_column, data_, column_layer = 'time', data_map, 'mesh2d_layer_z'
+        if 'water_quality' in key:
+            time_column, data_, column_layer = 'nTimesDlwq', data_wq_map, 'mesh2d_layer_dlwq'
+        temp = functions.selectPolygon(data_, id, key, time_column, column_layer)
         data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
         status, message = 'ok', 'Data loaded successfully.'
     except:

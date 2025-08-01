@@ -1,10 +1,10 @@
 [
    {
-      "parameter": "Start Date",
+      "parameter": "Start Date (General Simulation)",
       "value": "2024-04-25 00:00:00"
    },
    {
-      "parameter": "End Date",
+      "parameter": "End Date (General Simulation)",
       "value": "2024-11-20 00:00:00"
    },
    {
@@ -30,5 +30,21 @@
    {
       "parameter": "Volume (m3)",
       "value": 254478989.9
+   },
+   {
+      "parameter": "Start Date (Water Quality Simulation)",
+      "value": "2024-08-01 00:00:00"
+   },
+   {
+      "parameter": "End Date (Water Quality Simulation)",
+      "value": "2024-11-01 00:00:00"
+   },
+   {
+      "parameter": "Modified Date (Water Quality Simulation)",
+      "value": "2024-09-09 18:37:00"
+   },
+   {
+      "parameter": "Number of Sigma Layers",
+      "value": 20
    }
 ]
