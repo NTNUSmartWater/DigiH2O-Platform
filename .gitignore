@@ -1,6 +1,7 @@
 # Folders
 /output
 /template_files
+/__pycache__
 
 
 # Files

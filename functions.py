@@ -41,7 +41,44 @@ variablesNames = {'total_heat_flux':'Qtot', 'air_temperature':'Tair', 'relative_
     }
 
 
+def getVariablesNames(data: xr.Dataset) -> dict:
+    """
+    Get the names of the variables in the dataset received from *.nc file.
 
+    Parameters:
+    ----------
+    data: xr.Dataset
+        The .nc file.
+
+    Returns:
+    -------
+    dict
+        The dictionary containing the names of the variables.
+    """
+    result = {}
+    # Check data type whether it is a map or history file
+    if 'stations' in data.sizes:
+        # This is a his file
+        result['points'] = True if data_his.sizes['stations'] > 0 else False
+        
+
+
+
+
+
+
+
+    # for key in data.variables.keys():
+    #     if key in variablesNames.keys():
+    #         result[key] = variablesNames[key]
+    #     else:
+    #         result[key] = key
+    
+
+
+
+
+    return result
 
 
 def stationCreator(data_his: xr.Dataset) -> gpd.GeoDataFrame:
