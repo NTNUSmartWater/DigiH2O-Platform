@@ -32,16 +32,23 @@ map_file = f'{nc_folder}/FlowFM_map.nc'
 # dia_file = f'{nc_folder}/FlowFM.dia'
 wq_his = f'{nc_folder}/deltashell_his.nc'
 wq_map = f'{nc_folder}/deltashell_map.nc'
+# Check if the files exist
+if not (Path(his_file).is_file() or Path(map_file).is_file()):
+    raise Exception(f'Files: {his_file} or {map_file} not found.')
 data_his, data_map = xr.open_dataset(his_file), xr.open_dataset(map_file)
-data_wq_map, data_wq_his = xr.open_dataset(wq_map), xr.open_dataset(wq_his)
 grid = functions.unstructuredGridCreator(data_map)
 n_layers = functions.velocityChecker(data_map)
 layer_reverse = {v: k for k, v in n_layers.items()}
+if not (Path(wq_his).is_file() or Path(wq_map).is_file()):
+    raise Exception(f'Files: {wq_his} or {wq_map} not found.')
+data_wq_map, data_wq_his = xr.open_dataset(wq_map), xr.open_dataset(wq_his)
+
+
 
 
 @app.get("/favicon.ico")
 def favicon():
-    return FileResponse("Logo.png")
+    return FileResponse("/images/Logo.png")
 
 # Route for the home page
 @app.get("/")
@@ -72,7 +79,11 @@ async def get_json(data_filename: str, station: str = 'None'):
 @app.get("/temp_delft3d", response_class=HTMLResponse)
 async def temp_delft3d(request: Request):
     try:
-        return templates.TemplateResponse("temp_Delft3D.html", {"request": request})
+        configuration, NCfiles = {}, [data_his, data_map, data_wq_his, data_wq_map]
+        for file in NCfiles:
+            configuration.update(functions.getVariablesNames(file))
+        print(configuration, '\n')
+        return templates.TemplateResponse("temp_Delft3D.html", {"request": request, 'configuration': configuration})
     except TemplateNotFound:
         return HTMLResponse("<h1>Data not found</h1>", status_code=404)
 

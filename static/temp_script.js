@@ -714,19 +714,19 @@ function getColorFromValue(value, vmin, vmax, colorbarKey) {
     value = Math.max(vmin, Math.min(vmax, value));
     const t = (value - vmin) / (vmax - vmin);
     let colors;
-    if (colorbarKey === "depth") {
+    if (colorbarKey === "depth") { // used for depth
         colors = [
             { r: 0,   g: 51,  b: 102 }, // dark blue
             { r: 0,   g: 119, b: 190 }, // light blue
             { r: 160, g: 216, b: 239 }  // very light blue
         ];
-    }else if (colorbarKey === "velocity") {
+    }else if (colorbarKey === "velocity") { // used for velocity
         colors = [
             { r: 255, g: 255, b: 255 },  // White
             { r: 255, g: 255, b: 85  },  // Yellow
             { r: 255, g: 4,   b: 0   }   // Red
         ];
-    }else {
+    }else { // used for temperature, salinity, contaminant
         colors = [
             { r: 0,   g: 0,   b: 255 }, // blue
             { r: 255, g: 165, b: 0   }, // orange
@@ -1300,6 +1300,7 @@ async function plotLayers() {
     // Hide the spinner and show the map
     showLeafletMap(); toggleinfoMenu();
 }
+
 
 
 // Load default map

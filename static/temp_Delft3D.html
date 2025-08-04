@@ -47,9 +47,11 @@
             <div class="menu-item-with-submenu">
                 <a class="menu-link">Points <span class="arrow">&#x25B8;</span></a>
                 <div class="submenu">
+                    {% if configuration.points %}
                     <label class="submenu-label">
-                        <input type="checkbox" onchange="this.checked ? loadData('stations.geojson', 'stations') : hideComponent('stations')"> Stations</input>
+                        <input type="checkbox" onchange="this.checked ? loadData('stations1.geojson', 'stations') : hideComponent('stations')"> Stations</input>
                     </label> <br>
+                    {% endif %}
                     <label class="submenu-label">
                         <input type="checkbox" id="pointQuery" onchange="this.checked ? makeQuery('point') : hideQuery('point')"> Query Point</input>
                     </label>
