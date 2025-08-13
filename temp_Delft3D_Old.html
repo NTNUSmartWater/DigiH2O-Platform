@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Delft3D Project Example</title>
+        <meta charset="UTF-8">
+        <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+        <link rel="stylesheet" href="https://unpkg.com/leaflet-compass/dist/leaflet-compass.css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.css">
+        <link rel="stylesheet" href="/static/temp_style.css?v=111">
+        <link rel="icon" type="image/png" href="/images/Logo.png">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body>
+        <!-- Add the header -->
+        <header class="header">
+            <h1>Delft3D Project Example</h1>
+        </header>
+        <!-- Add the menu button -->
+        <button type="button" id="menuBtn" onclick="toggleMenu()">
+            <img src="images/menu.png" width="60px" alt="Menu">
+        </button>
+        <!-- Add the control panel -->
+        <div id="right-side-controls">
+            <!-- Add base map button abd compass on one row -->
+            <div id="custom-map">
+                <button type="button" id="custom_map_background_btn">
+                    <img src="images/basemap.png?v=1" alt="Basemap">
+                </button>
+                <button type="button" id="custom_compass_btn">
+                    <img src="images/compass.png?v=1"alt="Compass">
+                </button>
+            </div>
+            <!-- Add a popup menu for base map -->
+            <div id="basemap-popup">
+                <div><strong>Select Base Map</strong></div>
+                <button class="basemap-option" data-url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png">Open Street Map</button>
+                <button class="basemap-option" data-url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}">Satellite</button>
+                <button class="basemap-option" data-url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}">Street</button>
+                <button class="basemap-option" data-url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png">Carto Light</button>
+                <button class="basemap-option" data-url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png">Carto Dark</button>
+            </div>
+            <!--Add Color Legend-->
+            <div class="custom-colorbar">
+                <div class="colorbar-wrapper">
+                    <div class="colorbar-title" id="colorbar-title">Legend</div>
+                    <div class="colorbar-gradient" id="colorbar-gradient"></div>
+                    <div class="colorbar-labels" id="colorbar-labels">
+                        <div></div> <!-- max -->
+                        <div></div> <!-- 75% -->
+                        <div></div> <!-- 50% -->
+                        <div></div> <!-- 25% -->
+                        <div></div> <!-- min -->
+                    </div>
+                </div>
+            </div>
+        </div>  
+        
+        <!-- Add the left side-bar menu -->
+        <div id="offCanvasMenu">
+            <a onclick="history.back()">Home</a>
+            <a onclick="openProjectSummary('summary.json')">Project Summary</a>
+            
+            <div class="menu-item-with-submenu">
+                <a class="menu-link">Points <span class="arrow">&#x25B8;</span></a>
+                <div class="submenu">
+                    <!-- Add Stations -->
+                    {% if configuration.points %}
+                    <label class="submenu-label">
+                        <input type="checkbox" onchange="this.checked ? loadData('stations.geojson', 'stations') : hideComponent('stations')"> Stations</input>
+                    </label> <br>
+                    {% endif %}
+                    <!-- Add Point Query -->
+                    <label class="submenu-label">
+                        <input type="checkbox" id="pointQuery" onchange="this.checked ? makeQuery('point') : hideQuery('point')"> Query Point</input>
+                    </label>
+                </div>
+            </div>
+            <div class="menu-item-with-submenu">
+                <a class="menu-link">Profile <span class="arrow">&#x25B8;</span></a>
+                <div class="submenu">
+                    <!-- Add Cross-sections -->
+                    <!-- {% if configuration.cross_sections %}
+                    <label class="submenu-label">
+                        <input type="checkbox" onchange="this.checked ? loadData('cross_sections.geojson', 'cross_sections') : hideComponent('cross_sections')"> Cross-sections</input>
+                    </label> <br>
+                    {% endif %} -->
+                    <!-- Add Path Query -->
+                    <label class="submenu-label">
+                        <input type="checkbox" id="pathQuery" onchange="this.checked ? makeQuery('path') : hideQuery('path')"> Query Profile</input>
+                    </label>
+                </div>
+            </div>
+            <div class="menu-item-with-submenu">
+                <a class="menu-link">Global Parameters <span class="arrow">&#x25B8;</span></a>
+                <div class="submenu">
+                    <!-- Hydrodynamics -->
+                    {% if configuration.global_hydrodynamic %}
+                    <div class="menu-item-with-submenu_1">
+                        <a class="menu-link_1">• Hydrodynamic <span class="arrow_1">&#x25B8;</span></a>
+                        <div class="submenu_1">
+                            {% if configuration.global_waterlevel %}
+                                <a onclick="loadData('waterlevel.json', 'waterlevel', 'Water Level (m)')">- Water Level</a>
+                            {% endif %}
+                            {% if configuration.global_waterdepth %}
+                                <a onclick="loadData('waterdepth.json', 'waterdepth', 'Water Depth (m)')">- Water Depth</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Water Balance -->
+                    {% if configuration.global_water_balance %}
+                    <div class="menu-item-with-submenu_1">
+                        <a class="menu-link_1">• Water Balance <span class="arrow_1">&#x25B8;</span></a>
+                        <div class="submenu_1">
+                            {% if configuration.global_wb_total_volume %}
+                                <a onclick="loadData('water_balance_total_volume.json', 'water_balance_total_volume', 'Total Volume (m<sup>3</sup>)')">- Total Volume</a>
+                            {% endif %}
+                            {% if configuration.global_wb_storage %}
+                                <a onclick="loadData('water_balance_storage.json', 'water_balance_storage', 'Storage (m<sup>3</sup>)')">- Storage</a>
+                            {% endif %}
+                            {% if configuration.global_wb_inflow_boundaries %}
+                                <a onclick="loadData('water_balance_boundaries_in.json', 'water_balance_boundaries_in', 'Inflow (Boundaries) (m<sup>3</sup>)')">- Inflow from Boundaries</a>
+                            {% endif %}
+                            {% if configuration.global_wb_outflow_boundaries %}
+                                <a onclick="loadData('water_balance_boundaries_out.json', 'water_balance_boundaries_out', 'Outflow (Boundaries) (m<sup>3</sup>)')">- Outflow from Boundaries</a>
+                            {% endif %}
+                            {% if configuration.global_wb_total_boundaries %}
+                                <a onclick="loadData('water_balance_boundaries_total.json', 'water_balance_boundaries_total', 'Total (Boundaries) (m<sup>3</sup>)')">- Total from Boundaries</a>
+                            {% endif %}
+                            {% if configuration.global_wb_total_precipitation %}
+                                <a onclick="loadData('water_balance_precipitation_total.json', 'water_balance_precipitation_total', 'Total (Precipitation) (m<sup>3</sup>)')">- Total from Precipitation</a>
+                            {% endif %}
+                            {% if configuration.global_wb_total_evaporation %}
+                                <a onclick="loadData('water_balance_evaporation.json', 'water_balance_evaporation', 'Total (Precipitation) (m<sup>3</sup>)')">- Total from Evaporation</a>
+                            {% endif %}
+                            {% if configuration.global_wb_source_sink %}
+                                <a onclick="loadData('water_balance_source_sink.json', 'water_balance_source_sink', 'Source/Sink (m<sup>3</sup>)')">- Source/Sink</a>
+                            {% endif %}
+                            {% if configuration.global_wb_inflow_groundwater %}
+                                <a onclick="loadData('water_balance_groundwater_in.json', 'water_balance_groundwater_in', 'Inflow (Groundwater) (m<sup>3</sup>)')">- Inflow from Groundwater</a>
+                            {% endif %}
+                            {% if configuration.global_wb_outflow_groundwater %}
+                                <a onclick="loadData('water_balance_groundwater_out.json', 'water_balance_groundwater_out', 'Outflow (Groundwater) (m<sup>3</sup>)')">- Outflow from Groundwater</a>
+                            {% endif %}
+                            {% if configuration.global_wb_total_groundwater %}
+                                <a onclick="loadData('water_balance_groundwater_total.json', 'water_balance_groundwater_total', 'Total (Groundwater) (m<sup>3</sup>)')">- Total from Groundwater</a>
+                            {% endif %}
+                            {% if configuration.global_wb_ground_precipitation %}
+                                <a onclick="loadData('water_balance_precipitation_on_ground.json', 'water_balance_precipitation_on_ground', 'Precipitation on Ground (m<sup>3</sup>)')">- Precipitation on Ground</a>
+                            {% endif %}
+                            {% if configuration.global_wb_volume_error %}
+                                <a onclick="loadData('water_balance_volume_error.json', 'water_balance_volume_error', 'Volume Error (%)')">- Volume Error</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Meteorological -->
+                    {% if configuration.global_meteorology %}
+                    <div class="menu-item-with-submenu_1">
+                        <a class="menu-link_1">• Meteorology <span class="arrow_1">&#x25B8;</span></a>
+                        <div class="submenu_1">
+                            {% if configuration.global_total_heat_flux %}
+                                <a onclick="loadData('total_heat_flux.json', 'total_heat_flux', 'Total Heat Flux (W/m<sup>2</sup>)')">- Total Heat Flux</a>
+                            {% endif %}
+                            {% if configuration.global_precipitation_rate %}
+                                <a onclick="loadData('precipitation_rate.json', 'precipitation_rate', 'Precipitation rate (mm/day)')">- Precipitation Rate</a>
+                            {% endif %}
+                            {% if configuration.global_wind_speed %}
+                                <a onclick="loadData('wind_speed.json', 'wind_speed', 'Wind speed (m/s)')">- Wind Speed</a>
+                            {% endif %}
+                            {% if configuration.global_air_temperature %}
+                                <a onclick="loadData('air_temperature.json', 'air_temperature', 'Air Temperature (°C)')">- Air Temperature</a>
+                            {% endif %}
+                            {% if configuration.global_relative_humidity %}
+                                <a onclick="loadData('relative_humidity.json', 'relative_humidity', 'Relative Humidity (%)')">- Relative Humidity</a>
+                            {% endif %}
+                            {% if configuration.global_solar_influx %}
+                                <a onclick="loadData('solar_influx.json', 'solar_influx', 'Solar Influx (W/m<sup>2</sup>)')">- Solar Influx</a>
+                            {% endif %}
+                            {% if configuration.evaporative_heat_flux %}
+                                <a onclick="loadData('evaporative_heat_flux.json', 'evaporative_heat_flux', 'Evaporative Heat Flux (W/m<sup>2</sup>)')">- Evaporative Heat Flux</a>
+                            {% endif %}
+                            {% if configuration.global_free_convection_evaporative_heat_flux %}
+                                <a onclick="loadData('free_convection_evaporative_heat_flux.json', 'free_convection_evaporative_heat_flux', 'Free Convection Evaporative Heat Flux (W/m<sup>2</sup>)')">- Free Convection Evaporative Heat Flux</a>
+                            {% endif %}
+                            {% if configuration.global_sensible_heat_flux %}
+                                <a onclick="loadData('sensible_heat_flux.json', 'sensible_heat_flux', 'Sensible Heat Flux (W/m<sup>2</sup>)')">- Sensible Heat Flux</a>
+                            {% endif %}
+                            {% if configuration.global_free_convection_sensible_heat_flux %}
+                                <a onclick="loadData('free_convection_sensible_heat_flux.json', 'free_convection_sensible_heat_flux', 'Free Convection Sensible Heat Flux (W/m<sup>2</sup>)')">- Free Convection Sensible Heat Flux</a>
+                            {% endif %}
+                            {% if configuration.global_long_wave_back_radiation %}
+                                <a onclick="loadData('long_wave_back_radiation.json', 'long_wave_back_radiation', 'Long Wave Back Radiation (W/m<sup>2</sup>)')">- Long Wave Back Radiation</a>
+                            {% endif %}
+                            {% if configuration.global_cloudiness %}
+                                <a onclick="loadData('cloudiness.json', 'cloudiness', 'Cloudiness (%)')">- Cloudiness</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>            
+        </div>
+
+        <!-- Add the map -->
+        <div id="map_container">
+            <div id="leaflet_map"></div>
+            <!-- Add time slider -->
+            <div id="time-controls">
+                <button id="play-btn">▶ Play</button>
+                <div id="time-slider"></div>
+                <!-- <button id="export-video-btn">💾 Export Video</button>
+                <div id="export-progress-container" style="display:none; margin-top:10px; width: 100%;">
+                <div id="export-progress-bar" style="width: 0%; height: 8px; background: limegreen;
+                    border-radius: 4px; transition: width 0.2s ease;"></div>
+                </div> -->
+            </div>
+            <div id="loadingOverlay">
+                <div class="loading-text">Processing Data. Please wait...</div>
+                <div class="spinner"></div>
+            </div>
+        </div>
+
+        <!-- Add the right side-bar menu -->
+        <div id="infoPanel">
+            <div id="infoPanelHeader">Spatial Parameters<span id="arrowToggle">▲</span></div>
+            <!-- Add a global velocity option -->
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <span style="margin: 10px 5px 0px 15px;">Vector:</span>
+                <select id="vector-object-main" style="flex: 1; margin: 10px 5px 0px 5px;" onchange="changeVector(this)">
+                    <option value="" disabled selected hidden>-- Select a type --</option>
+                </select>
+                <select id="vector-object-submain" style="display: none; margin: 10px 5px 0px 5px;">
+                    <option value="" disabled selected hidden>-- Select a type --</option>
+                </select>
+            </div>
+            <!-- Add horizontal rule -->
+            <hr style="border-top: 1px solid #ccc; margin: 10px 0px 10px 0px;">
+
+
+            
+            <!-- Hydrodynamics -->
+            <div class="menu-item-with-submenu">
+                <a class="menu-link">Hydrodynamic <span class="arrow">&#x25B8;</span></a>
+                <div class="submenu">
+                    <a onclick="loadData('thermocline.json', 'thermocline', 'Depth (m)')">• Thermocline Chart</a>
+                    <a onclick="loadData('water_level_dynamic.geojson', 'water_level_dynamic', 'Water Level (m)')">• Water Level</a>
+                    <a onclick="loadData('water_depth_dynamic.geojson', 'water_depth_dynamic', 'Water Depth (m)')">• Water Depth</a>
+                    <div class="submenu-item">
+                        <span class="submenu-label">• Velocity:</span>
+                        <select id="velocity-object" style="flex: 1; margin-right: 5px;" onchange="changeVelocity(this)">
+                            <option value="" disabled selected hidden>-- Select a type --</option>
+                        </select>
+                    </div>
+                    <!-- <a onclick="loadData('bed_shear_stress.json', 'bed_shear_stress', 'Bed Shear Stress (kPa)')">• Bed Shear Stress</a> -->
+                    <!-- <a >• Velocity (2D)</a>
+                    <a >• Velocity (3D)</a>
+                    <a >• Sediment Thickness</a> -->
+                </div>
+            </div>
+
+            
+
+            <!-- Physical -->
+            <div class="menu-item-with-submenu">
+                <a class="menu-link">Physical <span class="arrow">&#x25B8;</span></a>
+                <div class="submenu">
+                    <a onclick="loadData('temperature_multilayers.geojson', 'temperature_multilayers', 'Temperature (°C)', 'temperature')">• Temperature</a>
+
+
+
+
+
+
+
+                </div>
+            </div>
+
+            <!-- Chemical -->
+            <div class="menu-item-with-submenu">
+                <a class="menu-link">Chemical <span class="arrow">&#x25B8;</span></a>
+                <div class="submenu">
+                    <!-- Particulate Organic -->
+                    <div class="menu-item-with-submenu_1">
+                        <a class="menu-link_1">• Fast Decomposing Fraction (average)<span class="arrow_1">&#x25B8;</span></a>
+                        <div class="submenu_1">
+                            <a onclick="loadData('fdf_carbon_water_quality_multilayers.geojson', 'fdf_carbon_water_quality', 'POC1 (gC/m³)')">- Carbon</a>
+                            <a onclick="loadData('fdf_nitrogen_water_quality_multilayers.geojson', 'fdf_nitrogen_water_quality', 'PON1 (gN/m³)')">- Nitrogen</a>
+                            <a onclick="loadData('fdf_phosphate_water_quality_multilayers.geojson', 'fdf_phosphate_water_quality', 'POP1 (gP/m³)')">- Phosphate</a>
+                        </div>
+                    </div>
+                    <!-- Dissolved Form -->
+                    <div class="menu-item-with-submenu_1">
+                        <a class="menu-link_1">• Dissolved Form (average)<span class="arrow_1">&#x25B8;</span></a>
+                        <div class="submenu_1">
+                            <a onclick="loadData('dissolved_ammonium_water_quality_multilayers.geojson', 'dissolved_ammonium_water_quality', 'NH₄ (gN/m³)')">- Ammonium (NH₄)</a>
+                            <a onclick="loadData('dissolved_nitrate_water_quality_multilayers.geojson', 'dissolved_nitrate_water_quality', 'NO₃ (gN/m³)')">- Nitrate (NO₃)</a>
+                            <a onclick="loadData('dissolved_phosphate_water_quality_multilayers.geojson', 'dissolved_phosphate_water_quality', 'PO₄ (gP/m³)')">- Ortho-Phosphate (PO₄)</a>
+                            <a onclick="loadData('dissolved_oxygen_water_quality_multilayers.geojson', 'dissolved_oxygen_water_quality', 'DO (g/m³)')">- Oxygen (DO)</a>
+                            <a onclick="loadData('dissolved_chloride_water_quality_multilayers.geojson', 'dissolved_chloride_water_quality', 'Chloride (g/m³)')">- Chloride</a>
+                        </div>
+                    </div>
+                    <!-- Nitrogen -->
+                    <div class="menu-item-with-submenu_1">
+                        <a class="menu-link_1">• Nitrogen (average)<span class="arrow_1">&#x25B8;</span></a>
+                        <div class="submenu_1">
+                            <a onclick="loadData('total_nitrogen_multilayers.geojson', 'total_nitrogen_multilayers', 'Total Nitrogen (gN/m³)')">- Total</a>
+                            <a onclick="loadData('total_nitrogen_algae_multilayers.geojson', 'total_nitrogen_algae_multilayers', 'AlgN (gN/m³)')">- Total (in Algae)</a>
+                            <a onclick="loadData('kjeldahl_nitrogen_multilayers.geojson', 'kjeldahl_nitrogen_multilayers', 'Kjeldahl Nitrogen (gN/m³)')">- Kjeldahl</a>
+                        </div>
+                    </div>
+                    <!-- Phosphorus -->
+                    <div class="menu-item-with-submenu_1">
+                        <a class="menu-link_1">• Phosphorus (average)<span class="arrow_1">&#x25B8;</span></a>
+                        <div class="submenu_1">
+                            <a onclick="loadData('total_phosphorus_multilayers.geojson', 'total_phosphorus_multilayers', 'Total Phosphorus (gP/m³)')">- Total</a>
+                            <a onclick="loadData('total_phosphorus_algae_multilayers.geojson', 'total_phosphorus_algae_multilayers', 'AlgP (gP/m³)')">- Total (in Algae)</a>
+                        </div>
+                    </div>
+                    <!-- Limitation Function for Greens -->
+                    <div class="menu-item-with-submenu_1">
+                        <a class="menu-link_1">• Limitation Function for Greens (average)<span class="arrow_1">&#x25B8;</span></a>
+                        <div class="submenu_1">
+                            <a onclick="loadData('daylength_limitation_greens_multilayers.geojson', 'daylength_limitation_greens_multilayers', 'Daylength')">- Daylength</a>
+                            <a onclick="loadData('nutrient_limitation_greens_multilayers.geojson', 'nutrient_limitation_greens_multilayers', 'Nutrient')">- Nutrient</a>
+                            <a onclick="loadData('radiation_limitation_greens_multilayers.geojson', 'radiation_limitation_greens_multilayers', 'Radiation')">- Radiation</a>
+                        </div>
+                    </div>
+
+
+
+
+                    <a onclick="loadData('inorganic_matter_multilayers.geojson', 'inorganic_matter_multilayers', 'Inorganic Matter (gDM/m³)')">• Inorganic Matter (average)</a>
+                    <a onclick="loadData('opal_si_multilayers.geojson', 'opal_si_multilayers', 'Opal-Si (gSi/m³)')">• Opal-Si (average)</a>
+                    <a onclick="loadData('sediment_oxygen_demand_multilayers.geojson', 'sediment_oxygen_demand_multilayers', 'SOD (gO₂/m²)')">• Sediment Oxygen Demand (SOD) (average)</a>
+                    <a onclick="loadData('suspended_solids_multilayers.geojson', 'suspended_solids_multilayers', 'SS (g/m³)')">• Suspended Solids (SS) (average)</a>
+                    <a onclick="loadData('chlorophyll_concentration_multilayers.geojson', 'chlorophyll_concentration_multilayers', 'Chlorophyll-a (mg/m³)')">• Chlorophyll-a Concentration (average)</a>
+                    <a onclick="loadData('extinction_phytoplankton_multilayers.geojson', 'extinction_phytoplankton_multilayers', 'Chlorophyll-VLEP (1/m)')">• VL Extinction by Phytoplankton (VLEP) (average)</a>
+                    <a onclick="loadData('volume_multilayers.geojson', 'volume_multilayers', 'Volume (m³)')">• Volume (average)</a>
+                    <a onclick="loadData('salinity_multilayers.geojson', 'salinity_multilayers', 'Salinity (ppt)')">• Salinity</a>
+                    <a onclick="loadData('adsorbed_ortho_phosphate_water_quality_multilayers.geojson', 'adsorbed_ortho_phosphate_water_quality', 'AOP (gP/m³)')">• Adsorbed Ortho Phosphate (average)</a>                   
+                    <!-- <a onclick="loadData('contaminant_multilayers.geojson', 'contaminant_multilayers', 'Contaminant (μg/L)')">• Contaminant</a> -->
+                </div>
+            </div>
+
+
+
+            <!-- Multilayers -->
+            <div class="menu-item-with-submenu">
+                <a class="menu-link">Multilayers <span class="arrow">&#x25B8;</span></a>
+                <div class="submenu">
+                    <div class="inline-group" style="display: flex; align-items: center;">
+                        <span class="submenu-label" style="margin-left: 30px; min-width: 100px;">• Below layer:</span>
+                        <select id="below-object" style="flex: 1; margin-right: 5px;" onchange="changeLayer(this)">
+                            <option value="" disabled selected hidden>-- Select a type --</option>
+                        </select>
+                    </div>
+                    <div class="inline-group" style="display: flex; align-items: center;">
+                        <span class="submenu-label" style="margin-left: 30px; min-width: 100px;">• Above layer:</span>
+                        <select id="above-object" style="flex: 1; margin-right: 5px;" onchange="changeLayer(this)">
+                            <option value="" disabled selected hidden>-- Select a type --</option>
+                        </select>
+                    </div>
+                    <div id="plotLayers" style="margin-left: 30px; align-items: center; display: flex; margin-top: 10px; margin-bottom: 10px;">
+                        <button type="button" id="plotLayersBtn" style="flex: 1; margin-right: 5px;" onclick="plotLayers()">Plot Layers</button>
+                    </div>              
+                </div>
+            </div>
+
+            <!-- Static -->
+            {% if configuration.spatial_static %}
+            <div class="menu-item-with-submenu">
+                <a class="menu-link">Static <span class="arrow">&#x25B8;</span></a>
+                <div class="submenu">
+                    <a onclick="loadData('depth_static.geojson', 'depth', 'Depth (m)')">• Bed Depth</a>
+                    <!-- <a >• Cell Size</a> -->
+                </div>
+            </div>
+            {% endif %}
+            
+            <div id="infoDetails">
+                <div id="infoDetailsHeader">Point Info</div>
+                <div id="infoDetailsContent"></div>
+            </div>
+        </div>
+
+        <!-- Add a floating summary window -->
+        <div id="infoWindow">
+            <div id="infoHeader">Summary<span onclick="openProjectSummary('summary.json')" id="closeInfoBtn">×</span></div>
+            <div id="infoContent"></div>
+        </div>
+        
+        <!-- Add a floating plot window -->
+        <div id="plotWindow">
+            <div id="plotHeader">Plot Window<span onclick="openPlotChart()" id="closePlotBtn">×</span></div>
+            <div style="padding: 0 8px;">
+                <label for="select-object">Select:</label>
+                <select id="select-object" onchange="changeData(this.value)"></select>
+                <button type="button" id="downloadBtn" onclick="viewData()">View Data</button>
+                <button type="button" id="downloadExcel" onclick="saveToExcel()">Download Excel</button>
+            </div>
+            <div id="plotContainer">
+                <div id="myChart"></div>
+            </div>
+        </div>
+        
+        <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+        <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+        <script src="https://unpkg.com/leaflet-compass/dist/leaflet-compass.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+        <script src="https://cdn.plot.ly/plotly-2.26.1.min.js"></script>
+        <script src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/gh/antimatter15/whammy/whammy.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+        <!-- Load the newest version of the script -->
+        <script>
+            const script = document.createElement('script');
+            script.src = `/static/temp_script.js?v=${Date.now()}`;
+            document.body.appendChild(script);
+        </script>
+    </body>
+</html>
