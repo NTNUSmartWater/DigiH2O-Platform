@@ -2,17 +2,49 @@ import shapely
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr
 from scipy.spatial import cKDTree
+from dateutil import parser
 
 
-variablesNames = {'total_heat_flux':'Qtot', 'air_temperature':'Tair', 'relative_humidity':'rhum', 'precipitation_rate':'rain',
-    'solar_influx':'Qsun', 'sensible_heat_flux':'Qcon', 'wind_speed':'wind', 'free_convection_sensible_heat_flux':'Qfrcon',
-    'long_wave_back_radiation':'Qlong', 'cloudiness':'clou', 'evaporative_heat_flux':'Qeva', 'free_convection_evaporative_heat_flux':'Qfreva',
-    'water_level_dynamic':'mesh2d_s1', 'water_depth_dynamic':'mesh2d_waterdepth', 'temperature_multilayers':'mesh2d_tem1',
-    'salinity_multilayers':'mesh2d_sa1', 'contaminant_multilayers':'mesh2d_contaminant',
-    'adsorbed_ortho_phosphate_water_quality':'mesh2d_2d_AAP', 'adsorbed_ortho_phosphate_water_quality_multilayers':'mesh2d_AAP',
+variablesNames = {
+    # For In-situ options
+    'temp_in-situ':'temperature', 'sal_in-situ':'salinity', 'cont_in-situ':'Contaminant',
+    # For Static map
+    'depth':'depth',
+    # For Hydrodynamics options
+    'wl':'waterlevel', 'wd':'waterdepth',
+    # For Water Balance options
+    'wb_tv':'water_balance_total_volume', 'wb_s':'water_balance_storage', 'wb_bi':'water_balance_boundaries_in',
+    'wb_bo':'water_balance_boundaries_out', 'wb_bt':'water_balance_boundaries_total',
+    'wb_pt':'water_balance_precipitation_total', 'wb_e':'water_balance_evaporation', 'wb_ss':'water_balance_source_sink',
+    'wb_gi':'water_balance_groundwater_in', 'wb_go':'water_balance_groundwater_out', 'wb_gt':'water_balance_groundwater_total',
+    'wb_pg':'water_balance_precipitation_on_ground','wb_ve':'water_balance_volume_error',
+    # For Meteorological options
+    'thf':'Qtot', 'at':'Tair', 'rh':'rhum', 'pr':'rain', 'si':'Qsun', 'shf':'Qcon', 'ws':'wind', 'fcshf':'Qfrcon',
+    'lwbr':'Qlong', 'cloudiness':'clou', 'ehf':'Qeva', 'fcehf':'Qfreva',
+    # For Water quality options at point
+    'fdf_POC_wq':'DetC', 'fdf_PON_wq':'DetN', 'fdf_POP_wq':'DetP', 'df_NH4_wq':'NH4', 'df_NO3_wq':'NO3', 'df_PO4_wq':'PO4',
+    'df_DO_wq':'OXY', 'df_Chl_wq':'Cl', 'nitrogen_total_wq':'TotN', 'nitrogen_algae_wq':'AlgN', 'nitrogen_kjeldahl_wq':'KjelN',
+    'phosphorus_total_wq':'TotP', 'phosphorus_algae_wq': 'AlgP', 'daylength_greens_wq':'LimDLGreen', 'nutrient_greens_wq':'LimNutGree',
+    'radiation_greens_wq':'LimRadGree', 'inorganic_matter_wq':'IM1', 'opal_si_wq':'Opal', 'sediment_oxygen_wq':'SOD', 'suspended_solids_wq':'SS',
+    'chlorophyll_wq':'Chlfa', 'extinction_phytoplankton_wq':'ExtVlPhyt', 'adsorbed_ortho_phosphate_wq':'AAP', 'dyamo_wq':'GREEN',
+    # For Dynamic map: Hydrodynamics
+    'wl_dynamic':'mesh2d_s1', 'wd_dynamic':'mesh2d_waterdepth',
+    # For Dynamic map: Physical options
+    'temp_multi_dynamic':'mesh2d_tem1', 'sal_multi_dynamic':'mesh2d_sa1', 'cont_multi_dynamic':'mesh2d_Contaminant',
+    # For Dynamic map: Water Quality options
+
+
+
+
+
+
     'fdf_carbon_water_quality':'mesh2d_2d_DetC', 'fdf_carbon_water_quality_multilayers':'mesh2d_DetC',
     'fdf_nitrogen_water_quality':'mesh2d_2d_DetN', 'fdf_nitrogen_water_quality_multilayers':'mesh2d_DetN',
     'fdf_phosphate_water_quality':'mesh2d_2d_DetP', 'fdf_phosphate_water_quality_multilayers':'mesh2d_DetP',
+    
+    
+    
+    'adsorbed_ortho_phosphate_water_quality':'mesh2d_2d_AAP', 'adsorbed_ortho_phosphate_water_quality_multilayers':'mesh2d_AAP',
     'green_algae_biomass_water_quality':'mesh2d_2d_GREEN', 'green_algae_biomass_water_quality_multilayers':'mesh2d_GREEN',
     'dissolved_ammonium_water_quality':'mesh2d_2d_NH4', 'dissolved_ammonium_water_quality_multilayers':'mesh2d_NH4',
     'dissolved_nitrate_water_quality':'mesh2d_2d_NO3', 'dissolved_nitrate_water_quality_multilayers':'mesh2d_NO3',
@@ -41,6 +73,62 @@ variablesNames = {'total_heat_flux':'Qtot', 'air_temperature':'Tair', 'relative_
     }
 
 
+
+def numberFormatter(arr: np.array, decimals: int=2) -> np.array:
+    """
+    Format the numbers in the array to a specified number of decimal places.
+
+    Parameters:
+    ----------
+    arr: np.array
+        The array containing the numbers to be formatted.
+    decimals: int
+        The number of decimal places to format the numbers to.
+
+    Returns:
+    -------
+    np.array
+        The array with formatted numbers.
+    """
+    try:
+        arr = np.asarray(arr, dtype=float)
+        abs_arr = np.abs(arr)
+        mask = abs_arr >= 1
+        result = np.empty(arr.shape, dtype=object)
+        result[mask] = np.char.mod(f"%.{decimals}f", np.round(arr[mask], decimals))
+        small_vals = arr[~mask]
+        fmt = f"%.{decimals}e"
+        result[~mask] = [fmt % v for v in small_vals]
+        return result
+    except:
+        raise ValueError("Input array must contain numeric values.")
+
+
+def getVectorNames() -> list:
+    """
+    Get the names of the vector variables.
+
+    Returns:
+    -------
+    list
+        The list containing the names of the vector variables.
+    """
+    result = ['Velocity', 'Wind speed']
+    return result
+
+def checkVariables(data: xr.Dataset, variablesNames: str) -> bool:
+    """
+    Check if all variables are available in the variablesNames dictionary.
+
+    Returns:
+    -------
+    bool
+        True if all variables are available, False otherwise.
+    """
+    # Check if all variables are available in the variablesNames dictionary
+    if variablesNames not in data.variables: return False
+    else: return float(data[variablesNames].min()) != float(data[variablesNames].max())
+
 def getVariablesNames(data: xr.Dataset) -> dict:
     """
     Get the names of the variables in the dataset received from *.nc file.
@@ -56,30 +144,217 @@ def getVariablesNames(data: xr.Dataset) -> dict:
         The dictionary containing the names of the variables.
     """
     result = {}
-    # Check data type whether it is a map or history file
-    if 'stations' in data.sizes:
-        # This is a his file
-        result['points'] = True if data_his.sizes['stations'] > 0 else False
-        
+    # This is a general his file
+    if ('time' in data.sizes and ('stations' or 'cross_section') in data.sizes):
+        print("Checking General Hydrological File ...")
+        result['points'] = True if data.sizes['stations'] > 0 else False
+        result['cross_sections'] = True if data.sizes['cross_section'] > 0 else False
+        # Prepare data for global parameters
+        # 1. Global Hydrodynamics
+        result['global_waterlevel'] = checkVariables(data, 'waterlevel')
+        result['global_waterdepth'] = checkVariables(data, 'waterdepth')
+        result['global_hydrodynamic'] = True if (result['global_waterlevel'] or 
+                                result['global_waterdepth']) else False
+        # 2. Global Water balance
+        result['global_wb_total_volume'] = checkVariables(data, 'water_balance_total_volume')
+        result['global_wb_storage'] = checkVariables(data, 'water_balance_storage')
+        result['global_wb_inflow_boundaries'] = checkVariables(data, 'water_balance_boundaries_in')
+        result['global_wb_outflow_boundaries'] = checkVariables(data, 'water_balance_boundaries_out')
+        result['global_wb_total_boundaries'] = checkVariables(data, 'water_balance_boundaries_total')
+        result['global_wb_total_precipitation'] = checkVariables(data, 'water_balance_precipitation_total')
+        result['global_wb_total_evaporation'] = checkVariables(data, 'water_balance_evaporation')
+        result['global_wb_source_sink'] = checkVariables(data, 'water_balance_source_sink')
+        result['global_wb_inflow_groundwater'] = checkVariables(data, 'water_balance_groundwater_in')
+        result['global_wb_outflow_groundwater'] = checkVariables(data, 'water_balance_groundwater_out')
+        result['global_wb_total_groundwater'] = checkVariables(data, 'water_balance_groundwater_total')
+        result['global_wb_ground_precipitation'] = checkVariables(data, 'water_balance_precipitation_on_ground')
+        result['global_wb_volume_error'] = checkVariables(data, 'water_balance_volume_error')
+        result['global_water_balance'] = True if (result['global_wb_total_volume'] or
+            result['global_wb_inflow_boundaries'] or result['global_wb_outflow_boundaries'] or
+            result['global_wb_total_boundaries'] or result['global_wb_total_precipitation'] or
+            result['global_wb_total_evaporation'] or result['global_wb_source_sink'] or
+            result['global_wb_inflow_groundwater'] or result['global_wb_outflow_groundwater'] or
+            result['global_wb_total_groundwater'] or result['global_wb_ground_precipitation'] or
+            result['global_wb_storage'] or result['global_wb_volume_error']) else False
+        # 3. Global Meteorology
+        result['global_total_heat_flux'] = checkVariables(data, 'Qtot')
+        result['global_precipitation_rate'] = checkVariables(data, 'rain')
+        result['global_wind_speed'] = checkVariables(data, 'wind')
+        result['global_air_temperature'] = checkVariables(data, 'Tair')
+        result['global_relative_humidity'] = checkVariables(data, 'rhum')
+        result['global_solar_influx'] = checkVariables(data, 'Qsun')
+        result['global_evaporative_heat_flux'] = checkVariables(data, 'Qeva')
+        result['global_free_convection_evaporative_heat_flux'] = checkVariables(data, 'Qfreva')
+        result['global_sensible_heat_flux'] = checkVariables(data, 'Qcon')
+        result['global_free_convection_sensible_heat_flux'] = checkVariables(data, 'Qfrcon')
+        result['global_long_wave_back_radiation'] = checkVariables(data, 'Qlong')
+        result['global_cloudiness'] = checkVariables(data, 'clou')
+        result['global_meteorology'] = True if (result['global_total_heat_flux'] or
+            result['global_precipitation_rate'] or result['global_wind_speed'] or
+            result['global_air_temperature'] or result['global_relative_humidity'] or
+            result['global_solar_influx'] or result['global_evaporative_heat_flux'] or
+            result['global_free_convection_evaporative_heat_flux'] or
+            result['global_sensible_heat_flux'] or result['global_free_convection_sensible_heat_flux'] or
+            result['global_long_wave_back_radiation'] or result['global_cloudiness']) else False
+    # This is a general map file
+    elif ('time' in data.sizes and ('mesh2d_nNodes' or 'mesh2d_nEdges') in data.sizes):
+        print("Checking General Map File ...")
+        # Prepare data for thermocline parameters
+        # 1. Thermocline
+        result['thermocline'] = checkVariables(data, 'mesh2d_tem1')
+        # 2. Spatial dynamic maps
+        result['hydrodynamic_waterlevel_dynamic'] = checkVariables(data, 'mesh2d_s1')
+        result['hydrodynamic_waterdepth_dynamic'] = checkVariables(data, 'mesh2d_waterdepth')
+        result['spatial_hydrodynamic'] = True if (result['hydrodynamic_waterlevel_dynamic'] or
+            result['hydrodynamic_waterdepth_dynamic']) else False
+        # 3. Spatial physical maps
+        result['spatial_salinity'] = checkVariables(data, 'mesh2d_sa1')
+        result['spatial_contaminant'] = checkVariables(data, 'mesh2d_Contaminant')
+        result['spatial_physical'] = True if (result['thermocline'] or
+            result['spatial_salinity'] or result['spatial_contaminant']) else False
+        # 4. Spatial static maps
+        result['waterdepth_static'] = checkVariables(data, 'mesh2d_waterdepth')
+    # This is a water quality his file
+    elif ('nTimesDlwq' in data.sizes and 'nStations' in data.sizes):
+        print("Checking Water Quality History File ...")
+        # Prepare data for Fast Decomposing Fraction
+        result['wq_his_DetC'] = checkVariables(data, 'DetC')
+        result['wq_his_DetN'] = checkVariables(data, 'DetN')
+        result['wq_his_DetP'] = checkVariables(data, 'DetP')
+        result['wq_his_fdf'] = True if (result['wq_his_DetC'] or
+            result['wq_his_DetN'] or result['wq_his_DetP']) else False
+        # Prepare data for Dissolved Form
+        result['wq_his_NH4'] = checkVariables(data, 'NH4')
+        result['wq_his_NO3'] = checkVariables(data, 'NO3')
+        result['wq_his_PO4'] = checkVariables(data, 'PO4')
+        result['wq_his_OXY'] = checkVariables(data, 'OXY')
+        result['wq_his_Cl'] = checkVariables(data, 'Cl')
+        result['wq_his_df'] = True if (result['wq_his_NH4'] or
+            result['wq_his_NO3'] or result['wq_his_PO4'] or
+            result['wq_his_OXY'] or result['wq_his_Cl']) else False
+        # Prepare data for Nitrogen
+        result['wq_his_nitrogen_total'] = checkVariables(data, 'TotN')
+        result['wq_his_nitrogen_algae'] = checkVariables(data, 'AlgN')
+        result['wq_his_nitrogen_kjeldahl'] = checkVariables(data, 'KjelN')
+        result['wq_his_nitrogen'] = True if (result['wq_his_nitrogen_total'] or
+            result['wq_his_nitrogen_algae'] or result['wq_his_nitrogen_kjeldahl']) else False
+        # Prepare data for Phosphorus
+        result['wq_his_phosphorus_total'] = checkVariables(data, 'TotP')
+        result['wq_his_phosphorus_algae'] = checkVariables(data, 'AlgP')
+        result['wq_his_phosphorus'] = True if (result['wq_his_phosphorus_total'] or
+            result['wq_his_phosphorus_algae']) else False
+        # Limitation Function for Greens
+        result['wq_his_daylength'] = checkVariables(data, 'LimDLGreen')
+        result['wq_his_nutrient'] = checkVariables(data, 'LimNutGree')
+        result['wq_his_radiation'] = checkVariables(data, 'LimRadGree')
+        result['wq_his_greens'] = True if (result['wq_his_daylength'] or
+            result['wq_his_nutrient'] or result['wq_his_radiation']) else False
+        # Prepare data for other variables
+        result['wq_his_aap'] = checkVariables(data, 'AAP')
+        result['wq_his_dyamo'] = checkVariables(data, 'GREEN')
+        result['wq_his_organic'] = checkVariables(data, 'IM1')
+        result['wq_his_opal_si'] = checkVariables(data, 'Opal')
+        result['wq_his_sediment'] = checkVariables(data, 'SOD')
+        result['wq_his_suspend'] = checkVariables(data, 'SS')
+        result['wq_his_chlorophyll'] = checkVariables(data, 'Chlfa')
+        result['wq_his_extinction'] = checkVariables(data, 'ExtVlPhyt')
+        result['wq_his'] = True if (result['wq_his_fdf'] or result['wq_his_df'] or
+            result['wq_his_nitrogen'] or result['wq_his_phosphorus'] or result['wq_his_greens'] or
+            result['wq_his_aap'] or result['wq_his_dyamo'] or result['wq_his_organic'] or 
+            result['wq_his_opal_si'] or result['wq_his_sediment'] or result['wq_his_suspend'] or
+            result['wq_his_chlorophyll'] or result['wq_his_extinction']) else False
+    # This is a water quality map file      
+    elif ('nTimesDlwq' in data.sizes and ('mesh2d_nNodes' or 'mesh2d_nEdges') in data.sizes):
+        print('Checking Water Quality Map File ...')
+        result['wq_map_DetC'] = True #(checkVariables(data, 'mesh2d_DetC') or checkVariables(data, 'mesh2d_2d_DetC'))
 
 
 
 
-
-
-
-    # for key in data.variables.keys():
-    #     if key in variablesNames.keys():
-    #         result[key] = variablesNames[key]
-    #     else:
-    #         result[key] = key
     
 
 
 
 
+        result['wq_map_fdf'] = True # if (result['wq_map_DetC']) else False
+        
+
+        result['wq_map'] = True
+        
+        
+        
     return result
 
+def dialogReader(dialog_file: str) -> dict:
+    """
+    Read the dialog file and return the configuration.
+
+    Parameters:
+    ----------
+    dialog_file: str
+        The path of the dialog *.dia file.
+
+    Returns:
+    -------
+    dict
+        The dictionary containing the configuration.
+    """
+    # Check if the dialog file exists
+    if not dialog_file: return {}
+    result = {}
+    with open(f'{dialog_file}', 'r') as f:
+        content = f.read()
+    content = content.split('\n')
+    for line in content:
+        if "Computation started" in line:
+            temp = pd.to_datetime(line.split(': ')[2], format='%H:%M:%S, %d-%m-%Y')
+            result["computation_start"] = temp.strftime('%Y-%m-%d %H:%M:%S')
+        if "Computation finished" in line:
+            temp = pd.to_datetime(line.split(': ')[2], format='%H:%M:%S, %d-%m-%Y')
+            result["computation_finish"] = temp.strftime('%Y-%m-%d %H:%M:%S')
+        if "my model area" in line:
+            temp = line.split(': ')[2]
+            result["area"] = float(temp.strip())
+        if "my model volume" in line:
+            temp = line.split(': ')[2]
+            result["volume"] = float(temp.strip())
+    return result
+
+def getSummary(dialog_path: str, data_his: xr.Dataset, data_wq_map: xr.Dataset) -> list:
+    """
+    Get the summary of the dataset received from *.nc file.
+
+    Parameters:
+    ----------
+    dialog_path: str
+        The path of the dialog *.dia file.
+    data_his: xr.Dataset
+        The dataset received from_his.nc file.
+    data_wq_map: xr.Dataset
+        The dataset received from _map.nc file for water quality.
+
+    Returns:
+    -------
+    list
+        The list containing the summary of the dataset.
+    """
+    dialog, result = dialogReader(dialog_path), []
+    if (data_his is not None):
+        result.append({'parameter': 'Start Date (General Simulation)', 'value': pd.to_datetime(data_his['time'].values[0]).strftime('%Y-%m-%d %H:%M:%S')})
+        result.append({'parameter': 'End Date (General Simulation)', 'value': pd.to_datetime(data_his['time'].values[-1]).strftime('%Y-%m-%d %H:%M:%S')})
+        result.append({'parameter': 'Number of Layers', 'value': data_his.sizes['laydim']})
+        result.append({'parameter': 'Number of Time Steps', 'value': data_his.sizes['time']})
+    if len(dialog) > 0:
+        result.append({'parameter': 'Computation started', 'value': dialog['computation_start']})
+        result.append({'parameter': 'Computation finished', 'value': dialog['computation_finish']})
+        result.append({'parameter': 'Area (m2)', 'value': dialog['area']})
+        result.append({'parameter': 'Volume (m3)', 'value': dialog['volume']})
+    if (data_wq_map is not None):
+        result.append({'parameter': 'Start Date (Water Quality Simulation)', 'value': pd.to_datetime(data_wq_map['nTimesDlwq'].values[0]).strftime('%Y-%m-%d %H:%M:%S')})
+        result.append({'parameter': 'End Date (Water Quality Simulation)', 'value': pd.to_datetime(data_wq_map['nTimesDlwq'].values[-1]).strftime('%Y-%m-%d %H:%M:%S')})
+        result.append({'parameter': 'Modified Date (Water Quality Simulation)', 'value': pd.to_datetime(parser.parse(data_wq_map.date_modified.replace(':0.', '.'))).strftime('%Y-%m-%d %H:%M:%S')})
+        result.append({'parameter': 'Number of Sigma Layers', 'value': len(data_wq_map['mesh2d_layer_dlwq'].values)})
+    return result
 
 def stationCreator(data_his: xr.Dataset) -> gpd.GeoDataFrame:
     """
@@ -98,10 +373,76 @@ def stationCreator(data_his: xr.Dataset) -> gpd.GeoDataFrame:
     station_names = [name.decode('utf-8').strip() for name in data_his['station_name'].values]
     # Location of stations
     geometry = gpd.points_from_xy(data_his['station_x_coordinate'].values, data_his['station_y_coordinate'].values)
-    stations = gpd.GeoDataFrame(data={'name': station_names, 'geometry': geometry}, crs=data_his['wgs84'].attrs['EPSG_code'])
+    # Check coordinate reference system
+    if 'wgs84' in data_his.variables:
+        crs_code = data_his['wgs84'].attrs['EPSG_code']
+        stations = gpd.GeoDataFrame(data={'name': station_names, 'geometry': geometry}, crs=crs_code)
+    else:
+        crs_code = data_his['projected_coordinate_system'].attrs['EPSG_code']
+        stations = gpd.GeoDataFrame(data={'name': station_names, 'geometry': geometry}, crs=crs_code)
+        stations = stations.to_crs(epsg=4326)  # Convert to WGS84 if not already
     return stations
 
-def timeseriesCreator(data_his: xr.Dataset, key: str, columns: list) -> pd.DataFrame:
+def selectInsitu(data_his: xr.Dataset, data_map: xr.Dataset, key: str, station: str) -> pd.DataFrame:
+    """
+    Get insitu data.
+
+    Parameters:
+    ----------
+    data_his: xr.Dataset
+        The dataset received from _his.nc file.
+    data_map: xr.Dataset
+        The dataset received from _map.nc file.
+    key: str
+        The name of defined variable in _his.nc file.
+    station: str
+        The name of the station.
+
+    Returns:
+    -------
+    pd.DataFrame
+        A DataFrame containing the insitu data.
+    """
+    station_names = [name.decode('utf-8').strip() for name in data_his['station_name'].values]
+    if station not in station_names: return pd.DataFrame()
+    idx = station_names.index(station)
+    index = [pd.to_datetime(id).strftime('%Y-%m-%d %H:%M:%S') for id in data_his['time'].values]
+    result = pd.DataFrame(index=index)
+    z_layer = numberFormatter(data_map['mesh2d_layer_z'].values)
+    arr = data_his[variablesNames[key]].values[:, idx, :]
+    for i in range(arr.shape[1]):
+        i_rev = -(i+1)
+        arr_rev = numberFormatter(arr[:, i_rev])
+        result[f'Depth: {z_layer[i_rev]} m'] = arr_rev
+    result = result.reset_index()
+    return result
+
+def thermoclineComputer(data_map: xr.Dataset) -> pd.DataFrame:
+    """
+    Compute thermocline in each time step.
+
+    Parameters:
+    ----------
+    data_map: xr.Dataset
+        The dataset received from _map.nc file.
+
+    Returns:
+    -------
+    pd.DataFrame
+        The DataFrame containing the thermocline in each time step.
+    """
+    index_ = numberFormatter(data_map['mesh2d_layer_z'].values)
+    times = data_map['time'].values
+    columns, data_list = [], []
+    for i in range(len(times)):
+        col_name = pd.to_datetime(times[i]).strftime('%Y-%m-%d %H:%M:%S')
+        value = np.nanmean(data_map['mesh2d_tem1'].values[i,:,:], axis=0)
+        columns.append(col_name)
+        data_list.append(numberFormatter(value))
+    df = pd.DataFrame(np.column_stack(data_list), index=index_, columns=columns).reset_index()
+    return df
+
+def timeseriesCreator(data_his: xr.Dataset, key: str) -> pd.DataFrame:
     """
     Create a GeoDataFrame of timeseries.
 
@@ -119,10 +460,17 @@ def timeseriesCreator(data_his: xr.Dataset, key: str, columns: list) -> pd.DataF
     pd.DataFrame
         The DataFrame of timeseries.
     """
-    name = variablesNames[key] if key in variablesNames.keys() else key
-    index = [pd.to_datetime(id).strftime('%Y-%m-%d %H:%M:%S') for id in data_his['time'].values]
-    timeseries = pd.DataFrame(index=index, data=data_his[name].values, columns=columns).reset_index()
-    return timeseries
+    timeColumn, columns = 'time', [i.decode('utf-8').strip() for i in data_his['station_name'].values]
+    if 'station_name' in data_his.variables.keys():
+        # Used for water balance
+        if 'wb_' in key: columns = ['Water balance']
+        # Used for water quality
+        elif '_wq' in key: timeColumn = 'nTimesDlwq'
+        name = variablesNames[key] if key in variablesNames.keys() else key
+        index = [pd.to_datetime(i).strftime('%Y-%m-%d %H:%M:%S') for i in data_his[timeColumn].values]
+        timeseries = pd.DataFrame(index=index, data=numberFormatter(data_his[name].values), columns=columns).reset_index()
+        return timeseries
+    else: return pd.DataFrame()
 
 def unstructuredGridCreator(data_map: xr.Dataset) -> gpd.GeoDataFrame:
     """
@@ -146,11 +494,14 @@ def unstructuredGridCreator(data_map: xr.Dataset) -> gpd.GeoDataFrame:
         ids = face[:count]
         xy = coords[ids]
         polygons.append(shapely.geometry.Polygon(xy))
-    # Create GeoDataFrame from polygons
-    try:
+    # Check coordinate reference system
+    if 'wgs84' in data_map.variables:
         crs_code = data_map['wgs84'].attrs['EPSG_code']
-    except: raise ValueError ("EPSG code not found.")
-    grid = gpd.GeoDataFrame(geometry=polygons, crs=crs_code)
+        grid = gpd.GeoDataFrame(geometry=polygons, crs=crs_code)
+    else:
+        crs_code = data_map['projected_coordinate_system'].attrs['EPSG_code']
+        grid = gpd.GeoDataFrame(geometry=polygons, crs=crs_code)
+        grid = grid.to_crs(epsg=4326)  # Convert to WGS84 if not already
     return grid
 
 def interpolation_Z(grid_net: gpd.GeoDataFrame, x_coords: np.ndarray, y_coords: np.ndarray,
@@ -186,9 +537,9 @@ def interpolation_Z(grid_net: gpd.GeoDataFrame, x_coords: np.ndarray, y_coords: 
     weight = 1 / (dists + 1e-10)**2
     weight_val = weight * z_values[idx]
     value = np.sum(weight_val, axis=1)/np.sum(weight, axis=1)
-    return value
+    return numberFormatter(value)
 
-def assignValuesToMeshes(grid: gpd.GeoDataFrame, data_map: xr.Dataset, key: str, time_column: str='time') -> gpd.GeoDataFrame:
+def assignValuesToMeshes(grid: gpd.GeoDataFrame, data_map: xr.Dataset, key: str, time_column: str) -> gpd.GeoDataFrame:
     """
     Interpolate or extrapolate z values for grid from known points
     using Inverse Distance Weighting (IDW) method.
@@ -218,11 +569,14 @@ def assignValuesToMeshes(grid: gpd.GeoDataFrame, data_map: xr.Dataset, key: str,
     for i in range(len(time_stamps)):
         result[time_stamps[i]] = np.array(values[i,:]).flatten()
     result = pd.DataFrame(result).replace(-999.0, np.nan)
-    result = temp_grid.join(result)
-    result[time_stamps] = result[time_stamps].round(2)
+    # Convert to numpy array
+    arr = numberFormatter(result.to_numpy())
+    # Convert to dataframe
+    result = pd.DataFrame(arr, index=result.index, columns=result.columns)
+    result = temp_grid.join(result)    
     return result.reset_index()
 
-def selectPolygon(data_map: xr.Dataset, idx: int, key:str, time_column: str='time', column_layer: str='mesh2d_layer_z') -> dict:
+def selectPolygon(data_map: xr.Dataset, idx: int, key:str, time_column: str, column_layer: str) -> dict:
     """
     Get attributes of a selected polygon during the simulation.
 
@@ -256,44 +610,14 @@ def selectPolygon(data_map: xr.Dataset, idx: int, key:str, time_column: str='tim
         arr, kt = data_map[name].values[:, :, idx], ''
     for i in range(arr.shape[1]):
         i_rev = -(i+1)
-        arr_rev = np.round(arr[:, i_rev], 2)
+        arr_rev = arr[:, i_rev]
         result[f'Layer: {z_layer[i_rev]:.2f} {kt}'] = arr_rev
-    result = result.replace(-999.0, np.nan).reset_index()
-    return result
-
-def selectInsitu(data_his: xr.Dataset, data_map: xr.Dataset, key: str, station: str) -> pd.DataFrame:
-    """
-    Get insitu data.
-
-    Parameters:
-    ----------
-    data_his: xr.Dataset
-        The dataset received from _his.nc file.
-    data_map: xr.Dataset
-        The dataset received from _map.nc file.
-    key: str
-        The name of defined variable in _his.nc file.
-    station: str
-        The name of the station.
-
-    Returns:
-    -------
-    pd.DataFrame
-        A DataFrame containing the insitu data.
-    """
-    station_names = [name.decode('utf-8').strip() for name in data_his['station_name'].values]
-    if station not in station_names: return pd.DataFrame()
-    idx = station_names.index(station)
-    index = [pd.to_datetime(id).strftime('%Y-%m-%d %H:%M:%S') for id in data_his['time'].values]
-    result = pd.DataFrame(index=index)
-    z_layer = np.round(data_map['mesh2d_layer_z'].values, 2)
-    arr = data_his[key].values[:, idx, :]
-    for i in range(arr.shape[1]):
-        i_rev = -(i+1)
-        arr_rev = np.round(arr[:, i_rev], 2)
-        result[f'Depth: {z_layer[i_rev]} m'] = arr_rev
-    result = result.reset_index()
-    return result
+    result = result.replace(-999.0, np.nan)
+    # Convert to numpy array
+    arr = numberFormatter(result.to_numpy())
+    # Convert to dataframe
+    result = pd.DataFrame(arr, index=result.index, columns=result.columns)
+    return result.reset_index()
 
 def velocityChecker(data_map: xr.Dataset) -> dict:
     """
@@ -311,7 +635,7 @@ def velocityChecker(data_map: xr.Dataset) -> dict:
     """
     layers, z_layer = {}, np.round(data_map['mesh2d_layer_z'].values, 2)
     if ('mesh2d_ucxa' in data_map.variables.keys() and 'mesh2d_ucya' in data_map.variables.keys()):
-        layers[-1] = 'Depth-average'
+        layers[-1] = 'Average'
     for i in range(len(z_layer)-1, -1, -1):
         ucx = data_map['mesh2d_ucx'].values[:, :, i]
         ucy = data_map['mesh2d_ucy'].values[:, :, i]
@@ -371,28 +695,3 @@ def velocityComputer(data_map: xr.Dataset, value_type: str, key: int) -> gpd.Geo
         end = start_indices[i+1]
         result["values"].append(big_list[start:end])
     return result
-
-def thermoclineComputer(data_map: xr.Dataset) -> pd.DataFrame:
-    """
-    Compute thermocline in each time step.
-
-    Parameters:
-    ----------
-    data_map: xr.Dataset
-        The dataset received from _map.nc file.
-
-    Returns:
-    -------
-    pd.DataFrame
-        The DataFrame containing the thermocline in each time step.
-    """
-    index_ = list(data_map['mesh2d_layer_z'].values)
-    times = data_map['time'].values
-    columns, data_list = [], []
-    for i in range(len(times)):
-        col_name = pd.to_datetime(times[i]).strftime('%Y-%m-%d %H:%M:%S')
-        value = np.nanmean(data_map['mesh2d_tem1'].values[i,:,:], axis=0)
-        columns.append(col_name)
-        data_list.append(value)
-    df = pd.DataFrame(np.column_stack(data_list), index=index_, columns=columns).reset_index()
-    return df
