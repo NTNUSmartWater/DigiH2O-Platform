@@ -13,6 +13,7 @@ const playBtn = () => document.getElementById("play-btn");
 
 
 let layerMap = null, currentIndex = 0, playHandlerAttached = false, txt = '', swap = false;
+let prevPolygon = null, prevColor = null;
 
 // Define CanvasLayer
 L.CanvasLayer = L.Layer.extend({
@@ -120,6 +121,17 @@ function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarK
             mapPath({ ...e, layerProps: props });
         }
         if (key.includes('multi')) {
+            // Reset previous polygon if exists
+            if (prevPolygon){
+                prevPolygon.setStyle({
+                    fillColor: prevColor,
+                    fillOpacity: prevPolygon.options.fillOpacity,
+                    color: prevPolygon.options.color
+                });
+            }
+            // Store current polygon
+            prevPolygon = e.layer;
+            prevColor = e.layer.options.fillColor;
             // Get index of the feature
             const selectedFeatureId = props.index;
             // Highlight feature 

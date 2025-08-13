@@ -68,13 +68,15 @@ async def show_home(request: Request):
 # Route for the template page
 @app.get("/temp_delft3d", response_class=HTMLResponse)
 async def temp_delft3d(request: Request):
-    try:
+    if Path(temp_folder).is_dir():
+        # Load the configuration file
+        with open(f'{temp_folder}/configuration.json', 'r', encoding='utf-8') as f:
+            configuration = json.load(f)
+    else:
         configuration, NCfiles = {}, [data_his, data_map, data_wq_his, data_wq_map]
         for file in NCfiles:
             configuration.update(functions.getVariablesNames(file))
-        return templates.TemplateResponse("temp_Delft3D.html", {"request": request, 'configuration': configuration})
-    except TemplateNotFound:
-        return HTMLResponse("<h1>Data not found</h1>", status_code=404)
+    return templates.TemplateResponse("temp_Delft3D.html", {"request": request, 'configuration': configuration})
 
 ## New method (using POST method for JSON, GeoJSON and HTML)
 @app.post("/process_data")
