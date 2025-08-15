@@ -1,0 +1,16 @@
+# Folders
+/output
+/template_files
+/__pycache__
+
+
+# Files
+*.txt
+
+
+# Additional files
+*.ipynb
+
+
+# Environment
+.env
