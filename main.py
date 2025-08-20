@@ -12,8 +12,8 @@ app = FastAPI()
 # Automatically gzip if file size is greater than 10KB
 app.add_middleware(GZipMiddleware, minimum_size=10000)
 # Mobirise
-app.mount("/assets/images", StaticFiles(directory="static/assets/images"), name="mobirise_images")
-app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
+# app.mount("/assets/images", StaticFiles(directory="static/assets/images"), name="mobirise_images")
+# app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
 # My images
 app.mount("/images", StaticFiles(directory="static/images"), name="my_images")
 # Mount static (CSS, JS)
@@ -55,12 +55,12 @@ def favicon():
     return FileResponse("static/images/Logo.png")
 
 # Route for the home page
-@app.get("/", response_class=HTMLResponse)
-async def show_home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+# @app.get("/", response_class=HTMLResponse)
+# async def show_home(request: Request):
+#     return templates.TemplateResponse("index.html", {"request": request})
 
 # Route for the template page
-@app.get("/temp_delft3d", response_class=HTMLResponse)
+@app.get("/", response_class=HTMLResponse)
 def temp_delft3d(request: Request):
     return templates.TemplateResponse("temp_Delft3D.html", {"request": request})
 
@@ -129,10 +129,6 @@ async def process_data(request: Request):
                 value_type = data_filename.replace('_velocity', '')
                 idx = len(data_map['mesh2d_layer_z'].values) - int(layer_reverse[value_type]) - 1
                 data = functions.velocityComputer(data_map, value_type, idx)
-            # elif key == 'bed_shear_stress':
-                # df_x = delft3d.tausx.rename(columns={key: f'{key}_x' for key in delft3d.tausx.columns})
-                # df_y = delft3d.tausy.rename(columns={key: f'{key}_y' for key in delft3d.tausy.columns})
-                # df_bss = pd.concat([df_x, df_y], axis=1)
             else:
                 # Create time series data
                 data_ = data_wq_his if '_wq' in key else data_his
