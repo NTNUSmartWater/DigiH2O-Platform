@@ -1,29 +1,23 @@
-import { n_decimals, degree_decimals } from "./temp_constants.js";
-import { getStationLayer, setStationLayer, getPointContainer, setPointContainer } from "./temp_constants.js";
-import { getIsPathQuery, setIsPathQuery, getIsClickedInsideLayer, setIsClickedInsideLayer } from "./temp_constants.js";
-import { getPolygonCentroids, getIsPath, setIsPointQuery, getIsPointQuery, getStoredLayer } from "./temp_constants.js";
-import { startLoading, showLeafletMap, map, L, ZOOM} from "./temp_mapManager.js";
-import { loadData, colorbar_title, interpolateValue } from "./utils.js";
-import { closeMenu } from "./temp_uiManager.js";
-import { plotChart, drawChart, plotWindow } from './temp_chartManager.js';
+import { startLoading, showLeafletMap, map, L, ZOOM } from "./temp_mapManager.js";
+import { setStationLayer, getStationLayer, degree_decimals } from "./temp_constants.js";
+import { setIsPointQuery, getIsMultiLayer } from "./temp_constants.js";
+import { getPolygonCentroids, getStoredLayer, getIsPointQuery } from "./temp_constants.js";
+import { setIsClickedInsideLayer, getIsClickedInsideLayer } from "./temp_constants.js";
+import { getMapLayer, setIsPathQuery, getIsPathQuery, n_decimals } from "./temp_constants.js";
+import { loadData, colorbar_title } from "./utils.js";
+import { plotChart, plotWindow, plotProfile} from "./temp_chartManager.js";
 
-let stationLayer = null, mapContainer = null, marker = null, selectedMarkers = [], pathLine = null, currentMarker = null;
+let stationLayer = null, currentMarker = null, selectedMarkers = [];
+let pathLine = null, marker = null, pointContainer = [];
 
+const mapContainer = () => map.getContainer();
 const stationOption = () => document.getElementById("stationCheckbox");
 const pointQueryCheckbox = () => document.getElementById("pointQuery");
 const pathQueryCheckbox = () => document.getElementById("pathQuery");
 const infoDetail = () => document.getElementById("infoDetails");
 const infoContent = () => document.getElementById("infoDetailsContent");
 
-
-export function initiateQueryManager() {
-    pointQuery(); pathQuery();
-    map.on("click", mapPath);
-    map.on("contextmenu", mapPath);
-    map.on("click", mapPoint);
-}
-
-// ================== STATION CHECK ==================
+// ============================ Station Manager ============================
 function deactiveStationCheck() {
     map.removeLayer(stationLayer); stationLayer = null;
     setStationLayer(false);    
@@ -54,7 +48,7 @@ async function activeStationCheck(filename) {
             const popupContent = `
                 <div style="font-family: Arial;">
                     <h3 style="text-align: center;">${stationId}</h3>
-                    <hr style="margin: 0;">
+                    <hr style="margin: 5px 0 5px 0;">
                     <ul style="left: 0; cursor: pointer; padding-left: 0; list-style: none;">
                         <li><a class="in-situ" data-info="temp_in-situ*${stationId}|Temperature (°C)">• Temperature</a></li>
                         <li><a class="in-situ" data-info="sal_in-situ*${stationId}|Salinity (PSU)">• Salinity</a></li>
@@ -72,79 +66,128 @@ async function activeStationCheck(filename) {
         const center = stationLayer.getBounds().getCenter();
         map.setView(center, ZOOM);
     }
-    setStationLayer(true); // Set the station layer is loaded
+    setStationLayer(true);
     showLeafletMap(); // Hide the spinner and show the map
 }
 
-export function stationCheck(filename){
+export function updateStationManager(filename) {
+    // Check status of the station checkbox
+    if (getStationLayer()) { stationOption().checked = true; 
+    } else { stationOption().checked = false; }
+    // Add event listener to the station checkbox
     stationOption().addEventListener('change', () => {
         if (stationOption().checked) { activeStationCheck(filename);
-        } else deactiveStationCheck(); closeMenu();
-    })
+        } else deactiveStationCheck();
+    });
 }
-
-// =================== POINT QUERY ===================
+// ============================ Point Manager ============================
+function checkPoint(){
+    if (getIsPointQuery()) { pointQueryCheckbox().checked = true; 
+    } else { pointQueryCheckbox().checked = false; deactivePointQuery(); }
+}
 export function deactivePointQuery() {
-    pointQueryCheckbox().checked = false; // Deselect checkbox
-    mapContainer.style.cursor = "grab";
+    setIsPointQuery(false);
+    if (pointQueryCheckbox()) pointQueryCheckbox().checked = false;
+    mapContainer().style.cursor = "grab";
     infoDetail().style.display = "none";
     infoContent().innerHTML = '';
-    setIsPointQuery(false); // Set point query is deactivated
+    plotWindow().style.display = "none";
     if (currentMarker) { map.removeLayer(currentMarker); }
 }
 
-function activePointQuery(){
-    infoDetail().style.display = "block"; // Show the info detail
-    setIsPointQuery(true); // Set point query is activated
-
-    mapContainer.style.cursor = "help";
-}
-
-function pointQuery(){
-    mapContainer = map.getContainer();
+export function updatePointManager() {
+    checkPoint();
+    // Add event listener to the point query checkbox
     pointQueryCheckbox().addEventListener('change', () => {
         if (pointQueryCheckbox().checked) { activePointQuery();
-        } else deactivePointQuery(); closeMenu();
-    })
+        } else deactivePointQuery();
+    });
     // Add event listener for point query
     document.addEventListener('click', function(e) {
         if (e.target && e.target.classList.contains('in-situ')) {
             e.preventDefault();
             const [filename, colorbarTitle] = e.target.dataset.info.split('|');
             const chartTitle = colorbarTitle.split('(')[0].trim();
-            plotChart(filename, 'in-situ', chartTitle, 'Time', colorbarTitle, 'All', false);
+            plotChart(filename, '_in-situ', chartTitle, 'Time', colorbarTitle, false);
         }
     });
 }
 
-// =================== PATH QUERY ===================
+function activePointQuery(){
+    setIsPointQuery(true);
+    if (!getIsMultiLayer() && getMapLayer()) { 
+        infoDetail().style.display = "block";
+        deactivePathQuery();
+        mapContainer().style.cursor = "help";
+    } else {
+        alert("This function is not supported. Please check:\n" + 
+            "      1. One map layer must be loaded.\n" +
+            "      2. Only static and dynamic (with single layer) maps are supported.");
+        deactivePointQuery(); return;
+    }
+}
+
+export function mapPoint(e) {
+    if (!getIsPointQuery()) return;
+    if (currentMarker) { map.removeLayer(currentMarker); }
+    if (e.layerProps) {
+        const lat = e.latlng.lat.toFixed(degree_decimals);
+        const lng = e.latlng.lng.toFixed(degree_decimals);
+        currentMarker = L.marker(e.latlng).addTo(map);
+        const fieldName = getStoredLayer().getColumnName();
+        const value = e.layerProps[fieldName] ?? 'N/A';
+        const html = `<div style="display: flex; justify-content: space-between;">
+            <div style="padding-left: 10px;">Location:</div>
+            <div style="padding-right: 10px;">${lng}, ${lat}</div>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+            <div style="padding-left: 10px;">${colorbar_title().textContent}:</div>
+            <div style="padding-right: 10px;">${value}</div>
+        </div>`;
+        infoContent().innerHTML = html;
+        infoDetail().style.height = 'auto';
+        setIsClickedInsideLayer(false);
+    }
+}
+
+// ============================ Path Manager ============================
+function checkPath(){
+    if (getIsPathQuery()) { pathQueryCheckbox().checked = true; 
+    } else { pathQueryCheckbox().checked = false; deactivePathQuery(); }
+}
+
+export function updatePathManager() {
+    checkPath();
+    // Add event listener to the point query checkbox
+    pathQueryCheckbox().addEventListener('change', () => {
+        if (pathQueryCheckbox().checked) { activePathQuery();
+        } else deactivePathQuery();
+    });
+}
+
 export function deactivePathQuery() {
-    pathQueryCheckbox().checked = false; // Deselect checkbox
-    setIsPathQuery(false); // Set path query is deactivated
+    setIsPathQuery(false);
+    if (pathQueryCheckbox()) pathQueryCheckbox().checked = false;
     if (pathLine) { map.removeLayer(pathLine); pathLine = null;}
     selectedMarkers.forEach(m => map.removeLayer(m));
-    selectedMarkers = []; setPointContainer([]);
-    plotWindow().style.display = "none"; // Close the chart if it is open
-    setIsClickedInsideLayer(false); // Reset clicked inside layer
-    mapContainer.style.cursor = "grab";
+    selectedMarkers = []; pointContainer = [];
+    plotWindow().style.display = "none";
+    setIsClickedInsideLayer(false);
 }
 
 function activePathQuery(){
-    if (!getIsPath()) {
-        alert("This type of map does not support path queries.\nOnly static and dynamic (with single layer) maps are supported.");
-        // Deselect checkbox
-        deactivePathQuery(); return;
+    if (!getIsMultiLayer() && getMapLayer()) {
+        setIsPathQuery(true);
+        deactivePointQuery();
+        mapContainer().style.cursor = "crosshair";
+        map.on("click", mapPath);
+        map.on("contextmenu", mapPath);
+    } else {
+        alert("This function is not supported. Please check:\n" + 
+            "      1. One map layer must be loaded.\n" +
+            "      2. Only static and dynamic (with single layer) maps are supported.");
+        deactivePathQuery();
     }
-    setIsPathQuery(true); // Set path query is activated
-    mapContainer.style.cursor = "crosshair";
-    closeMenu(); // Close the menu
-}
-
-function pathQuery(){
-    pathQueryCheckbox().addEventListener('change', () => {
-        if (pathQueryCheckbox().checked) { activePathQuery();
-        } else deactivePathQuery(); closeMenu();
-    })
 }
 
 export function mapPath(e) {
@@ -152,13 +195,13 @@ export function mapPath(e) {
     // Right-click
     if (e.type === "contextmenu") {
         e.originalEvent.preventDefault(); // Suppress context menu
-        if (getPointContainer().length < 2) {
+        if (pointContainer.length < 2) {
             alert("Not enough points selected. Please select at least two points.");
             return;
         }
         // TODO:
         const title = colorbar_title().textContent;
-        plotProfile(getPointContainer(), getPolygonCentroids(), title);
+        plotProfile(pointContainer, getPolygonCentroids(), title, undefined, n_decimals);
     }
     // Left-click
     if (e.type === "click" && e.originalEvent.button === 0) {
@@ -172,11 +215,11 @@ export function mapPath(e) {
             // Get selected value
             const value = e.layerProps?.[getStoredLayer()?.getColumnName()] ?? null;
             // Add point
-            getPointContainer().push({
+            pointContainer.push({
                 lat: e.latlng.lat, lng: e.latlng.lng, value: value
             });
             // Plot line
-            const latlngs = getPointContainer().map(p => [p.lat, p.lng]);
+            const latlngs = pointContainer.map(p => [p.lat, p.lng]);
             if (pathLine) {
                 pathLine.setLatLngs(latlngs);
             } else {
@@ -188,98 +231,3 @@ export function mapPath(e) {
         setIsClickedInsideLayer(false); // Reset clicked inside layer
     }
 }
-
-function plotProfile(pointContainer, polygonCentroids, titleY, titleX='Distance (m)') {
-    const subset_dis = 100, interpolatedPoints = [];
-    // Convert Lat, Long to x, y
-    for (let i = 0; i < pointContainer.length - 1; i++) {
-        const p1 = pointContainer[i], p2 = pointContainer[i + 1];
-        const pt1 = L.Projection.SphericalMercator.project(L.latLng(p1.lat, p1.lng));
-        const pt2 = L.Projection.SphericalMercator.project(L.latLng(p2.lat, p2.lng));
-        const dx = pt2.x - pt1.x, dy = pt2.y - pt1.y;
-        const segmentDist = Math.sqrt(dx * dx + dy * dy);
-        const segments = Math.floor(segmentDist / subset_dis);
-        // Add the first point
-        const originDist = Number(L.latLng(p1.lat, p1.lng).distanceTo(pointContainer[0]).toFixed(n_decimals));
-        interpolatedPoints.push([originDist, p1.value]);
-        // Add the intermediate points        
-        for (let j = 1; j < segments; j++) {
-            const ratio = j / segments;
-            const interpX = pt1.x + ratio * dx, interpY = pt1.y + ratio * dy;
-            const latlngInterp = L.Projection.SphericalMercator.unproject(L.point(interpX, interpY));
-            // Interpolate
-            const location = L.latLng(latlngInterp.lat, latlngInterp.lng);
-            const interpValue = interpolateValue(location, polygonCentroids);
-            // Compute distance            
-            const distInterp = Number(L.latLng(latlngInterp.lat, latlngInterp.lng).distanceTo(pointContainer[0])).toFixed(n_decimals);
-            if (interpValue !== null) {
-                interpolatedPoints.push([distInterp, interpValue]);
-            }
-        }
-        // Add the last point
-        const lastPt = pointContainer[pointContainer.length - 1];
-        const lastDist = Number(L.latLng(lastPt.lat, lastPt.lng).distanceTo(pointContainer[0])).toFixed(n_decimals);
-        interpolatedPoints.push([lastDist, lastPt.value]);
-    }
-    // Sort by distance
-    interpolatedPoints.sort((a, b) => a[0] - b[0]);
-    const input = {
-        columns: [titleX, titleY], data: interpolatedPoints
-    };
-    drawChart(input, 'Profile', titleX, titleY, 'All', false);
-}
-
-function mapPoint(e) {
-    if (!getIsPointQuery()) return;
-    const lat = e.latlng.lat.toFixed(degree_decimals), lng = e.latlng.lng.toFixed(degree_decimals);
-    if (currentMarker) { map.removeLayer(currentMarker); }
-    currentMarker = L.marker(e.latlng).addTo(map);
-    let html = `
-        <div style="display: flex; justify-content: space-between;">
-            <div style="padding-left: 10px;">Location:</div>
-            <div style="padding-right: 10px;">${lng}, ${lat}</div>
-        </div>`;
-    if (getStoredLayer()) {
-        const fieldName = getStoredLayer().getColumnName();
-        const getValue = new Promise(resolve => {
-            getStoredLayer().once('click', function(e) {
-                resolve(e.layer.properties[fieldName] || 'N/A');
-            });
-        });
-        getValue.then(value => {
-            html += `
-            <div style="display: flex; justify-content: space-between;">
-                <div style="padding-left: 10px;">${colorbar_title().textContent}:</div>
-                <div style="padding-right: 10px;">${value}</div>
-            </div>`;
-            infoContent().innerHTML = html;
-        });
-    }
-    infoContent().innerHTML = html;
-    // Update the height of the info window
-    infoDetail().style.height = 'auto';
-}
-
-
-
-
-
-
-// // Menu panel on bottom-right corner
-// export function closeinfoMenu() {
-//     infoMenu().style.height = "35px"; arrow().textContent = "▲";
-//     setIsInfoOpen(!getIsInfoOpen()); 
-// }
-
-// export function openinfoMenu() {
-//     // Open the info menu with measured height
-//     infoMenu().style.height = infoMenu().scrollHeight + "px";
-//     // Asign auto scroll
-//     const removeFixedHeight = () => {
-//         infoMenu().style.height = "auto";
-//         infoMenu().removeEventListener("transitionend", removeFixedHeight);
-//     };
-//     infoMenu().addEventListener("transitionend", removeFixedHeight);
-//     arrow().textContent = "▼";
-//     setIsInfoOpen(!getIsInfoOpen()); 
-// }

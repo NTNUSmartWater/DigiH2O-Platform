@@ -1,8 +1,7 @@
 import { getIsPathQuery } from "./temp_constants.js";
 
-
 export let map;
-let currentTileLayer = null;
+let currentTileLayer = null, timerCounter;
 
 const CENTER = [62.476969, 6.471598];
 export const ZOOM = 13;
@@ -31,15 +30,21 @@ export function showLeafletMap() {
 export function baseMapButtonFunctionality() {
     const baseMapBtn = document.getElementById('custom_map_background_btn');
     const popup = document.getElementById('basemap-popup');
-    baseMapBtn.addEventListener('click', () => {
-        popup.classList.toggle('show');
-        // Add event listeners to the base map buttons
-        document.querySelectorAll('.basemap-option').forEach(button => {
-            button.addEventListener('click', () => {
-                const url = button.getAttribute('data-url');
-                switchBaseMapLayer(url);
-                popup.classList.remove('show');
-            });
+    baseMapBtn.addEventListener('mouseenter', () => {
+        popup.classList.add('show');
+        clearTimeout(timerCounter);
+        // Hide the popup after 2 seconds
+        timerCounter = setTimeout(() => {
+            popup.classList.remove('show');
+        }, 2000);
+    });
+    // Add event listeners to the base map buttons
+    document.querySelectorAll('.basemap-option').forEach(button => {
+        button.addEventListener('click', () => {
+            const url = button.getAttribute('data-url');
+            switchBaseMapLayer(url);
+            popup.classList.remove('show');
+            clearTimeout(timerCounter);
         });
     });
 }
@@ -58,9 +63,7 @@ export function setupMap() {
     currentTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
     currentTileLayer.addTo(map);        
     // Add scale bar
-    L.control.scale({
-        position: 'bottomright', imperial: false, metric: true, maxWidth: 200
-    }).addTo(map);
+    L.control.scale({imperial: false, metric: true, maxWidth: 200}).addTo(map);
     return map;
 }
 
@@ -68,7 +71,7 @@ export function setupMapEventListeners() {
     const hoverTooltip = L.tooltip({
         permanent: false, direction: 'bottom',
         sticky: true, offset: [0, 10],
-        className: 'custom-tooltip' // optional: for styling
+        className: 'custom-tooltip'
         });
     // Add tooltip
     map.on('mousemove', function (e) {

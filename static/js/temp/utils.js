@@ -1,25 +1,23 @@
 import { startLoading, showLeafletMap } from "./temp_mapManager.js";
-import { getMapLayer, n_decimals } from "./temp_constants.js";
+import { getMapLayer, n_decimals, getFeatureMap, getScalerValue} from "./temp_constants.js";
+import { getLastFeatureColors, setLastFeatureColors } from "./temp_constants.js";
+import { superscriptMap } from "./temp_constants.js";
 
 
+export const colorbar_container = () => document.getElementById("custom-colorbar");
+export const colorbar_vector_container = () => document.getElementById("custom-colorbar-vector");
 export let colorbar_title = () => document.getElementById("colorbar-title");
+
 let colorbar_color = () => document.getElementById("colorbar-gradient");
 let colorbar_label = () => document.getElementById("colorbar-labels");
-const superscriptMap = {
-    '-': '⁻', '0': '⁰', '1': '¹', '2': '²', '3': '³',
-    '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹'
-};
+let colorbar_vector_title = () => document.getElementById("colorbar-title-vector");
+let colorbar_vector_color = () => document.getElementById("colorbar-gradient-vector");
+let colorbar_vector_label = () => document.getElementById("colorbar-labels-vector");
+let colorbar_vector_scaler = () => document.getElementById("custom-colorbar-scaler");
+
+
 function toSuperscript(num) {
     return String(num).split('').map(ch => superscriptMap[ch] || ch).join('');
-}
-
-// Convert string to number
-export function toNumber(val) {
-    if (typeof val === 'string') {
-        const num = Number(val);
-        return isNaN(num) ? null : num;
-    }
-  return val;
 }
 
 function valueFormatter(value, minDiff) {
@@ -39,6 +37,25 @@ function valueFormatter(value, minDiff) {
     }
 }
 
+export function interpolateJet(t) {
+    const jetColors = [
+        [0.0, [0, 0, 128]], [0.35, [0, 255, 255]],
+        [0.5, [0, 255, 0]], [0.75, [255, 255, 0]], [1.0, [255, 0, 0]]
+    ];
+    for (let i = 0; i < jetColors.length - 1; i++) {
+        const [t1, c1] = jetColors[i];
+        const [t2, c2] = jetColors[i + 1];
+        if (t >= t1 && t <= t2) {
+            const f = (t - t1) / (t2 - t1);
+            const r = Math.round(c1[0] + (c2[0] - c1[0]) * f);
+            const g = Math.round(c1[1] + (c2[1] - c1[1]) * f);
+            const b = Math.round(c1[2] + (c2[2] - c1[2]) * f);
+            return `rgb(${r},${g},${b})`;
+        }
+    }
+    return `rgb(255,0,0)`;
+}
+
 // Interpolate value using inverse distance weighting
 export function interpolateValue(location, centroids, power = 5, maxDistance = Infinity) {
     const weights = [], values = [];
@@ -54,7 +71,7 @@ export function interpolateValue(location, centroids, power = 5, maxDistance = I
     if (weights.length === 0) return null;
     const sumWeughts = weights.reduce((a, b) => a + b, 0);
     const sumValues = values.reduce((a, b) => a + b, 0);
-    return Number((sumValues / sumWeughts).toFixed(n_decimals));
+    return (sumValues / sumWeughts);
 }
 
 // Convert value to color
@@ -63,9 +80,16 @@ export function getColorFromValue(value, vmin, vmax, colorbarKey, swap) {
         return { r: 150, g: 150, b: 150, a: 0 };
     }
     if (vmin === vmax) return { r: 0, g: 0, b: 100, a: 1 };
-    // Clamp value
-    value = Math.max(vmin, Math.min(vmax, value));
-    let t = (value - vmin) / (vmax - vmin);
+    // Minimum difference
+    const minDiff = 1e-2, epsilon = 1e-6;
+    if (vmax - vmin < minDiff) vmax = vmin + minDiff;
+    let t;
+    if (vmin + epsilon <=0 || vmax + epsilon <=0) { // avoid zero division error for vmin or vmax = 0
+        t = (value - vmin) / (vmax - vmin);
+    } else {
+        t = (Math.log(value + epsilon) - Math.log(vmin + epsilon)) / (Math.log(vmax + epsilon) - Math.log(vmin + epsilon));
+    }
+    t = Math.max(0, Math.min(1, t));
     if (swap) t = 1 - t;
     let colors;
     if (colorbarKey === "depth") { // used for depth
@@ -100,11 +124,39 @@ export function getColorFromValue(value, vmin, vmax, colorbarKey, swap) {
 }
 
 // Update color for colorbar
-export function updateColorbar(min, max, title, colorbarKey, swap) {
-    colorbar_title().textContent = title;
-    const midValue = (min + max) / 2;
+export function updateColorbar(min, max, title, colorbarKey, colorbarScaler, swap) {
+    colorbar_container().style.display = "block";
+    let color_colorbar = colorbar_color();
+    let title_colorbar = colorbar_title();
+    let label_colorbar = colorbar_label();
+    if (colorbarScaler === 'vector') {
+        colorbar_vector_container().style.display = "block";
+        color_colorbar = colorbar_vector_color();
+        title_colorbar = colorbar_vector_title();
+        label_colorbar = colorbar_vector_label();
+        colorbar_vector_scaler().innerHTML = `Scaler: ${getScalerValue()}`;
+    }
+    title_colorbar.textContent = title;
+    // Minimum difference
+    const minDiff = 1e-2, epsilon = 1e-6;
+    if (max - min < minDiff) max = min + minDiff;
+    // Update 5 labels
+    const labels = label_colorbar.children;
+    for (let i = 0; i < 5; i++) {
+        const percent = i / 4; // 0,0.25,0.5,0.75,1
+        let value;
+        if (min + epsilon > 0 && max + epsilon > 0) {
+            const logMin = Math.log(min + epsilon);
+            const logMax = Math.log(max + epsilon);
+            value = Math.exp(logMax - percent * (logMax - logMin));
+        } else {
+            value = max - percent * (max - min);
+        }
+        labels[i].textContent = valueFormatter(value, minDiff);
+    }
+    // Generate color for colorbar
     const minColor = getColorFromValue(min, min, max, colorbarKey, swap);
-    const midColor = getColorFromValue(midValue, min, max, colorbarKey, swap);
+    const midColor = getColorFromValue((min + max) / 2, min, max, colorbarKey, swap);
     const maxColor = getColorFromValue(max, min, max, colorbarKey, swap);
     // Update gradient
     const gradient = `linear-gradient(to top,
@@ -112,35 +164,30 @@ export function updateColorbar(min, max, title, colorbarKey, swap) {
         rgb(${midColor.r}, ${midColor.g}, ${midColor.b}) 50%,
         rgb(${maxColor.r}, ${maxColor.g}, ${maxColor.b}) 100%
     )`;
-    colorbar_color().style.background = gradient;
-    // Update 5 labels
-    const labels = colorbar_label().children;
-    let diffs = [];
-    for (let i = 0; i < 4; i++) {
-        const v1 = min + (max - min) * (1 - i / 4);
-        const v2 = min + (max - min) * (1 - (i + 1) / 4);
-        diffs.push(Math.abs(v1 - v2));
-    }
-    const minDiff = Math.min(...diffs);
-    for (let i = 0; i < 5; i++) {
-        const percent = i / 4; // 0.0, 0.25, ..., 1.0
-        const value = min + (max - min) * (1 - percent); // Top to bottom
-        labels[i].textContent = valueFormatter(value, minDiff);
-    }
+    color_colorbar.style.background = gradient;
 }
 
-export function updateMapByTime(data, layerMap, timestamp, currentIndex, vmin, vmax, colorbarKey, swap) {
+export function updateMapByTime(layerMap, timestamp, currentIndex, vmin, vmax, colorbarKey, swap) {
     const getColumnName = () => timestamp[currentIndex];
-    getMapLayer().forEach(id => {
-        const feature = data.features.find(f => f.properties.index === id);
-        if (!feature) return;
+    const colorsCache = getLastFeatureColors();
+    const featureMap = getFeatureMap();
+    const featureIds = getMapLayer();
+    for (let i = 0; i < featureIds.length; i++) {
+        const id = featureIds[i];
+        const feature = featureMap[id];
+        if (!feature) continue;
         const value = feature.properties[getColumnName()];
+        if (value === null || value === undefined) continue;
         const { r, g, b, a } = getColorFromValue(value, vmin, vmax, colorbarKey, swap);
+        const colorKey = `${r},${g},${b},${a}`;
+        if (colorsCache[id] === colorKey) continue;
+        colorsCache[id] = colorKey;
         layerMap.setFeatureStyle(id, { 
             fill: true, fillColor: `rgb(${r},${g},${b})`, 
             fillOpacity: a, weight: 0, opacity: 1 
         });
-    });
+    }
+    setLastFeatureColors(colorsCache);
 }
 
 // Get min and max values from GeoJSON
@@ -181,7 +228,7 @@ export async function loadData(filename, key){
 }
 
 export async function initOptions(comboBox, key) {
-    startLoading();
+    startLoading(); 
     try {
         const response = await fetch('/initiate_options', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -189,20 +236,19 @@ export async function initOptions(comboBox, key) {
         const data = await response.json();
         if (data.status === "ok") {
             // Add options to the object
-            comboBox.innerHTML = '';
+            comboBox().innerHTML = '';
             // Add hint to the velocity object
-            const hint_velocity = document.createElement('option');
-            hint_velocity.value = ''; hint_velocity.selected = true;
-            hint_velocity.textContent = '-- No Selected --'; 
-            comboBox.add(hint_velocity);
+            const hint = document.createElement('option');
+            hint.value = ''; hint.selected = true;
+            hint.text = '- No Selection -'; 
+            comboBox().add(hint);
             // Add options
             data.content.forEach(item => {
                 const option = document.createElement('option');
                 option.value = item; option.text = item;
-                comboBox.add(option);
+                comboBox().add(option);
             });
         } else if (data.status === "error") {alert(data.message);}
     } catch (error) {alert(error);}
     showLeafletMap();
 }
-

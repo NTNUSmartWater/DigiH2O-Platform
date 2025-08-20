@@ -4,9 +4,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.templating import Jinja2Templates
-from jinja2 import TemplateNotFound
 from pathlib import Path
-import xarray as xr, pandas as pd
+import xarray as xr
 
 
 app = FastAPI()
@@ -18,13 +17,10 @@ app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
 # My images
 app.mount("/images", StaticFiles(directory="static/images"), name="my_images")
 # Mount static (CSS, JS)
-# app.mount("/css", StaticFiles(directory="static/css"), name="css")
-# app.mount("/js", StaticFiles(directory="static/js"), name="js")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Add the template folder
 templates = Jinja2Templates(directory="templates")
-
 
 # Initialize the paths for the NetCDF files
 temp_folder, temp_files = 'temp_delft3d', []
@@ -54,8 +50,6 @@ if not (Path(wq_his).is_file() or Path(wq_map).is_file()):
 data_wq_map, data_wq_his = xr.open_dataset(wq_map), xr.open_dataset(wq_his)
 
 
-
-
 @app.get("/favicon.ico")
 def favicon():
     return FileResponse("static/images/Logo.png")
@@ -67,18 +61,26 @@ async def show_home(request: Request):
 
 # Route for the template page
 @app.get("/temp_delft3d", response_class=HTMLResponse)
-async def temp_delft3d(request: Request):
-    if Path(temp_folder).is_dir():
-        # Load the configuration file
-        with open(f'{temp_folder}/configuration.json', 'r', encoding='utf-8') as f:
+def temp_delft3d(request: Request):
+    return templates.TemplateResponse("temp_Delft3D.html", {"request": request})
+
+@app.get("/load_popupMenu", response_class=HTMLResponse)
+async def load_popupMenu(request: Request, htmlFile: str):
+    template_path = Path("templates")/htmlFile
+    if not template_path.exists():
+        return HTMLResponse(f"<p>Popup menu template not found</p>", status_code=404)
+    config_file = Path(temp_folder)/"configuration.json"
+    if config_file.exists():
+        with open(config_file, 'r', encoding='utf-8') as f:
             configuration = json.load(f)
     else:
-        configuration, NCfiles = {}, [data_his, data_map, data_wq_his, data_wq_map]
+        configuration = {}
+        NCfiles = [data_his, data_map, data_wq_his, data_wq_map]
         for file in NCfiles:
             configuration.update(functions.getVariablesNames(file))
-    return templates.TemplateResponse("temp_Delft3D.html", {"request": request, 'configuration': configuration})
-
-## New method (using POST method for JSON, GeoJSON and HTML)
+    return templates.TemplateResponse(htmlFile, {"request": request, 'configuration': configuration})
+    
+# New method (using POST method for JSON, GeoJSON and HTML)
 @app.post("/process_data")
 async def process_data(request: Request):
     # Get body data
@@ -87,13 +89,11 @@ async def process_data(request: Request):
     # Check if the file exists
     filename = [f for f in temp_files if f.name == data_filename]
     if filename:
-        # print('File exists')
         # Load the JSON/GeoJSON file that exists
         with open(filename[0], 'r', encoding='utf-8') as f:
             data = json.load(f)
         status, message = 'ok', 'JSON loaded successfully.'
     else:
-        # print('File not found')
         # File not found, need to read the NetCDF file
         try:
             if key == 'summary':
@@ -125,23 +125,10 @@ async def process_data(request: Request):
                     values = functions.interpolation_Z(temp, x, y, z)
                 temp['value'] = values
                 data = json.loads(temp.to_json())
-            
-            
-            
-            
-            
-            
-            
-            
-
-
-
-
-            # elif 'velocity' in data_filename:
-            #     value_type = data_filename.replace('_velocity', '')
-            #     key = len(data_map['mesh2d_layer_z'].values) - int(layer_reverse[value_type]) - 1
-            #     data = functions.velocityComputer(data_map, value_type, key)
-                # print(data)
+            elif key == 'velocity':
+                value_type = data_filename.replace('_velocity', '')
+                idx = len(data_map['mesh2d_layer_z'].values) - int(layer_reverse[value_type]) - 1
+                data = functions.velocityComputer(data_map, value_type, idx)
             # elif key == 'bed_shear_stress':
                 # df_x = delft3d.tausx.rename(columns={key: f'{key}_x' for key in delft3d.tausx.columns})
                 # df_y = delft3d.tausy.rename(columns={key: f'{key}_y' for key in delft3d.tausy.columns})
@@ -163,7 +150,7 @@ async def select_polygon(request: Request):
     key, idx = body.get('key'), int(body.get('id'))
     try:
         data_, time_column, column_layer = data_map, 'time', 'mesh2d_layer_z'
-        if 'water_quality' in key:
+        if '_wq' in key:
             time_column, data_, column_layer = 'nTimesDlwq', data_wq_map, 'mesh2d_layer_dlwq'
         temp = functions.selectPolygon(data_, idx, key, time_column, column_layer)
         data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
@@ -180,7 +167,13 @@ async def initiate_options(request: Request):
     try:
         if key == 'vector': data = functions.getVectorNames()
         elif key == 'velocity':
-            temp = functions.velocityChecker(data_map)
+            # Try to file velocity checker file
+            filename = [f for f in temp_files if f.name == 'velocity_layers.json']
+            if filename:
+                with open(filename[0], 'r', encoding='utf-8') as f:
+                    temp = json.load(f)
+            else:
+                temp = functions.velocityChecker(data_map)
             data = [value for _, value in temp.items()]
         status, message = 'ok', 'Data loaded successfully.'
     except:
@@ -189,86 +182,5 @@ async def initiate_options(request: Request):
     return JSONResponse(content=result)
 
 
-
-
-
-
-# @app.post("/process_vector")
-# async def process_vector(request: Request):
-#     await request.json()
-#     try:
-#         data = functions.getVectorNames()
-#         status, message = 'ok', 'Data loaded successfully.'
-#     except:
-#         data, status, message = None, 'error', 'File not found.'
-#     result = {'content': data, 'status': status, 'message': message}
-#     return JSONResponse(content=result)
-
-
-# @app.post("/process_layer")
-# async def process_layer(request: Request):
-#     body = await request.json()
-#     key = body.get('key')
-#     try:
-#         data, result = {}, {'Temperature':'temperature_multilayers', 'Salinity':'salinity_multilayers',
-#             'Contaminant':'contaminant_multilayers', 'Water Surface Level':'water_surface_dynamic',
-#             'Depth Water Level':'water_depth_dynamic'}
-#         if key == 'init_layers':
-#             data['below'] = [value for value in list(result.keys())]
-#             data['above'] = [value for value in list(n_layers.values())[:2]]
-#         elif key == 'process_layers':
-#             below_layer, above_layer = body.get('below_layer'), body.get('above_layer')
-#             key_below = result[below_layer]
-#             temp_mesh = functions.assignValuesToMeshes(grid, data_map, key_below)
-#             data['below'] = json.loads(temp_mesh.to_json())
-#             key_above = len(data_map['mesh2d_layer_z'].values) - int(layer_reverse[above_layer]) - 1
-#             data['above'] = functions.velocityComputer(data_map, above_layer, key_above)
-#         status, message = 'ok', 'Data loaded successfully.'
-#     except:
-#         data, status, message = None, 'error', 'File not found.'
-#     result = {'content': data, 'status': status, 'message': message}
-#     return JSONResponse(content=result)
-
-
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-
-
-
-
-
-
-# ## ================================================================
-# ## Old method (using GET method)
-# @app.get("/get_json")
-# async def get_json(data_filename: str, station: str = 'None'):
-#     # Check if the file exists
-#     filename = [f for f in temp_files if f.name == data_filename]
-#     if filename:
-#         # Read the JSON file
-#         with open(filename[0], 'r', encoding='utf-8') as f:
-#             data = json.load(f)
-#         # Check station is available
-#         if station != 'None':
-#             # Convert data to DataFrame
-#             df = pd.DataFrame(data)
-#             columns = [i for i in df.columns if station in i]
-#             data = df[['index'] + columns].to_json(orient='records', date_format='iso', indent=3)
-#         status, message = 'ok', 'JSON loaded successfully.'
-#     else:
-#         data, status, message = None, 'error', 'File not found.'
-#     result = {'content': data, 'status': status, 'message': message}
-#     return JSONResponse(content=result)    
-
-# @app.get("/get_temp_html")
-# async def get_temp_html(filename: str):
-#     # Check if the file exists
-#     path = [f for f in temp_files if f.name == filename]
-#     if path:
-#         status, message = 'ok', 'HTML file loaded successfully.'
-#     else:
-#         path, status, message = [None], 'error', 'File not found.'
-#     result = {'content': str(path[0]), 'status': status, 'message': message}
-#     return JSONResponse(content=result)
-
-# ## ================================================================

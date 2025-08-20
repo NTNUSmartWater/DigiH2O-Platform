@@ -32,44 +32,22 @@ variablesNames = {
     # For Dynamic map: Physical options
     'temp_multi_dynamic':'mesh2d_tem1', 'sal_multi_dynamic':'mesh2d_sa1', 'cont_multi_dynamic':'mesh2d_Contaminant',
     # For Dynamic map: Water Quality options
-
-
-
-
-
-
-    'fdf_carbon_water_quality':'mesh2d_2d_DetC', 'fdf_carbon_water_quality_multilayers':'mesh2d_DetC',
-    'fdf_nitrogen_water_quality':'mesh2d_2d_DetN', 'fdf_nitrogen_water_quality_multilayers':'mesh2d_DetN',
-    'fdf_phosphate_water_quality':'mesh2d_2d_DetP', 'fdf_phosphate_water_quality_multilayers':'mesh2d_DetP',
-    
-    
-    
-    'adsorbed_ortho_phosphate_water_quality':'mesh2d_2d_AAP', 'adsorbed_ortho_phosphate_water_quality_multilayers':'mesh2d_AAP',
-    'green_algae_biomass_water_quality':'mesh2d_2d_GREEN', 'green_algae_biomass_water_quality_multilayers':'mesh2d_GREEN',
-    'dissolved_ammonium_water_quality':'mesh2d_2d_NH4', 'dissolved_ammonium_water_quality_multilayers':'mesh2d_NH4',
-    'dissolved_nitrate_water_quality':'mesh2d_2d_NO3', 'dissolved_nitrate_water_quality_multilayers':'mesh2d_NO3',
-    'dissolved_phosphate_water_quality':'mesh2d_2d_PO4', 'dissolved_phosphate_water_quality_multilayers':'mesh2d_PO4',
-    'dissolved_oxygen_water_quality':'mesh2d_2d_OXY', 'dissolved_oxygen_water_quality_multilayers':'mesh2d_OXY',
-    'dissolved_chloride_water_quality':'mesh2d_2d_Cl', 'dissolved_chloride_water_quality_multilayers':'mesh2d_Cl',
-    'inorganic_matter_water_quality':'mesh2d_2d_IM1', 'inorganic_matter_water_quality_multilayers':'mesh2d_IM1',
-    'opal_si_water_quality':'mesh2d_2d_Opal', 'opal_si_water_quality_multilayers':'mesh2d_Opal',
-    'sediment_oxygen_demand_water_quality':'mesh2d_2d_SOD', 'sediment_oxygen_demand_water_quality_multilayers':'mesh2d_SOD',
-    'total_nitrogen_algae_water_quality':'mesh2d_2d_AlgN', 'total_nitrogen_algae_water_quality_multilayers':'mesh2d_AlgN',
-    'total_phosphorus_algae_water_quality':'mesh2d_2d_AlgP', 'total_phosphorus_algae_water_quality_multilayers':'mesh2d_AlgP',
-    'suspended_solids_water_quality':'mesh2d_2d_SS', 'suspended_solids_water_quality_multilayers':'mesh2d_SS',
-    'total_nitrogen_water_quality':'mesh2d_2d_TotN', 'total_nitrogen_water_quality_multilayers':'mesh2d_TotN',
-    'kjeldahl_nitrogen_water_quality':'mesh2d_2d_KjelN', 'kjeldahl_nitrogen_water_quality_multilayers':'mesh2d_KjelN',
-    'total_phosphorus_water_quality':'mesh2d_2d_TotP', 'total_phosphorus_water_quality_multilayers':'mesh2d_TotP',
-    'daylength_limitation_greens_water_quality':'mesh2d_2d_LimDLGreen', 'daylength_limitation_greens_water_quality_multilayers':'mesh2d_LimDLGreen',
-    'nutrient_limitation_greens_water_quality':'mesh2d_2d_LimNutGree', 'nutrient_limitation_greens_water_quality_multilayers':'mesh2d_LimNutGree',
-    'radiation_limitation_greens_water_quality':'mesh2d_2d_LimRadGree', 'radiation_limitation_greens_water_quality_multilayers':'mesh2d_LimRadGree',
-    'chlorophyll_concentration_water_quality':'mesh2d_2d_Chlfa', 'chlorophyll_concentration_water_quality_multilayers':'mesh2d_Chlfa',
-    'extinction_phytoplankton_water_quality':'mesh2d_2d_ExtVlPhyt', 'extinction_phytoplankton_water_quality_multilayers':'mesh2d_ExtVlPhyt',
-    'volume_water_quality':'mesh2d_2d_volume', 'volume_water_quality_multilayers':'mesh2d_volume',
-
-
-
-    
+    'fdf_POC_wq_map_dynamic':'mesh2d_2d_DetC', 'fdf_POC_wq_map_multi_dynamic':'mesh2d_DetC', 'fdf_PON_wq_map_dynamic':'mesh2d_2d_DetN', 'fdf_PON_wq_map_multi_dynamic':'mesh2d_DetN',
+    'fdf_POP_wq_map_dynamic':'mesh2d_2d_DetP', 'fdf_POP_wq_map_multi_dynamic':'mesh2d_DetP', 'df_NH4_wq_map_dynamic':'mesh2d_2d_NH4', 'df_NH4_wq_map_multi_dynamic':'mesh2d_NH4',
+    'df_NO3_wq_map_dynamic':'mesh2d_2d_NO3', 'df_NO3_wq_map_multi_dynamic':'mesh2d_NO3', 'df_PO4_wq_map_dynamic':'mesh2d_2d_PO4', 'df_PO4_wq_map_multi_dynamic':'mesh2d_PO4',
+    'fdf_OXY_wq_map_dynamic':'mesh2d_2d_OXY', 'fdf_OXY_wq_map_multi_dynamic':'mesh2d_OXY', 'fdf_OXY_wq_map_dynamic':'mesh2d_2d_Cl', 'fdf_OXY_wq_map_multi_dynamic':'mesh2d_Cl',
+    'nitrogen_total_wq_map_dynamic':'mesh2d_2d_TotN', 'nitrogen_total_wq_map_multi_dynamic':'mesh2d_TotN', 'nitrogen_total_wq_map_dynamic':'mesh2d_2d_AlgN',
+    'nitrogen_total_wq_map_multi_dynamic':'mesh2d_AlgN', 'nitrogen_kjeldahl_wq_map_dynamic':'mesh2d_2d_KjelN', 'nitrogen_kjeldahl_wq_map_multi_dynamic':'mesh2d_KjelN',
+    'nitrogen_kjeldahl_wq_map_dynamic':'mesh2d_2d_KjelN', 'nitrogen_kjeldahl_wq_map_multi_dynamic':'mesh2d_KjelN', 'total_phosphorus_wq_map_dynamic':'mesh2d_2d_TotP',
+    'total_phosphorus_wq_map_multi_dynamic':'mesh2d_TotP', 'phosphorus_algae_wq_map_dynamic':'mesh2d_2d_AlgP', 'phosphorus_algae_wq_map_multi_dynamic':'mesh2d_AlgP',
+    'daylength_greens_wq_map_dynamic':'mesh2d_2d_LimDLGreen', 'daylength_greens_wq_map_multi_dynamic':'mesh2d_LimDLGreen',
+    'nutrient_greens_wq_map_dynamic':'mesh2d_2d_LimNutGree', 'nutrient_greens_wq_map_multi_dynamic':'mesh2d_LimNutGree',
+    'radiation_greens_wq_map_dynamic':'mesh2d_2d_LimRadGree', 'radiation_greens_wq_map_multi_dynamic':'mesh2d_LimRadGree',
+    'adsorbed_ortho_phosphate_wq_map_dynamic':'mesh2d_2d_AAP', 'adsorbed_ortho_phosphate_wq_map_multi_dynamic':'mesh2d_AAP',
+    'dyamo_wq_map_dynamic':'mesh2d_2d_GREEN', 'dyamo_wq_map_multi_dynamic':'mesh2d_GREEN', 'inorganic_matter_wq_map_dynamic':'mesh2d_2d_IM1', 'inorganic_matter_wq_map_multi_dynamic':'mesh2d_IM1',
+    'opal_si_wq_map_dynamic':'mesh2d_2d_Opal', 'opal_si_wq_map_multi_dynamic':'mesh2d_Opal', 'sediment_oxygen_wq_map_dynamic':'mesh2d_2d_SOD', 'sediment_oxygen_wq_map_multi_dynamic':'mesh2d_SOD',
+    'suspended_solids_wq_map_dynamic':'mesh2d_2d_SS', 'suspended_solids_wq_map_multi_dynamic':'mesh2d_SS', 'chlorophyll_wq_map_dynamic':'mesh2d_2d_Chlfa', 'chlorophyll_wq_map_multi_dynamic':'mesh2d_Chlfa',
+    'extinction_phytoplankton_wq_map_dynamic':'mesh2d_2d_ExtVlPhyt', 'extinction_phytoplankton_wq_map_multi_dynamic':'mesh2d_ExtVlPhyt', 'volume_wq_map_dynamic':'mesh2d_2d_volume', 'volume_wq_map_multi_dynamic':'mesh2d_volume',
     }
 
 
@@ -92,17 +70,27 @@ def numberFormatter(arr: np.array, decimals: int=2) -> np.array:
     """
     try:
         arr = np.asarray(arr, dtype=float)
-        abs_arr = np.abs(arr)
-        mask = abs_arr >= 1
         result = np.empty(arr.shape, dtype=object)
-        result[mask] = np.char.mod(f"%.{decimals}f", np.round(arr[mask], decimals))
-        small_vals = arr[~mask]
+        finite_mask = np.isfinite(arr)
+        abs_arr = np.abs(arr)
+        # Make a mask for large numbers
+        large_mask = finite_mask & (abs_arr >= 1)
+        result[large_mask] = np.round(arr[large_mask], decimals)
+        # Make a mask for small numbers
+        small_mask = finite_mask & (abs_arr < 1) & (arr != 0)
         fmt = f"%.{decimals}e"
-        result[~mask] = [fmt % v for v in small_vals]
+        result[small_mask] = [float(fmt % v) for v in arr[small_mask]]
+        # Make a mask for zero
+        zero_mask = finite_mask & (arr == 0)
+        result[zero_mask] = 0.0
+        # NaN -> None
+        nan_mask = ~finite_mask
+        result[nan_mask] = None
+        result = np.reshape(result, arr.shape).tolist()
         return result
     except:
-        raise ValueError("Input array must contain numeric values.")
-
+        print("Input array contains non-numeric values")
+        return arr
 
 def getVectorNames() -> list:
     """
@@ -218,20 +206,20 @@ def getVariablesNames(data: xr.Dataset) -> dict:
     elif ('nTimesDlwq' in data.sizes and 'nStations' in data.sizes):
         print("Checking Water Quality History File ...")
         # Prepare data for Fast Decomposing Fraction
-        result['wq_his_DetC'] = checkVariables(data, 'DetC')
-        result['wq_his_DetN'] = checkVariables(data, 'DetN')
-        result['wq_his_DetP'] = checkVariables(data, 'DetP')
-        result['wq_his_fdf'] = True if (result['wq_his_DetC'] or
-            result['wq_his_DetN'] or result['wq_his_DetP']) else False
+        result['wq_his_fdf_carbon'] = checkVariables(data, 'DetC')
+        result['wq_his_fdf_nitrogen'] = checkVariables(data, 'DetN')
+        result['wq_his_fdf_phosphate'] = checkVariables(data, 'DetP')
+        result['wq_his_fdf'] = True if (result['wq_his_fdf_carbon'] or
+            result['wq_his_fdf_nitrogen'] or result['wq_his_fdf_phosphate']) else False
         # Prepare data for Dissolved Form
-        result['wq_his_NH4'] = checkVariables(data, 'NH4')
-        result['wq_his_NO3'] = checkVariables(data, 'NO3')
-        result['wq_his_PO4'] = checkVariables(data, 'PO4')
-        result['wq_his_OXY'] = checkVariables(data, 'OXY')
-        result['wq_his_Cl'] = checkVariables(data, 'Cl')
-        result['wq_his_df'] = True if (result['wq_his_NH4'] or
-            result['wq_his_NO3'] or result['wq_his_PO4'] or
-            result['wq_his_OXY'] or result['wq_his_Cl']) else False
+        result['wq_his_df_ammonium'] = checkVariables(data, 'NH4')
+        result['wq_his_df_nitrate'] = checkVariables(data, 'NO3')
+        result['wq_his_df_phosphate'] = checkVariables(data, 'PO4')
+        result['wq_his_df_oxygen'] = checkVariables(data, 'OXY')
+        result['wq_his_df_chloride'] = checkVariables(data, 'Cl')
+        result['wq_his_df'] = True if (result['wq_his_df_ammonium'] or
+            result['wq_his_df_nitrate'] or result['wq_his_df_phosphate'] or
+            result['wq_his_df_oxygen'] or result['wq_his_df_chloride']) else False
         # Prepare data for Nitrogen
         result['wq_his_nitrogen_total'] = checkVariables(data, 'TotN')
         result['wq_his_nitrogen_algae'] = checkVariables(data, 'AlgN')
@@ -266,23 +254,49 @@ def getVariablesNames(data: xr.Dataset) -> dict:
     # This is a water quality map file      
     elif ('nTimesDlwq' in data.sizes and ('mesh2d_nNodes' or 'mesh2d_nEdges') in data.sizes):
         print('Checking Water Quality Map File ...')
-        result['wq_map_DetC'] = True #(checkVariables(data, 'mesh2d_DetC') or checkVariables(data, 'mesh2d_2d_DetC'))
-
-
-
-
-    
-
-
-
-
-        result['wq_map_fdf'] = True # if (result['wq_map_DetC']) else False
-        
-
-        result['wq_map'] = True
-        
-        
-        
+        # Prepare data for Fast Decomposing Fraction
+        result['wq_map_fdf_carbon'] = (checkVariables(data, 'mesh2d_DetC') or checkVariables(data, 'mesh2d_2d_DetC'))
+        result['wq_map_fdf_nitrogen'] = (checkVariables(data, 'mesh2d_DetN') or checkVariables(data, 'mesh2d_2d_DetN'))
+        result['wq_map_fdf_phosphate'] = (checkVariables(data, 'mesh2d_DetP') or checkVariables(data, 'mesh2d_2d_DetP'))
+        result['wq_map_fdf'] = True if (result['wq_map_fdf_carbon'] or result['wq_map_fdf_nitrogen'] or result['wq_map_fdf_phosphate']) else False
+        # Prepare data for Dissolved Form
+        result['wq_map_ammonium'] = (checkVariables(data, 'mesh2d_NH4') or checkVariables(data, 'mesh2d_2d_NH4'))
+        result['wq_map_nitrate'] = (checkVariables(data, 'mesh2d_NO3') or checkVariables(data, 'mesh2d_2d_NO3'))
+        result['wq_map_phosphate'] = (checkVariables(data, 'mesh2d_PO4') or checkVariables(data, 'mesh2d_2d_PO4'))
+        result['wq_map_oxygen'] = (checkVariables(data, 'mesh2d_OXY') or checkVariables(data, 'mesh2d_2d_OXY'))
+        result['wq_map_chloride'] = (checkVariables(data, 'mesh2d_Cl') or checkVariables(data, 'mesh2d_2d_Cl'))
+        result['wq_map_df'] = True if (result['wq_map_ammonium'] or result['wq_map_nitrate'] or result['wq_map_phosphate'] or
+            result['wq_map_oxygen'] or result['wq_map_chloride']) else False
+        # Prepare data for Nitrogen
+        result['wq_map_nitrogen_total'] = (checkVariables(data, 'mesh2d_TotN') or checkVariables(data, 'mesh2d_2d_TotN'))
+        result['wq_map_nitrogen_algae'] = (checkVariables(data, 'mesh2d_AlgN') or checkVariables(data, 'mesh2d_2d_AlgN'))
+        result['wq_map_nitrogen_kjeldahl'] = (checkVariables(data, 'mesh2d_Cl') or checkVariables(data, 'mesh2d_2d_Cl'))
+        result['wq_map_nitrogen'] = True if (result['wq_map_nitrogen_total'] or
+            result['wq_map_nitrogen_algae'] or result['wq_map_nitrogen_kjeldahl']) else False
+        # Prepare data for Phosphorus
+        result['wq_map_phosphorus_total'] = (checkVariables(data, 'mesh2d_TotP') or checkVariables(data, 'mesh2d_2d_TotP'))
+        result['wq_map_phosphorus_algae'] = (checkVariables(data, 'mesh2d_AlgP') or checkVariables(data, 'mesh2d_2d_AlgP'))
+        result['wq_map_phosphorus'] = True if (result['wq_map_phosphorus_total'] or result['wq_map_phosphorus_algae']) else False
+        # Limitation Function for Greens
+        result['wq_map_daylength'] = (checkVariables(data, 'mesh2d_LimDLGreen') or checkVariables(data, 'mesh2d_2d_LimDLGreen'))
+        result['wq_map_nutrient'] = (checkVariables(data, 'mesh2d_LimNutGree') or checkVariables(data, 'mesh2d_2d_LimNutGree'))
+        result['wq_map_radiation'] = (checkVariables(data, 'mesh2d_LimRadGree') or checkVariables(data, 'mesh2d_2d_LimRadGree'))
+        result['wq_map_greens'] = True if (result['wq_map_daylength'] or result['wq_map_nutrient'] or result['wq_map_radiation']) else False
+        # Prepare data for other variables
+        result['wq_map_aap'] = (checkVariables(data, 'mesh2d_AAP') or checkVariables(data, 'mesh2d_2d_AAP'))
+        result['wq_map_dyamo'] = (checkVariables(data, 'mesh2d_GREEN') or checkVariables(data, 'mesh2d_2d_GREEN'))
+        result['wq_map_organic'] = (checkVariables(data, 'mesh2d_IM1') or checkVariables(data, 'mesh2d_2d_IM1'))
+        result['wq_map_opal_si'] = (checkVariables(data, 'mesh2d_Opal') or checkVariables(data, 'mesh2d_2d_Opal'))
+        result['wq_map_sediment'] = (checkVariables(data, 'mesh2d_SOD') or checkVariables(data, 'mesh2d_2d_SOD'))
+        result['wq_map_suspend'] = (checkVariables(data, 'mesh2d_SS') or checkVariables(data, 'mesh2d_2d_SS'))
+        result['wq_map_chlorophyll'] = (checkVariables(data, 'mesh2d_Chlfa') or checkVariables(data, 'mesh2d_2d_Chlfa'))
+        result['wq_map_extinction'] = (checkVariables(data, 'mesh2d_ExtVlPhyt') or checkVariables(data, 'mesh2d_2d_ExtVlPhyt'))
+        result['wq_map_volume'] = (checkVariables(data, 'mesh2d_volume') or checkVariables(data, 'mesh2d_2d_volume'))
+        result['wq_map'] = True if (result['wq_map_fdf'] or result['wq_map_df'] or
+            result['wq_map_nitrogen'] or result['wq_map_phosphorus'] or result['wq_map_greens'] or
+            result['wq_map_aap'] or result['wq_map_dyamo'] or result['wq_map_organic'] or 
+            result['wq_map_opal_si'] or result['wq_map_sediment'] or result['wq_map_suspend'] or
+            result['wq_map_chlorophyll'] or result['wq_map_extinction'] or result['wq_map_volume']) else False
     return result
 
 def dialogReader(dialog_file: str) -> dict:
@@ -653,7 +667,7 @@ def velocityComputer(data_map: xr.Dataset, value_type: str, key: int) -> gpd.Geo
     data_map: xr.Dataset
         The dataset received from _map.nc file.
     value_type: str
-        The type of velocity to compute.
+        The type of velocity to compute: 'Depth-average' or one specific layer.
     key: int
         The index of the selected layer.
 
@@ -663,7 +677,7 @@ def velocityComputer(data_map: xr.Dataset, value_type: str, key: int) -> gpd.Geo
         The GeoDataFrame containing the vector map of the mesh.
     """
     result = {}
-    if value_type == 'Depth-average':
+    if value_type == 'Average':
         # Average velocity in each layer
         ucx = data_map['mesh2d_ucxa'].values
         ucy = data_map['mesh2d_ucya'].values
