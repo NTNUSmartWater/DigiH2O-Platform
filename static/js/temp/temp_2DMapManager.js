@@ -1,19 +1,24 @@
-import { loadData, getColorFromValue, updateColorbar, updateMapByTime, getMinMaxFromGeoJSON, toNumber } from "./utils.js";
+import { loadData, getColorFromValue, updateColorbar, getMinMaxFromGeoJSON } from "./utils.js";
+import { updateMapByTime, colorbar_container, colorbar_vector_container } from "./utils.js";
 import { startLoading, showLeafletMap, L, map } from "./temp_mapManager.js";
-import { setMapLayer, getIsPathQuery, setIsClickedInsideLayer, setStoredLayer } from "./temp_constants.js";
-import { setPolygonCentroids, getIsPlaying, setIsPlaying, setIsPath } from "./temp_constants.js";
-import { vectorObjectMain, vectorObjectSubMain } from "./temp_uiManager.js";
+import { setMapLayer, setStoredLayer, setIsPathQuery } from "./temp_constants.js";
+import { setPolygonCentroids, getIsPlaying, setIsPlaying } from "./temp_constants.js";
+import { getLastFeatureColors, setIsPointQuery, arrowShape } from "./temp_constants.js";
+import { getFeatureMap, setFeatureMap, setIsMultiLayer } from "./temp_constants.js";
+import { setIsClickedInsideLayer, setLastFeatureColors } from "./temp_constants.js";
+import { getVectorMain, getVectorSelected, getScalerValue, setScalerValue } from "./temp_constants.js";
 import { drawChart } from "./temp_chartManager.js";
-import { deactivePathQuery, deactivePointQuery, mapPath } from "./temp_queryManager.js";
-
+import { mapPoint } from "./temp_queryManager.js";
+import { scaler_value } from "./temp_dynamicMapManager.js";
 
 const timeControl = () => document.getElementById('time-controls');
 const slider = () => document.getElementById("time-slider");
 const playBtn = () => document.getElementById("play-btn");
 
 
-let layerMap = null, currentIndex = 0, playHandlerAttached = false, txt = '', swap = false;
-let prevPolygon = null, prevColor = null;
+export let layerAbove = null;
+let layerMap = null,  currentIndex = 0, playHandlerAttached = false;
+let prevPolygon = null, prevColor = null, parsedDataAllFrames = '', txt = '';
 
 // Define CanvasLayer
 L.CanvasLayer = L.Layer.extend({
@@ -58,26 +63,47 @@ async function plotMultilayer(id, key, titleY) {
         body: JSON.stringify({key: key, id: id})});
         const data = await response.json();
         if (data.status === "ok") {
-            drawChart(data.content, 'Simulated Values at Layers', 'Time', titleY, 'All', false);
+            drawChart(data.content, 'Simulated Values at Layers', 'Time', titleY, false);
         } else if (data.status === "error") {alert(data.message);}
     } catch (error) {alert(error);}
     showLeafletMap();
 }
 
 // Create map layer
-function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarKey, swap) {
-    deactivePathQuery(); deactivePointQuery(); // Deactivate queries
+function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarKey, colorbarScaler, swap) {
     if (layerMap) map.removeLayer(layerMap);  // Remove previous layer
     const getColumnName = () => Array.isArray(timestamp) ? timestamp[currentIndex] : timestamp;
+    // Remove previous featureMap
+    setFeatureMap({});
+    // Create feature to access quickly
     const featureIds = [];
-    layerMap = L.vectorGrid.slicer(data, {
+    setLastFeatureColors({});
+    // Data filter
+    const filteredFeatures = data.features.filter(f => {
+        const value = f.properties[getColumnName()];
+        return value !== null && value !== undefined;
+    });
+    const filteredData = { ...data, features: filteredFeatures};
+    filteredData.features.forEach(f => {
+        const value = getFeatureMap();
+        value[f.properties.index] = f;
+        setFeatureMap(value);
+        featureIds.push(f.properties.index);
+    });
+    // Create map layer
+    layerMap = L.vectorGrid.slicer(filteredData, {
         rendererFactory: L.canvas.tile, vectorTileLayerStyles: {
             sliced: function(properties) {
                 const value = properties[getColumnName()];
+                // Ignore null values
+                if (value === null || value === undefined) return { fill: false, weight: 0, opacity: 0 };
                 const { r, g, b, a } = getColorFromValue(value, vmin, vmax, colorbarKey, swap);
+                const colorsCache = getLastFeatureColors();
+                colorsCache[properties.index] = `${r},${g},${b},${a}`;
+                setLastFeatureColors(colorsCache);
                 return {
-                    fill: true, fillColor: `rgb(${r},${g},${b})`, fillOpacity: a,
-                    weight: 0, opacity: 1
+                    fill: true, fillColor: `rgb(${r},${g},${b})`,
+                    fillOpacity: a, weight: 0, opacity: 1
                 };
             },
         }, interactive: true, maxZoom: 18, getFeatureId: f => {
@@ -86,15 +112,19 @@ function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarK
         }
     });
     if (key.includes('multi')) {
-        txt = `<br>Select object to see values in each layer`; setIsPath(false);
+        txt = `<br>Select object to see values in each layer`;
+        setIsMultiLayer(true); setIsPathQuery(false); setIsPointQuery(false);
     } else {
-        setIsPath(true); txt = '';
-        const polygonCentroids = data.features.map(f => {
-            const center = turf.centroid(f).geometry.coordinates;
-            return {
-                lat: center[1], lng: center[0],
-                value: f.properties[getColumnName()],
-            };
+        setIsMultiLayer(false); txt = ''; 
+        const polygonCentroids = [];
+        filteredData.features.forEach(f => {
+            const value = f.properties[getColumnName()];
+            if (value !== null && value !== undefined){ 
+                const center = turf.centroid(f).geometry.coordinates;
+                polygonCentroids.push({
+                    lat: center[1], lng: center[0], value: value
+                });
+            }
         });
         setPolygonCentroids(polygonCentroids);
     }
@@ -117,9 +147,7 @@ function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarK
     layerMap.on('click', function(e) {
         setIsClickedInsideLayer(true);
         const props = e.layer.properties;
-        if (getIsPathQuery()) {
-            mapPath({ ...e, layerProps: props });
-        }
+        mapPoint({ ...e, layerProps: props });
         if (key.includes('multi')) {
             // Reset previous polygon if exists
             if (prevPolygon){
@@ -142,61 +170,139 @@ function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarK
         }
     });
     // Adjust Colorbar Control
-    updateColorbar(vmin, vmax, colorbarTitle, colorbarKey, swap);
+    updateColorbar(vmin, vmax, colorbarTitle, colorbarKey, colorbarScaler, swap);
      // Assign values to use later
     setMapLayer(featureIds);
     layerMap.getColumnName = getColumnName; setStoredLayer(layerMap);
     return layerMap;
 }
 
-export async function plot2DMapStatic(filename, key, colorbarTitle, colorbarKey, swap=false) {
+export async function plot2DMapStatic(filename, key, colorbarTitle, colorbarKey, 
+                                        colorbarScaler='normal', swap=false,) {
     startLoading();
     const data = await loadData(filename, key);
     setIsPlaying(false);
     // Hide timeslider
     timeControl().style.display = 'none';
-    // Convert string to number
-    data.content.features.forEach(f => {
-        Object.keys(f.properties).forEach(k => f.properties[k] = toNumber(f.properties[k]));
-    });
     // Get the min and max values of the data
     const values = data.content.features.map(f => f.properties.value)
                     .filter(v => typeof v === 'number' && !isNaN(v));
     const vmin = Math.min(...values), vmax = Math.max(...values);
-    const mapLayer = layerCreator(data.content, key, "value", vmin, vmax, colorbarTitle, colorbarKey, swap);
-    map.addLayer(mapLayer);
+    layerMap = layerCreator(data.content, key, "value", vmin, vmax, colorbarTitle, colorbarKey, colorbarScaler, swap);
+    map.addLayer(layerMap);
     showLeafletMap();
 }
 
-function initDynamicMap(key, data, colorbarTitle, colorbarKey, swap) {
+function buildFrameData(data, i) {
+    const coordsArray = data.coordinates, values = data.values[i];
+    const result = [];    
+    for (let i = 0; i < coordsArray.length; i++) {
+        const coords = coordsArray[i];
+        const val = values[i];
+        let parts = [];
+        if (typeof val === 'string') {
+            const temp = val.replace(/[()]/g, '');
+            parts = temp.split(',').map(s => parseFloat(s.trim()));
+        } else if (Array.isArray(val)) { parts = val.map(Number); }
+        if (!isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+            result.push({
+                x: coords[0], y: coords[1], a: parts[0], b: parts[1], c: parts[2]
+            });
+        }
+    }
+    return result;
+}
+
+function vectorCreator(parsedData, vmin, vmax, title, colorbarKey, colorbarScaler, key='velocity', swap) {
+    if (layerAbove) map.removeLayer(layerAbove);  // Remove previous layer
+    const scale = parseFloat(getScalerValue());
+    const layer = new L.CanvasLayer({ data: parsedData,
+        drawLayer: function () {
+            const ctx = this._ctx, map = this._map;
+            const canvas = ctx.canvas, data = this.options.data;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = 0; i < data.length; i++) {
+                const pt = data[i];
+                const p = map.latLngToContainerPoint([pt.y, pt.x]);
+                if (p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height) continue;
+                const dx = pt.a * scale, dy = -pt.b * scale;
+                const length = Math.sqrt(dx * dx + dy * dy);
+                if (length < 0.1) continue;
+                const angle = Math.atan2(dy, dx);
+                ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(angle);
+                ctx.scale(length, length);
+                if (key === "velocity") {
+                    const color = getColorFromValue(pt.c, vmin, vmax, colorbarKey);
+                    ctx.strokeStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
+                } else { ctx.strokeStyle = "rgba(255, 255, 255, 1)"; }
+                ctx.lineWidth = 1 / length;
+                ctx.stroke(arrowShape); ctx.restore();
+            }
+        }
+    });
+    // Adjust Colorbar Control
+    updateColorbar(vmin, vmax, title, colorbarKey, colorbarScaler, swap);
+    return layer;
+}
+
+function initDynamicMap(key, data_below, data_above, colorbarTitleBelow, colorbarTitleAbove,
+                        colorbarKeyBelow, colorbarKeyAbove, colorbarScaler, swap) {
     timeControl().style.display = "flex"; // Show time slider
-    // Get column name
-    const allColumns = Object.keys(data.features[0].properties);
-    const timestamp = allColumns.filter(k => !k.includes("index"));
-    // Get min and max values
-    const { min: vmin, max: vmax } = getMinMaxFromGeoJSON(data, timestamp);
-    currentIndex = timestamp.length - 1;
+    // Hide colorbar control
+    colorbar_container().style.display = "none";
+    colorbar_vector_container().style.display = "none";
+    let timestamp, currentIndex;
+    let vminBelow, vmaxBelow, vminAbove, vmaxAbove;
     // Destroy slider if it exists
     if (slider().noUiSlider) { 
         slider().noUiSlider.destroy();
         clearInterval(getIsPlaying()); setIsPlaying(null);
         playBtn().textContent = "▶ Play";
     }
-    const layer = layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarKey, swap);
-    map.addLayer(layer);
+    // Process below layer
+    if (data_below) {
+        colorbar_container().style.display = "block";
+        // Get column name
+        const allColumns = Object.keys(data_below.features[0].properties);
+        timestamp = allColumns.filter(k => !k.includes("index"));
+        // Get min and max values
+        const minmax = getMinMaxFromGeoJSON(data_below, timestamp);
+        vminBelow = minmax.min; vmaxBelow = minmax.max;
+        currentIndex = timestamp.length - 1;
+        layerMap = layerCreator(data_below, key, timestamp, vminBelow, vmaxBelow, 
+                                colorbarTitleBelow, colorbarKeyBelow, colorbarScaler, swap);
+        map.addLayer(layerMap);
+    }
+    // Process above layer
+    if (data_above) {
+        colorbar_vector_container().style.display = "block";
+        // Plot above layer directly
+        timestamp = data_above.time;
+        // Get min and max values
+        vminAbove = data_above.min_max[0], vmaxAbove = data_above.min_max[1];
+        currentIndex = timestamp.length - 1;
+        parsedDataAllFrames = timestamp.map((_, i) => buildFrameData(data_above, i));
+        layerAbove = vectorCreator(parsedDataAllFrames[currentIndex], vminAbove, vmaxAbove, 
+                                    colorbarTitleAbove, colorbarKeyAbove, 'vector', swap);
+        map.addLayer(layerAbove);
+    }
     // Recreate Slider
     noUiSlider.create(slider(), {
         start: currentIndex, step: 1,
         range: { min: 0, max: timestamp.length - 1 },
-        tooltips: {
+        tooltips: [{
             to: value => timestamp[Math.round(value)],
             from: value => timestamp.indexOf(value)
-        }
+        }]
     });
     // Update map by time
     slider().noUiSlider.on('update', (values, handle, unencoded) => {
         currentIndex = Math.round(unencoded[handle]);
-        updateMapByTime(data, layer, timestamp, currentIndex, vmin, vmax, colorbarKey, swap);
+        if (data_below) updateMapByTime(layerMap, timestamp, currentIndex, vminBelow, vmaxBelow, colorbarKeyBelow, swap);
+        if (data_above) {
+            layerAbove.options.data = parsedDataAllFrames[currentIndex];
+            layerAbove._redraw();
+        }
     });
     // Play/Pause button
     if (!playHandlerAttached) {
@@ -218,73 +324,43 @@ function initDynamicMap(key, data, colorbarTitle, colorbarKey, swap) {
     }
 }
 
-
-export async function plot2DMapDynamic(filename, key, colorbarTitle, colorbarKey) {
+export async function plot2DMapDynamic(waterQuality, filename, key, colorbarTitle, colorbarKey, colorbarScaler='normal') {
     startLoading();
-    const vectorMainIndex = vectorObjectMain().selectedIndex;
-    // Process vector data
-    if (vectorMainIndex === 1) {
-        const vectorSubMainIndex = vectorObjectSubMain().selectedIndex;
-        console.log(vectorMainIndex, vectorSubMainIndex);
-
-
-
-    } else if (vectorMainIndex > 2) {
-        
-    }
-    // Process dynamic map
-    const data = await loadData(filename, key);
-    // Convert string to number
-    data.content.features.forEach(f => {
-        Object.keys(f.properties).forEach(k => f.properties[k] = toNumber(f.properties[k]));
-    });
+    let data_below = null, data_above = undefined, swap = false;
+    let colorbarTitleAbove = null, colorbarKeyAbove = null;
     if (key === 'wd_dynamic') {swap = true;} else {swap = false;}
-    initDynamicMap(key, data.content, colorbarTitle, colorbarKey, swap);
+    // Process below layer
+    const dataBelow = await loadData(filename, key);
+    data_below = dataBelow.content;
+    // If data is not water quality
+    if (!waterQuality && getVectorMain()) {
+        let vectorName = getVectorMain(), vectorKey = getVectorSelected();
+        colorbarTitleAbove = vectorName;
+        // Process above data
+        if (vectorName === 'Velocity' && vectorKey) {
+            vectorName = `${vectorKey}_velocity`;
+            vectorKey = 'velocity';
+        }
+        const dataAbove = await loadData(vectorName, vectorKey);
+        data_above = dataAbove.content;
+        colorbarKeyAbove = vectorKey;
+    }
+    initDynamicMap(key, data_below, data_above, colorbarTitle, colorbarTitleAbove, 
+                    colorbarKey, colorbarKeyAbove, colorbarScaler, swap);
     showLeafletMap();
 }
 
-
-
-
-
-// export function vectorCreator(parsedData, vmin, vmax, title, colorbarKey, key='velocity') {
-//     // if (layerStatic && map.hasLayer(layerStatic)) {
-//     //     map.removeLayer(layerStatic); layerStatic = null;
-//     // };
-//     // if (layerDynamic && map.hasLayer(layerDynamic)) {
-//     //     map.removeLayer(layerDynamic); layerDynamic = null;
-//     // };
-//     const scale = 400, arrowLength = 1;
-//     const layer = new L.CanvasLayer({ data: parsedData,
-//         drawLayer: function () {
-//             const ctx = this._ctx, map = this._map;
-//             const canvas = ctx.canvas, data = this.options.data;
-//             ctx.clearRect(0, 0, canvas.width, canvas.height);
-//             for (let i = 0; i < data.length; i++) {
-//                 const pt = data[i];
-//                 const p = map.latLngToContainerPoint([pt.y, pt.x]);
-//                 if (p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height) continue;
-//                 const dx = pt.a * scale, dy = -pt.b * scale;
-//                 const length = Math.sqrt(dx * dx + dy * dy);
-//                 if (length < 0.1) continue;
-//                 const angle = Math.atan2(dy, dx);
-//                 ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(angle);
-//                 ctx.scale(length / arrowLength, length / arrowLength);
-//                 if (key === "velocity") {
-//                     const color = getColorFromValue(pt.c, vmin, vmax, colorbarKey);
-//                     ctx.strokeStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
-//                 } else {
-//                     ctx.strokeStyle = "rgba(255, 255, 255, 1)";
-//                 }
-//                 ctx.lineWidth = 1 / (length / arrowLength);
-//                 ctx.stroke(arrowShape); ctx.restore();
-//             }
-//         }
-//     });
-//     // Adjust Colorbar Control
-//     updateColorbar(vmin, vmax, title, colorbarKey);
-//     return layer;
-// }
-
-
-
+export async function plot2DVectorMap(filename, key, colorbarTitleAbove, colorbarKey) {
+    const vectorName = getVectorMain(), vectorKey = getVectorSelected();
+    if ((vectorName === 'Velocity' && !vectorKey) || (!vectorName)) return;
+    if ((!scaler_value().value)||(parseFloat(scaler_value().value) <= 0)) {
+        alert('Wrong scaler value. Please check the scaler value.');
+        return;
+    }
+    // Store scaler value
+    setScalerValue(scaler_value().value);
+    startLoading();
+    const data = await loadData(filename, key);
+    initDynamicMap(key, null, data.content, undefined, colorbarTitleAbove, colorbarKey, 'vector', false);
+    showLeafletMap();
+}

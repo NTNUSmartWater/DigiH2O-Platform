@@ -1,153 +1,88 @@
 *, *::before, *::after {
-  box-sizing: border-box;
+  margin: 0; padding: 0; box-sizing: border-box;
 }
 html, body {
   margin: 0; padding: 0;
   box-sizing: border-box; height: 100%;
-}
-
-header {
-  background-color: #71d8e6; position: relative;
-  top: 0; left: 0; width: 100%; height: 80px;
-  text-align: center; align-items: center;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  color: #0a0a0a; z-index: 1000; border: 2px solid #f7f7f8;
-  border-bottom-left-radius: 12px;
-  border-bottom-right-radius: 12px;
-}
-
-#menuBtn {
-  position: absolute; top: 10px; left: 10px;
-  font-size: 30px; color: rgb(17, 17, 17);
-  background-color: transparent;
-  border: none; cursor: pointer; z-index: 1000;
+  font-family: Arial, sans-serif;
 }
 
 #right-side-controls {
-  position: absolute; top: 90px; right: 10px; display: flex;
+  position: absolute; top: 50px; right: 10px; display: flex;
   flex-direction: column; align-items: center; gap: 10px; z-index: 1000;
 }
-#custom-map{
-  display: flex; align-items: center; gap: 10px;
-}
-#custom_map_background_btn, #custom_compass_btn {
-  display: flex; align-items: center; justify-content: center;
-  border: none; cursor: pointer;
-}
-#custom_map_background_btn {
-  background: rgb(255, 255, 255); ; border: none; cursor: pointer;
-  width: 30px; height: 30px; border-radius: 10%;
-}
-#custom_map_background_btn img {
-  width: 20px; height: 20px; display: block;
-}
 #custom_compass_btn {
-  width: 90px; height: 90px; cursor: default; background: none;
+  display: flex; align-items: center; justify-content: center; 
+  border: none; background: none;
 }
 #custom_compass_btn img {
-  width: 90px; height: 90px; pointer-events: none; background: none; display: block;
+  width: 70px; height: 70px; pointer-events: none; 
+  background: none; display: block;
+}
+
+#colorbar-container {
+  position: absolute; top: 150px; right: 5px;
+  z-index: 1000; display: flex; flex-direction: column; gap: 10px;
+}
+#custom-colorbar, #custom-colorbar-vector { display: none; }
+.colorbar-wrapper {
+  display: flex; flex-direction: row; align-items: center; gap: 6px;
+  background: rgba(0,0,0,0.6); padding: 8px; border-radius: 6px;
+}
+.colorbar-title {
+  writing-mode: vertical-rl; transform: rotate(180deg); font-size: 15px;
+  font-weight: bold; color: white; text-align: center;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+.colorbar-gradient {
+  width: 20px; height: 150px; border: 1px solid #ccc; background: #e0e0e0;
+}
+.colorbar-labels {
+  height: 150px; display: flex; flex-direction: column; justify-content: space-between;
+  font-size: 13px; color: white; margin-left: 6px; text-align: left;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+#custom-colorbar-scaler {
+  margin-top: 5px; text-align: center; font-size: 14px; color: rgb(255, 255, 255);
+  background: rgba(0,0,0,0.6); padding: 8px; border-radius: 6px;
+}
+
+.leaflet-control-scale {
+  background: white; border-radius: 4px; padding: 4px; font-size: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+.basemap-container {
+  position: relative; display: inline-block;
 }
 #basemap-popup {
-  position: absolute; top: 30px; right: 150px; background-color: #ccc;
+  position: absolute; top: 0; right: 60px; background-color: #ccc;
   border: 1px solid #999; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
   padding: 10px; z-index: 1001; min-width: 200px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  opacity: 0; transform: translateX(50%); transition: opacity 0.3s ease, transform 0.3s ease; pointer-events: none;
+  opacity: 0; transform: translateX(-50%); transition: opacity 0.3s ease, transform 0.3s ease; pointer-events: none;
 }
 #basemap-popup.show {
   opacity: 1; transform: translateX(0); pointer-events: auto;
 }
+#custom_map_background_btn {
+  display: flex; align-items: center; justify-content: center;
+  background: rgb(255, 255, 255); ; border: none; cursor: pointer;
+  width: 50px; height: 50px; border-radius: 10%; margin-top: auto;
+}
+#custom_map_background_btn img {
+  width: 40px; height: 40px; display: block; justify-content: center; align-items: center;
+}
 #basemap-popup div:first-child {
-  font-weight: bold; margin-bottom: 5px; color: #333; font-size: 15px;
+  font-weight: bold; margin-bottom: 5px; color: #07878b; font-size: 15px;
 }
 .basemap-option {
-  display: block; width: 100%; padding: 5px 5px; background-color: #999; margin: 5px 0 0 0;
-  border: 1px solid #666; border-radius: 4px; text-align: center; cursor: pointer; font-size: 13px; 
+  display: block; width: 100%; padding: 5px 5px; background-color: #07af8b; margin: 5px 0 0 0;
+  border: 1px solid #082bf1; border-radius: 4px; text-align: center; cursor: pointer; font-size: 13px; 
 }
 .basemap-option:hover {
-  background-color: #666; color: white;
+  background-color: #a7936a; color: white;
 }
 
-#right-side-controls .leaflet-control-scale {
-  position: relative !important;
-  right: 0 !important; top: 0 !important; margin-top: 5px;
-}
-
-.custom-colorbar {
-  right: auto; top: auto;
-}
-.colorbar-wrapper {
-  display: flex; flex-direction: row; align-items: center;
-  gap: 6px; background: rgba(0,0,0,0.6);
-  padding: 8px;  border-radius: 6px;
-}
-.colorbar-title {
-  writing-mode: vertical-rl; transform: rotate(180deg);
-  font-size: 15px; font-weight: bold; color: white; text-align: center; 
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
-.colorbar-gradient {
-  width: 20px; height: 150px; border: 1px solid #ccc; background:#e0e0e0;
-}
-.colorbar-labels {
-  height: 150px; display: flex; flex-direction: column;
-  justify-content: space-between; font-size: 13px;
-  color: white; margin-left: 6px; text-align: left;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
-
-#offCanvasMenu {
-  height: 100%; width: 350px; position: fixed; max-height: calc(100vh - 85px);
-  top: 85px; left: 0px; transition: width 0.5s ease;
-  background-color: #71d8e6; overflow-x: hidden;
-  z-index: 1050; padding-top: 10px; overflow-y: auto;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  border: 2px solid #f7f7f8; border-radius: 12px 12px 12px 12px;
-  -webkit-user-select: none; -moz-user-select: none; 
-  -ms-user-select: none; user-select: none;
-}
-#offCanvasMenu a {
-  padding: 5px 5px 5px 15px; color: #030303; cursor: pointer;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  font-size: 18px; display: inline-block; transition: 0.3s;
-}
-#offCanvasMenu a:hover {
-  color: #0004fa; font-size: 20px; 
-}
-.submenu-label {
-  font-size: 15px; padding: 5px 0 5px 20px; display: inline-block;
-  font-family: 'Segoe UI', Tahoma, sans-serif; cursor: pointer;
-}
-#offCanvasMenu .menu-item-with-submenu .submenu a {
-  display: block; font-size: 16px; padding: 3px 0 3px 25px; 
-  font-family: 'Segoe UI', Tahoma, sans-serif;
-}
-#offCanvasMenu .menu-item-with-submenu .submenu a:hover {
-  color: #0004fa; font-size: 18px; 
-}
-.submenu-label:hover {
-  color: #0004fa; font-size: 17px; 
-}
-.menu-link.active .arrow, .menu-link-1.active .arrow-1 {
-  transform: rotate(90deg); transition: transform 0.3s ease;
-}
-.arrow, .arrow-1 {
-  display: inline-block; transition: transform 0.3s ease;
-}
-.submenu, .submenu-1 { display: none; }
-.submenu.open, .submenu-1.open { display: block; }
-#offCanvasMenu .menu-item-with-submenu .submenu .menu-item-with-submenu-1 .submenu-1 a {
-  display: block; font-size: 14px; padding: 3px 0 3px 35px; 
-  font-family: 'Segoe UI', Tahoma, sans-serif;
-}
-#offCanvasMenu .menu-item-with-submenu .submenu .menu-item-with-submenu-1 .submenu-1 a:hover {
-  color: #0004fa; font-size: 16px;
-}
-
-#offCanvasMenu #infomationObject {
-  all: unset; display: block; font-weight: bold; margin-bottom: 5px;
-  font-size: 18px; color: #e40c0c; text-align: center;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
 
 #map_container {
   position: absolute; width: 100%; height: 100%; top: 0; left: 0;
@@ -155,26 +90,6 @@ header {
 #leaflet_map {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%;
 }
-
-#time-controls {
-  position: absolute; bottom: 50px; left: 50%;
-  transform: translateX(-50%); display: flex;
-  width: 50%; background: rgba(0,0,0,0.4);
-  padding: 10px; border-radius: 10px; z-index: 1000;
-  align-items: center; gap: 10px; color: white;
-}
-#time-slider{
-  flex: 1; padding-left: 10px; padding-right: 10px;
-}
-#time-slider button {
-  background-color: #00b894;
-  border: none; color: white; padding: 5px 10px;
-  font-size: 14px; cursor: pointer; border-radius: 5px;
-}
-#time-slider button:hover {
-  background-color: #019475;
-}
-
 #loadingOverlay {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
   background-color: rgba(255, 255, 255, 1.0);
@@ -201,7 +116,7 @@ header {
 
 #summaryWindow {
   position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%);
-  width: 500px; height: 300px; background-color: #fff; border: 1px solid #999;
+  width: 800px; height: 300px; background-color: #fff; border: 1px solid #999;
   box-shadow: 2px 2px 12px rgba(0,0,0,0.3); min-width: 200px; min-height: 100px;
   display: none; z-index: 2000; resize: both; overflow: hidden; flex-direction: column;
   -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none;
@@ -243,20 +158,21 @@ header {
 }
 
 #plotWindow {
-  position: fixed; top: 80%; left: 50%; width: 1100px; height: 300px;
+  position: fixed; top: 50%; left: 50%; width: 1100px; height: 480px;
   transform: translate(-50%, -50%); background-color: #fff; flex-direction: column;
   box-shadow: 2px 2px 12px rgba(0,0,0,0.3); min-width: 700px; min-height: 200px;
   display: none; z-index: 2100; resize: both; overflow: auto; border: 1px solid #999;
   -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none;
 }
 #plotWindow button {
-  cursor: pointer; margin: 5px 5px 5px 5px; background-color: #00b894;
+  cursor: pointer; margin: 5px 5px 0 5px; background-color: #025040;
+  border: none; border-radius: 4px; color: white; padding: 6px 12px;
 }
 #plotWindow button:hover {
   background-color: #019475;
 }
 #plotWindow label {
-  cursor: pointer; margin: 5px 5px 5px 5px;
+  margin: 5px 5px 20px 5px; font-weight: bold;
   font-style: bold; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 #plotHeader {
@@ -264,12 +180,78 @@ header {
   cursor: move; user-select: none; display: flex;
   justify-content: space-between; align-items: center;
 }
+
+.select-object .checkbox-list input[type="checkbox"] {
+  margin: 0 4px 0 0; transform: scale(0.9);
+}
+.select-object {
+  position: relative; display: inline-block; font-size: 14px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+.select-object .select-box {
+  border: 1px solid #ccc; padding: 6px 12px;
+  cursor: pointer; user-select: none; font-size: 14px;
+  background: #fff; display: flex; min-width: 220px;
+  justify-content: space-between; align-items: center;
+}
+.select-object .checkbox-list {
+  display: none; position: absolute; top: 100%; left: 0;
+  border: 1px solid #ccc; background: #fff; max-height: 100px;
+  overflow-y: auto; min-width: 220px;; padding: 2px;
+  z-index: 1000; padding: 6px; box-sizing: border-box;
+}
+.select-object .checkbox-list label {
+  display: flex; align-items: center; padding: 0 2px;
+  cursor: pointer; font-size: 14px;
+  font-weight: normal !important; line-height: 1;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
 #closePlotBtn {
   cursor: pointer; font-size: 20px;
 }
 #plotContainer {
-  flex: 1; overflow: hidden; margin: 10px 10px 10px 10px;
+  flex: 1; overflow: hidden; margin: 0 10px 0 10px;
 }
 #myChart {
   width: 100%; height: 100%;
+}
+
+#time-controls {
+  position: absolute; bottom: 50px; left: 50%;
+  transform: translateX(-50%); display: none;
+  width: 50%; background: rgba(0,0,0,0.4); gap: 10px;
+  padding: 10px; border-radius: 10px; z-index: 1000;
+  align-items: center; gap: 10px; color: white;
+}
+
+#time-controls button {
+  background-color: #00b894; border: none; color: white;
+  font-size: 14px; cursor: pointer; border-radius: 5px; padding: 5px 10px;
+}
+#time-controls button:hover {
+  background-color: #06cc27;
+}
+
+#time-slider{
+  flex: 1; padding-left: 10px; padding-right: 10px;
+}
+#time-slider button {
+  background-color: #00b894;
+  border: none; color: white; padding: 5px 10px;
+  font-size: 14px; cursor: pointer; border-radius: 5px;
+}
+#time-slider button:hover {
+  background-color: #019475;
+}
+
+.scaler-group{
+  display: flex; align-items: center; gap: 8px;
+  margin: 5px 5px 5px 0; padding: 2px 5px 2px 5px;
+}
+.scaler-group button{
+  cursor: pointer; min-width: 100px; flex: 1;
+}
+.scaler-group input{
+  width: 100px; align-items: center; text-align: center;
 }
