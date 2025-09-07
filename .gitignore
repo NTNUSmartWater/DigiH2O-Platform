@@ -1,16 +1,13 @@
 # Folders
-/output
-/template_files
 /__pycache__
+/Delft_Projects
 
 
 # Files
 *.txt
 
-
 # Additional files
 *.ipynb
-
 
 # Environment
 .env
