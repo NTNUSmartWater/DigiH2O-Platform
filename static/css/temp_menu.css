@@ -5,7 +5,9 @@
   align-items: center; padding: 12px 24px;
   color: white; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
-.nav { display: flex; align-items: center; width: 100%; }
+.nav { 
+  display: flex; align-items: center; width: 100%; 
+}
 .nav a {
   color: white; text-decoration: none;
   padding: 8px 12px; border-radius: 6px;
@@ -17,7 +19,15 @@
   background: rgba(255, 255, 255, 0.2); cursor: pointer;
 }
 .nav ul { display: flex; list-style: none; }
-.nav-right { display: flex; margin-left: auto; }
+
+.nav-left, .nav-right {
+  display: flex; gap: 10px;
+}
+
+.nav-middle {
+  display: flex; gap: 10px; font-weight: bold; color: rgb(241, 238, 7);
+  margin-left: auto; margin-right: auto; font-size: 18px;
+}
 
 .popup-menu {
   position: absolute; display: block;

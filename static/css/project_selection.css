@@ -1,0 +1,94 @@
+body {
+    font-family: Arial, sans-serif;
+    background: linear-gradient(to bottom right, #004080, #66b2ff);
+    margin: 0; padding: 20px; color: white;
+}
+
+.container {
+    max-width: 800px; margin: auto;
+    background: rgba(255, 255, 255, 0.12);
+    padding: 30px; border-radius: 20px;
+    box-shadow: 0px 6px 25px rgba(0,0,0,0.35);
+    backdrop-filter: blur(6px);
+}
+
+.row {
+    display: flex; align-items: center; margin: 10px 0 20px 0;
+    text-align: center; justify-content: center;
+}
+
+.row button{
+    font-size: 20px; padding: 12px 30px; border: none; border-radius: 12px;
+    background: linear-gradient(to right, #004080, #3399ff);
+    color: white; cursor: pointer; transition: all 0.3s ease;
+    box-shadow: 0px 4px 12px rgba(0,0,0,0.3); font-weight: bold; width: 200px;
+}
+
+
+
+label {
+    font-size: 20px; margin-right: 10px;
+}
+
+select {
+    font-size: 18px; padding: 12px 18px; min-width: 400px;
+    border-radius: 12px; border: none; width: auto;
+    outline: none; margin-right: 20px; max-width: 100%;
+    box-shadow: 0px 4px 10px rgba(0,0,0,0.25); margin: 0 20px 0 10px;
+    transition: all 0.3s ease; cursor: pointer;
+}
+
+select:hover {
+    transform: scale(1.05);
+    box-shadow: 0px 6px 15px rgba(0,0,0,0.4);
+}
+
+
+fieldset {
+    border: 2px solid rgba(255, 255, 255, 0.7);
+    border-radius: 15px; padding: 20px; margin-bottom: 25px;
+    box-shadow: 0px 4px 15px rgba(0,0,0,0.25); transition: 0.3s;
+}
+
+fieldset:hover {
+    border-color: #fff;
+    box-shadow: 0px 6px 20px rgba(0,0,0,0.4);
+}
+
+legend {
+    font-size: 20px; font-weight: bold; padding: 0;
+}
+
+.groupbox select {
+    display: block; width: calc(100% - 50px); margin: 20px 30px 20px 5px;
+}
+
+.input-row {
+    display: flex; align-items: center; margin: 15px 0;
+}
+
+.input-row label {
+    font-size: 17px; min-width: 200px; text-align: center;
+}
+
+.input-row select {
+    flex: 1; margin: 0;
+}
+
+.btn-row {
+    text-align: center; margin-top: 30px;
+}
+
+#button {
+    font-size: 20px; padding: 12px 30px; border: none; border-radius: 12px;
+    background: linear-gradient(to right, #004080, #3399ff);
+    color: white; cursor: pointer; transition: all 0.3s ease;
+    box-shadow: 0px 4px 12px rgba(0,0,0,0.3); font-weight: bold; width: 300px;
+}
+
+#button:hover, .row button:hover {
+    transform: scale(1.05);
+    box-shadow: 0px 6px 18px rgba(0,0,0,0.4);
+    background: linear-gradient(to right, #084a8d, #1a8cff);
+}
+
