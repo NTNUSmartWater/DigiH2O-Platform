@@ -7,6 +7,7 @@ import { deactivePointQuery, deactivePathQuery } from "./queryManager.js";
 import { generalObtionsManager } from './generalOptionManager.js';
 import { dynamicMapManager } from './dynamicMapManager.js';
 import { getProject, setProject } from './constants.js';
+import { sendQuery } from './tableManager.js';
 
 
 let isNewProject = false, oldProject = '', newProject = null;
@@ -19,12 +20,12 @@ const popupContent = () => document.getElementById('popup-content');
 const contactInfo = () => document.getElementById('informationContact');
 const contactInfoHeader = () => document.getElementById('informationContactHeader');
 const contactInfoContent = () => document.getElementById('informationContactContent');
-const contactInfoBtn = () => document.getElementById('closeInformationContact');
+const contactInfoCloseBtn = () => document.getElementById('closeInformationContact');
 const projectTitle = () => document.getElementById('projectTitle');
-const projectInfo = () => document.getElementById('projectWindow');
-const projectInfoHeader = () => document.getElementById('projectWindowHeader');
-const projectInfoContent = () => document.getElementById('projectWindowContent');
-const projectInfoBtn = () => document.getElementById('closeProjectWindow');
+const projectSetting = () => document.getElementById('projectWindow');
+const projectSettingHeader = () => document.getElementById('projectWindowHeader');
+const projectSettingContent = () => document.getElementById('projectWindowContent');
+const projectSettingCloseBtn = () => document.getElementById('closeProjectWindow');
 const mapContainer = () => map.getContainer();
 
 
@@ -50,7 +51,7 @@ async function showPopupMenu(id, htmlFile) {
     } catch (error) {alert(error);}
 }
 
-function projectChecker() {
+async function projectChecker() {
     const projectMenu = document.querySelectorAll('.menu');
     projectMenu.forEach(menu => {
         menu.style.display = (getProject()===null)?'none':'block';
@@ -61,7 +62,10 @@ function projectChecker() {
     if (isNewProject === false) {setProject(null);};
     if (isNewProject === false && newProject === null) return;
     projectTitle().textContent = `Project: ${newProject.project}`;
-    setupDataBase(newProject);
+    startLoading('Reading Database...');
+    const data = await sendQuery('setup_database', {projectName: newProject.project, values: newProject.values});
+    if (data.status === "error") alert(data.message);
+    showLeafletMap();
 }
 
 function initializeMenu(){
@@ -105,23 +109,19 @@ function moveWindow(window, header){
     });
 }
 
-function iframeInit(scr){
+function iframeInit(scr, title){
     // Detect iframe if exist
-    const iframe = projectInfoContent().querySelector("iframe");
+    const iframe = projectSettingContent().querySelector("iframe");
     if (iframe) iframe.remove();
     // Add iframe
     const newIframe = document.createElement("iframe");
     newIframe.src = scr;
-    // // Transfer objects to iframe
-    // newIframe.onload = function() {
-    //     newIframe.contentWindow.postMessage({type: 'loading'}, '*');
-    // };
-    projectInfoContent().appendChild(newIframe);
-    projectInfo().style.display = 'flex';
+    projectSettingContent().appendChild(newIframe);
+    projectSettingHeader().childNodes[0].nodeValue = title;
+    projectSetting().style.display = 'flex';
 }
 
-
-iframeInit("/new_project");
+iframeInit("/new_project", "New Project");
 
 function updateEvents() {
     // Check if events are already bound
@@ -176,43 +176,46 @@ function updateEvents() {
     // Select project
     popupContent().addEventListener('click', (e) => {
         const project = e.target.closest('.project');
+        console.log(project);
         if (project) {
             const name = project.dataset.info;
             // isNewProject = false;
             if (name === 'reset-project') {
-                setProject(null);
-                location.reload();
+                setProject(null); location.reload();
             } else if (name === 'default-project') { 
                 const params = ["FlowFM_his.nc", "FlowFM_map.nc",
                     "deltashell_his.nc", "deltashell_map.nc"];
                 setProject({ project: 'Demo_Project', values: params });
                 projectChecker();
             } else if (name === 'open-project') {
-                iframeInit("/open_project"); isNewProject = false;
-            } else if (name === 'new-project') {
-                iframeInit("/new_project");
+                iframeInit("/open_project", "Open Project"); isNewProject = false;
+            } else if (name === 'new-project') { 
+                iframeInit("/new_project", "New Project"); isNewProject = true;
             } else if (name === 'grid-generation') {
                 // Grid Generation
-                iframeInit("/grid_generation");
+                iframeInit("/grid_generation", "Grid Generation");
             } else if (name === 'run-simulation') {
                 // Run Simulation
-                iframeInit("/run_simulation");
+                iframeInit("/run_simulation", "Run Simulation");
             }
         }
     });
     // Listent events from open project iframe
-    window.addEventListener('message', (event) => {
+    window.addEventListener('message', async (event) => {
         if (event.data?.type === 'projectConfirmed') {
             if (oldProject !== event.data.project) isNewProject = true;
             setProject({
                 project: event.data.project,
                 values: event.data.values
             });
-            projectInfo().style.display = 'none';
+            projectSetting().style.display = 'none';
             if (isNewProject) location.reload();
             else projectChecker();
         }
-        if (event.data?.type === 'projectPreparation') { projectCreator(event.data.name); }
+        if (event.data?.type === 'projectPreparation') { 
+            const data = await sendQuery('setup_new_project', {projectName: event.data.name});
+            alert(data.message);
+        }
         if (event.data?.type === 'pickLocation') { 
             showPicker('location');
             markersPoints.forEach(marker => map.removeLayer(marker)); markersPoints = [];
@@ -274,23 +277,13 @@ function updateEvents() {
             const chartData = { columns, data: rows };
             drawChart(chartData, 'Source Data Chart', 'Time', 'Value', false);
         }
-
-
-
-
-
-
     });
     // Move window
     moveWindow(contactInfo, contactInfoHeader);
-    moveWindow(projectInfo, projectInfoHeader);
+    moveWindow(projectSetting, projectSettingHeader);
     // Close windows
-    contactInfoBtn().addEventListener('click', () => {
-        contactInfo().style.display = 'none';
-    });
-    projectInfoBtn().addEventListener('click', () => {
-        projectInfo().style.display = 'none';
-    });
+    contactInfoCloseBtn().addEventListener('click', () => { contactInfo().style.display = 'none'; });
+    projectSettingCloseBtn().addEventListener('click', () => { projectSetting().style.display = 'none'; });
     map.on('mousemove', function (e) {
         if (!pickerState.location && !pickerState.point && !pickerState.source && !pickerState.crosssection && 
             !pickerState.boundary) {
@@ -359,24 +352,20 @@ function updateEvents() {
                 markersPoints.push(marker);
             hidePicker('source', e.latlng, 'sourcePicked'); 
         }
-
-        
     });
     map.on('contextmenu', function(e) {
         // Right-click
         if (pickerState.crosssection) {
             e.originalEvent.preventDefault(); // Suppress context menu
             if (crosssectionContainer.length < 2) {
-                alert("Not enough points selected. Please select at least two points.");
-                return;
+                alert("Not enough points selected. Please select at least two points."); return;
             }
             hidePicker('crosssection', crosssectionContainer, 'crossSectionPicked');
         }
         if (pickerState.boundary) {
             e.originalEvent.preventDefault(); // Suppress context menu
             if (boundaryContainer.length < 2) {
-                alert("Not enough points selected. Please select at least two points.");
-                return;
+                alert("Not enough points selected. Please select at least two points."); return;
             }
             hidePicker('boundary', boundaryContainer, 'boundaryPicked');
         }
@@ -389,18 +378,15 @@ function showPicker(key){
     // Show point picker on the map
     pickerState[key] = true;
     mapContainer().style.cursor = 'crosshair';
-    projectInfo().style.display = 'none';
+    projectSetting().style.display = 'none';
 }
 function hidePicker(key, data, type){
-    const iframe = projectInfoContent().querySelector("iframe");
-    if (iframe) {
-        iframe.contentWindow.postMessage({ type: type, content: data }, '*');
-    }
+    const iframe = projectSettingContent().querySelector("iframe");
+    if (iframe) { iframe.contentWindow.postMessage({ type: type, content: data }, '*'); }
     pickerState[key] = false;
     mapContainer().style.cursor = 'grab';
-    projectInfo().style.display = 'flex';
+    projectSetting().style.display = 'flex';
 }
-
 
 function measuredPointManager() {
     // Set function for plot using Plotly
@@ -431,25 +417,5 @@ function contacInformation() {
         contactInfoContent().appendChild(iframe);
     }
     contactInfo().style.display = 'flex';
-}
-
-async function setupDataBase(input){
-    startLoading('Reading Database...');
-    const projectFolder = input.project, values = input.values;
-    const response = await fetch('/setup_database', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({projectName: projectFolder, files: values})});
-    const data = await response.json();
-    if (data.status === "error") alert(data.message);
-    showLeafletMap();
-}
-
-async function projectCreator(projectName){
-    // Create new project with directories
-    const response = await fetch('/setup_new_project', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({projectName: projectName})});
-    const data = await response.json();
-    alert(data.message);
 }
 

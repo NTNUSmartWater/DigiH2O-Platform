@@ -1,8 +1,10 @@
-import shapely, os
+import shapely, os, re
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr
 from scipy.spatial import cKDTree
 from dateutil import parser
+from datetime import datetime, timezone
+from config import PROJECT_STATIC_ROOT
 
 
 variablesNames = {
@@ -732,4 +734,72 @@ def fileWriter(template_path=str, params=dict) -> str:
     # Replace placeholders with actual values
     for key, value in params.items():
         file_content = file_content.replace(f'{{{key}}}', str(value))
-    return file_content
+    # Adjust the structure
+    lines, result = [], []
+    for line in file_content.split('\n'):
+        if "#" in line and not line.strip().startswith("#"):
+            left, right = line.split("#", 1)
+            left, middle = left.split("=", 1)
+            lines.append((left + " = ", middle.strip(), "# " + right.strip()))
+        else: lines.append((line.strip(), "", ""))
+    max_len = max(len(middle) for _, middle, _ in lines) + 1
+    for left, middle, right in lines:
+        result.append(left + middle.ljust(max_len) + right)
+    result = "\n".join(result)
+    return result
+
+def contentWriter(project_name: str, filename: str, data: list, content: str, ref_time: int, unit: str='sec') -> tuple():
+    """
+    Write to file with predefined parameters
+
+    Parameters
+    ----------
+    project_name: str
+        The name of the project
+    filename: str
+        The name of the file
+    data: list
+        The list of data
+    content: str
+        The content of the file
+    ref_utc: datetime
+        The reference time
+
+    Returns
+    -------
+    tuple
+        The status and message
+    """
+    try:
+        path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
+        # Write weather.tim file
+        with open(os.path.join(path, filename), 'w') as f:
+            for row in data:
+                print(row[0])
+
+                t_utc = datetime.strptime(row[0], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+                dif = t_utc - ref_time
+                if unit == 'sec': row[0] = int(dif.total_seconds())
+                elif unit == 'min': row[0] = int(dif.total_seconds() / 60)
+                temp = '  '.join([str(r) for r in row])
+                f.write(f"{temp}\n")
+        # Add weather data to FlowFM.ext file
+        ext_path = os.path.join(path, "FlowFM.ext")
+        if os.path.exists(ext_path):
+            with open(ext_path, encoding="utf-8") as f:
+                update_content = f.read()
+            parts = re.split(r'\n\s*\n', update_content)
+            parts = [p.strip() for p in parts if p.strip()]
+            if (any(filename in part for part in parts)): 
+                index = parts.index([part for part in parts if filename in part][0])
+                parts[index] = content
+            else: parts.append(content)
+            with open(ext_path, 'w') as file:
+                file.write(f"\n{'\n\n'.join(parts)}\n")
+        else:
+            with open(ext_path, 'w') as f:
+                f.write(f"\n{content}\n")
+        status, message = 'ok', f"Data is saved successfully."
+    except Exception as e:
+        status, message = 'error', f"Error: {str(e)}"
+    return status, message

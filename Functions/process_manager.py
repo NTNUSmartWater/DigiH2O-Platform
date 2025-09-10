@@ -144,46 +144,6 @@ async def upload_data(file: UploadFile = File(...),
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)})
     
-# Create a new project with necessary folders
-@router.post("/setup_new_project")
-async def setup_new_project(request: Request):
-    body = await request.json()
-    project_name = body.get('projectName')
-    project_path = os.path.join(PROJECT_STATIC_ROOT, project_name)
-    # Check if project already exists
-    if os.path.exists(project_path):
-        return JSONResponse({"status": 'error', "message": f"Project '{project_name}' already exists."})
-    try:
-        # Create project directories
-        os.makedirs(project_path, exist_ok=True)
-        os.makedirs(os.path.join(project_path, "common_files"), exist_ok=True)
-        os.makedirs(os.path.join(project_path, "input"), exist_ok=True)
-        os.makedirs(os.path.join(project_path, "output"), exist_ok=True)
-        status, message = 'ok', f"Project '{project_name}' created successfully!"
-    except Exception as e:
-        status, message = 'error', f"Error: {str(e)}"
-    return JSONResponse({"status": status, "message": message})
-
-# Create MDU file
-@router.post("/generate_mdu")
-async def generate_mdu(request: Request):
-    body = await request.json()
-    params = dict(body.get('content'))
-    try:
-        project_name = params['project_name']
-        # Create MDU file
-        project_path = os.path.join(PROJECT_STATIC_ROOT, project_name, 'input')
-        mdu_path = os.path.join(ROOT_DIR, 'static', 'samples', 'MDUFile.mdu')
-        file_content = functions.mdu_FileWriter(mdu_path, params)
-        # Write file
-        with open(os.path.join(project_path, 'FlowFM.mdu'), 'w') as file:
-            file.write(file_content)
-        status, message = 'ok', f"Project '{project_name}' created successfully!"
-    except Exception as e:
-        status, message = 'error', f"Error: {str(e)}"
-    return JSONResponse({"status": status, "message": message})
-
-
 # Update boundary conditions
 @router.post("/update_boundary")
 async def update_boundary(request: Request):
@@ -203,9 +163,7 @@ async def update_boundary(request: Request):
         temp, bc = [], [boundary_name]
         for row in data_sub:
             t_utc = datetime.strptime(row[0], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
-            dif = int((t_utc - ref_utc).total_seconds())
-            if dif < 0: return JSONResponse({"status": 'error', "message": 'Time must be greater than reference time.'})
-            row[0] = dif; temp.append(row)
+            row[0] = int((t_utc - ref_utc).total_seconds()); temp.append(row)
         lines = [f"{int(x)}  {y}" for x, y in temp]
         config['data'] = '\n'.join(lines)
         path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
@@ -220,7 +178,7 @@ async def update_boundary(request: Request):
             parts = [p.strip() for p in parts if p.strip()]
             if (any(boundary_type in part for part in parts)): 
                 index = parts.index([part for part in parts if boundary_type in part][0])
-                parts[index] = update_content
+                parts[index] = file_content
             else: parts.append(file_content)
             with open(ext_path, 'w') as file:
                 file.write(f"\n{'\n\n'.join(parts)}\n")
@@ -253,7 +211,7 @@ async def update_boundary(request: Request):
             file_content = functions.fileWriter(temp_file, config)
             with open(file_path, 'w') as file:
                 file.write(file_content + '\n')
-        status, message = 'ok', f"Save successfully: 'Sub-boundary: {subBoundaryName} - Type: {boundary_type}'."
+        status, message = 'ok', f"Saved successfully: 'Sub-boundary: {subBoundaryName} - Type: {boundary_type}'."
     except Exception as e:
         status, message = 'error', f"Error: {str(e)}"
     return JSONResponse({"status": status, "message": message})
@@ -270,7 +228,7 @@ async def view_boundary(request: Request):
             data = ''.join(f.readlines())
         status, message = 'ok', ""
     except FileNotFoundError:
-        status, message, data = 'error', 'No boundary condition found.', None
+        status, message, data = 'error', '- No boundary condition found.\n- Boundary is not created yet.', None
     except Exception as e:
         status, message, data = 'error', f"Error: {str(e)}", None
     return JSONResponse({"status": status, "message": message, "content": data})
@@ -287,19 +245,48 @@ async def delete_boundary(request: Request):
         boundary_path = os.path.join(path, f"{boundary_name}.pli")
         ext_path = os.path.join(path, "FlowFM_bnd.ext")
         # Delete file
+        status, message = 'ok', ""
         if os.path.exists(boundary_path):
             os.remove(boundary_path)
-            message = f"- Delete successfully: 'Boundary: {boundary_name}'."
+            message += f"- Delete successfully: {boundary_name}'.pli.\n"
         if os.path.exists(ext_path):
             os.remove(ext_path)
-            message += "- Delete successfully: FlowFM_bnd.ext."
+            message += "- Delete successfully: FlowFM_bnd.ext.\n"
         if os.path.exists(water_lelvel_path):
             os.remove(water_lelvel_path)
-            message += "\n- Delete successfully: WaterLevel.bc."
+            message += "- Delete successfully: WaterLevel.bc.\n"
         if os.path.exists(contaminant_path):
             os.remove(contaminant_path)
-            message += "\n- Delete successfully: Contaminant.bc."     
-        status = 'ok'
+            message += "- Delete successfully: Contaminant.bc."     
     except Exception as e:
         status, message = 'error', f'Error: {str(e)}'
+    return JSONResponse({"status": status, "message": message})
+
+# Check boundary conditions
+@router.post("/check_condition")
+async def check_condition(request: Request):
+    body = await request.json()
+    project_name, force_name = body.get('projectName'), body.get('forceName')
+    path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
+    status, ext_path = 'error', os.path.join(path, force_name)
+    if os.path.exists(ext_path): status = 'ok'
+    return JSONResponse({"status": status})
+
+# Create MDU file
+@router.post("/generate_mdu")
+async def generate_mdu(request: Request):
+    body = await request.json()
+    params = dict(body.get('params'))
+    try:
+        project_name = params['project_name']
+        # Create MDU file
+        project_path = os.path.join(PROJECT_STATIC_ROOT, project_name, 'input')
+        mdu_path = os.path.join(ROOT_DIR, 'static', 'samples', 'MDUFile.mdu')
+        file_content = functions.fileWriter(mdu_path, params)
+        # Write file
+        with open(os.path.join(project_path, 'FlowFM.mdu'), 'w') as file:
+            file.write(file_content)
+        status, message = 'ok', f"Project '{project_name}' created successfully!"
+    except Exception as e:
+        status, message = 'error', f"Error: {str(e)}"
     return JSONResponse({"status": status, "message": message})

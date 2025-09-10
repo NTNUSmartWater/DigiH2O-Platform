@@ -16,6 +16,20 @@
       </div>
       <button class="tab-btn" id="create-project-button">Create Project<span class="ink"></span></button>
     </div>
+    <section class="card tabs" id="desription-tab" style="margin-left: 15px; margin-right: 15px;">
+      <p style="text-align: center; font-weight: bold; font-size: 20px;">
+        To quickly create a new project, you should prepare the following data in advance:
+      </p>
+      <ul style="text-align: left; margin-left: 80px; line-height: 2.5;">
+        <li>A clear and easy-to-remember project name</li>
+        <li>A grid file with bathymetry included</li>
+        <li>List of measured points/Cross-Section (optional)</li>
+        <li>Time-series data for Boundary conditions</li>
+        <li>Time-series data for Sources/Sinks</li>
+        <li>Time-series data for Meteorological data/weather data</li>
+        <li>Time format: YYYY-MM-DD HH:MM:SS</li>
+      </ul>
+    </section>
     <section class="card tabs" id="parent-tab" style="display: none;">
       <div class="tabs__header" id="main-tabs">
         <div class="tabs__list">
@@ -58,7 +72,7 @@
                   <div class="tile"><h3>Location</h3>
                     <div class="row">
                       <label for="latitude">Avg. latitude (°):</label>
-                      <input type="text" id="latitude" placeholder="Enter latitude">
+                      <input type="text" id="latitude" placeholder="Enter latitude" value=62.5>
                     </div>
                     <div class="row">
                       <button type="button" id="location-picker">Pick from map</button>
@@ -68,14 +82,14 @@
                   <div class="tile"><h3>Layers</h3>
                     <div class="row">
                       <label for="n-layer">Nr. sigma layers:</label>
-                      <input type="number" id="n-layer" placeholder="Enter number of layers" value=10>
+                      <input type="number" id="n-layer" placeholder="Enter number of layers" value=10 min=1>
                     </div>
                   </div>
                   <!-- Unstructured grid -->
                     <div class="tile"><h3>Grid</h3>
                       <div class="row">
                         <label for="unstructured-grid">Upload grid (bathymetry already included):</label>
-                        <input type="file" id="unstructured-grid" accept=".nc" placeholder="Path of grid">
+                        <input type="file" id="unstructured-grid" accept=".nc">
                       </div>
                     </div>
                 </div>
@@ -84,17 +98,17 @@
                 <div class="grid">
                   <div class="tile"><h3>Reference date</h3>
                     <div class="row">
-                      <input type="text" class="datetime-ref" id="reference-date" placeholder="YYYY-mm-dd">
+                      <input type="text" class="datetime-ref" id="reference-date" placeholder="YYYY-mm-dd" value="2024-04-01">
                     </div>
                   </div>
                   <div class="tile"><h3>Simulation time</h3>
                     <div class="row">
                       <label for="start-date">Start date:</label>
-                      <input type="text" class="datetime" id="start-date" placeholder="YYYY-mm-dd HH:mm:ss">
+                      <input type="text" class="datetime" id="start-date" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-04-25 00:00:00">
                     </div>
                     <div class="row">
                       <label for="stop-date">Stop date:</label>
-                      <input type="text" class="datetime" id="stop-date" placeholder="YYYY-mm-dd HH:mm:ss">
+                      <input type="text" class="datetime" id="stop-date" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-11-20 00:00:00">
                     </div>                                    
                   </div>
                   <div class="tile"><h3>Time interval</h3>
@@ -161,7 +175,7 @@
                       <button type="button" id="observation-point-update" style="display: none;">Update observation points on map</button>
                     </div>
                   </div>
-                  <div class="tile"><h3>Cross-Sections</h3>
+                  <div class="tile"><h3>Cross-Section</h3>
                     <div class="row">
                       <label for="observation-cross-section">Name:</label>
                       <input type="text" id="observation-cross-section" placeholder="Enter name">
@@ -328,7 +342,7 @@
                       <!-- Layer 3: "Select from list" -->
                       <div class="radio-panel" data-panel="source-sink-list">
                         <div class="row">
-                          <label for="option-source">Select from the list:</label>
+                          <label for="option-source">Select from list:</label>
                           <select id="option-source"></select>
                         </div>
                       </div>
@@ -357,7 +371,8 @@
                       </div>
                       <table class="attributes-table" id="source-table">
                         <thead>
-                          <tr><th>Time</th><th>Discharge (m³/s)</th><th>Salinity (ppt)</th><th>Temperature (°C)</th><th>Contaminant (kg/m³)</th></tr>
+                          <tr><th>Time</th><th>Discharge (m³/s)</th><th>Salinity (ppt)</th>
+                            <th>Temperature (°C)</th><th>Contaminant (kg/m³)</th></tr>
                         </thead>
                         <tbody></tbody>
                       </table>
@@ -434,16 +449,12 @@
           <div class="tabs__content">
             <div class="tabpanel" data-panel="water-quality-setting-1">
               <div class="grid">
-                <div class="tile"><h3>Temperature</h3>
+                
+                <div class="tile"><h3>Micro/Nano Plastic</h3>
 
                 </div>
-                <div class="tile"><h3>Micro Plastic</h3>
 
-                </div>
-                <div class="tile"><h3>Nano Plastic</h3>
-
-                </div>
-                <div class="tile"><h3>Tubinity</h3>
+                <div class="tile"><h3>Turbidity</h3>
 
                 </div>
                 <div class="tile"><h3>Sediment</h3>
@@ -457,6 +468,9 @@
 
                 </div>
                 <div class="tile"><h3>pH</h3>
+
+                </div>
+                <div class="tile"><h3>PAH</h3>
 
                 </div>
               </div>
@@ -473,104 +487,104 @@
             </div>
           </div>
         </div>
-        <!-- Tab 5: Output Settings -->
+        <!-- Tab 4: Output Settings -->
         <div class="tabpanel main-panel" data-panel="output-settings">
           <!-- Sub Tabs -->
           <div class="card tabs tabs--sub">
             <div class="tabs__content">
               <div class="grid">
                 <div class="tile"><h3>History</h3>
-                  <div class="row-checkbox" data-tab="output-settings">
+                  <div class="row-checkbox">
                     <input type="checkbox" id="write-his-file" checked=true>
                     <label for="write-his-file">Write His file:</label>
                   </div>
-                  <div class="row-block" data-panel="his-file">
-                    <label for="his-ouput-interval-date">Interval:</label>
-                    <input type="text" id="his-ouput-interval-date" value="0">
-                    <label for="his-ouput-interval-time">days</label>
-                    <input type="text" class="datetime-interval" id="his-ouput-interval-time" value="05:00:00">
+                  <div class="row-block">
+                    <label for="his-output-interval-date">Interval:</label>
+                    <input type="text" id="his-output-interval-date" value="0">
+                    <label for="his-output-interval-time">days</label>
+                    <input type="text" class="datetime-interval" id="his-output-interval-time" value="05:00:00">
                   </div>
-                  <div class="row" data-panel="his-file">
-                    <label for="his-ouput-start">Start time:</label>
-                    <input type="text" class="datetime" id="his-ouput-start" placeholder="YYYY-mm-dd HH:mm:ss">
+                  <div class="row">
+                    <label for="his-output-start">Start time:</label>
+                    <input type="text" class="datetime" id="his-output-start" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-04-25 00:00:00">
                   </div>
-                  <div class="row" data-panel="his-file">
-                    <label for="his-ouput-end">End time:</label>
-                    <input type="text" class="datetime" id="his-ouput-end" placeholder="YYYY-mm-dd HH:mm:ss">
+                  <div class="row">
+                    <label for="his-output-end">End time:</label>
+                    <input type="text" class="datetime" id="his-output-end" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-11-20 00:00:00">
                   </div>                                    
                 </div>
                 <div class="tile"><h3>Map</h3>
-                  <div class="row-checkbox" data-tab="output-settings">
+                  <div class="row-checkbox">
                     <input type="checkbox" id="write-map-file" checked=true>
                     <label for="write-map-file">Write Map file:</label>
                   </div>                                  
-                  <div class="row-block" data-panel="map-file">
-                    <label for="map-ouput-interval-date">Interval:</label>
-                    <input type="text" id="map-ouput-interval-date" value="0">
-                    <label for="map-ouput-interval-time">days</label>
-                    <input type="text" class="datetime-interval" id="map-ouput-interval-time" value="05:00:00">
+                  <div class="row-block">
+                    <label for="map-output-interval-date">Interval:</label>
+                    <input type="text" id="map-output-interval-date" value="0">
+                    <label for="map-output-interval-time">days</label>
+                    <input type="text" class="datetime-interval" id="map-output-interval-time" value="05:00:00">
                   </div>                                  
-                  <div class="row" data-panel="map-file">
-                    <label for="map-ouput-start">Start time:</label>
-                    <input type="text" class="datetime" id="map-ouput-start" placeholder="YYYY-mm-dd HH:mm:ss">
+                  <div class="row">
+                    <label for="map-output-start">Start time:</label>
+                    <input type="text" class="datetime" id="map-output-start" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-04-25 00:00:00">
                   </div>
-                  <div class="row" data-panel="map-file">
-                    <label for="map-ouput-end">End time:</label>
-                    <input type="text" class="datetime" id="map-ouput-end" placeholder="YYYY-mm-dd HH:mm:ss">
+                  <div class="row">
+                    <label for="map-output-end">End time:</label>
+                    <input type="text" class="datetime" id="map-output-end" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-11-20 00:00:00">
                   </div>                                    
                 </div>
                 <div class="tile"><h3>Water Quality</h3>
-                  <div class="row-checkbox" data-tab="output-settings">
+                  <div class="row-checkbox">
                     <input type="checkbox" id="write-water-quality-file" checked=true>
                     <label for="write-water-quality-file">Write Water Quality file:</label>                                    
                   </div>
-                  <div class="row-block" data-panel="water-quality-file">
-                    <label for="water-quality-ouput-interval-date">Interval:</label>
-                    <input type="text" id="water-quality-ouput-interval-date" value="0">
-                    <label for="water-quality-ouput-interval-time">days</label>
-                    <input type="text" class="datetime-interval" id="water-quality-ouput-interval-time" value="05:00:00">
+                  <div class="row-block">
+                    <label for="water-quality-output-interval-date">Interval:</label>
+                    <input type="text" id="water-quality-output-interval-date" value="0">
+                    <label for="water-quality-output-interval-time">days</label>
+                    <input type="text" class="datetime-interval" id="water-quality-output-interval-time" value="05:00:00">
                   </div>
-                  <div class="row" data-panel="water-quality-file">
-                    <label for="water-quality-ouput-start">Start time:</label>
-                    <input type="text" class="datetime" id="water-quality-ouput-start" placeholder="YYYY-mm-dd HH:mm:ss">
+                  <div class="row">
+                    <label for="water-quality-output-start">Start time:</label>
+                    <input type="text" class="datetime" id="water-quality-output-start" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-04-25 00:00:00">
                   </div>
-                  <div class="row" data-panel="water-quality-file">
-                    <label for="water-quality-ouput-end">End time:</label>
-                    <input type="text" class="datetime" id="water-quality-ouput-end" placeholder="YYYY-mm-dd HH:mm:ss">
+                  <div class="row">
+                    <label for="water-quality-output-end">End time:</label>
+                    <input type="text" class="datetime" id="water-quality-output-end" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-11-20 00:00:00">
                   </div>                                    
                 </div>
                 <div class="tile"><h3>Restart</h3>
-                  <div class="row-checkbox" data-tab="output-settings">
+                  <div class="row-checkbox">
                     <input type="checkbox" id="write-restart-file" checked=true>
                     <label for="write-restart-file">Write Restart file:</label>                                    
                   </div>
-                  <div class="row-block" data-panel="restart-file">
+                  <div class="row-block">
                     <label for="restart-interval-date">Interval:</label>
                     <input type="text" id="restart-interval-date" value="30">
                     <label for="restart-interval-time">days</label>
                     <input type="text" class="datetime-interval" id="restart-interval-time" value="00:00:00">
                   </div>
-                  <div class="row" data-panel="restart-file">
+                  <div class="row">
                     <label for="restart-output-start">Start time:</label>
-                    <input type="text" class="datetime" id="restart-output-start" placeholder="YYYY-mm-dd HH:mm:ss">
+                    <input type="text" class="datetime" id="restart-output-start" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-04-25 00:00:00">
                   </div>
-                  <div class="row" data-panel="restart-file">
+                  <div class="row">
                     <label for="restart-output-end">End time:</label>
-                    <input type="text" class="datetime" id="restart-output-end" placeholder="YYYY-mm-dd HH:mm:ss">
+                    <input type="text" class="datetime" id="restart-output-end" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-11-20 00:00:00">
                   </div>                                    
                 </div>
                 <div class="tile"><h3>Others</h3>                                
                   <div class="row-block">
-                    <label for="statistic-ouput-interval-date">Statistic output interval:</label>
-                    <input type="text" id="statistic-ouput-interval-date" value="10">
-                    <label for="statistic-ouput-interval-time">days</label>
-                    <input type="text" class="datetime-interval" id="statistic-ouput-interval-time" value="00:00:00">
+                    <label for="statistic-output-interval-date">Statistic output interval:</label>
+                    <input type="text" id="statistic-output-interval-date" value="10">
+                    <label for="statistic-output-interval-time">days</label>
+                    <input type="text" class="datetime-interval" id="statistic-output-interval-time" value="00:00:00">
                   </div>                                
                   <div class="row-block">
-                    <label for="timing-statistic-ouput-interval-date">Timing statistic output interval:</label>
-                    <input type="text" id="timing-statistic-ouput-interval-date" value="10">
-                    <label for="timing-statistic-ouput-interval-time">days</label>
-                    <input type="text" class="datetime-interval" id="timing-statistic-ouput-interval-time" value="00:00:00">
+                    <label for="timing-statistic-output-interval-date">Timing statistic output interval:</label>
+                    <input type="text" id="timing-statistic-output-interval-date" value="10">
+                    <label for="timing-statistic-output-interval-time">days</label>
+                    <input type="text" class="datetime-interval" id="timing-statistic-output-interval-time" value="00:00:00">
                   </div>
                 </div>
               </div>
@@ -581,13 +595,6 @@
       <button class="tab-btn" id="complete-button">Save Components to Project<span class="ink"></span></button>
     </section>
   </div>
-  <!-- Load the newest version of the script -->
-  <script type="module">
-    const script = document.createElement('script');
-    script.type = 'module';
-    script.src = `/static/js/projectCreator.js`;
-    document.body.appendChild(script);
-  </script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script>
     flatpickr(".datetime-ref",{ dateFormat: "Y-m-d" });
@@ -597,6 +604,13 @@
     flatpickr(".datetime", {
       enableTime: true, enableSeconds: true,
       dateFormat: "Y-m-d H:i:S", time_24hr: true});
+  </script>
+  <!-- Load the newest version of the script -->
+  <script type="module">
+    const script = document.createElement('script');
+    script.type = 'module';
+    script.src = `/static/js/projectCreator.js?v=${Date.now()}`;
+    document.body.appendChild(script);
   </script>
 </body>
 </html>
