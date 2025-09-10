@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 import os, json, shutil, stat, subprocess, re
-import xarray as xr
+import xarray as xr, numpy as np
 from fastapi.templating import Jinja2Templates
 from Functions import functions
 from config import PROJECT_STATIC_ROOT, ROOT_DIR
@@ -10,6 +10,26 @@ from datetime import datetime, timezone
 router = APIRouter()
 templates = Jinja2Templates(directory="static/templates")
 
+
+# Create a new project with necessary folders
+@router.post("/setup_new_project")
+async def setup_new_project(request: Request):
+    body = await request.json()
+    project_name = body.get('projectName')
+    project_path = os.path.join(PROJECT_STATIC_ROOT, project_name)
+    # Check if project already exists
+    if os.path.exists(project_path):
+        return JSONResponse({"status": 'ok', "message": f"Project '{project_name}' already exists."})
+    try:
+        # Create project directories
+        os.makedirs(project_path, exist_ok=True)
+        os.makedirs(os.path.join(project_path, "common_files"), exist_ok=True)
+        os.makedirs(os.path.join(project_path, "input"), exist_ok=True)
+        # os.makedirs(os.path.join(project_path, "output"), exist_ok=True)
+        status, message = 'ok', f"Project '{project_name}' created successfully!"
+    except Exception as e:
+        status, message = 'error', f"Error: {str(e)}"
+    return JSONResponse({"status": status, "message": message})
 
 # Delete a project
 @router.post("/delete_project")
@@ -36,15 +56,18 @@ async def delete_project(request: Request):
                     return JSONResponse({"status": "error", "message": f"Error: {str(e2)}"})
     return JSONResponse({"status": status, "message": message})
 
-
-# Project Management
+# Open a project
 @router.post("/select_project")
 async def select_project(request: Request):
     body = await request.json()
-    project_name, key = body.get('filename'), body.get('key')
+    project_name, key, folder_check = body.get('filename'), body.get('key'), body.get('folder_check')
     try:
-        if key == 'getProjects': # List the projects
+        if key == 'getProjects': # List the projects that doesn't have a folder output
             project = [p.name for p in os.scandir(PROJECT_STATIC_ROOT) if p.is_dir()]
+            # Check if folder ouput exists
+            for p in project:
+                if not os.path.exists(os.path.join(PROJECT_STATIC_ROOT, p, folder_check)):
+                    project.remove(p)
             data = sorted(project)
         elif key == 'getFiles': # List the files
             project_path = os.path.join(PROJECT_STATIC_ROOT, project_name)
@@ -53,7 +76,6 @@ async def select_project(request: Request):
     except Exception as e:
         status, message, data = 'error', f"Error: {str(e)}", None
     return JSONResponse({"status": status, "message": message, "content": data})
-
 
 # Set up the database depending on the project
 @router.post("/setup_database")
@@ -140,6 +162,30 @@ async def get_source(request: Request):
         status, message, data = 'error', f"Error: {str(e)}", None
     return JSONResponse({"status": status, "message": message, "content": data})
 
+# Save observations data to project
+@router.post("/save_obs")
+async def save_obs(request: Request):
+    body = await request.json()
+    project_name, file_name = body.get('projectName'), body.get('fileName')
+    data, key = body.get('data'), body.get('key')
+    try:
+        path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
+        with open(os.path.join(path, file_name), 'w') as f:
+            if key == 'obs':
+                for line in data:
+                    f.write(f"{line[2]}  {line[1]}  '{line[0]}'\n")
+            elif key == 'crs':
+                name = file_name.replace('_crs.pli', '')
+                data = np.array(data)
+                f.write(f"{name}\n")
+                f.write(f"    {data.shape[0]}    2\n")
+                for line in data:
+                    f.write(f"{line[2]}  {line[1]}  {line[0]}\n")
+        status, message = 'ok', 'Observations saved successfully.'
+    except Exception as e:
+        status, message = 'error', f"Error: {str(e)}"
+    return JSONResponse({"status": status, "message": message})
+
 # Save source to CSV file
 @router.post("/save_source")
 async def save_source(request: Request):
@@ -177,9 +223,7 @@ async def save_source(request: Request):
         with open(os.path.join(path, f"{source_name}.tim"), 'w') as f:
             for row in data:
                 t_utc = datetime.strptime(row[0], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
-                dif = int((t_utc - ref_utc).total_seconds())
-                if dif < 0: return JSONResponse({"status": 'error', "message": 'Time must be greater than reference time.'})
-                row[0] = dif
+                row[0] = int((t_utc - ref_utc).total_seconds())
                 temp = '  '.join([str(r) for r in row])
                 f.write(f"{temp}\n")
         status, message = 'ok', f"Source '{source_name}' saved successfully."
@@ -232,38 +276,22 @@ async def init_source(request: Request):
 @router.post("/save_meteo")
 async def save_meteo(request: Request):
     body = await request.json()
-    project_name, ref_date, data = body.get('projectName'), body.get('refDate'), body.get('data')
-    ref_utc = datetime.strptime(ref_date, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
-    try:
-        path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
-        # Write .tim file
-        with open(os.path.join(path, "FlowFM_meteo.tim"), 'w') as f:
-            for row in data:
-                t_utc = datetime.strptime(row[0], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
-                dif = int((t_utc - ref_utc).total_seconds())
-                if dif < 0: return JSONResponse({"status": 'error', "message": 'Time must be greater than reference time.'})
-                row[0] = dif
-                temp = '  '.join([str(r) for r in row])
-                f.write(f"{temp}\n")
-        status, message = 'ok', f"Meteorological data was saved successfully."
-        # Add meteo data to FlowFM.ext file
-        ext_path = os.path.join(path, "FlowFM.ext")
-        update_content = 'QUANTITY=humidity_airtemperature_cloudiness_solarradiation\n' + \
+    project_name, ref_time, data = body.get('projectName'), body.get('refDate'), body.get('data')
+    # ref_utc = datetime.strptime(ref_date, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+    content = 'QUANTITY=humidity_airtemperature_cloudiness_solarradiation\n' + \
             'FILENAME=FlowFM_meteo.tim\n' + 'FILETYPE=1\n' + 'METHOD=1\n' + 'OPERAND=O'
-        if os.path.exists(ext_path):
-            with open(ext_path, encoding="utf-8") as f:
-                content = f.read()
-            parts = re.split(r'\n\s*\n', content)
-            parts = [p.strip() for p in parts if p.strip()]
-            if (any('FlowFM_meteo' in part for part in parts)): 
-                index = parts.index([part for part in parts if 'FlowFM_meteo' in part][0])
-                parts[index] = update_content
-            else: parts.append(update_content)
-            with open(ext_path, 'w') as file:
-                file.write(f"\n{'\n\n'.join(parts)}\n")
-        else:
-            with open(ext_path, 'w') as f:
-                f.write(f"\n{update_content}\n")
-    except Exception as e:
-        status, message = 'error', f"Error: {str(e)}"
+    # Time difference in minutes
+    status, message = functions.contentWriter(project_name, "FlowFM_meteo.tim", data, content, ref_time, 'min')
+    return JSONResponse({"status": status, "message": message})
+
+# Save meteo data to project
+@router.post("/save_weather")
+async def save_weather(request: Request):
+    body = await request.json()
+    project_name, ref_time, data = body.get('projectName'), body.get('refDate'), body.get('data')
+    # print(ref_date)
+    # ref_utc = datetime.strptime(ref_date, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+    content = 'QUANTITY=windxy\n' + 'FILENAME=windxy.tim\n' + 'FILETYPE=2\n' + 'METHOD=1\n' + 'OPERAND=+'
+    # Time difference in minutes
+    status, message = functions.contentWriter(project_name, "windxy.tim", data, content, ref_time, 'min')
     return JSONResponse({"status": status, "message": message})

@@ -1,23 +1,19 @@
 import { fillTable, getDataFromTable, removeRowFromTable, deleteTable, copyPaste } from "./tableManager.js";
-import { csvUploader, mapPicker, renderProjects, pointUpdate, updateTable, plotTable } from "./tableManager.js";
-import { saveProject } from "./projectSaver.js";
+import { csvUploader, mapPicker, renderProjects, pointUpdate, updateTable, plotTable, sendQuery } from "./tableManager.js";
+import { saveProject, toUTC } from "./projectSaver.js";
 
-
-const projectName = () => document.getElementById('project-name');
+const sectionDescription = () => document.getElementById('desription-tab');
+const sectionTab = () => document.getElementById('parent-tab');
 const projects = () => document.getElementById("project-list");
 const projectCreator = () => document.getElementById('create-project-button');
 const saveProjectBtn = () => document.getElementById('complete-button');
 const getLocation = () => document.getElementById('location-picker');
-const latitude = () => document.getElementById('latitude');
-const nLayers = () => document.getElementById('n-layer');
-const gridPath = () => document.getElementById('unstructured-grid');
-const referenceDate = () => document.getElementById('reference-date');
-const startDate = () => document.getElementById('start-date');
-const stopDate = () => document.getElementById('stop-date');
 const userTimestepDate = () => document.getElementById('user-time-step-date');
 const userTimestepTime = () => document.getElementById('user-time-step-time');
 const nodalTimestepDate = () => document.getElementById('nodal-update-interval-date');
 const nodalTimestepTime = () => document.getElementById('nodal-update-interval-time');
+const userTime = userTimestepTime().value;
+const nodalTime = nodalTimestepTime().value;
 const obsPointName = () => document.getElementById('observation-point');
 const obsPointLatitude = () => document.getElementById('observation-point-latitude');
 const obsPointLongitude = () => document.getElementById('observation-point-longitude');
@@ -25,15 +21,10 @@ const obsPointPicker = () => document.getElementById('observation-point-picker')
 const obsPointSave = () => document.getElementById('observation-point-save');
 const obsPointRemove = () => document.getElementById('observation-point-remove');
 const obsPointUpload = () => document.getElementById('observation-point-csv');
-const obsPointTable = () => document.getElementById('observation-point-table');
 const obsPointUpdate = () => document.getElementById('observation-point-update');
-const crossSectionName = () => document.getElementById('observation-cross-section');
 const crossSectionPicker = () => document.getElementById('observation-cross-section-picker');
 const crossSectionRemove = () => document.getElementById('observation-cross-section-remove');
-const crossSectionTable = () => document.getElementById('observation-cross-section-table');
-const boundaryName = () => document.getElementById('boundary-name');
 const boundaryPicker = () => document.getElementById('boundary-picker');
-const boundaryTable = () => document.getElementById('boundary-table');
 const boundaryRemove = () => document.getElementById('boundary-remove');
 const boundarySelector = () => document.getElementById('option-boundary-edit');
 const boundaryTypeSelector = () => document.getElementById('option-boundary-type');
@@ -68,25 +59,80 @@ const weatherSelector = () => document.getElementById('option-weather');
 const weatherUpload = () => document.getElementById('weather-update');
 const weatherCSVUpload = () => document.getElementById('weather-update-csv');
 const weatherTable = () => document.getElementById('weather-edit-table');
-
-
+const hisIntervalDate = () => document.getElementById('his-output-interval-date');
+const hisIntervalTime = () => document.getElementById('his-output-interval-time');
+const hisTime = hisIntervalTime().value;
+const mapIntervalDate = () => document.getElementById('map-output-interval-date');
+const mapIntervalTime = () => document.getElementById('map-output-interval-time');
+const mapTime = mapIntervalTime().value;
+const wqIntervalDate = () => document.getElementById('water-quality-output-interval-date');
+const wqIntervalTime = () => document.getElementById('water-quality-output-interval-time');
+const wqTime = wqIntervalTime().value;
+const rstIntervalDate = () => document.getElementById('restart-interval-date');
+const rstIntervalTime = () => document.getElementById('restart-interval-time');
+const rstTime = rstIntervalTime().value;
+const statisticDate = () => document.getElementById('statistic-output-interval-date');
+const statisticTime = () => document.getElementById('statistic-output-interval-time');
+const sttTime = statisticTime().value;
+const timingDate = () => document.getElementById('timing-statistic-output-interval-date');
+const timingTime = () => document.getElementById('timing-statistic-output-interval-time');
+const tTime = timingTime().value;
+export const projectName = () => document.getElementById('project-name');
+export const latitude = () => document.getElementById('latitude');
+export const nLayers = () => document.getElementById('n-layer');
+export const gridPath = () => document.getElementById('unstructured-grid');
+export const referenceDate = () => document.getElementById('reference-date');
+export const startDate = () => document.getElementById('start-date');
+export const stopDate = () => document.getElementById('stop-date');
+export const userTimestep = parseInt(userTimestepDate().value)*86400 +
+    parseInt(userTime.split(':')[0])*3600 +
+    parseInt(userTime.split(':')[1])*60 + parseInt(userTime.split(':')[2]);
+export const nodalTimestep = parseInt(nodalTimestepDate().value)*86400 +
+    parseInt(nodalTime.split(':')[0])*3600 +
+    parseInt(nodalTime.split(':')[1])*60 + parseInt(nodalTime.split(':')[2]);
+export const obsPointTable = () => document.getElementById('observation-point-table');
+export const crossSectionTable = () => document.getElementById('observation-cross-section-table');
+export const crossSectionName = () => document.getElementById('observation-cross-section');
+export const boundaryName = () => document.getElementById('boundary-name');
+export const boundaryTable = () => document.getElementById('boundary-table');
+export const salinity = () => document.getElementById('use-salinity');
+export const temperature = () => document.getElementById('option-temperature');
+export const initWaterLevel = () => document.getElementById('initial-water-level');
+export const initSalinity = () => document.getElementById('initial-salinity');
+export const initTemperature = () => document.getElementById('initial-temperature');
+export const outputHis = () => document.getElementById('write-his-file');
+export const hisInterval = parseInt(hisIntervalDate().value)*86400 +
+    parseInt(hisTime.split(':')[0])*3600 +
+    parseInt(hisTime.split(':')[1])*60 + parseInt(hisTime.split(':')[2]);
+export const hisStart = () => document.getElementById('his-output-start');
+export const hisStop = () => document.getElementById('his-output-end');
+export const outputMap = () => document.getElementById('write-map-file');
+export const mapInterval = parseInt(mapIntervalDate().value)*86400 +
+    parseInt(mapTime.split(':')[0])*3600 +
+    parseInt(mapTime.split(':')[1])*60 + parseInt(mapTime.split(':')[2]);
+export const mapStart = () => document.getElementById('map-output-start');
+export const mapStop = () => document.getElementById('map-output-end');
+export const outputWQ = () => document.getElementById('write-water-quality-file');
+export const wqInterval = parseInt(wqIntervalDate().value)*86400 +
+    parseInt(wqTime.split(':')[0])*3600 +
+    parseInt(wqTime.split(':')[1])*60 + parseInt(wqTime.split(':')[2]);
+export const wqStart = () => document.getElementById('water-quality-output-start');
+export const wqStop = () => document.getElementById('water-quality-output-end');
+export const outputRestart = () => document.getElementById('write-restart-file');
+export const rtsInterval = parseInt(rstIntervalDate().value)*86400 +
+    parseInt(rstTime.split(':')[0])*3600 +
+    parseInt(rstTime.split(':')[1])*60 + parseInt(rstTime.split(':')[2]);
+export const sttInterval = parseInt(statisticDate().value)*86400 +
+    parseInt(sttTime.split(':')[0])*3600 +
+    parseInt(sttTime.split(':')[1])*60 + parseInt(sttTime.split(':')[2]);
+export const timingInterval = parseInt(timingDate().value)*86400 +
+    parseInt(tTime.split(':')[0])*3600 +
+    parseInt(tTime.split(':')[1])*60 + parseInt(tTime.split(':')[2]);
+export const rtsStart = () => document.getElementById('restart-output-start');
+export const rtsStop = () => document.getElementById('restart-output-end');
 
 
 let projectList = [];
-
-
-// const hisIntervalDate = () => document.getElementById('his-ouput-interval-date');
-// const hisIntervalTime = () => document.getElementById('his-ouput-interval-time');
-// const mapIntervalDate = () => document.getElementById('map-ouput-interval-date');
-// const mapIntervalTime = () => document.getElementById('map-ouput-interval-time');
-// const wqIntervalDate = () => document.getElementById('water-quality-ouput-interval-date');
-// const wqIntervalTime = () => document.getElementById('water-quality-ouput-interval-time');
-// const rstIntervalDate = () => document.getElementById('restart-interval-date');
-// const rstIntervalTime = () => document.getElementById('restart-interval-time');
-// const statisticDate = () => document.getElementById('statistic-ouput-interval-date');
-// const statisticTime = () => document.getElementById('statistic-ouput-interval-time');
-// const timingDate = () => document.getElementById('timing-statistic-ouput-interval-date');
-// const timingTime = () => document.getElementById('timing-statistic-ouput-interval-time');
 
 function setupTabs(root) {
     const buttonPanels = root.querySelectorAll('#main-tabs button');
@@ -178,10 +224,7 @@ function setupTabs(root) {
 }
 
 async function getProjectList(){
-    const response = await fetch('/select_project', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({filename: '', key: 'getProjects'})});
-    const data = await response.json();
+    const data = await sendQuery('select_project', {filename: '', key: 'getProjects', folder_check: 'input'});
     if (data.status === "ok") projectList = data.content;
 }
 function sourceChange(target){
@@ -207,7 +250,6 @@ async function fileUploader(target, projectName, gridName){
     if (data.status === "error") {alert(data.message), target.value = ''; return;}
 }
 
-
 function updateOption(){
     obsPointTable().addEventListener('change', () => { console.log('change'); });
     // Update location
@@ -222,7 +264,10 @@ function updateOption(){
     csvUploader(meteoUpload(), meteoTable(), 5)
     csvUploader(weatherCSVUpload(), weatherTable(), 3)
     // Upload file to server
-    gridPath().addEventListener('change', () =>  fileUploader(gridPath(), projectName().value, 'FlowFM_net.nc'));
+    gridPath().addEventListener('change', () => {
+        fileUploader(gridPath(), projectName().value, 'FlowFM_net.nc')
+
+    });
     // Copy and paste to tables
     copyPaste(boundaryEditTable(), 2);
     copyPaste(sourceTable(), 5);
@@ -265,13 +310,10 @@ function updateOption(){
         if (event.data.type === 'sourcePicked') {
             const content = event.data.content;
             let value = sourceName().value.trim();
-            if (value === '') { value = `Source/Sink`; sourceName().value = value; }
+            if (value === '') { value = `Source_Sink`; sourceName().value = value; }
             sourceLatitude().value = Number(content.lat).toFixed(16);
             sourceLongitude().value = Number(content.lng).toFixed(16);
         }
-
-
-
     });
     // Save point to table
     obsPointSave().addEventListener('click', () => {
@@ -320,17 +362,15 @@ function updateOption(){
             alert('Please check: \n     1. Name of project/boundary/sub-boundary option is required.' + 
                 '\n     2. Boundary type is required.' + '\n     3. Reference date is required.'); return;
         }
-        const refSimulation = new Date(`${refDate}T00:00:00`).toISOString();
+        const refSimulation = toUTC(`${refDate} 00:00:00`);
         const boundaryData = getDataFromTable(boundaryTable(), true);
         if (boundaryData.rows.length === 0) { alert('No data in the table. Please check boundary condition.'); return; }
         const subBoundaryData = getDataFromTable(boundaryEditTable());
         if (subBoundaryData.rows.length === 0) { alert('No data in the table. Please check sub-boundary condition.'); return; }
         // Create boundary
-        const response = await fetch('/update_boundary', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({projectName: nameProject, refDate: refSimulation, boundaryName: nameBoundary, boundaryData: boundaryData.rows,
-            subBoundaryName: subBoundary, boundaryType: boundaryType, subBoundaryData: subBoundaryData.rows})});
-        const data = await response.json();
+        const content = {projectName: nameProject, refDate: refSimulation, boundaryName: nameBoundary, boundaryData: boundaryData.rows,
+            subBoundaryName: subBoundary, boundaryType: boundaryType, subBoundaryData: subBoundaryData.rows}
+        const data = await sendQuery('update_boundary', content);
         alert(data.message);
         boundarySelectorView().value = '';
         boundaryViewContainer().style.display = 'none'; boundaryText().value = '';
@@ -344,11 +384,7 @@ function updateOption(){
         }
         const value = boundarySelectorView().value;
         // Create boundary
-        const response = await fetch('/view_boundary', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({projectName: projectName().value, boundaryType: value})
-        });
-        const data = await response.json();
+        const data = await sendQuery('view_boundary', {projectName: projectName().value, boundaryType: value});
         if (data.status === "error") {
             boundarySelectorView().value = ''; alert(data.message);
             boundaryViewContainer().style.display = 'none'; boundaryText().value = ''; return;
@@ -358,12 +394,10 @@ function updateOption(){
     });
     // Reset sub-boundary condition
     boundaryRemove().addEventListener('click', async () => {
+        const nameBoundary = boundaryName().value.trim();
+        if (nameBoundary === '') { alert('Name of boundary is required.'); return; }
         // Delete boundary
-        const response = await fetch('/delete_boundary', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({projectName: projectName().value, boundaryName: boundaryName().value.trim()})
-        });
-        const data = await response.json();
+        const data = await sendQuery('delete_boundary', {projectName: projectName().value, boundaryName: nameBoundary});
         alert(data.message);
         const tbody = boundaryEditTable().querySelector("tbody"); tbody.innerHTML = "";
         boundarySelectorView().value = ''; boundarySelector().value = ''; boundarySelector().innerHTML = '';
@@ -381,11 +415,7 @@ function updateOption(){
     sourceOptionList().addEventListener('change', async () => {
         sourceChange(sourceOptionList());
         sourceOptionPicker().style.display = 'none';
-        const response = await fetch('/get_files', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({})
-        });
-        const data = await response.json();
+        const data = await sendQuery('get_files', {});
         if (data.status === "error") { alert(data.message); return; }
         const sourceSelector = sourceSelectionList();
         sourceSelector.innerHTML = '';
@@ -403,19 +433,15 @@ function updateOption(){
     });
     // Select source from list
     sourceSelectionList().addEventListener('change', async () => {
-        const name = sourceSelectionList().value;
-        if (name === '') return;
+        const value = sourceSelectionList().value;
+        if (value === '') return;
         window.parent.postMessage({type: 'showOverlay', 
             message: 'Reading source/sink and exacting data to table...'}, '*'); // Show overlay
-        const response = await fetch('/get_source', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({filename: name})
-        });
-        const data = await response.json();
+        const data = await sendQuery('get_source', {filename: value});
         if (data.status === "error") alert(data.message);
         sourceLatitude().value = data.content.lat;
         sourceLongitude().value = data.content.lon;
-        sourceName().value = name;
+        sourceName().value = value;
         // Convert to 2D array
         const lines = data.content.data;
         const data_arr = lines.map(line => line.trim().split(","));
@@ -444,13 +470,10 @@ function updateOption(){
         if (table.rows.length === 0) { alert('No data to save. Please check the table.'); return; }
         if (refDate === ''){ alert('Please check reference date of simulation.'); return; }
         if (lat === '' || lon === '' || name === ''){ alert('Please check Name/Latitude/Longitude.'); return; }
-        const refSimulation = new Date(`${refDate}T00:00:00`).toISOString();
-        const response = await fetch('/save_source', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({projectName: nameProject, nameSource: name, key: 'saveSource',
-                refDate: refSimulation, lat: lat, lon: lon, data: table.rows})
-        });
-        const data = await response.json();
+        const refSimulation = toUTC(`${refDate} 00:00:00`);
+        const content = {projectName: nameProject, nameSource: name, key: 'saveSource',
+                refDate: refSimulation, lat: lat, lon: lon, data: table.rows}
+        const data = await sendQuery('save_source', content);
         updateTable(sourceRemoveTable(), sourceSelectorRemove(), nameProject);
         alert(data.message);
     });
@@ -462,12 +485,8 @@ function updateOption(){
         if (refDate === ''){ alert('Please check reference date of simulation.'); return; }
         const table = getDataFromTable(meteoTable());
         if (table.rows.length === 0) { alert('No data to save. Please check the table.'); return; }
-        const refSimulation = new Date(`${refDate}T00:00:00`).toISOString();
-        const response = await fetch('/save_meteo', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({projectName: nameProject, refDate: refSimulation, data: table.rows})
-        });
-        const data = await response.json();
+        const refSimulation = toUTC(`${refDate} 00:00:00`);
+        const data = await sendQuery('save_meteo', {projectName: nameProject, refDate: refSimulation, data: table.rows});
         alert(data.message);
     });
     // Weather data
@@ -477,29 +496,31 @@ function updateOption(){
             weatherUpload().style.display = 'none'; return;}
         deleteTable(weatherSelector(), weatherTable());
         weatherCSVUpload().style.display = 'block'; weatherUpload().style.display = 'block';
-        
-
+    });
+    weatherUpload().addEventListener('click', async () => {
+        const nameProject = projectName().value.trim();
+        if (nameProject === ''){ alert('Please check project name.'); return; }        
+        const refDate = referenceDate().value;
+        if (refDate === ''){ alert('Please check reference date of simulation.'); return; }
+        const table = getDataFromTable(weatherTable());
+        if (table.rows.length === 0) { alert('No data to save. Please check the table.'); return; }
+        const refSimulation = toUTC(`${refDate} 00:00:00`);
+        const data = await sendQuery('save_weather', {projectName: nameProject, refDate: refSimulation, data: table.rows});
+        alert(data.message);
     })
-    
-
-
-
-
-
-    
-
-
-    // // Save project
-    // saveProjectBtn().addEventListener('click', async () => {
-    //     // saveProject();
-    //     console.log(referenceDate().value + ' ** ' + startDate().value + ' ** ' + stopDate().value);
-    // });
+    // Save project
+    saveProjectBtn().addEventListener('click', async () => { saveProject(); });
 }
-
 
 function initializeProject(){
     // Update project name
-    projectName().addEventListener('input', (e) => { renderProjects(projects(), projectList, e.target.value); });
+    projectName().addEventListener('input', (e) => { 
+        const value = e.target.value.trim();
+        if (value === '') {
+            sectionTab().style.display = "none"; sectionDescription().style.display = "block";
+        }
+        renderProjects(projects(), projectList, value);
+    });
     projectName().addEventListener('blur', () => { projects().style.display = "none"; });
     // Create new project
     projectCreator().addEventListener('click', () => {
@@ -507,13 +528,21 @@ function initializeProject(){
         if (!name || name.trim() === '') { alert('Please define project name.'); return; }
         window.parent.postMessage({type: 'projectPreparation', name: name}, '*')
         // Show tabs
-        document.getElementById('parent-tab').style.display = "block";
+        sectionTab().style.display = "block"; sectionDescription().style.display = "none";
         // Get source data if exist
         updateTable(sourceRemoveTable(), sourceSelectorRemove(), name);
     });
 }
 
-await getProjectList();
-initializeProject();
-setupTabs(document);
-updateOption();
+// await getProjectList();
+// initializeProject();
+// setupTabs(document);
+// updateOption();
+
+document.addEventListener('DOMContentLoaded', async function() {
+  // Di chuyển toàn bộ code hiện tại vào đây
+  await getProjectList();
+  initializeProject();
+  setupTabs(document);
+  updateOption();
+});

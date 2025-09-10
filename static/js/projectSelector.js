@@ -9,7 +9,7 @@ const deleteButton = () => document.getElementById("delete-button");
 const defaultOption = `<option value="" selected>--- No selected ---</option>`;
 
 async function loadProjectList(){
-    const data = await loadData('', 'getProjects');
+    const data = await loadList('', 'getProjects', 'output');
     if (data.status === "error") return;
     // Add more options
     const options = data.content.map(value => `<option value="${value}">${value}</option>`).join('');
@@ -18,7 +18,7 @@ async function loadProjectList(){
 
 async function projectDefinition(projectName){
     // Get project files
-    const data = await loadData(projectName, 'getFiles');
+    const data = await loadList(projectName, 'getFiles');
     if (data.status === "error") {alert(data.message);}
     // Get NC files
     const files = data.content;
@@ -79,10 +79,10 @@ function projectOption(){
     });
 }
 
-async function loadData(fileName, key) {
+async function loadList(fileName, key, folder_check = '') {
     const response = await fetch('/select_project', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({filename: fileName, key: key})});
+    body: JSON.stringify({filename: fileName, key: key, folder_check:folder_check})});
     const data = await response.json();
     if (data.status === "error") {
         alert(data.message); return null;

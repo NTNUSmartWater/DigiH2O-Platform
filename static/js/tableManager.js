@@ -1,3 +1,14 @@
+import { toUTC } from "./projectSaver.js";
+
+
+export async function sendQuery(functionName, content){
+    const response = await fetch(`/${functionName}`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(content)});
+    const data = await response.json();
+    return data;
+}
+
 export function copyPaste(table, nCols){
     const tbody = table.querySelector('tbody');
     tbody.innerHTML = '';
@@ -36,25 +47,20 @@ export function fillTable(data2D, table, clear=true){
 }
 
 export async function updateTable(table, comboBox, projectName, key='') {
-    const response = await fetch('/init_source', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({projectName: projectName, key: key})
-    });
-    const data = await response.json();
+    const data = await sendQuery('init_source', {projectName: projectName, key: key});
     if (data.status === "ok") {
-        const sourceSelector = comboBox;
-        sourceSelector.innerHTML = '';
+        comboBox.innerHTML = '';
         // Add hint to the velocity object
         const hint = document.createElement('option');
         hint.value = ''; hint.selected = true;
         hint.text = '- No Selection -'; 
-        sourceSelector.add(hint);
+        comboBox.add(hint);
         // Add options
         const data_arr = [];
         data.content.forEach((item, idx) => {
             const option = document.createElement('option');
             option.value = item; option.text = item;
-            sourceSelector.add(option);
+            comboBox.add(option);
             data_arr.push([item, data.type[idx]]);
         });
         if (data_arr.length > 0) fillTable(data_arr, table);
@@ -80,8 +86,8 @@ export function getDataFromTable(table, isZeroIndexString=false){
             if (isZeroIndexString) return val; // Keep as string
             // Convert to number if possible
             if (idx === 0 && val) {
-                const isoString = val.replace(/\//g, "-").replace(" ", "T");
-                return new Date(isoString).toISOString();
+                const isoString = val.replace(/\//g, "-").replace("T", " ");
+                return toUTC(isoString);
             }
             if (!isNaN(val) && val !== "") return parseFloat(val);
             return val;
