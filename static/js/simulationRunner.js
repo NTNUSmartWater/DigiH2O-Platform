@@ -1,6 +1,9 @@
 const projectSelector = () => document.getElementById("options");
 const runBtn = () => document.getElementById("run-button");
+const stopBtn = () => document.getElementById("stop-button");
 const infoArea = () => document.getElementById("textarea");
+
+let ws = null, content = '', currentProject = null;;
 
 
 async function sendQuery(functionName, content){
@@ -32,13 +35,20 @@ function updateSelection(){
             );
             if (!result) return;
         }
-        const ws = new WebSocket(`ws://${window.location.host}/run_sim/${projectName}`);
-        let content = '';
+        currentProject = projectName;
+        ws = new WebSocket(`ws://${window.location.host}/run_sim/${projectName}`);
+        content = '';
         ws.onmessage = (event) => {
             content += event.data + '\n';
             infoArea().value = content;
-            // infoArea().scrollTop = infoArea().scrollHeight;
         };
-    })
+    });
+    stopBtn().addEventListener('click', async () => {
+        if (ws) { ws.close(); ws = null; }
+        if (currentProject) {
+            const data = await sendQuery('stop_sim', {projectName: currentProject});
+            alert(data.message);
+        }
+    });
 }
 updateSelection();

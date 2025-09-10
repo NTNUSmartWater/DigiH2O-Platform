@@ -1,6 +1,6 @@
 import { fillTable, getDataFromTable, removeRowFromTable, deleteTable, copyPaste } from "./tableManager.js";
 import { csvUploader, mapPicker, renderProjects, pointUpdate, updateTable, plotTable, sendQuery } from "./tableManager.js";
-import { saveProject, toUTC } from "./projectSaver.js";
+import { saveProject, toUTC, timeStepCalculator } from "./projectSaver.js";
 
 const sectionDescription = () => document.getElementById('desription-tab');
 const sectionTab = () => document.getElementById('parent-tab');
@@ -12,8 +12,6 @@ const userTimestepDate = () => document.getElementById('user-time-step-date');
 const userTimestepTime = () => document.getElementById('user-time-step-time');
 const nodalTimestepDate = () => document.getElementById('nodal-update-interval-date');
 const nodalTimestepTime = () => document.getElementById('nodal-update-interval-time');
-const userTime = userTimestepTime().value;
-const nodalTime = nodalTimestepTime().value;
 const obsPointName = () => document.getElementById('observation-point');
 const obsPointLatitude = () => document.getElementById('observation-point-latitude');
 const obsPointLongitude = () => document.getElementById('observation-point-longitude');
@@ -61,75 +59,45 @@ const weatherCSVUpload = () => document.getElementById('weather-update-csv');
 const weatherTable = () => document.getElementById('weather-edit-table');
 const hisIntervalDate = () => document.getElementById('his-output-interval-date');
 const hisIntervalTime = () => document.getElementById('his-output-interval-time');
-const hisTime = hisIntervalTime().value;
 const mapIntervalDate = () => document.getElementById('map-output-interval-date');
 const mapIntervalTime = () => document.getElementById('map-output-interval-time');
-const mapTime = mapIntervalTime().value;
 const wqIntervalDate = () => document.getElementById('water-quality-output-interval-date');
 const wqIntervalTime = () => document.getElementById('water-quality-output-interval-time');
-const wqTime = wqIntervalTime().value;
 const rstIntervalDate = () => document.getElementById('restart-interval-date');
 const rstIntervalTime = () => document.getElementById('restart-interval-time');
-const rstTime = rstIntervalTime().value;
 const statisticDate = () => document.getElementById('statistic-output-interval-date');
 const statisticTime = () => document.getElementById('statistic-output-interval-time');
-const sttTime = statisticTime().value;
 const timingDate = () => document.getElementById('timing-statistic-output-interval-date');
 const timingTime = () => document.getElementById('timing-statistic-output-interval-time');
-const tTime = timingTime().value;
-export const projectName = () => document.getElementById('project-name');
-export const latitude = () => document.getElementById('latitude');
-export const nLayers = () => document.getElementById('n-layer');
-export const gridPath = () => document.getElementById('unstructured-grid');
-export const referenceDate = () => document.getElementById('reference-date');
-export const startDate = () => document.getElementById('start-date');
-export const stopDate = () => document.getElementById('stop-date');
-export const userTimestep = parseInt(userTimestepDate().value)*86400 +
-    parseInt(userTime.split(':')[0])*3600 +
-    parseInt(userTime.split(':')[1])*60 + parseInt(userTime.split(':')[2]);
-export const nodalTimestep = parseInt(nodalTimestepDate().value)*86400 +
-    parseInt(nodalTime.split(':')[0])*3600 +
-    parseInt(nodalTime.split(':')[1])*60 + parseInt(nodalTime.split(':')[2]);
-export const obsPointTable = () => document.getElementById('observation-point-table');
-export const crossSectionTable = () => document.getElementById('observation-cross-section-table');
-export const crossSectionName = () => document.getElementById('observation-cross-section');
-export const boundaryName = () => document.getElementById('boundary-name');
-export const boundaryTable = () => document.getElementById('boundary-table');
-export const salinity = () => document.getElementById('use-salinity');
-export const temperature = () => document.getElementById('option-temperature');
-export const initWaterLevel = () => document.getElementById('initial-water-level');
-export const initSalinity = () => document.getElementById('initial-salinity');
-export const initTemperature = () => document.getElementById('initial-temperature');
-export const outputHis = () => document.getElementById('write-his-file');
-export const hisInterval = parseInt(hisIntervalDate().value)*86400 +
-    parseInt(hisTime.split(':')[0])*3600 +
-    parseInt(hisTime.split(':')[1])*60 + parseInt(hisTime.split(':')[2]);
-export const hisStart = () => document.getElementById('his-output-start');
-export const hisStop = () => document.getElementById('his-output-end');
-export const outputMap = () => document.getElementById('write-map-file');
-export const mapInterval = parseInt(mapIntervalDate().value)*86400 +
-    parseInt(mapTime.split(':')[0])*3600 +
-    parseInt(mapTime.split(':')[1])*60 + parseInt(mapTime.split(':')[2]);
-export const mapStart = () => document.getElementById('map-output-start');
-export const mapStop = () => document.getElementById('map-output-end');
-export const outputWQ = () => document.getElementById('write-water-quality-file');
-export const wqInterval = parseInt(wqIntervalDate().value)*86400 +
-    parseInt(wqTime.split(':')[0])*3600 +
-    parseInt(wqTime.split(':')[1])*60 + parseInt(wqTime.split(':')[2]);
-export const wqStart = () => document.getElementById('water-quality-output-start');
-export const wqStop = () => document.getElementById('water-quality-output-end');
-export const outputRestart = () => document.getElementById('write-restart-file');
-export const rtsInterval = parseInt(rstIntervalDate().value)*86400 +
-    parseInt(rstTime.split(':')[0])*3600 +
-    parseInt(rstTime.split(':')[1])*60 + parseInt(rstTime.split(':')[2]);
-export const sttInterval = parseInt(statisticDate().value)*86400 +
-    parseInt(sttTime.split(':')[0])*3600 +
-    parseInt(sttTime.split(':')[1])*60 + parseInt(sttTime.split(':')[2]);
-export const timingInterval = parseInt(timingDate().value)*86400 +
-    parseInt(tTime.split(':')[0])*3600 +
-    parseInt(tTime.split(':')[1])*60 + parseInt(tTime.split(':')[2]);
-export const rtsStart = () => document.getElementById('restart-output-start');
-export const rtsStop = () => document.getElementById('restart-output-end');
+const projectName = () => document.getElementById('project-name');
+const latitude = () => document.getElementById('latitude');
+const nLayers = () => document.getElementById('n-layer');
+const gridPath = () => document.getElementById('unstructured-grid');
+const referenceDate = () => document.getElementById('reference-date');
+const startDate = () => document.getElementById('start-date');
+const stopDate = () => document.getElementById('stop-date');
+const obsPointTable = () => document.getElementById('observation-point-table');
+const crossSectionTable = () => document.getElementById('observation-cross-section-table');
+const crossSectionName = () => document.getElementById('observation-cross-section');
+const boundaryName = () => document.getElementById('boundary-name');
+const boundaryTable = () => document.getElementById('boundary-table');
+const salinity = () => document.getElementById('use-salinity');
+const temperature = () => document.getElementById('option-temperature');
+const initWaterLevel = () => document.getElementById('initial-water-level');
+const initSalinity = () => document.getElementById('initial-salinity');
+const initTemperature = () => document.getElementById('initial-temperature');
+const outputHis = () => document.getElementById('write-his-file');
+const hisStart = () => document.getElementById('his-output-start');
+const hisStop = () => document.getElementById('his-output-end');
+const outputMap = () => document.getElementById('write-map-file');
+const mapStart = () => document.getElementById('map-output-start');
+const mapStop = () => document.getElementById('map-output-end');
+const outputWQ = () => document.getElementById('write-water-quality-file');
+const wqStart = () => document.getElementById('water-quality-output-start');
+const wqStop = () => document.getElementById('water-quality-output-end');
+const outputRestart = () => document.getElementById('write-restart-file');
+const rtsStart = () => document.getElementById('restart-output-start');
+const rtsStop = () => document.getElementById('restart-output-end');
 
 
 let projectList = [];
@@ -374,7 +342,7 @@ function updateOption(){
         alert(data.message);
         boundarySelectorView().value = '';
         boundaryViewContainer().style.display = 'none'; boundaryText().value = '';
-    })
+    });
     // View boundary condition
     boundarySelectorView().addEventListener('change', async () => {
         if (boundarySelectorView().value === '') { boundaryViewContainer().style.display = 'none'; return; }
@@ -509,7 +477,22 @@ function updateOption(){
         alert(data.message);
     })
     // Save project
-    saveProjectBtn().addEventListener('click', async () => { saveProject(); });
+    saveProjectBtn().addEventListener('click', async () => { 
+        const userTimeSec = timeStepCalculator(userTimestepDate().value, userTimestepTime().value);
+        const nodalTimeSec = timeStepCalculator(nodalTimestepDate().value, nodalTimestepTime().value);
+        const hisInterval = timeStepCalculator(hisIntervalDate().value, hisIntervalTime().value);
+        const mapInterval = timeStepCalculator(mapIntervalDate().value, mapIntervalTime().value);
+        const wqInterval = timeStepCalculator(wqIntervalDate().value, wqIntervalTime().value);
+        const rtsInterval = timeStepCalculator(rstIntervalDate().value, rstIntervalTime().value);
+        const sttInterval = timeStepCalculator(statisticDate().value, statisticTime().value);
+        const timingInterval = timeStepCalculator(timingDate().value, timingTime().value);
+        const elements = { projectName, latitude, nLayers, gridPath, referenceDate, startDate, stopDate,
+            userTimeSec, nodalTimeSec, obsPointTable, crossSectionName, crossSectionTable, salinity, 
+            temperature, initWaterLevel, initSalinity, initTemperature , outputHis, hisInterval, hisStart, 
+            hisStop, outputMap, mapInterval, mapStart, mapStop, outputWQ, wqInterval, wqStart, wqStop, 
+            outputRestart, rtsInterval, rtsStart, rtsStop, sttInterval, timingInterval };
+        saveProject(elements); 
+    });
 }
 
 function initializeProject(){
@@ -534,15 +517,7 @@ function initializeProject(){
     });
 }
 
-// await getProjectList();
-// initializeProject();
-// setupTabs(document);
-// updateOption();
-
-document.addEventListener('DOMContentLoaded', async function() {
-  // Di chuyển toàn bộ code hiện tại vào đây
-  await getProjectList();
-  initializeProject();
-  setupTabs(document);
-  updateOption();
-});
+await getProjectList();
+initializeProject();
+setupTabs(document);
+updateOption();

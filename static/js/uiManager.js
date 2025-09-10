@@ -26,13 +26,18 @@ const projectSetting = () => document.getElementById('projectWindow');
 const projectSettingHeader = () => document.getElementById('projectWindowHeader');
 const projectSettingContent = () => document.getElementById('projectWindowContent');
 const projectSettingCloseBtn = () => document.getElementById('closeProjectWindow');
+const simulationWindow = () => document.getElementById('simulationWindow');
+const simulationHeader = () => document.getElementById('simulationWindowHeader');
+const simulationContent = () => document.getElementById('simulationWindowContent');
+const simulationCloseBtn = () => document.getElementById('closeSimulationWindow');
+
 const mapContainer = () => map.getContainer();
 
 
 initializeMap();
 baseMapButtonFunctionality();
-initializeMenu();
 projectChecker();
+initializeMenu();
 updateEvents();
 plotEvents();
 
@@ -63,7 +68,7 @@ async function projectChecker() {
     if (isNewProject === false && newProject === null) return;
     projectTitle().textContent = `Project: ${newProject.project}`;
     startLoading('Reading Database...');
-    const data = await sendQuery('setup_database', {projectName: newProject.project, values: newProject.values});
+    const data = await sendQuery('setup_database', {projectName: newProject.project, files: newProject.values});
     if (data.status === "error") alert(data.message);
     showLeafletMap();
 }
@@ -109,19 +114,17 @@ function moveWindow(window, header){
     });
 }
 
-function iframeInit(scr, title){
+function iframeInit(scr, objWindow, objHeader, objContent, title){
     // Detect iframe if exist
-    const iframe = projectSettingContent().querySelector("iframe");
+    const iframe = objContent.querySelector("iframe");
     if (iframe) iframe.remove();
     // Add iframe
     const newIframe = document.createElement("iframe");
-    newIframe.src = scr;
-    projectSettingContent().appendChild(newIframe);
-    projectSettingHeader().childNodes[0].nodeValue = title;
-    projectSetting().style.display = 'flex';
+    newIframe.src = `/${scr}`;
+    objContent.appendChild(newIframe);
+    objHeader.childNodes[0].nodeValue = title;
+    objWindow.style.display = 'flex';
 }
-
-iframeInit("/new_project", "New Project");
 
 function updateEvents() {
     // Check if events are already bound
@@ -176,7 +179,6 @@ function updateEvents() {
     // Select project
     popupContent().addEventListener('click', (e) => {
         const project = e.target.closest('.project');
-        console.log(project);
         if (project) {
             const name = project.dataset.info;
             // isNewProject = false;
@@ -188,15 +190,21 @@ function updateEvents() {
                 setProject({ project: 'Demo_Project', values: params });
                 projectChecker();
             } else if (name === 'open-project') {
-                iframeInit("/open_project", "Open Project"); isNewProject = false;
+                iframeInit("open_project", projectSetting(), projectSettingHeader(), 
+                    projectSettingContent(), "Open Project"); isNewProject = false;
             } else if (name === 'new-project') { 
-                iframeInit("/new_project", "New Project"); isNewProject = true;
+                iframeInit("new_project", projectSetting(), projectSettingHeader(), 
+                    projectSettingContent(), "New Project"); isNewProject = true;
             } else if (name === 'grid-generation') {
                 // Grid Generation
-                iframeInit("/grid_generation", "Grid Generation");
+                // iframeInit("grid_generation", "Grid Generation");
+
+
+
             } else if (name === 'run-simulation') {
                 // Run Simulation
-                iframeInit("/run_simulation", "Run Simulation");
+                iframeInit("run_simulation", simulationWindow(), simulationHeader(), 
+                    simulationContent(), "Run Simulation");
             }
         }
     });
@@ -281,9 +289,11 @@ function updateEvents() {
     // Move window
     moveWindow(contactInfo, contactInfoHeader);
     moveWindow(projectSetting, projectSettingHeader);
+    moveWindow(simulationWindow, simulationHeader);
     // Close windows
     contactInfoCloseBtn().addEventListener('click', () => { contactInfo().style.display = 'none'; });
     projectSettingCloseBtn().addEventListener('click', () => { projectSetting().style.display = 'none'; });
+    simulationCloseBtn().addEventListener('click', () => { simulationWindow().style.display = 'none'; });
     map.on('mousemove', function (e) {
         if (!pickerState.location && !pickerState.point && !pickerState.source && !pickerState.crosssection && 
             !pickerState.boundary) {

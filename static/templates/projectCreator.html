@@ -23,7 +23,7 @@
       <ul style="text-align: left; margin-left: 80px; line-height: 2.5;">
         <li>A clear and easy-to-remember project name</li>
         <li>A grid file with bathymetry included</li>
-        <li>List of measured points/Cross-Section (optional)</li>
+        <li>List of measured points/Cross-Section (inside the grid)</li>
         <li>Time-series data for Boundary conditions</li>
         <li>Time-series data for Sources/Sinks</li>
         <li>Time-series data for Meteorological data/weather data</li>
@@ -502,15 +502,15 @@
                     <label for="his-output-interval-date">Interval:</label>
                     <input type="text" id="his-output-interval-date" value="0">
                     <label for="his-output-interval-time">days</label>
-                    <input type="text" class="datetime-interval" id="his-output-interval-time" value="05:00:00">
+                    <input type="text" class="datetime-interval" id="his-output-interval-time" value="06:00:00">
                   </div>
                   <div class="row">
                     <label for="his-output-start">Start time:</label>
-                    <input type="text" class="datetime" id="his-output-start" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-04-25 00:00:00">
+                    <input type="text" class="datetime" id="his-output-start" placeholder="YYYY-mm-dd HH:mm:ss">
                   </div>
                   <div class="row">
                     <label for="his-output-end">End time:</label>
-                    <input type="text" class="datetime" id="his-output-end" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-11-20 00:00:00">
+                    <input type="text" class="datetime" id="his-output-end" placeholder="YYYY-mm-dd HH:mm:ss">
                   </div>                                    
                 </div>
                 <div class="tile"><h3>Map</h3>
@@ -520,17 +520,17 @@
                   </div>                                  
                   <div class="row-block">
                     <label for="map-output-interval-date">Interval:</label>
-                    <input type="text" id="map-output-interval-date" value="0">
+                    <input type="text" id="map-output-interval-date" value="1">
                     <label for="map-output-interval-time">days</label>
-                    <input type="text" class="datetime-interval" id="map-output-interval-time" value="05:00:00">
+                    <input type="text" class="datetime-interval" id="map-output-interval-time" value="00:00:00">
                   </div>                                  
                   <div class="row">
                     <label for="map-output-start">Start time:</label>
-                    <input type="text" class="datetime" id="map-output-start" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-04-25 00:00:00">
+                    <input type="text" class="datetime" id="map-output-start" placeholder="YYYY-mm-dd HH:mm:ss">
                   </div>
                   <div class="row">
                     <label for="map-output-end">End time:</label>
-                    <input type="text" class="datetime" id="map-output-end" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-11-20 00:00:00">
+                    <input type="text" class="datetime" id="map-output-end" placeholder="YYYY-mm-dd HH:mm:ss">
                   </div>                                    
                 </div>
                 <div class="tile"><h3>Water Quality</h3>
@@ -540,17 +540,17 @@
                   </div>
                   <div class="row-block">
                     <label for="water-quality-output-interval-date">Interval:</label>
-                    <input type="text" id="water-quality-output-interval-date" value="0">
+                    <input type="text" id="water-quality-output-interval-date" value="1">
                     <label for="water-quality-output-interval-time">days</label>
-                    <input type="text" class="datetime-interval" id="water-quality-output-interval-time" value="05:00:00">
+                    <input type="text" class="datetime-interval" id="water-quality-output-interval-time" value="00:00:00">
                   </div>
                   <div class="row">
                     <label for="water-quality-output-start">Start time:</label>
-                    <input type="text" class="datetime" id="water-quality-output-start" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-04-25 00:00:00">
+                    <input type="text" class="datetime" id="water-quality-output-start" placeholder="YYYY-mm-dd HH:mm:ss">
                   </div>
                   <div class="row">
                     <label for="water-quality-output-end">End time:</label>
-                    <input type="text" class="datetime" id="water-quality-output-end" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-11-20 00:00:00">
+                    <input type="text" class="datetime" id="water-quality-output-end" placeholder="YYYY-mm-dd HH:mm:ss">
                   </div>                                    
                 </div>
                 <div class="tile"><h3>Restart</h3>
@@ -566,23 +566,23 @@
                   </div>
                   <div class="row">
                     <label for="restart-output-start">Start time:</label>
-                    <input type="text" class="datetime" id="restart-output-start" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-04-25 00:00:00">
+                    <input type="text" class="datetime" id="restart-output-start" placeholder="YYYY-mm-dd HH:mm:ss">
                   </div>
                   <div class="row">
                     <label for="restart-output-end">End time:</label>
-                    <input type="text" class="datetime" id="restart-output-end" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-11-20 00:00:00">
+                    <input type="text" class="datetime" id="restart-output-end" placeholder="YYYY-mm-dd HH:mm:ss">
                   </div>                                    
                 </div>
                 <div class="tile"><h3>Others</h3>                                
                   <div class="row-block">
                     <label for="statistic-output-interval-date">Statistic output interval:</label>
-                    <input type="text" id="statistic-output-interval-date" value="10">
+                    <input type="text" id="statistic-output-interval-date" value="1">
                     <label for="statistic-output-interval-time">days</label>
                     <input type="text" class="datetime-interval" id="statistic-output-interval-time" value="00:00:00">
                   </div>                                
                   <div class="row-block">
                     <label for="timing-statistic-output-interval-date">Timing statistic output interval:</label>
-                    <input type="text" id="timing-statistic-output-interval-date" value="10">
+                    <input type="text" id="timing-statistic-output-interval-date" value="1">
                     <label for="timing-statistic-output-interval-time">days</label>
                     <input type="text" class="datetime-interval" id="timing-statistic-output-interval-time" value="00:00:00">
                   </div>
@@ -609,7 +609,7 @@
   <script type="module">
     const script = document.createElement('script');
     script.type = 'module';
-    script.src = `/static/js/projectCreator.js?v=${Date.now()}`;
+    script.src = `/static/js/projectCreator.js`;
     document.body.appendChild(script);
   </script>
 </body>
