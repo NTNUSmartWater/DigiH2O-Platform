@@ -1,9 +1,3 @@
-import { projectName, latitude, nLayers, gridPath, referenceDate, startDate, stopDate} from "./projectCreator.js";
-import { userTimestep, nodalTimestep, obsPointTable, crossSectionName, crossSectionTable } from "./projectCreator.js";
-import { salinity, temperature, initWaterLevel, initSalinity, initTemperature } from "./projectCreator.js";
-import { outputHis, hisInterval, hisStart, hisStop, outputMap, mapInterval, mapStart, mapStop} from "./projectCreator.js";
-import { outputWQ, wqInterval, wqStart, wqStop, outputRestart, rtsInterval, rtsStart, rtsStop} from "./projectCreator.js";
-import { sttInterval, timingInterval } from "./projectCreator.js";
 import { sendQuery, getDataFromTable } from "./tableManager.js";
 
 export function toUTC(dateStr){
@@ -14,7 +8,17 @@ export function toUTC(dateStr){
     return Date.UTC(year, month - 1, day, hours, minutes, seconds);
 }
 
-export async function saveProject() {
+export function timeStepCalculator(daysString, timeString){
+    return parseInt(daysString)*86400 + parseInt(timeString.split(':')[0])*3600 +
+    parseInt(timeString.split(':')[1])*60 + parseInt(timeString.split(':')[2]);
+}
+
+export async function saveProject(elements) {
+    const { projectName, latitude, nLayers, gridPath, referenceDate, startDate, stopDate,
+        userTimeSec, nodalTimeSec, obsPointTable, crossSectionName, crossSectionTable, salinity, 
+        temperature, initWaterLevel, initSalinity, initTemperature , outputHis, hisInterval, hisStart, 
+        hisStop, outputMap, mapInterval, mapStart, mapStop, outputWQ, wqInterval, wqStart, wqStop, 
+        outputRestart, rtsInterval, rtsStart, rtsStop, sttInterval, timingInterval } = elements;
     sendQuery('save_obs', {projectName: projectName().value.trim()});
     let data = new Map();
     // Get time
@@ -57,8 +61,8 @@ export async function saveProject() {
     data.set('start_time_s', startSimulationSec);
     data.set('end_time_s', stopSimulationSec);
     // Get user time step
-    data.set('user_time_s', userTimestep);
-    data.set('nodal_time_s', nodalTimestep);
+    data.set('user_time_s', userTimeSec);
+    data.set('nodal_time_s', nodalTimeSec);
     // Get obs points
     const obsPoints = getDataFromTable(obsPointTable(), true)
     if (obsPoints.rows.length > 0) { 
@@ -107,12 +111,12 @@ export async function saveProject() {
         data.set('his_interval', hisInterval);
         const start = hisStart().value, stop = hisStop().value;
         if (start !== '') {
-            const hisStartFormatted = new Date(start) - refSimulation;
+            const hisStartFormatted = toUTC(start) - refSimulation;
             const hisStartSec = Math.floor(hisStartFormatted/1000);
             data.set('his_start', hisStartSec);
         }
         if (stop !== '') {
-            const hisStopFormatted = new Date(stop) - refSimulation;
+            const hisStopFormatted = toUTC(stop) - refSimulation;
             const hisStopSec = Math.floor(hisStopFormatted/1000);
             data.set('his_end', hisStopSec);
         }
@@ -122,12 +126,12 @@ export async function saveProject() {
         data.set('map_interval', mapInterval);
         const start = mapStart().value, stop = mapStop().value;
         if (start !== '') {
-            const mapStartFormatted = new Date(start) - refSimulation;
+            const mapStartFormatted = toUTC(start) - refSimulation;
             const mapStartSec = Math.floor(mapStartFormatted/1000);
             data.set('map_start', mapStartSec);
         }
         if (stop !== '') {
-            const mapStopFormatted = new Date(stop) - refSimulation;
+            const mapStopFormatted = toUTC(stop) - refSimulation;
             const mapStopSec = Math.floor(mapStopFormatted/1000);
             data.set('map_end', mapStopSec);
         }
@@ -137,12 +141,12 @@ export async function saveProject() {
         data.set('wq_interval', wqInterval);
         const start = wqStart().value, stop = wqStop().value;
         if (start !== '') {
-            const wqStartFormatted = new Date(start) - refSimulation;
+            const wqStartFormatted = toUTC(start) - refSimulation;
             const wqStartSec = Math.floor(wqStartFormatted/1000);
             data.set('wq_start', wqStartSec);
         }
         if (stop !== '') {
-            const wqStopFormatted = new Date(stop) - refSimulation;
+            const wqStopFormatted = toUTC(stop) - refSimulation;
             const wqStopSec = Math.floor(wqStopFormatted/1000);
             data.set('wq_end', wqStopSec);
         }
@@ -152,12 +156,12 @@ export async function saveProject() {
         data.set('rst_interval', rtsInterval);
         const start = rtsStart().value, stop = rtsStop().value;
         if (start !== '') {
-            const rstStartFormatted = new Date(start) - refSimulation;
+            const rstStartFormatted = toUTC(start) - refSimulation;
             const rstStartSec = Math.floor(rstStartFormatted/1000);
             data.set('rst_start', rstStartSec);
         }
         if (stop !== '') {
-            const rstStopFormatted = new Date(stop) - refSimulation;
+            const rstStopFormatted = toUTC(stop) - refSimulation;
             const rstStopSec = Math.floor(rstStopFormatted/1000);
             data.set('rst_end', rstStopSec);
         }

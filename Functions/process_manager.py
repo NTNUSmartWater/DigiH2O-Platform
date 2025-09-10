@@ -3,7 +3,6 @@ from fastapi import APIRouter, Request, File, UploadFile, Form
 from Functions import functions
 from fastapi.responses import JSONResponse
 from config import PROJECT_STATIC_ROOT, ROOT_DIR
-from Functions import project_manager
 from datetime import datetime, timezone
 
 
@@ -154,16 +153,16 @@ async def update_boundary(request: Request):
     if boundary_type == 'Contaminant': unit = '-'; quantity = 'tracerbndContaminant'
     else: unit = 'm'; quantity = 'waterlevelbnd'
     # Parse date
-    ref_utc = datetime.strptime(ref_date, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
-    date_local = datetime.fromisoformat(ref_date).astimezone()
-    temp_date = date_local.strftime('%Y-%m-%d %H:%M:%S')
+    seconds = int(ref_date)/1000.0
+    t_ref = datetime.fromtimestamp(seconds, tz=timezone.utc)
+    temp_date = t_ref.strftime('%Y-%m-%d %H:%M:%S')
     config = {'sub_boundary': subBoundaryName, 'ref_date': temp_date, 'boundary_type': quantity, 'unit': unit}
     temp_file = os.path.join(ROOT_DIR, 'static', 'samples', 'BC.bc')
     try:
         temp, bc = [], [boundary_name]
         for row in data_sub:
-            t_utc = datetime.strptime(row[0], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
-            row[0] = int((t_utc - ref_utc).total_seconds()); temp.append(row)
+            t = datetime.fromtimestamp(int(row[0])/1000.0, tz=timezone.utc)
+            row[0] = int((t - t_ref).total_seconds()); temp.append(row)
         lines = [f"{int(x)}  {y}" for x, y in temp]
         config['data'] = '\n'.join(lines)
         path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")

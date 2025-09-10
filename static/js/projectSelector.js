@@ -35,8 +35,7 @@ async function projectDefinition(projectName){
 
 async function confirmSelection(){
     if (projectSelector().value === '') {
-        alert('No project selected.');
-        return;
+        alert('No project selected.'); return;
     }
     const params = [generalHisSelector().value, generalMapSelector().value,
         waterQualityHisSelector().value, waterQualityMapSelector().value];
@@ -59,14 +58,9 @@ function projectOption(){
             return;
         } else { projectDefinition(projectSelector().value); }
     });
-    confirmButton().addEventListener('click', () => {
-        confirmSelection();
-    });
+    confirmButton().addEventListener('click', () => { confirmSelection(); });
     deleteButton().addEventListener('click', async () => {
-        if (projectSelector().value === '') {
-            alert('No project selected.');
-            return;
-        }
+        if (projectSelector().value === '') { alert('No project selected.'); return; }
         const confirmDelete = confirm(`Are you sure to delete project '${projectSelector().value}'?\nThis action cannot be undone.`);
         if (!confirmDelete) return;
         // Send delete request
@@ -84,9 +78,7 @@ async function loadList(fileName, key, folder_check = '') {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({filename: fileName, key: key, folder_check:folder_check})});
     const data = await response.json();
-    if (data.status === "error") {
-        alert(data.message); return null;
-    }
+    if (data.status === "error") { alert(data.message); return null; }
     return data;
 }
 

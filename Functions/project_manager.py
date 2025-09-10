@@ -98,6 +98,9 @@ async def setup_database(request: Request):
             # Grid / layers
             request.app.state.grid = functions.unstructuredGridCreator(request.app.state.data_map)
             request.app.state.n_layers = functions.velocityChecker(request.app.state.data_map)
+            path = os.path.join(PROJECT_STATIC_ROOT, project_name, "common_files", "velocity_layers.json")
+            with open(path, 'w') as f:
+                json.dump(request.app.state.n_layers, f)
             request.app.state.layer_reverse = {v: k for k, v in request.app.state.n_layers.items()}
         request.app.state.data_wq_his = xr.open_dataset(os.path.join(output_dir, files[2])) if len(files[2]) > 0 else None
         request.app.state.data_wq_map = xr.open_dataset(os.path.join(output_dir, files[3])) if len(files[3]) > 0 else None
@@ -128,7 +131,9 @@ async def load_popupMenu(request: Request, htmlFile: str):
             request.app.state.data_wq_his, request.app.state.data_wq_map
         ]
         for file in NCfiles:
-            configuration.update(functions.getVariablesNames(file))
+            if file: configuration.update(functions.getVariablesNames(file))
+        with open(config_file, 'w', encoding='utf-8') as f:
+            json.dump(configuration, f)
     return templates.TemplateResponse(htmlFile, 
             {"request": request, 'configuration': configuration})
 
@@ -192,7 +197,8 @@ async def save_source(request: Request):
     body = await request.json()
     project_name, source_name, key = body.get('projectName'), body.get('nameSource'), body.get('key')
     ref_date, lat, lon, data = body.get('refDate'), body.get('lat'), body.get('lon'), body.get('data')
-    ref_utc = datetime.strptime(ref_date, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+    seconds = int(ref_date)/1000.0
+    t_ref = datetime.fromtimestamp(seconds, tz=timezone.utc)
     try:
         path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
         if key == 'saveSource':
@@ -222,8 +228,8 @@ async def save_source(request: Request):
         # Write .tim file
         with open(os.path.join(path, f"{source_name}.tim"), 'w') as f:
             for row in data:
-                t_utc = datetime.strptime(row[0], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
-                row[0] = int((t_utc - ref_utc).total_seconds())
+                t = datetime.fromtimestamp(int(row[0])/1000.0, tz=timezone.utc)
+                row[0] = int((t - t_ref).total_seconds()/60.0)
                 temp = '  '.join([str(r) for r in row])
                 f.write(f"{temp}\n")
         status, message = 'ok', f"Source '{source_name}' saved successfully."
@@ -277,7 +283,6 @@ async def init_source(request: Request):
 async def save_meteo(request: Request):
     body = await request.json()
     project_name, ref_time, data = body.get('projectName'), body.get('refDate'), body.get('data')
-    # ref_utc = datetime.strptime(ref_date, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
     content = 'QUANTITY=humidity_airtemperature_cloudiness_solarradiation\n' + \
             'FILENAME=FlowFM_meteo.tim\n' + 'FILETYPE=1\n' + 'METHOD=1\n' + 'OPERAND=O'
     # Time difference in minutes
@@ -289,8 +294,6 @@ async def save_meteo(request: Request):
 async def save_weather(request: Request):
     body = await request.json()
     project_name, ref_time, data = body.get('projectName'), body.get('refDate'), body.get('data')
-    # print(ref_date)
-    # ref_utc = datetime.strptime(ref_date, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
     content = 'QUANTITY=windxy\n' + 'FILENAME=windxy.tim\n' + 'FILETYPE=2\n' + 'METHOD=1\n' + 'OPERAND=+'
     # Time difference in minutes
     status, message = functions.contentWriter(project_name, "windxy.tim", data, content, ref_time, 'min')
