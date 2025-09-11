@@ -132,10 +132,11 @@ def getVariablesNames(data: xr.Dataset) -> dict:
     """
     result = {}
     # This is a general his file
-    if ('time' in data.sizes and ('stations' or 'cross_section') in data.sizes):
-        print("Checking General Hydrological File ...")
-        result['points'] = True if data.sizes['stations'] > 0 else False
-        result['cross_sections'] = True if data.sizes['cross_section'] > 0 else False
+    if ('time' in data.sizes and ('stations' or 'cross_section' or 'source_sink') in data.sizes):
+        print("Checking His file for Hydrodynamics Simulation ...")
+        result['points'] = data.sizes['stations'] > 0 if ('stations' in data.sizes) else False
+        result['cross_sections'] = data.sizes['cross_section'] > 0 if ('cross_section' in data.sizes) else False
+        result['sources'] = data.sizes['source_sink'] > 0 if ('source_sink' in data.sizes) else False
         # Prepare data for global parameters
         # 1. Global Hydrodynamics
         result['global_waterlevel'] = checkVariables(data, 'waterlevel')
@@ -185,7 +186,7 @@ def getVariablesNames(data: xr.Dataset) -> dict:
             result['global_long_wave_back_radiation'] or result['global_cloudiness']) else False
     # This is a general map file
     elif ('time' in data.sizes and ('mesh2d_nNodes' or 'mesh2d_nEdges') in data.sizes):
-        print("Checking General Map File ...")
+        print("Checking Map file for Hydrodynamics Simulation ...")
         # Prepare data for thermocline parameters
         # 1. Thermocline
         result['thermocline'] = checkVariables(data, 'mesh2d_tem1')
@@ -203,7 +204,7 @@ def getVariablesNames(data: xr.Dataset) -> dict:
         result['waterdepth_static'] = checkVariables(data, 'mesh2d_waterdepth')
     # This is a water quality his file
     elif ('nTimesDlwq' in data.sizes and 'nStations' in data.sizes):
-        print("Checking Water Quality History File ...")
+        print("Checking His file for Water Quality Simulation ...")
         # Prepare data for Fast Decomposing Fraction
         result['wq_his_fdf_carbon'] = checkVariables(data, 'DetC')
         result['wq_his_fdf_nitrogen'] = checkVariables(data, 'DetN')
@@ -252,7 +253,7 @@ def getVariablesNames(data: xr.Dataset) -> dict:
             result['wq_his_chlorophyll'] or result['wq_his_extinction']) else False
     # This is a water quality map file      
     elif ('nTimesDlwq' in data.sizes and ('mesh2d_nNodes' or 'mesh2d_nEdges') in data.sizes):
-        print('Checking Water Quality Map File ...')
+        print('Checking Map file for Water Quality Simulation ...')
         # Prepare data for Fast Decomposing Fraction
         result['wq_map_fdf_carbon'] = (checkVariables(data, 'mesh2d_DetC') or checkVariables(data, 'mesh2d_2d_DetC'))
         result['wq_map_fdf_nitrogen'] = (checkVariables(data, 'mesh2d_DetN') or checkVariables(data, 'mesh2d_2d_DetN'))
@@ -353,8 +354,8 @@ def getSummary(dialog_path: str, data_his: xr.Dataset, data_wq_map: xr.Dataset) 
     """
     dialog, result = dialogReader(dialog_path), []
     if (data_his is not None):
-        result.append({'parameter': 'Start Date (General Simulation)', 'value': pd.to_datetime(data_his['time'].values[0]).strftime('%Y-%m-%d %H:%M:%S')})
-        result.append({'parameter': 'End Date (General Simulation)', 'value': pd.to_datetime(data_his['time'].values[-1]).strftime('%Y-%m-%d %H:%M:%S')})
+        result.append({'parameter': 'Start Date (Hydrodynamic Simulation)', 'value': pd.to_datetime(data_his['time'].values[0]).strftime('%Y-%m-%d %H:%M:%S')})
+        result.append({'parameter': 'End Date (Hydrodynamic Simulation)', 'value': pd.to_datetime(data_his['time'].values[-1]).strftime('%Y-%m-%d %H:%M:%S')})
         result.append({'parameter': 'Number of Layers', 'value': data_his.sizes['laydim']})
         result.append({'parameter': 'Number of Time Steps', 'value': data_his.sizes['time']})
     if len(dialog) > 0:
@@ -745,7 +746,7 @@ def fileWriter(template_path=str, params=dict) -> str:
     result = "\n".join(result)
     return result
 
-def contentWriter(project_name: str, filename: str, data: list, content: str, ref_time: int, unit: str='sec') -> tuple():
+def contentWriter(project_name: str, filename: str, data: list, content: str, ref_time: int, unit: str='sec') -> tuple:
     """
     Write to file with predefined parameters
 

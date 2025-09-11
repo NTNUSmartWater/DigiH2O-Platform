@@ -10,7 +10,7 @@ import { getProject, setProject } from './constants.js';
 import { sendQuery } from './tableManager.js';
 
 
-let isNewProject = false, oldProject = '', newProject = null;
+let isNewProject = false, oldProject = '', newProject = null, gridLayer = null;
 let pickerState = { location: false, point: false, crosssection: false, boundary: false, source: false };
 let markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [], pathLineBoundary = null;
 let markersCrosssection = [], crosssectionContainer = [], pathLineCrosssection = null;
@@ -32,7 +32,6 @@ const simulationContent = () => document.getElementById('simulationWindowContent
 const simulationCloseBtn = () => document.getElementById('closeSimulationWindow');
 
 const mapContainer = () => map.getContainer();
-
 
 initializeMap();
 baseMapButtonFunctionality();
@@ -285,6 +284,18 @@ function updateEvents() {
             const chartData = { columns, data: rows };
             drawChart(chartData, 'Source Data Chart', 'Time', 'Value', false);
         }
+        if (event.data?.type === 'showGrid') {
+            startLoading(event.data.message);
+            const name = event.data.projectName;
+            const gridName = event.data.gridName;
+            const data = await sendQuery('open_grid', {projectName: name, gridName: gridName});
+            if (data.status === "error") {alert(data.message); return;}
+            // Show the grid on the map
+            if (gridLayer) map.removeLayer(gridLayer);
+            gridLayer = L.geoJSON(data.content, {style: {color: 'black', weight: 1}}).addTo(map);
+            gridLayer.bindPopup("Grid: " + gridName);
+            showLeafletMap();
+        }
     });
     // Move window
     moveWindow(contactInfo, contactInfoHeader);
@@ -292,7 +303,10 @@ function updateEvents() {
     moveWindow(simulationWindow, simulationHeader);
     // Close windows
     contactInfoCloseBtn().addEventListener('click', () => { contactInfo().style.display = 'none'; });
-    projectSettingCloseBtn().addEventListener('click', () => { projectSetting().style.display = 'none'; });
+    projectSettingCloseBtn().addEventListener('click', () => { 
+        projectSetting().style.display = 'none'; 
+        if (gridLayer) map.removeLayer(gridLayer);
+    });
     simulationCloseBtn().addEventListener('click', () => { simulationWindow().style.display = 'none'; });
     map.on('mousemove', function (e) {
         if (!pickerState.location && !pickerState.point && !pickerState.source && !pickerState.crosssection && 

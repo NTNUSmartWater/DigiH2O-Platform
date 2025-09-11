@@ -25,7 +25,6 @@ async def setup_new_project(request: Request):
         os.makedirs(project_path, exist_ok=True)
         os.makedirs(os.path.join(project_path, "common_files"), exist_ok=True)
         os.makedirs(os.path.join(project_path, "input"), exist_ok=True)
-        # os.makedirs(os.path.join(project_path, "output"), exist_ok=True)
         status, message = 'ok', f"Project '{project_name}' created successfully!"
     except Exception as e:
         status, message = 'error', f"Error: {str(e)}"

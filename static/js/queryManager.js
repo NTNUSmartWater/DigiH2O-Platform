@@ -45,17 +45,15 @@ async function activeStationCheck(filename) {
                 permanent: false, direction: 'top', offset: [0, 0]
             });
             // Add popup
-            const popupContent = `
-                <div style="font-family: Arial;">
-                    <h3 style="text-align: center;">${stationId}</h3>
-                    <hr style="margin: 5px 0 5px 0;">
-                    <ul style="left: 0; cursor: pointer; padding-left: 0; list-style: none;">
-                        <li><a class="in-situ" data-info="temp_in-situ*${stationId}|Temperature (°C)">• Temperature</a></li>
-                        <li><a class="in-situ" data-info="sal_in-situ*${stationId}|Salinity (PSU)">• Salinity</a></li>
-                        <li><a class="in-situ" data-info="cont_in-situ*${stationId}|Contaminant (g/L)">• Contaminant</a></li>
-                    </ul>
-                </div>
-            `;
+            const popupContent = `<div style="font-family: Arial;">
+                <h3 style="text-align: center;">${stationId}</h3>
+                <hr style="margin: 5px 0 5px 0;">
+                <ul style="left: 0; cursor: pointer; padding-left: 0; list-style: none;">
+                    <li><a class="in-situ" data-info="temp_in-situ*${stationId}|Temperature (°C)">• Temperature</a></li>
+                    <li><a class="in-situ" data-info="sal_in-situ*${stationId}|Salinity (PSU)">• Salinity</a></li>
+                    <li><a class="in-situ" data-info="cont_in-situ*${stationId}|Contaminant (g/L)">• Contaminant</a></li>
+                </ul>
+            </div>`;
             marker.bindPopup(popupContent, {offset: [0, 40]});
             return marker;
         }
@@ -199,7 +197,6 @@ export function mapPath(e) {
             alert("Not enough points selected. Please select at least two points.");
             return;
         }
-        // TODO:
         const title = colorbar_title().textContent;
         plotProfile(pointContainer, getPolygonCentroids(), title, undefined, n_decimals);
     }
