@@ -4,6 +4,7 @@ from Functions import functions
 from fastapi.responses import JSONResponse
 from config import PROJECT_STATIC_ROOT, ROOT_DIR
 from datetime import datetime, timezone
+import xarray as xr
 
 
 router = APIRouter()
@@ -82,7 +83,23 @@ async def process_data(request: Request):
             data, status, message, project = None, 'error', f"Error processing data: {e}", ''
     result = {'content': data, 'status': status, 'message': message, 'project': project}
     return JSONResponse(content=result)
-    
+
+
+# Read grid
+@router.post("/open_grid")
+async def open_grid(request: Request):
+    # Get body data
+    body = await request.json()
+    project_name, grid_name = body.get('projectName'), body.get('gridName')
+    path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input", grid_name)
+    try:
+        grid = functions.unstructuredGridCreator(xr.open_dataset(path))        
+        data = json.loads(grid.to_json())       
+        status, message = 'ok', ""
+    except Exception as e:
+        status, message, data = 'error', f"Error: {str(e)}", None
+    return JSONResponse({"status": status, "message": message, "content": data})
+
 @router.post("/select_polygon")
 async def select_polygon(request: Request):
     body = await request.json()

@@ -234,7 +234,8 @@ function updateOption(){
     // Upload file to server
     gridPath().addEventListener('change', () => {
         fileUploader(gridPath(), projectName().value, 'FlowFM_net.nc')
-
+        window.parent.postMessage({type: 'showGrid', projectName: projectName().value, 
+            gridName: 'FlowFM_net.nc', message: 'Uploading grid to project...'}, '*');
     });
     // Copy and paste to tables
     copyPaste(boundaryEditTable(), 2);
