@@ -63,9 +63,8 @@ async function plotMultilayer(id, key, titleY) {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({key: key, id: id})});
         const data = await response.json();
-        if (data.status === "ok") {
-            drawChart(data.content, 'Simulated Values at Layers', 'Time', titleY, false);
-        } else if (data.status === "error") {alert(data.message);}
+        if (data.status === "error") {alert(data.message); return; }
+        drawChart(data.content, 'Simulated Values at Layers', 'Time', titleY, false);
     } catch (error) {alert(error);}
     showLeafletMap();
 }
@@ -183,6 +182,7 @@ export async function plot2DMapStatic(filename, key, colorbarTitle, colorbarKey,
                                         colorbarScaler='normal', swap=false,) {
     startLoading();
     const data = await loadData(filename, key);
+    if (data.status === 'error') { showLeafletMap(); alert(data.message); return; }
     setIsPlaying(false);
     // Hide timeslider
     timeControl().style.display = 'none';
@@ -335,6 +335,7 @@ export async function plot2DMapDynamic(waterQuality, filename, key, colorbarTitl
     if (key === 'wd_dynamic') {swap = true;} else {swap = false;}
     // Process below layer
     const dataBelow = await loadData(filename, key);
+    if (dataBelow.status === 'error') { showLeafletMap(); alert(dataBelow.message); return; }
     data_below = dataBelow.content;
     // If data is not water quality
     if (!waterQuality && getVectorMain()) {
@@ -346,6 +347,7 @@ export async function plot2DMapDynamic(waterQuality, filename, key, colorbarTitl
             vectorKey = 'velocity';
         }
         const dataAbove = await loadData(vectorName, vectorKey);
+        if (dataAbove.status === 'error') { showLeafletMap(); alert(dataAbove.message); return; }
         data_above = dataAbove.content;
         colorbarKeyAbove = vectorKey;
     }
@@ -358,14 +360,14 @@ export async function plot2DVectorMap(filename, key, colorbarTitleAbove, colorba
     const vectorName = getVectorMain(), vectorKey = getVectorSelected();
     if ((vectorName === 'Velocity' && !vectorKey) || (!vectorName)) return;
     if ((!scaler_value().value)||(parseFloat(scaler_value().value) <= 0)) {
-        alert('Wrong scaler value. Please check the scaler value.');
-        return;
+        alert('Wrong scaler value. Please check the scaler value.'); return;
     }
     // Store scaler value
     setScalerValue(scaler_value().value);
     startLoading();
     if (layerMap) map.removeLayer(layerMap);
     const data = await loadData(filename, key);
+    if (dataAbove.status === 'error') { showLeafletMap(); alert(dataAbove.message); return; }
     initDynamicMap(key, null, data.content, null, colorbarTitleAbove, 
                     null, colorbarKey, 'vector', false);
     showLeafletMap();

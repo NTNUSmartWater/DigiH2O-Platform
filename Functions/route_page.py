@@ -38,7 +38,7 @@ def open_project(request: Request):
 def new_project(request: Request):
     return templates.TemplateResponse("projectCreator.html", {"request": request})
 
-# Grid generation page
+# Run grid generator
 @router.get("/grid_generation")
 def grid_generation(request: Request):
     return templates.TemplateResponse("gridGenerator.html", {"request": request})
@@ -46,7 +46,7 @@ def grid_generation(request: Request):
 # Run simulation page
 @router.get("/run_simulation")
 def run_simulation(request: Request):
-    return templates.TemplateResponse("SimulationRunner.html", {"request": request})
+    return templates.TemplateResponse("simulationRunner.html", {"request": request})
 
 # Load favicon
 @router.get("/favicon.ico")

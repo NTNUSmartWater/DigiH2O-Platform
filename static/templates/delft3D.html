@@ -9,8 +9,8 @@
         <link rel="stylesheet" href="https://unpkg.com/leaflet-compass/dist/leaflet-compass.css">
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.css">
         <!-- My styles -->
-        <link rel="stylesheet" href="static/css/temp_style.css?v=10">
-        <link rel="stylesheet" href="static/css/temp_menu.css?v=1">
+        <link rel="stylesheet" href="static/css/temp_style.css?v=1">
+        <link rel="stylesheet" href="static/css/temp_menu.css?v=1234">
         <!-- Favicon -->
         <link rel="icon" type="image/png" href="static/images/Logo.png">
     </head>
@@ -19,20 +19,20 @@
         <header class="header">
             <nav class="nav">
                 <ul class="nav-left">
-                    <li><a class="menu" data-info="0|project_menu.html">Project Management</a></li>
+                    <li><a class="menu" data-info="0|project_menu.html" id="projectMenu">Project Management</a></li>
                     <li style="border-left:3px solid #d5d4dd; margin-left:5px; padding-left:5px;">
-                        <a class="menu" data-info="1|generalMenu.html">General Options</a>
+                        <a class="menu" data-info="1|generalMenu.html" id="generalMenu">General Options</a>
                     </li>
-                    <li><a class="menu" data-info="2|measuredPoints.html">Measured Points</a></li>
-                    <li><a class="menu" data-info="3|dynamicMap.html">Dynamic Map</a></li>
-                    <li><a class="menu" data-info="4|staticMap.html">Static Map</a></li>
+                    <li><a class="menu" data-info="2|measuredPoints.html" id="locationMenu">Measured Locations</a></li>
+                    <li><a class="menu" data-info="3|dynamicMap.html" id="dynamicMenu">Dynamic Map</a></li>
+                    <li><a class="menu" data-info="4|staticMap.html" id="staticMenu">Static Map</a></li>
                 </ul>
                 <ul class="nav-middle">
                     <span id="projectTitle"></span>
                 </ul>
                 <ul class="nav-right">
-                    <li><a data-info="home">Home</a></li>
-                    <li><a data-info="help">Help</a></li>
+                    <li><a data-info="home" id="homeMenu">Home</a></li>
+                    <li><a data-info="help" id="helpMenu">Help</a></li>
                 </ul>
             </nav>
         </header>
@@ -165,6 +165,7 @@
         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
         <!-- Load the newest version of the script -->
+        <script src="static/js/tooltipManager.js"></script>
         <script type="module">
             const script = document.createElement('script');
             script.type = 'module';

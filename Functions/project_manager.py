@@ -86,6 +86,7 @@ async def setup_database(request: Request):
         project_path = os.path.join(PROJECT_STATIC_ROOT, project_name)
         request.app.state.BASE_DIR = project_path
         request.app.state.project_selected = project_name
+        common_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "common_files")
         # Templates
         templates_dir = os.path.join(project_path, "templates")
         request.app.state.templates = Jinja2Templates(directory=templates_dir)
@@ -97,12 +98,24 @@ async def setup_database(request: Request):
             # Grid / layers
             request.app.state.grid = functions.unstructuredGridCreator(request.app.state.data_map)
             request.app.state.n_layers = functions.velocityChecker(request.app.state.data_map)
-            path = os.path.join(PROJECT_STATIC_ROOT, project_name, "common_files", "velocity_layers.json")
+            path = os.path.join(common_path, "velocity_layers.json")
             with open(path, 'w') as f:
                 json.dump(request.app.state.n_layers, f)
             request.app.state.layer_reverse = {v: k for k, v in request.app.state.n_layers.items()}
         request.app.state.data_wq_his = xr.open_dataset(os.path.join(output_dir, files[2])) if len(files[2]) > 0 else None
         request.app.state.data_wq_map = xr.open_dataset(os.path.join(output_dir, files[3])) if len(files[3]) > 0 else None
+        # Generate the configuration file
+        config_file = os.path.join(common_path, "configuration.json")
+        if not os.path.exists(config_file):
+            configuration = {}
+            NCfiles = [
+                request.app.state.data_his, request.app.state.data_map, 
+                request.app.state.data_wq_his, request.app.state.data_wq_map
+            ]
+            for file in NCfiles:
+                if file: configuration.update(functions.getVariablesNames(file))
+            with open(config_file, 'w', encoding='utf-8') as f:
+                json.dump(configuration, f)
         data = project_name
         status, message = 'ok', 'JSON loaded successfully.'
     except Exception as e:

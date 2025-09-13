@@ -1,4 +1,4 @@
-import { updatePointManager, updatePathManager, updateStationManager } from "./queryManager.js";
+import { updatePointManager, updatePathManager, updateStationManager, updateSourceManager, updateCrossSectionManager } from "./queryManager.js";
 import { loadData } from './utils.js';
 import { plotChart } from "./chartManager.js";
 
@@ -10,12 +10,14 @@ const closeSummaryOption = () => document.getElementById('closeSummaryOption');
 
 let Dragging = false;
 
-export function generalObtionsManager(summaryProjectFileName=null, stationFileName=null){
+export function generalObtionsManager(summaryProjectFileName=null, 
+    stationFileName=null, sourceFileName=null, crosssectionFileName=null){
     projectSummaryEvents(summaryProjectFileName);
     updateStationManager(stationFileName);
     updatePointManager();
-    updatePathManager();
-    thermoclinePlot();
+    updateSourceManager(sourceFileName); 
+    updateCrossSectionManager(crosssectionFileName);
+    updatePathManager(); thermoclinePlot();
 }
 
 // ============================ Project Manager ============================

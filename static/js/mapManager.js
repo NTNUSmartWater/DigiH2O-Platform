@@ -61,8 +61,7 @@ export function switchBaseMapLayer(url) {
 export function setupMap() {
     map = L.map('leaflet_map', {center:CENTER, zoom: ZOOM,
         zoomControl: false, attributionControl: true});
-    currentTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
-    currentTileLayer.addTo(map);        
+    currentTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     // Add scale bar
     L.control.scale({imperial: false, metric: true, maxWidth: 200}).addTo(map);
     return map;

@@ -219,9 +219,6 @@ export async function loadData(filename, key){
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({data_filename: filename, key: key})});
     const data = await response.json();
-    if (data.status === "error") {
-        alert(data.message); return null;
-    }
     return data;
 }
 
