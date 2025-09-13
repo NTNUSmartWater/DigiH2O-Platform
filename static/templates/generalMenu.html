@@ -3,19 +3,14 @@
 <div class="menu">
     <a class="menu-link">Points<span class="arrow">&#x25B8;</span></a>
     <div class="submenu">
-        {% if configuration.points %}
+        <label class="submenu-label {% if not configuration.points %}hidden{% endif %}" style="display:block;">
+            <input type="checkbox" id="stationCheckbox"> Observations
+        </label>
+        <label class="submenu-label {% if not configuration.sources %}hidden{% endif %}" style="display:block;">
+            <input type="checkbox" id="sourceCheckbox"> Sources/Sinks
+        </label>
         <label class="submenu-label">
-            <input type="checkbox" id="stationCheckbox"> Observations</input>
-        </label> <br>
-        {% endif %}
-        {% if configuration.sources %}
-        <label class="submenu-label">
-            <input type="checkbox" id="sourceCheckbox"> Sources/Sinks</input>
-        </label> <br>
-        {% endif %}
-
-        <label class="submenu-label">
-            <input type="checkbox" id="pointQuery"> Query Point</input>
+            <input type="checkbox" id="pointQuery"> Query Point
         </label>
     </div>
 </div>
@@ -23,21 +18,15 @@
 <div class="menu">
     <a class="menu-link">Profile<span class="arrow">&#x25B8;</span></a>
     <div class="submenu">
-
-        {% if configuration.cross_sections %}
-        <label class="submenu-label">
-            <input type="checkbox" id="crossSectionCheckbox"> Cross-Sections</input>
-        </label> <br>
-        {% endif %}
-
-
+        <label class="submenu-label {% if not configuration.cross_sections %}hidden{% endif %}" style="display:block;">
+            <input type="checkbox" id="crossSectionCheckbox"> Cross-Sections
+        </label>
         <!-- Add Path Query -->
         <label class="submenu-label">
-            <input type="checkbox" id="pathQuery"> Query Profile</input>
+            <input type="checkbox" id="pathQuery"> Query Profile
         </label>
     </div>
 </div>
 <!-- Thermocline -->
-{% if configuration.thermocline %}
-<a class="thermocline" data-info="thermocline.json|Depth (m)|Thermocline">Thermocline</a>
-{% endif %}
+<a class="thermocline {% if not configuration.thermocline %}hidden{% endif %}" 
+    data-info="thermocline.json|Depth (m)|Thermocline">Thermocline</a>

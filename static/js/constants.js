@@ -15,6 +15,14 @@ let stationLayer = false;
 export const getStationLayer = () => stationLayer;
 export const setStationLayer = (value) => { stationLayer = value;};
 
+let sourceLayer = false;
+export const getSourceLayer = () => sourceLayer;
+export const setSourceLayer = (value) => { sourceLayer = value;};
+
+let crosssectionLayer = false;
+export const getCrosssectionLayer = () => crosssectionLayer;
+export const setCrosssectionLayer = (value) => { crosssectionLayer = value;};
+
 let isPointQuery = false;
 export const getIsPointQuery = () => isPointQuery;
 export const setIsPointQuery = (value) => { isPointQuery = value;};

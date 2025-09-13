@@ -8,7 +8,14 @@ from config import PROJECT_STATIC_ROOT
 
 variablesNames = {
     # For In-situ options
-    'temp_in-situ':'temperature', 'sal_in-situ':'salinity', 'cont_in-situ':'Contaminant',
+    'temp':'temperature', 'sal':'salinity', 'cont':'Contaminant', # For stations
+    'pre_discharge_source':'source_sink_prescribed_discharge', 'pre_discharge_increment_source':'source_sink_prescribed_salinity_increment', # For sources
+    'pre_temperature_increment_source':'source_sink_prescribed_temperature_increment', 'avg_discharge_source':'source_sink_discharge_average', # For sources
+    'discharge_source':'source_sink_current_discharge', 'cumulative_volume_source':'source_sink_cumulative_volume',  # For sources
+    'velocity_crs':'cross_section_velocity', 'area_crs':'cross_section_area',  'discharge_crs':'cross_section_discharge', # For cross sections
+    'culdis_crs':'cross_section_cumulative_discharge', 'salt_crs':'cross_section_salt', 'cumsalt_crs': 'cross_section_cumulative_salt', # For cross sections
+    'temp_crs':'cross_section_temperature', 'cumtemp_crs':'cross_section_cumulative_temperature', # For cross sections
+    'cont_crs':'cross_section_Contaminant', 'cumcont_crs':'cross_section_cumulative_Contaminant', # For cross sections
     # For Static map
     'depth':'depth',
     # For Hydrodynamics options
@@ -134,16 +141,61 @@ def getVariablesNames(data: xr.Dataset) -> dict:
     # This is a general his file
     if ('time' in data.sizes and ('stations' or 'cross_section' or 'source_sink') in data.sizes):
         print("Checking His file for Hydrodynamics Simulation ...")
+        # Prepare data for general options
         result['points'] = data.sizes['stations'] > 0 if ('stations' in data.sizes) else False
-        result['cross_sections'] = data.sizes['cross_section'] > 0 if ('cross_section' in data.sizes) else False
+        result['cross_sections'] = False
+        if ('cross_section' in data.sizes and data.sizes['cross_section'] > 0):
+            x = np.unique(data['cross_section_geom_node_coordx'].values)
+            y = np.unique(data['cross_section_geom_node_coordy'].values)
+            if (x.shape[0] > 1 and y.shape[0] > 1 and x != y): result['cross_sections'] = True
         result['sources'] = data.sizes['source_sink'] > 0 if ('source_sink' in data.sizes) else False
-        # Prepare data for global parameters
-        # 1. Global Hydrodynamics
+        # Prepare data for measured locations
+        # 1. Observation points
+        # 1.1. Hydrodynamics
         result['global_waterlevel'] = checkVariables(data, 'waterlevel')
         result['global_waterdepth'] = checkVariables(data, 'waterdepth')
-        result['global_hydrodynamic'] = True if (result['global_waterlevel'] or 
-                                result['global_waterdepth']) else False
-        # 2. Global Water balance
+        result['global_hydrodynamic'] = True if (result['global_waterlevel'] or result['global_waterdepth']) else False
+        # 1.2. Meteorology
+        result['global_total_heat_flux'] = checkVariables(data, 'Qtot')
+        result['global_precipitation_rate'] = checkVariables(data, 'rain')
+        result['global_wind_speed'] = checkVariables(data, 'wind')
+        result['global_air_temperature'] = checkVariables(data, 'Tair')
+        result['global_relative_humidity'] = checkVariables(data, 'rhum')
+        result['global_solar_influx'] = checkVariables(data, 'Qsun')
+        result['global_evaporative_heat_flux'] = checkVariables(data, 'Qeva')
+        result['global_free_convection_evaporative_heat_flux'] = checkVariables(data, 'Qfreva')
+        result['global_sensible_heat_flux'] = checkVariables(data, 'Qcon')
+        result['global_free_convection_sensible_heat_flux'] = checkVariables(data, 'Qfrcon')
+        result['global_long_wave_back_radiation'] = checkVariables(data, 'Qlong')
+        result['global_cloudiness'] = checkVariables(data, 'clou')
+        result['global_meteorology'] = True if (result['global_total_heat_flux'] or
+            result['global_precipitation_rate'] or result['global_wind_speed'] or
+            result['global_air_temperature'] or result['global_relative_humidity'] or
+            result['global_solar_influx'] or result['global_evaporative_heat_flux'] or
+            result['global_free_convection_evaporative_heat_flux'] or
+            result['global_sensible_heat_flux'] or result['global_free_convection_sensible_heat_flux'] or
+            result['global_long_wave_back_radiation'] or result['global_cloudiness']) else False
+        # 2. Sources/Sinks Points
+        if result['sources']:
+            result['source_prescribed_discharge'] = checkVariables(data, 'source_sink_prescribed_discharge')
+            result['source_prescribed_salinity'] = checkVariables(data, 'source_sink_prescribed_salinity_increment')
+            result['source_prescribed_temperature'] = checkVariables(data, 'source_sink_prescribed_temperature_increment')
+            result['source_current_discharge'] = checkVariables(data, 'source_sink_current_discharge')
+            result['source_cumulative_volume'] = checkVariables(data, 'source_sink_cumulative_volume')
+            result['source_average_discharge'] = checkVariables(data, 'source_sink_discharge_average')
+        # 3. Cross sections
+        if result['cross_sections']:
+            result['cross_sections_velocity'] = checkVariables(data, 'cross_section_velocity')
+            result['cross_sections_area'] = checkVariables(data, 'cross_section_area')
+            result['cross_sections_discharge'] = checkVariables(data, 'cross_section_discharge')
+            result['cross_sections_cumulative_discharge'] = checkVariables(data, 'cross_section_cumulative_discharge')
+            result['cross_section_salt'] = checkVariables(data, 'cross_section_salt')
+            result['cross_sections_cumulative_salt'] = checkVariables(data, 'cross_section_cumulative_salt')
+            result['cross_section_temperature'] = checkVariables(data, 'cross_section_temperature')
+            result['cross_section_cumulative_temperature'] = checkVariables(data, 'cross_section_cumulative_temperature')
+            result['cross_section_contaminant'] = checkVariables(data, 'cross_section_Contaminant')
+            result['cross_section_cumulative_contaminant'] = checkVariables(data, 'cross_section_cumulative_Contaminant')
+        # 4. Global Water balance
         result['global_wb_total_volume'] = checkVariables(data, 'water_balance_total_volume')
         result['global_wb_storage'] = checkVariables(data, 'water_balance_storage')
         result['global_wb_inflow_boundaries'] = checkVariables(data, 'water_balance_boundaries_in')
@@ -164,26 +216,7 @@ def getVariablesNames(data: xr.Dataset) -> dict:
             result['global_wb_inflow_groundwater'] or result['global_wb_outflow_groundwater'] or
             result['global_wb_total_groundwater'] or result['global_wb_ground_precipitation'] or
             result['global_wb_storage'] or result['global_wb_volume_error']) else False
-        # 3. Global Meteorology
-        result['global_total_heat_flux'] = checkVariables(data, 'Qtot')
-        result['global_precipitation_rate'] = checkVariables(data, 'rain')
-        result['global_wind_speed'] = checkVariables(data, 'wind')
-        result['global_air_temperature'] = checkVariables(data, 'Tair')
-        result['global_relative_humidity'] = checkVariables(data, 'rhum')
-        result['global_solar_influx'] = checkVariables(data, 'Qsun')
-        result['global_evaporative_heat_flux'] = checkVariables(data, 'Qeva')
-        result['global_free_convection_evaporative_heat_flux'] = checkVariables(data, 'Qfreva')
-        result['global_sensible_heat_flux'] = checkVariables(data, 'Qcon')
-        result['global_free_convection_sensible_heat_flux'] = checkVariables(data, 'Qfrcon')
-        result['global_long_wave_back_radiation'] = checkVariables(data, 'Qlong')
-        result['global_cloudiness'] = checkVariables(data, 'clou')
-        result['global_meteorology'] = True if (result['global_total_heat_flux'] or
-            result['global_precipitation_rate'] or result['global_wind_speed'] or
-            result['global_air_temperature'] or result['global_relative_humidity'] or
-            result['global_solar_influx'] or result['global_evaporative_heat_flux'] or
-            result['global_free_convection_evaporative_heat_flux'] or
-            result['global_sensible_heat_flux'] or result['global_free_convection_sensible_heat_flux'] or
-            result['global_long_wave_back_radiation'] or result['global_cloudiness']) else False
+        
     # This is a general map file
     elif ('time' in data.sizes and ('mesh2d_nNodes' or 'mesh2d_nEdges') in data.sizes):
         print("Checking Map file for Hydrodynamics Simulation ...")
@@ -202,6 +235,7 @@ def getVariablesNames(data: xr.Dataset) -> dict:
             result['spatial_salinity'] or result['spatial_contaminant']) else False
         # 4. Spatial static maps
         result['waterdepth_static'] = checkVariables(data, 'mesh2d_waterdepth')
+        result['spatial_static'] = True if (result['waterdepth_static']) else False
     # This is a water quality his file
     elif ('nTimesDlwq' in data.sizes and 'nStations' in data.sizes):
         print("Checking His file for Water Quality Simulation ...")
@@ -314,7 +348,7 @@ def dialogReader(dialog_file: str) -> dict:
         The dictionary containing the configuration.
     """
     # Check if the dialog file exists
-    if not dialog_file: return {}
+    if not os.path.exists(dialog_file): return {}
     result = {}
     with open(f'{dialog_file}', 'r') as f:
         content = f.read()
@@ -370,6 +404,34 @@ def getSummary(dialog_path: str, data_his: xr.Dataset, data_wq_map: xr.Dataset) 
         result.append({'parameter': 'Number of Sigma Layers', 'value': len(data_wq_map['mesh2d_layer_dlwq'].values)})
     return result
 
+def checkCoordinateReferenceSystem(name: str, geometry: gpd.GeoSeries, data_his: xr.Dataset) -> gpd.GeoDataFrame:
+    """
+    Convert GeoDataFrame to WGS84.
+
+    Parameters:
+    ----------
+    name: str
+        The column name.
+    data: gpd.GeoDataFrame
+        The GeoDataFrame to convert.
+    data_his: xr.Dataset
+        The dataset received from _his.nc file.
+
+    Returns:
+    -------
+    gpd.GeoDataFrame
+        The GeoDataFrame converted to WGS84.
+    """
+    # Check coordinate reference system
+    if 'wgs84' in data_his.variables:
+        crs_code = data_his['wgs84'].attrs['EPSG_code']
+        result = gpd.GeoDataFrame(data={'name': name, 'geometry': geometry}, crs=crs_code)
+    else:
+        crs_code = data_his['projected_coordinate_system'].attrs['EPSG_code']
+        result = gpd.GeoDataFrame(data={'name': name, 'geometry': geometry}, crs=crs_code)
+        result = result.to_crs(epsg=4326)  # Convert to WGS84 if not already
+    return result
+
 def stationCreator(data_his: xr.Dataset) -> gpd.GeoDataFrame:
     """
     Create a GeoDataFrame of stations.
@@ -384,20 +446,86 @@ def stationCreator(data_his: xr.Dataset) -> gpd.GeoDataFrame:
     gpd.GeoDataFrame
         The GeoDataFrame of stations.
     """
-    station_names = [name.decode('utf-8').strip() for name in data_his['station_name'].values]
-    # Location of stations
+    names = [name.decode('utf-8').strip() for name in data_his['station_name'].values]
     geometry = gpd.points_from_xy(data_his['station_x_coordinate'].values, data_his['station_y_coordinate'].values)
-    # Check coordinate reference system
-    if 'wgs84' in data_his.variables:
-        crs_code = data_his['wgs84'].attrs['EPSG_code']
-        stations = gpd.GeoDataFrame(data={'name': station_names, 'geometry': geometry}, crs=crs_code)
-    else:
-        crs_code = data_his['projected_coordinate_system'].attrs['EPSG_code']
-        stations = gpd.GeoDataFrame(data={'name': station_names, 'geometry': geometry}, crs=crs_code)
-        stations = stations.to_crs(epsg=4326)  # Convert to WGS84 if not already
-    return stations
+    return checkCoordinateReferenceSystem(names, geometry, data_his)
 
-def selectInsitu(data_his: xr.Dataset, data_map: xr.Dataset, key: str, station: str) -> pd.DataFrame:
+def sourceCreator(data_his: xr.Dataset) -> gpd.GeoDataFrame:
+    """
+    Create a GeoDataFrame of sources/sinks.
+
+    Parameters:
+    ----------
+    data_his: xr.Dataset
+        The dataset received from _his.nc file.
+
+    Returns:
+    -------
+    gpd.GeoDataFrame
+        The GeoDataFrame of sources/sinks.
+    """
+    names = [name.decode('utf-8').strip() for name in data_his['source_sink_name'].values]
+    geometry = gpd.points_from_xy(data_his['source_sink_x_coordinate'].values[0], data_his['source_sink_y_coordinate'].values[0])
+    return checkCoordinateReferenceSystem(names, geometry, data_his)
+
+def linearCreator(x_coords: np.ndarray, y_coords: np.ndarray) -> gpd.GeoDataFrame:
+    """
+    Create a linear line from x and y coordinates and clip it with the bounding box.
+
+    Parameters:
+    ----------
+    x_coords: np.ndarray
+        The x coordinates of the line.
+    y_coords: np.ndarray
+        The y coordinates of the line.
+
+    Returns:
+    -------
+    gpd.GeoDataFrame
+        The GeoDataFrame of linear.
+    """
+    a, b = np.polyfit(x_coords, y_coords, 1)
+    # Get bounding box
+    x_min, x_max = x_coords.min(), x_coords.max()
+    y_min, y_max = y_coords.min(), y_coords.max()
+    # Intersect with bounding box
+    candidates = []
+    # Intersect with x = x_min, x = x_max
+    y_left, y_right = a * x_min + b, a * x_max + b
+    if y_min <= y_left <= y_max: candidates.append((float(x_min), float(y_left)))
+    if y_min <= y_right <= y_max: candidates.append((float(x_max), float(y_right)))
+    if len(candidates) == 0: candidates.append((x_coords[0], y_coords[0]))
+    # Intersect with y = y_min, y = y_max
+    if abs(a) > 1e-12:  # avoid division by zero
+        x_bottom, x_top = (y_min - b) / a, (y_max - b) / a
+        if x_min <= x_bottom <= x_max: candidates.append((float(x_bottom), float(y_min)))
+        if x_min <= x_top <= x_max: candidates.append((float(x_top), float(y_max)))
+    if len(candidates) == 1: candidates.append((x_coords[-1], y_coords[-1]))
+    return candidates[0], candidates[1]
+
+
+def crosssectionCreator(data_his: xr.Dataset) -> gpd.GeoDataFrame:
+    """
+    Create a GeoDataFrame of cross-section.
+
+    Parameters:
+    ----------
+    data_his: xr.Dataset
+        The dataset received from _his.nc file.
+
+    Returns:
+    -------
+    gpd.GeoDataFrame
+        The GeoDataFrame of cross-sections.
+    """
+    names = [name.decode('utf-8').strip() for name in data_his['cross_section_name'].values]
+    x = data_his['cross_section_geom_node_coordx'].values
+    y = data_his['cross_section_geom_node_coordy'].values
+    p1, p2 = linearCreator(x, y)
+    geometry = gpd.GeoSeries([shapely.geometry.LineString([p1, p2])])
+    return checkCoordinateReferenceSystem(names, geometry, data_his)
+
+def selectInsitu(data_his: xr.Dataset, data_map: xr.Dataset, name: str, station: str, type: str) -> pd.DataFrame:
     """
     Get insitu data.
 
@@ -407,27 +535,33 @@ def selectInsitu(data_his: xr.Dataset, data_map: xr.Dataset, key: str, station: 
         The dataset received from _his.nc file.
     data_map: xr.Dataset
         The dataset received from _map.nc file.
-    key: str
+    name: str
         The name of defined variable in _his.nc file.
     station: str
         The name of the station.
+    type: str
+        The type of data, accepted values are: 'station_name' or 'source_sink_name'.
 
     Returns:
     -------
     pd.DataFrame
         A DataFrame containing the insitu data.
     """
-    station_names = [name.decode('utf-8').strip() for name in data_his['station_name'].values]
-    if station not in station_names: return pd.DataFrame()
-    idx = station_names.index(station)
+    names = [x.decode('utf-8').strip() for x in data_his[type].values]
+    if station not in names: return pd.DataFrame()
+    idx = names.index(station)
     index = [pd.to_datetime(id).strftime('%Y-%m-%d %H:%M:%S') for id in data_his['time'].values]
-    result = pd.DataFrame(index=index)
-    z_layer = numberFormatter(data_map['mesh2d_layer_z'].values)
-    arr = data_his[variablesNames[key]].values[:, idx, :]
-    for i in range(arr.shape[1]):
-        i_rev = -(i+1)
-        arr_rev = numberFormatter(arr[:, i_rev])
-        result[f'Depth: {z_layer[i_rev]} m'] = arr_rev
+    if type == 'station_name':
+        result = pd.DataFrame(index=index)
+        z_layer = numberFormatter(data_map['mesh2d_layer_z'].values)
+        arr = data_his[variablesNames[name]].values[:, idx, :]
+        for i in range(arr.shape[1]):
+            i_rev = -(i+1)
+            arr_rev = numberFormatter(arr[:, i_rev])
+            result[f'Depth: {z_layer[i_rev]} m'] = arr_rev
+    else:
+        temp = pd.DataFrame(data_his[variablesNames[name]].values, columns=names, index=index)
+        result = temp[[station]]
     result = result.reset_index()
     return result
 
@@ -465,7 +599,7 @@ def timeseriesCreator(data_his: xr.Dataset, key: str) -> pd.DataFrame:
     ds_his: xr.Dataset
         The dataset received from _his.nc file.
     key: str
-        The key of the timeseries.
+        The key of the timeseries, used to define the name of the variable.
     columns: list
         The columns of the timeseries.
 
@@ -474,15 +608,15 @@ def timeseriesCreator(data_his: xr.Dataset, key: str) -> pd.DataFrame:
     pd.DataFrame
         The DataFrame of timeseries.
     """
-    timeColumn, columns = 'time', [i.decode('utf-8').strip() for i in data_his['station_name'].values]
-    if 'station_name' in data_his.variables.keys():
-        # Used for water balance
-        if 'wb_' in key: columns = ['Water balance']
-        # Used for water quality
-        elif '_wq' in key: timeColumn = 'nTimesDlwq'
-        name = variablesNames[key] if key in variablesNames.keys() else key
+    timeColumn = 'nTimesDlwq' if key.endswith('_wq') else 'time'
+    name = 'source_sink_name' if key.endswith('_source') else 'station_name'
+    columns = [i.decode('utf-8').strip() for i in data_his[name].values]
+    if key.startswith('wb_'): columns = ['Water balance'] # Used for water balance
+    elif key.endswith('_crs'): columns = ['Cross-section'] # Used for cross-section
+    if name in data_his.variables.keys():
+        temp = variablesNames[key] if key in variablesNames.keys() else key
         index = [pd.to_datetime(i).strftime('%Y-%m-%d %H:%M:%S') for i in data_his[timeColumn].values]
-        timeseries = pd.DataFrame(index=index, data=numberFormatter(data_his[name].values), columns=columns).reset_index()
+        timeseries = pd.DataFrame(index=index, data=numberFormatter(data_his[temp].values), columns=columns).reset_index()
         return timeseries
     else: return pd.DataFrame()
 
@@ -817,7 +951,12 @@ def postProcess(directory: str) -> dict:
     -------
     None
     """
-    parent_path = os.path.dirname(directory)
+    parent_path, folders = os.path.dirname(directory), ['output', 'DFM_DELWAQ_FlowFM']
+    try:
+        for folder in folders:
+            path = os.path.join(parent_path, folder)
+            if os.path.exists(path): shutil.rmtree(path)
+    except Exception as e: return {'status': 'error', 'message': f"Error: {str(e)}"}
     subdirs = [d for d in os.listdir(directory) if os.path.isdir(os.path.join(directory, d))]
     if len(subdirs) == 0: return {'status': 'error', 'message': 'No subdirectories found.'}
     if 'output' not in subdirs: return {'status': 'error', 'message': 'No "output" directory found.'}
@@ -834,6 +973,11 @@ def postProcess(directory: str) -> dict:
     if len(files) == 0: return {'status': 'error', 'message': 'No *.nc files found in the "output" directory.'}
     delete_files = [f for f in all_files if f not in files]
     if len(delete_files) == 0: return {'status': 'ok'}
-    for file in delete_files:
-        os.remove(os.path.join(output_path, file))
+    for file in delete_files: os.remove(os.path.join(output_path, file))
+    # Delete files in folder common_files
+    common_path = os.path.join(parent_path, 'common_files')
+    if os.path.exists(common_path):
+        delete_files = [f for f in os.listdir(common_path) if os.path.isfile(os.path.join(common_path, f))]
+        if len(delete_files) > 0:
+            for file in delete_files: os.remove(os.path.join(common_path, file))
     return {'status': 'ok', 'message': 'Data is saved successfully.'}

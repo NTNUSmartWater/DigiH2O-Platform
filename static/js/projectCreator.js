@@ -73,6 +73,7 @@ const projectName = () => document.getElementById('project-name');
 const latitude = () => document.getElementById('latitude');
 const nLayers = () => document.getElementById('n-layer');
 const gridPath = () => document.getElementById('unstructured-grid');
+const gridTool = () => document.getElementById('activate-grid');
 const referenceDate = () => document.getElementById('reference-date');
 const startDate = () => document.getElementById('start-date');
 const stopDate = () => document.getElementById('stop-date');
@@ -229,14 +230,15 @@ function updateOption(){
     // Event when user uploads CSV file
     csvUploader(obsPointUpload(), obsPointTable(), 3);
     csvUploader(sourceUpload(), sourceTable(), 5, false, sourceName(), sourceLatitude(), sourceLongitude());
-    csvUploader(meteoUpload(), meteoTable(), 5)
-    csvUploader(weatherCSVUpload(), weatherTable(), 3)
+    csvUploader(meteoUpload(), meteoTable(), 5);
+    csvUploader(weatherCSVUpload(), weatherTable(), 3);
     // Upload file to server
     gridPath().addEventListener('change', () => {
         fileUploader(gridPath(), projectName().value, 'FlowFM_net.nc')
         window.parent.postMessage({type: 'showGrid', projectName: projectName().value, 
             gridName: 'FlowFM_net.nc', message: 'Uploading grid to project...'}, '*');
     });
+    gridTool().addEventListener('click', () => { window.parent.postMessage({type: 'showGridTool'}, '*'); });
     // Copy and paste to tables
     copyPaste(boundaryEditTable(), 2);
     copyPaste(sourceTable(), 5);

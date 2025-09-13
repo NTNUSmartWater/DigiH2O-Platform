@@ -1,4 +1,4 @@
-import os, json, re
+import os, json, re, subprocess
 from fastapi import APIRouter, Request, File, UploadFile, Form
 from Functions import functions
 from fastapi.responses import JSONResponse
@@ -36,18 +36,20 @@ async def process_data(request: Request):
         status, message = 'ok', 'JSON loaded successfully.'
     else:
         # File not found, need to read the NetCDF file
-        project = ''
         try:
             if key == 'summary':
                 dia_file = os.path.join(BASE_DIR, "output", "FlowFM.dia")
                 data = functions.getSummary(dia_file, data_his, data_wq_map)
             elif key == 'stations':
                 data = json.loads(functions.stationCreator(data_his).to_json())
-                project = request.app.state.project_selected
+            elif key == 'sources':
+                data = json.loads(functions.sourceCreator(data_his).to_json())
+            elif key == 'crosssections':
+                data = json.loads(functions.crosssectionCreator(data_his).to_json())
             elif key == '_in-situ':
                 temp = data_filename.split('*')
-                name, stationId = temp[0], temp[1]
-                temp = functions.selectInsitu(data_his, data_map, name, stationId)
+                name, stationId, type = temp[0], temp[1], temp[2]
+                temp = functions.selectInsitu(data_his, data_map, name, stationId, type)
                 data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
             elif key == 'thermocline':
                 temp = functions.thermoclineComputer(data_map)
@@ -78,9 +80,9 @@ async def process_data(request: Request):
                 data_ = data_wq_his if '_wq' in key else data_his
                 temp = functions.timeseriesCreator(data_, key)
                 data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
-            status, message, project = 'ok', 'Data loaded successfully.', project
+            status, message, project = 'ok', '', request.app.state.project_selected
         except Exception as e:
-            data, status, message, project = None, 'error', f"Error processing data: {e}", ''
+            data, status, message, project = None, 'error', f"Error: {e}", ''
     result = {'content': data, 'status': status, 'message': message, 'project': project}
     return JSONResponse(content=result)
 
@@ -303,6 +305,18 @@ async def generate_mdu(request: Request):
         with open(os.path.join(project_path, 'FlowFM.mdu'), 'w') as file:
             file.write(file_content)
         status, message = 'ok', f"Project '{project_name}' created successfully!"
+    except Exception as e:
+        status, message = 'error', f"Error: {str(e)}"
+    return JSONResponse({"status": status, "message": message})
+
+# Open Delft3D Grid Tool
+@router.post("/open_gridTool")
+async def open_gridTool(request: Request):
+    await request.json()
+    try:
+        path = r"C:\Program Files\Deltares\Delft3D FM Suite 2023.02 HMWQ\plugins\DeltaShell.Plugins.FMSuite.Common.Gui\plugins-qt\x64\rgfgrid.cmd"
+        subprocess.Popen(path, shell=True)
+        status, message = 'ok', ""
     except Exception as e:
         status, message = 'error', f"Error: {str(e)}"
     return JSONResponse({"status": status, "message": message})

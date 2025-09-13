@@ -1,31 +1,33 @@
 import { startLoading, showLeafletMap, map, L, ZOOM } from "./mapManager.js";
-import { setStationLayer, getStationLayer, degree_decimals } from "./constants.js";
-import { setIsPointQuery, getIsMultiLayer } from "./constants.js";
+import { degree_decimals, setIsPointQuery, getIsMultiLayer } from "./constants.js";
+import { setStationLayer, getStationLayer, getSourceLayer, setSourceLayer } from "./constants.js";
 import { getPolygonCentroids, getStoredLayer, getIsPointQuery } from "./constants.js";
-import { setIsClickedInsideLayer, getIsClickedInsideLayer } from "./constants.js";
+import { setIsClickedInsideLayer, getIsClickedInsideLayer, getCrosssectionLayer, setCrosssectionLayer } from "./constants.js";
 import { getMapLayer, setIsPathQuery, getIsPathQuery, n_decimals } from "./constants.js";
 import { loadData, colorbar_title } from "./utils.js";
 import { plotChart, plotWindow, plotProfile} from "./chartManager.js";
 
-let stationLayer = null, currentMarker = null, selectedMarkers = [];
-let pathLine = null, marker = null, pointContainer = [];
+let stationLayer = null, sourceLayer = null, crosssectionLayer = null, currentMarker = null;
+let pathLine = null, marker = null, pointContainer = [], selectedMarkers = [];
 
 const mapContainer = () => map.getContainer();
 const stationOption = () => document.getElementById("stationCheckbox");
+const sourceOption = () => document.getElementById("sourceCheckbox");
+const crossSectionOption = () => document.getElementById("crossSectionCheckbox");
 const pointQueryCheckbox = () => document.getElementById("pointQuery");
 const pathQueryCheckbox = () => document.getElementById("pathQuery");
 const infoDetail = () => document.getElementById("infoDetails");
 const infoContent = () => document.getElementById("infoDetailsContent");
 
 // ============================ Station Manager ============================
-function deactiveStationCheck() {
-    map.removeLayer(stationLayer); stationLayer = null;
-    setStationLayer(false);    
+function deactivePointCheck(layer, obj) {
+    map.removeLayer(layer); layer = null; obj(false);    
 }
 
 async function activeStationCheck(filename) {
-    startLoading(); // Show spinner
+    startLoading('Reading Stations from Database. Please wait...'); // Show spinner
     const data = await loadData(filename, 'stations'); // Load data
+    if (data.status === "error") { alert(data.message); return; }
     if (getStationLayer()) { map.removeLayer(stationLayer); stationLayer = null; }
     // Add station layer to the map
     stationLayer = L.geoJSON(data.content, {
@@ -33,7 +35,7 @@ async function activeStationCheck(filename) {
         pointToLayer: function (feature, latlng) {
             const customIcon = L.icon({
                 iconUrl: `static/images/station.png?v=${Date.now()}`,
-                iconSize: [30, 30], popupAnchor: [1, -34],
+                iconSize: [20, 20], popupAnchor: [1, -34],
             });
             const marker = L.marker(latlng, {icon: customIcon});
             const stationId = feature.properties.name || 'Unknown';
@@ -49,9 +51,9 @@ async function activeStationCheck(filename) {
                 <h3 style="text-align: center;">${stationId}</h3>
                 <hr style="margin: 5px 0 5px 0;">
                 <ul style="left: 0; cursor: pointer; padding-left: 0; list-style: none;">
-                    <li><a class="in-situ" data-info="temp_in-situ*${stationId}|Temperature (°C)">• Temperature</a></li>
-                    <li><a class="in-situ" data-info="sal_in-situ*${stationId}|Salinity (PSU)">• Salinity</a></li>
-                    <li><a class="in-situ" data-info="cont_in-situ*${stationId}|Contaminant (g/L)">• Contaminant</a></li>
+                    <li><a class="in-situ" data-info="temp*${stationId}*station_name|Temperature (°C)">• Temperature</a></li>
+                    <li><a class="in-situ" data-info="sal*${stationId}*station_name|Salinity (PSU)">• Salinity</a></li>
+                    <li><a class="in-situ" data-info="cont*${stationId}*station_name|Contaminant (g/L)">• Contaminant</a></li>
                 </ul>
             </div>`;
             marker.bindPopup(popupContent, {offset: [0, 40]});
@@ -68,6 +70,50 @@ async function activeStationCheck(filename) {
     showLeafletMap(); // Hide the spinner and show the map
 }
 
+async function activeSourceCheck(filename) {
+    startLoading('Reading Sources from Database. Please wait...');
+    const data = await loadData(filename, 'sources');
+    if (data.status === "error") { alert(data.message); return; }
+    if (getSourceLayer()) { map.removeLayer(sourceLayer); sourceLayer = null; }
+    sourceLayer = L.geoJSON(data.content, {
+        pointToLayer: function (feature, latlng) {
+            const customIcon = L.icon({
+                iconUrl: `static/images/source.png?v=${Date.now()}`,
+                iconSize: [20, 20], popupAnchor: [1, -34],
+            });
+            const marker = L.marker(latlng, {icon: customIcon});
+            const sourceId = feature.properties.name || 'Unknown';
+            const value = `<div style="text-align: center;"><b>${sourceId}</b></div>`;
+            marker.bindTooltip(value, {
+                permanent: false, direction: 'top', offset: [0, 0]
+            });
+            return marker;
+        }
+    });
+    map.addLayer(sourceLayer);
+    if (sourceLayer && sourceLayer.getBounds().isValid()) {
+        const center = sourceLayer.getBounds().getCenter();
+        map.setView(center, ZOOM);
+    }
+    setSourceLayer(true);
+    showLeafletMap();
+}
+
+async function activeCrossSectionCheck(filename) {
+    startLoading('Reading Cross Sections from Database. Please wait...');
+    const data = await loadData(filename, 'crosssections');
+    if (data.status === "error") { alert(data.message); return; }
+    if (getCrosssectionLayer()) { map.removeLayer(crosssectionLayer); crosssectionLayer = null; }
+    crosssectionLayer = L.geoJSON(data.content, { color: 'blue', weight: 3 });
+    map.addLayer(crosssectionLayer);
+    if (crosssectionLayer && crosssectionLayer.getBounds().isValid()) {
+        const center = crosssectionLayer.getBounds().getCenter();
+        map.setView(center, ZOOM);
+    }
+    setCrosssectionLayer(true);
+    showLeafletMap();
+}
+
 export function updateStationManager(filename) {
     // Check status of the station checkbox
     if (getStationLayer()) { stationOption().checked = true; 
@@ -75,9 +121,28 @@ export function updateStationManager(filename) {
     // Add event listener to the station checkbox
     stationOption().addEventListener('change', () => {
         if (stationOption().checked) { activeStationCheck(filename);
-        } else deactiveStationCheck();
+        } else deactivePointCheck(stationLayer, setStationLayer);
     });
 }
+
+export function updateSourceManager(filename) {
+    if (getSourceLayer()) { sourceOption().checked = true; 
+    } else { sourceOption().checked = false; }
+    sourceOption().addEventListener('change', () => {
+        if (sourceOption().checked) { activeSourceCheck(filename); 
+        } else deactivePointCheck(sourceLayer, setSourceLayer);
+    })
+}
+
+export function updateCrossSectionManager(filename) {
+    if (getCrosssectionLayer()) { crossSectionOption().checked = true; 
+    } else { crossSectionOption().checked = false; }
+    crossSectionOption().addEventListener('change', () => {
+        if (crossSectionOption().checked) { activeCrossSectionCheck(filename); 
+        } else deactivePointCheck(crosssectionLayer, setCrosssectionLayer);
+    })
+}
+
 // ============================ Point Manager ============================
 function checkPoint(){
     if (getIsPointQuery()) { pointQueryCheckbox().checked = true; 

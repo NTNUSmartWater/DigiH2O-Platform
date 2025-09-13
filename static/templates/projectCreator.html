@@ -86,12 +86,17 @@
                     </div>
                   </div>
                   <!-- Unstructured grid -->
-                    <div class="tile"><h3>Grid</h3>
-                      <div class="row">
-                        <label for="unstructured-grid">Upload grid (bathymetry already included):</label>
-                        <input type="file" id="unstructured-grid" accept=".nc">
-                      </div>
+                  <div class="tile"><h3>Grid</h3>
+                    <div class="row">
+                      <label for="unstructured-grid">Upload grid:</label>
+                      <input type="file" id="unstructured-grid" accept=".nc">
                     </div>
+                  </div>
+                  <div class="tile"><h3>Grid Generation</h3>
+                    <div class="row">
+                      <button type="button" id="activate-grid">Activate Delft3D RGFGRID Tool</button>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="tabpanel" data-panel="model-setting-2">
@@ -595,6 +600,7 @@
       <button class="tab-btn" id="complete-button">Save Components to Project<span class="ink"></span></button>
     </section>
   </div>
+  <script src="static/js/tooltipManager.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script>
     flatpickr(".datetime-ref",{ dateFormat: "Y-m-d" });

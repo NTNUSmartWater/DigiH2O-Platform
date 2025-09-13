@@ -103,3 +103,7 @@
 .arrow, .arrow-1 {
   display: inline-block; transition: transform 0.3s ease;
 }
+
+.hidden {
+  display: none !important;
+}

@@ -30,7 +30,6 @@ const simulationWindow = () => document.getElementById('simulationWindow');
 const simulationHeader = () => document.getElementById('simulationWindowHeader');
 const simulationContent = () => document.getElementById('simulationWindowContent');
 const simulationCloseBtn = () => document.getElementById('closeSimulationWindow');
-
 const mapContainer = () => map.getContainer();
 
 initializeMap();
@@ -48,11 +47,11 @@ async function showPopupMenu(id, htmlFile) {
         const response = await fetch(`/load_popupMenu?htmlFile=${htmlFile}`);
         const html = await response.text();
         popupContent().innerHTML = html;
-        if (id === '1') generalObtionsManager('summary.json', 'stations.geojson'); // Events on general options submenu
+        if (id === '1') generalObtionsManager('summary.json', 'stations.geojson', 'sources.geojson', 'crosssections.geojson'); // Events on general options submenu
         if (id === '2') measuredPointManager(); // Events on measured points submenu
         if (id === '3') dynamicMapManager(); // Events on dynamic map submenu
         if (id === '4') staticMapManager(); // Events on static map submenu
-    } catch (error) {alert(error);}
+    } catch (error) {alert(error + ' ' + htmlFile);}
 }
 
 async function projectChecker() {
@@ -66,13 +65,13 @@ async function projectChecker() {
     if (isNewProject === false) {setProject(null);};
     if (isNewProject === false && newProject === null) return;
     projectTitle().textContent = `Project: ${newProject.project}`;
-    startLoading('Reading Database...');
+    startLoading('Reading Simulation Outputs and Setting up Database.\nThis takes for a while. Please wait...');
     const data = await sendQuery('setup_database', {projectName: newProject.project, files: newProject.values});
     if (data.status === "error") alert(data.message);
     showLeafletMap();
 }
 
-function initializeMenu(){
+async function initializeMenu(){
     // Work with pupup menu
     document.querySelectorAll('.nav ul li a').forEach(link => {
         link.addEventListener('click', async(event) => {
@@ -85,9 +84,10 @@ function initializeMenu(){
             const info = link.dataset.info;
             if (info === 'home') { history.back(); return; }
             if (info === 'help') { contacInformation(); return;}
-            // if (info === 'project') { projectManager(); return;}
             const [id, htmlFile] = info.split('|');
-            showPopupMenu(id, htmlFile);
+            startLoading('Getting Information. Please wait...');
+            await showPopupMenu(id, htmlFile);
+            showLeafletMap();
             pm.style.top = `${rect.bottom + 15 + window.scrollY}px`;
             pm.style.left = `${rect.left + window.scrollX}px`;
             pm.classList.add('show');
@@ -196,10 +196,9 @@ function updateEvents() {
                     projectSettingContent(), "New Project"); isNewProject = true;
             } else if (name === 'grid-generation') {
                 // Grid Generation
-                // iframeInit("grid_generation", "Grid Generation");
-
-
-
+                iframeInit("grid_generation", projectSetting(), projectSettingHeader(), 
+                    projectSettingContent(), "Grid Generation");
+                location.reload();
             } else if (name === 'run-simulation') {
                 // Run Simulation
                 iframeInit("run_simulation", simulationWindow(), simulationHeader(), 
@@ -295,6 +294,10 @@ function updateEvents() {
             gridLayer = L.geoJSON(data.content, {style: {color: 'black', weight: 1}}).addTo(map);
             gridLayer.bindPopup("Grid: " + gridName);
             showLeafletMap();
+        }
+        if (event.data?.type === 'showGridTool') {
+            const data = await sendQuery('open_gridTool', {});
+            if (data.status === "error") {alert(data.message); return;}
         }
     });
     // Move window
@@ -420,7 +423,6 @@ function measuredPointManager() {
             plotChart(filename, key, chartTitle, 'Time', titleY, false);
         });
     });
-    
 }
 
 function staticMapManager() {
