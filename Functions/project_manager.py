@@ -80,7 +80,7 @@ async def select_project(request: Request):
 @router.post("/setup_database")
 async def setup_database(request: Request):
     body = await request.json()
-    project_name, files = body.get('projectName'), body.get('files')
+    project_name, params = body.get('projectName'), body.get('params')
     try:
         # Set BASE_DIR
         project_path = os.path.join(PROJECT_STATIC_ROOT, project_name)
@@ -92,8 +92,8 @@ async def setup_database(request: Request):
         request.app.state.templates = Jinja2Templates(directory=templates_dir)
         # Load NetCDF
         output_dir = os.path.join(project_path, "output")
-        request.app.state.data_his = xr.open_dataset(os.path.join(output_dir, files[0])) if len(files[0]) > 0 else None
-        request.app.state.data_map = xr.open_dataset(os.path.join(output_dir, files[1])) if len(files[1]) > 0 else None
+        request.app.state.data_his = xr.open_dataset(os.path.join(output_dir, params[0])) if len(params[0]) > 0 else None
+        request.app.state.data_map = xr.open_dataset(os.path.join(output_dir, params[1])) if len(params[1]) > 0 else None
         if request.app.state.data_map:
             # Grid / layers
             request.app.state.grid = functions.unstructuredGridCreator(request.app.state.data_map)
@@ -102,8 +102,8 @@ async def setup_database(request: Request):
             with open(path, 'w') as f:
                 json.dump(request.app.state.n_layers, f)
             request.app.state.layer_reverse = {v: k for k, v in request.app.state.n_layers.items()}
-        request.app.state.data_wq_his = xr.open_dataset(os.path.join(output_dir, files[2])) if len(files[2]) > 0 else None
-        request.app.state.data_wq_map = xr.open_dataset(os.path.join(output_dir, files[3])) if len(files[3]) > 0 else None
+        request.app.state.data_wq_his = xr.open_dataset(os.path.join(output_dir, params[2])) if len(params[2]) > 0 else None
+        request.app.state.data_wq_map = xr.open_dataset(os.path.join(output_dir, params[3])) if len(params[3]) > 0 else None
         # Generate the configuration file
         config_file = os.path.join(common_path, "configuration.json")
         if not os.path.exists(config_file):

@@ -1,10 +1,15 @@
-import shapely, os, re, shutil
+import shapely, os, re, shutil, stat
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr
 from scipy.spatial import cKDTree
 from dateutil import parser
 from datetime import datetime, timezone
 from config import PROJECT_STATIC_ROOT
+
+def remove_readonly(func, path, excinfo):
+    # Change the readonly bit, but not the file contents
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
 
 variablesNames = {
     # For In-situ options
@@ -216,7 +221,6 @@ def getVariablesNames(data: xr.Dataset) -> dict:
             result['global_wb_inflow_groundwater'] or result['global_wb_outflow_groundwater'] or
             result['global_wb_total_groundwater'] or result['global_wb_ground_precipitation'] or
             result['global_wb_storage'] or result['global_wb_volume_error']) else False
-        
     # This is a general map file
     elif ('time' in data.sizes and ('mesh2d_nNodes' or 'mesh2d_nEdges') in data.sizes):
         print("Checking Map file for Hydrodynamics Simulation ...")
@@ -484,6 +488,9 @@ def linearCreator(x_coords: np.ndarray, y_coords: np.ndarray) -> gpd.GeoDataFram
     gpd.GeoDataFrame
         The GeoDataFrame of linear.
     """
+    if (len(x_coords) < 2 and len(y_coords) < 2):
+        print('Not enough points to create a linear.')
+        return None, None
     a, b = np.polyfit(x_coords, y_coords, 1)
     # Get bounding box
     x_min, x_max = x_coords.min(), x_coords.max()
@@ -502,7 +509,6 @@ def linearCreator(x_coords: np.ndarray, y_coords: np.ndarray) -> gpd.GeoDataFram
         if x_min <= x_top <= x_max: candidates.append((float(x_top), float(y_max)))
     if len(candidates) == 1: candidates.append((x_coords[-1], y_coords[-1]))
     return candidates[0], candidates[1]
-
 
 def crosssectionCreator(data_his: xr.Dataset) -> gpd.GeoDataFrame:
     """
@@ -951,33 +957,37 @@ def postProcess(directory: str) -> dict:
     -------
     None
     """
-    parent_path, folders = os.path.dirname(directory), ['output', 'DFM_DELWAQ_FlowFM']
-    try:
-        for folder in folders:
-            path = os.path.join(parent_path, folder)
-            if os.path.exists(path): shutil.rmtree(path)
-    except Exception as e: return {'status': 'error', 'message': f"Error: {str(e)}"}
-    subdirs = [d for d in os.listdir(directory) if os.path.isdir(os.path.join(directory, d))]
-    if len(subdirs) == 0: return {'status': 'error', 'message': 'No subdirectories found.'}
-    if 'output' not in subdirs: return {'status': 'error', 'message': 'No "output" directory found.'}
-    # Move subdirectories
-    try:
-        for subdir in subdirs:
-            if os.path.exists(os.path.join(directory, subdir)):
-                shutil.move(os.path.join(directory, subdir), parent_path)
-    except Exception as e: return {'status': 'error', 'message': f"Error: {str(e)}"}
-    # Delete files in the directory output
+    parent_path = os.path.dirname(directory)
     output_path = os.path.join(parent_path, 'output')
-    all_files = [f for f in os.listdir(output_path) if os.path.isfile(os.path.join(output_path, f))]
-    files = [f for f in all_files if f in ['FlowFM.dia', 'FlowFM_his.nc', 'FlowFM_map.nc']]
-    if len(files) == 0: return {'status': 'error', 'message': 'No *.nc files found in the "output" directory.'}
-    delete_files = [f for f in all_files if f not in files]
-    if len(delete_files) == 0: return {'status': 'ok'}
-    for file in delete_files: os.remove(os.path.join(output_path, file))
+    # Create the directory output
+    if os.path.exists(output_path): shutil.rmtree(output_path, onexc=remove_readonly)
+    os.makedirs(output_path, exist_ok=True)
+    subdirs = [d for d in os.listdir(directory) if os.path.isdir(os.path.join(directory, d))]
+    if len(subdirs) == 0: return {'status': 'error', 'message': 'No output directory for simulations found.'}
+    
+    # # Copy folder DFM_DELWAQ to the parent directory
+    # DFM_DELWAQ_path = os.path.join(parent_path, 'DFM_DELWAQ')
+    # if os.path.exists(DFM_DELWAQ_path): shutil.rmtree(DFM_DELWAQ_path, onexc=remove_readonly)
+    # try: shutil.copytree(os.path.join(directory, 'DFM_DELWAQ'), DFM_DELWAQ_path)
+    # except Exception as e: return {'status': 'error', 'message': {str(e)}}
+    # # Delete folder DFM_DELWAQ
+    # try: shutil.rmtree(os.path.join(directory, 'DFM_DELWAQ'), onexc=remove_readonly)
+    # except Exception as e: return {'status': 'error', 'message': {str(e)}}
+
+    # Copy files to the directory output
+    try:
+        # Copy files to the directory output
+        DFM_OUTPUT_path = os.path.join(directory, 'DFM_OUTPUT')
+        select_files = ['FlowFM.dia', 'FlowFM_his.nc', 'FlowFM_map.nc']
+        files = [f for f in os.listdir(DFM_OUTPUT_path) if (os.path.isfile(os.path.join(DFM_OUTPUT_path, f)) and f in select_files)]
+        if len(files) <= 1: return {'status': 'error', 'message': 'No *.nc files found.'}
+        for f in files:
+            shutil.copy(os.path.join(DFM_OUTPUT_path, f), output_path)
+        # Delete folder DFM_OUTPUT
+        shutil.rmtree(DFM_OUTPUT_path, onexc=remove_readonly)
+    except Exception as e: return {'status': 'error', 'message': {str(e)}}
     # Delete files in folder common_files
     common_path = os.path.join(parent_path, 'common_files')
-    if os.path.exists(common_path):
-        delete_files = [f for f in os.listdir(common_path) if os.path.isfile(os.path.join(common_path, f))]
-        if len(delete_files) > 0:
-            for file in delete_files: os.remove(os.path.join(common_path, file))
+    if os.path.exists(common_path): shutil.rmtree(common_path, onexc=remove_readonly)
+    os.makedirs(common_path, exist_ok=True)
     return {'status': 'ok', 'message': 'Data is saved successfully.'}

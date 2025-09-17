@@ -1,20 +1,12 @@
 html, body {
-    margin: 0;
-    padding: 0;
-    width: 100%;
-    height: 100%;
+    margin: 0; padding: 0; width: 100%; height: 100%;
     font-family: Arial, sans-serif;
 }
 
 .form-container {
-    width: 100%;
-    height: 100%;
+    width: 100%; height: 100%; display: flex; padding: 20px;
     background: linear-gradient(to bottom right, #004080, #66b2ff);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    box-sizing: border-box;
-    padding: 20px;
+    justify-content: center; align-items: center; box-sizing: border-box;
 }
 
 .form-box {
@@ -29,39 +21,17 @@ html, body {
     box-sizing: border-box;
 }
 
-form {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-}
+form { display: flex; flex-direction: column; height: 100%; gap: 5px; }
 
-.form-row {
-    display: flex;
-    align-items: center;
-    margin-bottom: 15px;
-    gap: 10px;
-}
+.form-row { display: flex; align-items: center; margin-bottom: 15px; gap: 10px; flex: 0 0 auto; }
 
-.form-row:first-child {
-    flex: 0 0 auto;
-}
+.form-row:last-child { flex: 1; display: flex; align-items: stretch; }
 
-.form-row:last-child {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-}
+.form-row input[type="checkbox"] { margin-right: 5px; }
 
-label {
-    flex: 1; font-weight: bold; color: #004080; min-width: 120px;
-}
+label { flex: 1; font-weight: bold; color: #004080; min-width: 100px; text-align: center;}
 
-select {
-    flex: 2; padding: 8px 12px;
-    border: 1px solid #66b2ff;
-    border-radius: 6px; outline: none;
-}
+select { flex: 2; padding: 8px 12px; border: 1px solid #66b2ff; border-radius: 6px; outline: none; }
 
 button {
     padding: 8px 16px;
@@ -76,17 +46,13 @@ button {
     min-width: 150px;
 }
 
-button:hover {
-    background-color: #00264d;
-}
+button:hover { background-color: #00264d; }
 
 textarea {
-    flex: 1; width: 100%; min-height: 200px; padding: 10px; border: 1px solid #66b2ff;
+    flex: 1 1 auto; width: 100%; min-height: 200px; padding: 10px; border: 1px solid #66b2ff;
     border-radius: 6px; resize: none; outline: none; box-sizing: border-box; 
     font-family: 'Courier New', Consolas, 'Lucida Console', monospace;
     white-space: nowrap; overflow-x: auto;  overflow-y: auto; word-wrap: normal;
 }
 
-select:focus, textarea:focus {
-    border-color: #004080; box-shadow: 0 0 4px #004080;
-}
+select:focus, textarea:focus { border-color: #004080; box-shadow: 0 0 4px #004080; }

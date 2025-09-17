@@ -1,4 +1,6 @@
 const projectSelector = () => document.getElementById("options");
+const hydrodynamicCheckbox = () => document.getElementById("hydrodynamic-checkbox");
+const waterQualityCheckbox = () => document.getElementById("water-quality-checkbox");
 const runBtn = () => document.getElementById("run-button");
 const stopBtn = () => document.getElementById("stop-button");
 const infoArea = () => document.getElementById("textarea");
@@ -24,7 +26,14 @@ async function getProjectList(target){
 
 function updateSelection(){
     getProjectList(projectSelector());
+    waterQualityCheckbox().addEventListener('change', () => { 
+        if (waterQualityCheckbox().checked) hydrodynamicCheckbox().checked = true;
+    });
+    hydrodynamicCheckbox().addEventListener('change', () => {
+        if (!hydrodynamicCheckbox().checked) waterQualityCheckbox().checked = false;
+    })
     runBtn().addEventListener('click', async () => {
+        if (!hydrodynamicCheckbox().checked) return;
         const projectName = projectSelector().value;
         if (projectName === '') {alert('Please select a project.'); return;}
         const data = await sendQuery('check_project', {projectName: projectName});
@@ -35,13 +44,28 @@ function updateSelection(){
             );
             if (!result) return;
         }
-        currentProject = projectName;
-        ws = new WebSocket(`ws://${window.location.host}/run_sim/${projectName}`);
-        content = '';
-        ws.onmessage = (event) => {
-            content += event.data + '\n';
-            infoArea().value = content;
-        };
+        currentProject = projectName; content = '';
+        // Run hydrodynamics simulation
+        if (hydrodynamicCheckbox().checked) {
+            ws = new WebSocket(`ws://${window.location.host}/run_sim/${projectName}`);
+            content += 'Start running hydrodynamic simulation...\n=========================================\n\n';
+            ws.onmessage = (event) => {
+                content += event.data + '\n';
+                infoArea().value = content;
+                if (event.data.includes('[STATUS]')) alert(event.data.replace('\n\n', ''));
+            };
+        }
+        // Run water quality simulation
+        if (waterQualityCheckbox().checked) {
+            if (ws) { ws.close(); ws = null; }
+            ws = new WebSocket(`ws://${window.location.host}/run_wq/${projectName}`);
+            content += '\n\nStart running water quality simulation...\n=========================================\n\n';
+            ws.onmessage = (event) => {
+                content += event.data + '\n';
+                infoArea().value = content;
+                if (event.data.includes('[STATUS]')) alert(event.data.replace('\n\n', ''));
+            };
+        }
     });
     stopBtn().addEventListener('click', async () => {
         if (ws) { ws.close(); ws = null; }

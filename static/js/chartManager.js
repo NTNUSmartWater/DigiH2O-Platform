@@ -1,8 +1,9 @@
 import { startLoading, showLeafletMap} from "./mapManager.js";
 import { loadData, interpolateJet, interpolateValue } from "./utils.js";
-import { getGlobalChartData, setGlobalChartData } from "./constants.js";
+import { getState, setState } from "./constants.js";
 
 let Dragging = false;
+const globalChartData = getState().globalChartData;
 
 export const plotWindow = () => document.getElementById('plotWindow');
 const plotHeader = () => document.getElementById('plotHeader');
@@ -61,7 +62,7 @@ function updateChart() {
     const selectedColumns = Array.from(checkboxes)
         .filter(cb => cb.checked && cb.value !== 'All')
         .map(cb => cb.value);
-    const {data, chartTitle, titleX, titleY, undefined, swap} = getGlobalChartData();
+    const {data, chartTitle, titleX, titleY, undefined, swap} = globalChartData;
     drawChart(data, chartTitle, titleX, titleY, swap, selectedColumns);
 }
 
@@ -119,7 +120,7 @@ export function drawChart(data, chartTitle, titleX, titleY, swap, selectedColumn
             if (hasValid) validColumns.push(i);
         }
         // Update global variable
-        setGlobalChartData({ data, chartTitle, titleX, titleY, validColumns, swap });
+        setState({ globalChartData: { data, chartTitle, titleX, titleY, validColumns, swap } });
         populateCheckboxList(validColumns.map(i => data.columns[i]));
         checkboxInputs = document.querySelectorAll(obj);
     }

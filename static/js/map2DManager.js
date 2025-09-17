@@ -1,15 +1,17 @@
 import { loadData, getColorFromValue, updateColorbar, getMinMaxFromGeoJSON } from "./utils.js";
 import { updateMapByTime, colorbar_container, colorbar_vector_container } from "./utils.js";
 import { startLoading, showLeafletMap, L, map } from "./mapManager.js";
-import { setMapLayer, setStoredLayer, setIsPathQuery } from "./constants.js";
-import { setPolygonCentroids, getIsPlaying, setIsPlaying } from "./constants.js";
-import { getLastFeatureColors, setIsPointQuery, arrowShape } from "./constants.js";
-import { getFeatureMap, setFeatureMap, setIsMultiLayer } from "./constants.js";
-import { setIsClickedInsideLayer, setLastFeatureColors } from "./constants.js";
-import { getVectorMain, getVectorSelected, getScalerValue, setScalerValue } from "./constants.js";
+import { arrowShape, getState, setState } from "./constants.js";
 import { drawChart } from "./chartManager.js";
 import { mapPoint } from "./queryManager.js";
 import { scaler_value } from "./dynamicMapManager.js";
+
+const featureMap = getState().featureMap;
+const isPlaying = getState().isPlaying;
+const lastFeatureColors = getState().lastFeatureColors;
+const scalerValue = getState().scalerValue;
+const vectorMain = getState().vectorMain;
+const vectorSelected = getState().vectorSelected;
 
 export const timeControl = () => document.getElementById('time-controls');
 const slider = () => document.getElementById("time-slider");
@@ -75,10 +77,10 @@ function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarK
     colorbar_container().style.display = "block";
     const getColumnName = () => Array.isArray(timestamp) ? timestamp[currentIndex] : timestamp;
     // Remove previous featureMap
-    setFeatureMap({});
+    setState({featureMap: {}});
     // Create feature to access quickly
     const featureIds = [];
-    setLastFeatureColors({});
+    setState({lastFeatureColors: {}});
     // Data filter
     const filteredFeatures = data.features.filter(f => {
         const value = f.properties[getColumnName()];
@@ -86,9 +88,9 @@ function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarK
     });
     const filteredData = { ...data, features: filteredFeatures};
     filteredData.features.forEach(f => {
-        const value = getFeatureMap();
+        const value = featureMap;
         value[f.properties.index] = f;
-        setFeatureMap(value);
+        setState({featureMap: value});
         featureIds.push(f.properties.index);
     });
     // Create map layer
@@ -99,9 +101,8 @@ function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarK
                 // Ignore null values
                 if (value === null || value === undefined) return { fill: false, weight: 0, opacity: 0 };
                 const { r, g, b, a } = getColorFromValue(value, vmin, vmax, colorbarKey, swap);
-                const colorsCache = getLastFeatureColors();
-                colorsCache[properties.index] = `${r},${g},${b},${a}`;
-                setLastFeatureColors(colorsCache);
+                lastFeatureColors[properties.index] = `${r},${g},${b},${a}`;
+                setState({lastFeatureColors: lastFeatureColors});
                 return {
                     fill: true, fillColor: `rgb(${r},${g},${b})`,
                     fillOpacity: a, weight: 0, opacity: 1
@@ -114,9 +115,11 @@ function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarK
     });
     if (key.includes('multi')) {
         txt = `<br>Select object to see values in each layer`;
-        setIsMultiLayer(true); setIsPathQuery(false); setIsPointQuery(false);
+        setState({isMultiLayer: true}); setState({isPathQuery: false});
+        setState({isPointQuery: false});
     } else {
-        setIsMultiLayer(false); txt = ''; 
+        setState({isMultiLayer: false});
+        txt = ''; 
         const polygonCentroids = [];
         filteredData.features.forEach(f => {
             const value = f.properties[getColumnName()];
@@ -127,11 +130,11 @@ function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarK
                 });
             }
         });
-        setPolygonCentroids(polygonCentroids);
+        setState({polygonCentroids: polygonCentroids});
     }
     const hoverTooltip = L.tooltip({ direction: 'top', sticky: true });
     layerMap.on('mouseover', function(e) {
-        if (getIsPlaying()) return;
+        if (isPlaying) return;
         const props = e.layer.properties;
         const value = props[getColumnName()];
         // Show tooltip
@@ -146,7 +149,7 @@ function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarK
     });
     // Add click event to the layer
     layerMap.on('click', function(e) {
-        setIsClickedInsideLayer(true);
+        setState({isClickedInsideLayer: true});
         const props = e.layer.properties;
         mapPoint({ ...e, layerProps: props });
         if (key.includes('multi')) {
@@ -172,9 +175,9 @@ function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarK
     });
     // Adjust Colorbar Control
     updateColorbar(vmin, vmax, colorbarTitle, colorbarKey, colorbarScaler, swap);
-     // Assign values to use later
-    setMapLayer(featureIds);
-    layerMap.getColumnName = getColumnName; setStoredLayer(layerMap);
+    // Assign values to use later
+    setState({mapLayer: featureIds});
+    layerMap.getColumnName = getColumnName; setState({storedLayer: layerMap});
     return layerMap;
 }
 
@@ -183,7 +186,7 @@ export async function plot2DMapStatic(filename, key, colorbarTitle, colorbarKey,
     startLoading();
     const data = await loadData(filename, key);
     if (data.status === 'error') { showLeafletMap(); alert(data.message); return; }
-    setIsPlaying(false);
+    setState({isPlaying: false});
     // Hide timeslider
     timeControl().style.display = 'none';
     // Get the min and max values of the data
@@ -217,7 +220,7 @@ function buildFrameData(data, i) {
 
 function vectorCreator(parsedData, vmin, vmax, title, colorbarKey, colorbarScaler, key='velocity', swap) {
     if (layerAbove) map.removeLayer(layerAbove);  // Remove previous layer
-    const scale = parseFloat(getScalerValue());
+    const scale = parseFloat(scalerValue);
     const layer = new L.CanvasLayer({ data: parsedData,
         drawLayer: function () {
             const ctx = this._ctx, map = this._map;
@@ -258,7 +261,7 @@ function initDynamicMap(key, data_below, data_above, colorbarTitleBelow, colorba
     // Destroy slider if it exists
     if (slider().noUiSlider) { 
         slider().noUiSlider.destroy();
-        clearInterval(getIsPlaying()); setIsPlaying(null);
+        clearInterval(isPlaying); setState({isPlaying: null});
         playBtn().textContent = "▶ Play";
     }
     // Process below layer
@@ -310,8 +313,8 @@ function initDynamicMap(key, data_below, data_above, colorbarTitleBelow, colorba
     // Play/Pause button
     if (!playHandlerAttached) {
         playBtn().addEventListener("click", () => {
-            if (getIsPlaying()) {
-                clearInterval(getIsPlaying()); setIsPlaying(null);
+            if (isPlaying) {
+                clearInterval(isPlaying); setState({isPlaying: null});
                 playBtn().textContent = "▶ Play";
             } else {
                 currentIndex = parseInt(Math.floor(slider().noUiSlider.get()));
@@ -319,7 +322,7 @@ function initDynamicMap(key, data_below, data_above, colorbarTitleBelow, colorba
                     currentIndex = (currentIndex + 1) % timestamp.length;
                     slider().noUiSlider.set(currentIndex);
                 }, 800);
-                setIsPlaying(isPlaying);
+                setState({isPlaying: isPlaying});
                 playBtn().textContent = "⏸ Pause";
             }
         });
@@ -338,8 +341,8 @@ export async function plot2DMapDynamic(waterQuality, filename, key, colorbarTitl
     if (dataBelow.status === 'error') { showLeafletMap(); alert(dataBelow.message); return; }
     data_below = dataBelow.content;
     // If data is not water quality
-    if (!waterQuality && getVectorMain()) {
-        let vectorName = getVectorMain(), vectorKey = getVectorSelected();
+    if (!waterQuality && vectorMain) {
+        let vectorName = vectorMain, vectorKey = vectorSelected;
         colorbarTitleAbove = vectorName;
         // Process above data
         if (vectorName === 'Velocity' && vectorKey) {
@@ -357,13 +360,13 @@ export async function plot2DMapDynamic(waterQuality, filename, key, colorbarTitl
 }
 
 export async function plot2DVectorMap(filename, key, colorbarTitleAbove, colorbarKey) {
-    const vectorName = getVectorMain(), vectorKey = getVectorSelected();
+    const vectorName = vectorMain, vectorKey = vectorSelected;
     if ((vectorName === 'Velocity' && !vectorKey) || (!vectorName)) return;
     if ((!scaler_value().value)||(parseFloat(scaler_value().value) <= 0)) {
         alert('Wrong scaler value. Please check the scaler value.'); return;
     }
     // Store scaler value
-    setScalerValue(scaler_value().value);
+    setState({scalerValue: scaler_value().value});
     startLoading();
     if (layerMap) map.removeLayer(layerMap);
     const data = await loadData(filename, key);

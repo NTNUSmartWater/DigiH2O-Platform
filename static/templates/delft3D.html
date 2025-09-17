@@ -8,8 +8,10 @@
         <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
         <link rel="stylesheet" href="https://unpkg.com/leaflet-compass/dist/leaflet-compass.css">
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.css">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+        <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
         <!-- My styles -->
-        <link rel="stylesheet" href="static/css/temp_style.css?v=1">
+        <link rel="stylesheet" href="static/css/temp_style.css?v=123">
         <link rel="stylesheet" href="static/css/temp_menu.css?v=1234">
         <!-- Favicon -->
         <link rel="icon" type="image/png" href="static/images/Logo.png">
@@ -31,6 +33,11 @@
                     <span id="projectTitle"></span>
                 </ul>
                 <ul class="nav-right">
+                    <li class="search-box">
+                        <label for="search"><i class="fa fa-search"></i></label>
+                        <input type="text" id="search" placeholder="Search..." />
+                        <div id="suggestions" class="suggestions" style="display:none;"></div>
+                    </li>
                     <li><a data-info="home" id="homeMenu">Home</a></li>
                     <li><a data-info="help" id="helpMenu">Help</a></li>
                 </ul>
@@ -157,6 +164,7 @@
         <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
         <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
         <script src="https://unpkg.com/leaflet-compass/dist/leaflet-compass.min.js"></script>
+        <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
         <script src="https://cdn.plot.ly/plotly-2.26.1.min.js"></script>
         <script src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.js"></script>
@@ -169,7 +177,7 @@
         <script type="module">
             const script = document.createElement('script');
             script.type = 'module';
-            script.src = `static/js/uiManager.js`;
+            script.src = `static/js/uiManager.js?v=${Date.now()}`;
             document.body.appendChild(script);
         </script>
     </body>

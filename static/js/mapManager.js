@@ -1,9 +1,10 @@
-import { getIsPathQuery } from "./constants.js";
+import { getState } from "./constants.js";
 
 export let map;
 let currentTileLayer = null, timerCounter;
 
 const CENTER = [62.476969, 6.471598];
+const isPathQuery = getState().isPathQuery;
 export const ZOOM = 13;
 export const L = window.L;
 export const loading = () => document.getElementById('loadingOverlay');
@@ -75,7 +76,7 @@ export function setupMapEventListeners() {
         });
     // Add tooltip
     map.on('mousemove', function (e) {
-        if (!getIsPathQuery()) {
+        if (!isPathQuery) {
             map.closeTooltip(hoverTooltip);
             return;
         }

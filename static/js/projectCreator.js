@@ -205,6 +205,14 @@ function sourceChange(target){
     tbody.innerHTML = ""; sourceName().value = ''; sourceUpload().value = '';
 }
 
+function assignOutput(target, start, end, startDate, stopDate){
+    target.addEventListener('change', () => { 
+        if (!target.checked) { start.value = ''; end.value = ''; return; }
+        start.value = startDate.value !== '' ? startDate.value : '';
+        end.value = stopDate.value !== '' ? stopDate.value : '';
+    });
+}
+
 async function fileUploader(target, projectName, gridName){
     if (projectName === '') return;
     window.parent.postMessage({type: 'showOverlay', message: 'Uploading grid to project...'}, '*');
@@ -429,6 +437,12 @@ function updateOption(){
         const content = getDataFromTable(sourceRemoveTable(), true).rows;
         updateTable(sourceRemoveTable(), sourceSelectorRemove(), nameProject, content);
     });
+    // Change output options
+    assignOutput(outputHis(), hisStart(), hisStop(), startDate(), stopDate());
+    assignOutput(outputMap(), mapStart(), mapStop(), startDate(), stopDate());
+    assignOutput(outputWQ(), wqStart(), wqStop(), startDate(), stopDate());
+    assignOutput(outputRestart(), rtsStart(), rtsStop(), startDate(), stopDate());
+
     // Save source to project
     sourceSaveBtn().addEventListener('click', async () => {
         const nameProject = projectName().value.trim();

@@ -1,6 +1,0 @@
-
-[boundary]
-quantity=waterlevelbnd
-locationFile=Sink_Spjelka.pli
-forcingFile=WaterLevel.bc
-returnTime=0.0000000e+000
