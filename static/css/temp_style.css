@@ -129,8 +129,7 @@ html, body {
   overflow: hidden;
 }
 #informationContactContent iframe, #projectWindowContent iframe, #simulationWindowContent iframe {
-  width: 100%; height: 100%;
-  border: none; overflow: auto;
+  width: 100%; height: 100%; border: none; overflow: auto;
 }
 
 #projectWindow, #simulationWindow {
@@ -141,12 +140,8 @@ html, body {
   display: none; flex-direction: column; overflow: auto;
 }
 
-#summaryWindow table {
-  width: 100%; border-collapse: collapse;
-}
-#summaryWindow th, #summaryWindow td {
-  border: 1px solid #ccc; padding: 6px; text-align: left;
-}
+#summaryWindow table { width: 100%; border-collapse: collapse; }
+#summaryWindow th, #summaryWindow td { border: 1px solid #ccc; padding: 6px; text-align: left; }
 #closeSummaryOption, #closeInformationContact, #closeProjectWindow, #closeSimulationWindow {
   cursor: pointer; font-size: 20px; margin-left: auto;
   font-weight: bold; color: #ffffff; 
@@ -220,15 +215,9 @@ html, body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-#closePlotBtn {
-  cursor: pointer; font-size: 20px;
-}
-#plotContainer {
-  flex: 1; overflow: hidden; margin: 0 10px 0 10px;
-}
-#myChart {
-  width: 100%; height: 100%;
-}
+#closePlotBtn { cursor: pointer; font-size: 20px; }
+#plotContainer { flex: 1; overflow: hidden; margin: 0 10px 0 10px; }
+#myChart { width: 100%; height: 100%; }
 
 #time-controls {
   position: absolute; bottom: 50px; left: 50%;
@@ -242,32 +231,30 @@ html, body {
   background-color: #00b894; border: none; color: white;
   font-size: 14px; cursor: pointer; border-radius: 5px; padding: 5px 10px;
 }
-#time-controls button:hover {
-  background-color: #06cc27;
-}
+#time-controls button:hover { background-color: #06cc27; }
 
-#time-slider{
-  flex: 1; padding-left: 10px; padding-right: 10px;
-}
+#time-slider{ flex: 1; padding-left: 10px; padding-right: 10px; }
 #time-slider button {
   background-color: #00b894;
   border: none; color: white; padding: 5px 10px;
   font-size: 14px; cursor: pointer; border-radius: 5px;
 }
-#time-slider button:hover {
-  background-color: #019475;
-}
+#time-slider button:hover { background-color: #019475; }
 
 .scaler-group{
   display: flex; align-items: center; gap: 8px;
   margin: 5px 5px 5px 0; padding: 2px 5px 2px 5px;
 }
-.scaler-group button{
-  cursor: pointer; min-width: 100px; flex: 1;
+.scaler-group button{ cursor: pointer; min-width: 100px; flex: 1; }
+.scaler-group input{ width: 100px; align-items: center; text-align: center; }
+.hidden { display: none !important; }
+
+.search-box { position: relative;}
+.suggestions {
+  position: absolute; top: 35px; left: 0; right: 0; background: #fff;
+  border: 1px solid #ddd; border-radius: 4px; max-height: 200px;
+  overflow-y: auto; z-index: 1000; color: #333; font-size: 12px;
 }
-.scaler-group input{
-  width: 100px; align-items: center; text-align: center;
-}
-.hidden {
-  display: none !important;
-}
+.suggestions div { padding: 5px 10px; cursor: pointer; }
+.suggestions div:hover { background: #8a8787; }
+

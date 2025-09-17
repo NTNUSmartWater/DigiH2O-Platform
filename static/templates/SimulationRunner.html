@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="static/css/simulationRunner.css?v=1">
-  <title>Run Simulation</title>
+  <link rel="stylesheet" href="static/css/simulationRunner.css?v=001">
 </head>
 <body>
   <div class="form-container">
@@ -13,6 +12,12 @@
         <div class="form-row">
           <label for="options">Select Project:</label>
           <select id="options"></select>
+        </div>
+        <div class="form-row">
+          <input type="checkbox" id="hydrodynamic-checkbox" checked="true">
+          <label for="hydrodynamic-checkbox">Hydrodynamic Simulation</label>
+          <input type="checkbox" id="water-quality-checkbox" checked="true">
+          <label for="water-quality-checkbox">Water Quality Simulation</label>
           <button type="button" id="run-button">Run Simulation</button>
           <button type="button" id="stop-button">Stop Simulation</button>
         </div>

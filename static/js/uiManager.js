@@ -6,14 +6,12 @@ import { plot2DMapStatic } from "./map2DManager.js";
 import { deactivePointQuery, deactivePathQuery } from "./queryManager.js";
 import { generalObtionsManager } from './generalOptionManager.js';
 import { dynamicMapManager } from './dynamicMapManager.js';
-import { getProject, setProject } from './constants.js';
 import { sendQuery } from './tableManager.js';
+import { resetState } from './constants.js';
 
-
-let isNewProject = false, oldProject = '', newProject = null, gridLayer = null;
 let pickerState = { location: false, point: false, crosssection: false, boundary: false, source: false };
 let markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [], pathLineBoundary = null;
-let markersCrosssection = [], crosssectionContainer = [], pathLineCrosssection = null;
+let gridLayer = null, timeOut=null, markersCrosssection = [], crosssectionContainer = [], pathLineCrosssection = null;
 
 const popupMenu = () => document.getElementById('popup-menu');
 const popupContent = () => document.getElementById('popup-content');
@@ -21,6 +19,8 @@ const contactInfo = () => document.getElementById('informationContact');
 const contactInfoHeader = () => document.getElementById('informationContactHeader');
 const contactInfoContent = () => document.getElementById('informationContactContent');
 const contactInfoCloseBtn = () => document.getElementById('closeInformationContact');
+const locationSearcher = () => document.getElementById('search');
+const sugesstionSearcher = () => document.getElementById('suggestions');
 const projectTitle = () => document.getElementById('projectTitle');
 const projectSetting = () => document.getElementById('projectWindow');
 const projectSettingHeader = () => document.getElementById('projectWindowHeader');
@@ -47,26 +47,26 @@ async function showPopupMenu(id, htmlFile) {
         const response = await fetch(`/load_popupMenu?htmlFile=${htmlFile}`);
         const html = await response.text();
         popupContent().innerHTML = html;
-        if (id === '1') generalObtionsManager('summary.json', 'stations.geojson', 'sources.geojson', 'crosssections.geojson'); // Events on general options submenu
+        if (id === '1') generalObtionsManager('summary.json', 'stations.geojson', 
+            'sources.geojson', 'crosssections.geojson'); // Events on general options submenu
         if (id === '2') measuredPointManager(); // Events on measured points submenu
         if (id === '3') dynamicMapManager(); // Events on dynamic map submenu
         if (id === '4') staticMapManager(); // Events on static map submenu
     } catch (error) {alert(error + ' ' + htmlFile);}
 }
 
-async function projectChecker() {
+async function projectChecker(name=null, params=null) {
     const projectMenu = document.querySelectorAll('.menu');
-    projectMenu.forEach(menu => {
-        menu.style.display = (getProject()===null)?'none':'block';
-    });
+    projectMenu.forEach(menu => { menu.style.display = (name===null)?'none':'block'; });
     const project = document.querySelector('.menu[data-info="0|project_menu.html"]');
-    project.style.display = 'block';
-    if (getProject() !== null) newProject = getProject();
-    if (isNewProject === false) {setProject(null);};
-    if (isNewProject === false && newProject === null) return;
-    projectTitle().textContent = `Project: ${newProject.project}`;
+    project.style.display = 'block'; projectTitle().textContent = '';
+    // Clear map
+    map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
+    resetState();  // Reset variables
+    if (name === null) return;
+    projectTitle().textContent = `Project: ${name}`;
     startLoading('Reading Simulation Outputs and Setting up Database.\nThis takes for a while. Please wait...');
-    const data = await sendQuery('setup_database', {projectName: newProject.project, files: newProject.values});
+    const data = await sendQuery('setup_database', {projectName: name, params: params});
     if (data.status === "error") alert(data.message);
     showLeafletMap();
 }
@@ -78,9 +78,7 @@ async function initializeMenu(){
             event.stopPropagation(); event.preventDefault();
             const rect = link.getBoundingClientRect();
             const pm = popupMenu();
-            if (pm.classList.contains('show')) {
-                pm.classList.remove('show');
-            }
+            if (pm.classList.contains('show')) pm.classList.remove('show');
             const info = link.dataset.info;
             if (info === 'home') { history.back(); return; }
             if (info === 'help') { contacInformation(); return;}
@@ -96,8 +94,7 @@ async function initializeMenu(){
 }
 
 function moveWindow(window, header){
-    let dragging = false;
-    let offsetX = 0, offsetY = 0;
+    let dragging = false, offsetX = 0, offsetY = 0;
     header().addEventListener("mousedown", function(e) {
         dragging = true;
         offsetX = e.clientX - window().offsetLeft;
@@ -125,7 +122,35 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
     objWindow.style.display = 'flex';
 }
 
+// iframeInit("run_simulation", simulationWindow(), simulationHeader(), 
+//                     simulationContent(), "Run Simulation");
+
 function updateEvents() {
+    // Search locations
+    locationSearcher().addEventListener('input', (e) => {
+        clearTimeout(timeOut);
+        const value = e.target.value.trim();
+        if (value === '' || value.length < 2) { sugesstionSearcher().style.display = 'none'; return; }
+        timeOut = setTimeout(() => {
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(value)}&addressdetails=1&limit=5`)
+            .then(response => response.json()).then(data => {
+                if (data.length === 0) {sugesstionSearcher().style.display = 'none';}
+                sugesstionSearcher().innerHTML = '';
+                data.forEach(location => {
+                    var div = document.createElement('div');
+                    div.textContent = location.display_name;
+                    div.addEventListener('click', () => {
+                        var lat = location.lat, lng = location.lon;
+                        map.setView([lat, lng], 12);
+                        locationSearcher().value = location.display_name;
+                        sugesstionSearcher().style.display = 'none';
+                    });
+                    sugesstionSearcher().appendChild(div);
+                });
+                sugesstionSearcher().style.display = 'block';
+            })
+        }, 200);
+    });
     // Check if events are already bound
     if (window.__menuEventsBound) return;
     window.__menuEventsBound = true;
@@ -174,32 +199,30 @@ function updateEvents() {
             }
             return;
         }
+        // Hide suggestions for location search
+        if (!document.querySelector('.search-box').contains(e.target)) {
+            sugesstionSearcher().style.display = 'none';
+        }
     });
     // Select project
     popupContent().addEventListener('click', (e) => {
         const project = e.target.closest('.project');
         if (project) {
             const name = project.dataset.info;
-            // isNewProject = false;
-            if (name === 'reset-project') {
-                setProject(null); location.reload();
-            } else if (name === 'default-project') { 
-                const params = ["FlowFM_his.nc", "FlowFM_map.nc",
-                    "deltashell_his.nc", "deltashell_map.nc"];
-                setProject({ project: 'Demo_Project', values: params });
-                projectChecker();
-            } else if (name === 'open-project') {
+            if (name === 'open-project') {
                 iframeInit("open_project", projectSetting(), projectSettingHeader(), 
-                    projectSettingContent(), "Open Project"); isNewProject = false;
+                    projectSettingContent(), "Open Project");
             } else if (name === 'new-project') { 
+                projectChecker();
                 iframeInit("new_project", projectSetting(), projectSettingHeader(), 
-                    projectSettingContent(), "New Project"); isNewProject = true;
+                    projectSettingContent(), "New Project");
             } else if (name === 'grid-generation') {
+                projectChecker();
                 // Grid Generation
                 iframeInit("grid_generation", projectSetting(), projectSettingHeader(), 
                     projectSettingContent(), "Grid Generation");
-                location.reload();
             } else if (name === 'run-simulation') {
+                projectChecker();
                 // Run Simulation
                 iframeInit("run_simulation", simulationWindow(), simulationHeader(), 
                     simulationContent(), "Run Simulation");
@@ -208,15 +231,9 @@ function updateEvents() {
     });
     // Listent events from open project iframe
     window.addEventListener('message', async (event) => {
-        if (event.data?.type === 'projectConfirmed') {
-            if (oldProject !== event.data.project) isNewProject = true;
-            setProject({
-                project: event.data.project,
-                values: event.data.values
-            });
+        if (event.data?.type === 'projectConfirmed') {          
+            projectChecker(event.data.project, event.data.values);
             projectSetting().style.display = 'none';
-            if (isNewProject) location.reload();
-            else projectChecker();
         }
         if (event.data?.type === 'projectPreparation') { 
             const data = await sendQuery('setup_new_project', {projectName: event.data.name});
@@ -315,8 +332,7 @@ function updateEvents() {
         if (!pickerState.location && !pickerState.point && !pickerState.source && !pickerState.crosssection && 
             !pickerState.boundary) {
             if (hoverTooltip) map.closeTooltip(hoverTooltip);
-            mapContainer().style.cursor = 'grab';
-            return;
+            mapContainer().style.cursor = 'grab'; return;
         }
         if (pickerState.crosssection || pickerState.boundary) {
             if (!hoverTooltip) hoverTooltip = L.tooltip({
@@ -362,8 +378,7 @@ function updateEvents() {
                 radius: 5, color: 'red', fillColor: 'pink', fillOpacity: 0.9
             }).addTo(map);
             markersBoundary.push(marker);
-            // Add point
-            boundaryContainer.push({ lat: e.latlng.lat, lng: e.latlng.lng });
+            boundaryContainer.push({ lat: e.latlng.lat, lng: e.latlng.lng });  // Add point
             // Plot line
             const latlngs = boundaryContainer.map(p => [p.lat, p.lng]);
             if (pathLineBoundary) {
@@ -396,8 +411,7 @@ function updateEvents() {
             }
             hidePicker('boundary', boundaryContainer, 'boundaryPicked');
         }
-        // Remove tooltip
-        if (hoverTooltip) map.closeTooltip(hoverTooltip);        
+        if (hoverTooltip) map.closeTooltip(hoverTooltip); // Remove tooltip
     });
 }
 

@@ -1,8 +1,11 @@
 import { initOptions, colorbar_vector_container } from './utils.js';
 import { startLoading, showLeafletMap, map } from './mapManager.js';
 import { plot2DMapDynamic, plot2DVectorMap, layerAbove, timeControl } from './map2DManager.js';
-import { getVectorMain, setVectorMain, getScalerValue, setScalerValue } from './constants.js';
-import { getVectorSelected, setVectorSelected } from './constants.js';
+import { setState, getState } from './constants.js';
+
+const vectorMain = getState().vectorMain;
+const scalerValue = getState().scalerValue;
+const vectorSelected = getState().vectorSelected;
 
 const vectorObjectMain = () => document.getElementById("vector-object-main");
 const vectorObjectSubMain = () => document.getElementById("vector-object-submain");
@@ -10,22 +13,21 @@ const vectorPlotBtn = () => document.getElementById("plotVectorBtn");
 export const scaler_value = () => document.getElementById("scaler-value");
 
 async function checkVectorComponents() {
-    const selectedValue = getVectorMain();
-    if (selectedValue){
-        vectorObjectMain().value = selectedValue;
-        if (selectedValue === 'Velocity'){
+    if (vectorMain){
+        vectorObjectMain().value = vectorMain;
+        if (vectorMain === 'Velocity'){
             await initOptions(vectorObjectSubMain, 'velocity');
-            vectorObjectSubMain().value = getVectorSelected();
+            vectorObjectSubMain().value = vectorSelected;
             vectorObjectSubMain().style.display = 'block';
         } else {
-            setVectorSelected('');
+            setState({vectorSelected: ''});
             vectorObjectSubMain().style.display = 'none';
         }
     } else {
         colorbar_vector_container().style.display = 'none';
         timeControl().style.display = 'none';
         if (layerAbove) map.removeLayer(layerAbove);
-        setVectorSelected('');
+        setState({vectorSelected: ''});
         vectorObjectSubMain().style.display = 'none';
         return;
     }
@@ -43,7 +45,7 @@ export async function dynamicMapManager() {
     });
     // Set function for Vector plot
     vectorPlotBtn().addEventListener('click', () => {
-        const filename = `${getVectorSelected()}_velocity`, key = 'velocity';
+        const filename = `${vectorSelected}_velocity`, key = 'velocity';
         const colorbarTitle = 'Velocity (m/s)', colorbarKey = 'velocity';
         plot2DVectorMap(filename, key, colorbarTitle, colorbarKey);
     });
@@ -61,7 +63,7 @@ export async function dynamicMapManager() {
     });
     // Add event listener for vector objects
     vectorObjectMain().addEventListener('change', () => {
-        setVectorMain(vectorObjectMain().value);
+        setState({vectorMain: vectorObjectMain().value});
         checkVectorComponents();
     });
     vectorObjectSubMain().addEventListener('change', () => {
@@ -69,8 +71,8 @@ export async function dynamicMapManager() {
     });
     initWaterQualityObjects(); // Initiate objects for water quality object
     // Initialize vector scale
-    if (getScalerValue() === null) {setScalerValue(1000);}
-    scaler_value().value = getScalerValue();
+    if (scalerValue === null) setState({scalerValue: 1000});
+    scaler_value().value = scalerValue;
 }
 
 function initWaterQualityObjects() {
