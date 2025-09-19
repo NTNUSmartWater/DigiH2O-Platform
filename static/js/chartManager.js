@@ -3,7 +3,6 @@ import { loadData, interpolateJet, interpolateValue } from "./utils.js";
 import { getState, setState } from "./constants.js";
 
 let Dragging = false;
-const globalChartData = getState().globalChartData;
 
 export const plotWindow = () => document.getElementById('plotWindow');
 const plotHeader = () => document.getElementById('plotHeader');
@@ -62,7 +61,7 @@ function updateChart() {
     const selectedColumns = Array.from(checkboxes)
         .filter(cb => cb.checked && cb.value !== 'All')
         .map(cb => cb.value);
-    const {data, chartTitle, titleX, titleY, undefined, swap} = globalChartData;
+    const {data, chartTitle, titleX, titleY, undefined, swap} = getState().globalChartData;
     drawChart(data, chartTitle, titleX, titleY, swap, selectedColumns);
 }
 

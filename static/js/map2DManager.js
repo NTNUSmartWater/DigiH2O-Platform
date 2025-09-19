@@ -6,12 +6,6 @@ import { drawChart } from "./chartManager.js";
 import { mapPoint } from "./queryManager.js";
 import { scaler_value } from "./dynamicMapManager.js";
 
-const featureMap = getState().featureMap;
-const isPlaying = getState().isPlaying;
-const lastFeatureColors = getState().lastFeatureColors;
-const scalerValue = getState().scalerValue;
-const vectorMain = getState().vectorMain;
-const vectorSelected = getState().vectorSelected;
 
 export const timeControl = () => document.getElementById('time-controls');
 const slider = () => document.getElementById("time-slider");
@@ -88,7 +82,7 @@ function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarK
     });
     const filteredData = { ...data, features: filteredFeatures};
     filteredData.features.forEach(f => {
-        const value = featureMap;
+        const value = getState().featureMap;
         value[f.properties.index] = f;
         setState({featureMap: value});
         featureIds.push(f.properties.index);
@@ -101,8 +95,8 @@ function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarK
                 // Ignore null values
                 if (value === null || value === undefined) return { fill: false, weight: 0, opacity: 0 };
                 const { r, g, b, a } = getColorFromValue(value, vmin, vmax, colorbarKey, swap);
-                lastFeatureColors[properties.index] = `${r},${g},${b},${a}`;
-                setState({lastFeatureColors: lastFeatureColors});
+                getState().lastFeatureColors[properties.index] = `${r},${g},${b},${a}`;
+                setState({lastFeatureColors: getState().lastFeatureColors});
                 return {
                     fill: true, fillColor: `rgb(${r},${g},${b})`,
                     fillOpacity: a, weight: 0, opacity: 1
@@ -134,7 +128,7 @@ function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarK
     }
     const hoverTooltip = L.tooltip({ direction: 'top', sticky: true });
     layerMap.on('mouseover', function(e) {
-        if (isPlaying) return;
+        if (getState().isPlaying) return;
         const props = e.layer.properties;
         const value = props[getColumnName()];
         // Show tooltip
@@ -218,9 +212,9 @@ function buildFrameData(data, i) {
     return result;
 }
 
-function vectorCreator(parsedData, vmin, vmax, title, colorbarKey, colorbarScaler, key='velocity', swap) {
+function vectorCreator(parsedData, vmin, vmax, title, colorbarKey, colorbarScaler, swap) {
     if (layerAbove) map.removeLayer(layerAbove);  // Remove previous layer
-    const scale = parseFloat(scalerValue);
+    const scale = parseFloat(getState().scalerValue);
     const layer = new L.CanvasLayer({ data: parsedData,
         drawLayer: function () {
             const ctx = this._ctx, map = this._map;
@@ -236,10 +230,8 @@ function vectorCreator(parsedData, vmin, vmax, title, colorbarKey, colorbarScale
                 const angle = Math.atan2(dy, dx);
                 ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(angle);
                 ctx.scale(length, length);
-                if (key === "velocity") {
-                    const color = getColorFromValue(pt.c, vmin, vmax, colorbarKey);
-                    ctx.strokeStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
-                } else { ctx.strokeStyle = "rgba(255, 255, 255, 1)"; }
+                const color = getColorFromValue(pt.c, vmin, vmax, colorbarKey);
+                ctx.strokeStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
                 ctx.lineWidth = 1 / length;
                 ctx.stroke(arrowShape); ctx.restore();
             }
@@ -256,12 +248,11 @@ function initDynamicMap(key, data_below, data_above, colorbarTitleBelow, colorba
     // Hide colorbar control
     colorbar_container().style.display = "none";
     colorbar_vector_container().style.display = "none";
-    let timestamp, currentIndex;
-    let vminBelow, vmaxBelow, vminAbove, vmaxAbove;
+    let timestamp, currentIndex, vminBelow, vmaxBelow, vminAbove, vmaxAbove;
     // Destroy slider if it exists
     if (slider().noUiSlider) { 
         slider().noUiSlider.destroy();
-        clearInterval(isPlaying); setState({isPlaying: null});
+        clearInterval(getState().isPlaying); setState({isPlaying: null});
         playBtn().textContent = "▶ Play";
     }
     // Process below layer
@@ -288,7 +279,7 @@ function initDynamicMap(key, data_below, data_above, colorbarTitleBelow, colorba
         currentIndex = timestamp.length - 1;
         parsedDataAllFrames = timestamp.map((_, i) => buildFrameData(data_above, i));
         layerAbove = vectorCreator(parsedDataAllFrames[currentIndex], vminAbove, vmaxAbove, 
-                                    colorbarTitleAbove, colorbarKeyAbove, 'vector', swap);
+                                    colorbarTitleAbove, colorbarKeyAbove, colorbarScaler, swap);
         map.addLayer(layerAbove);
     }
     // Recreate Slider
@@ -313,16 +304,16 @@ function initDynamicMap(key, data_below, data_above, colorbarTitleBelow, colorba
     // Play/Pause button
     if (!playHandlerAttached) {
         playBtn().addEventListener("click", () => {
-            if (isPlaying) {
-                clearInterval(isPlaying); setState({isPlaying: null});
+            if (getState().isPlaying) {
+                clearInterval(getState().isPlaying); setState({isPlaying: null});
                 playBtn().textContent = "▶ Play";
             } else {
                 currentIndex = parseInt(Math.floor(slider().noUiSlider.get()));
-                const isPlaying = setInterval(() => {
+                const playing = setInterval(() => {
                     currentIndex = (currentIndex + 1) % timestamp.length;
                     slider().noUiSlider.set(currentIndex);
                 }, 800);
-                setState({isPlaying: isPlaying});
+                setState({isPlaying: playing});
                 playBtn().textContent = "⏸ Pause";
             }
         });
@@ -330,9 +321,8 @@ function initDynamicMap(key, data_below, data_above, colorbarTitleBelow, colorba
     }
 }
 
-export async function plot2DMapDynamic(waterQuality, filename, key, colorbarTitle, 
-                                        colorbarKey, colorbarScaler='normal') {
-    startLoading();
+export async function plot2DMapDynamic(waterQuality, filename, key, colorbarTitle, colorbarKey, colorbarScaler='normal') {
+    startLoading('Preparing Dynamic Map. Please wait...');
     let data_below = null, data_above = null, swap = false;
     let colorbarTitleAbove = null, colorbarKeyAbove = null;
     if (key === 'wd_dynamic') {swap = true;} else {swap = false;}
@@ -341,8 +331,8 @@ export async function plot2DMapDynamic(waterQuality, filename, key, colorbarTitl
     if (dataBelow.status === 'error') { showLeafletMap(); alert(dataBelow.message); return; }
     data_below = dataBelow.content;
     // If data is not water quality
-    if (!waterQuality && vectorMain) {
-        let vectorName = vectorMain, vectorKey = vectorSelected;
+    if (!waterQuality && getState().vectorMain) {
+        let vectorName = getState().vectorMain, vectorKey = getState().vectorSelected;
         colorbarTitleAbove = vectorName;
         // Process above data
         if (vectorName === 'Velocity' && vectorKey) {
@@ -359,19 +349,19 @@ export async function plot2DMapDynamic(waterQuality, filename, key, colorbarTitl
     showLeafletMap();
 }
 
-export async function plot2DVectorMap(filename, key, colorbarTitleAbove, colorbarKey) {
-    const vectorName = vectorMain, vectorKey = vectorSelected;
+export async function plot2DVectorMap(filename, key, colorbarTitleAbove, colorbarKey, colorbarScaler='vector') {
+    const vectorName = getState().vectorMain, vectorKey = getState().vectorSelected;
     if ((vectorName === 'Velocity' && !vectorKey) || (!vectorName)) return;
     if ((!scaler_value().value)||(parseFloat(scaler_value().value) <= 0)) {
         alert('Wrong scaler value. Please check the scaler value.'); return;
     }
     // Store scaler value
     setState({scalerValue: scaler_value().value});
-    startLoading();
+    startLoading('Preparing Dynamic Map. Please wait...');
     if (layerMap) map.removeLayer(layerMap);
     const data = await loadData(filename, key);
-    if (dataAbove.status === 'error') { showLeafletMap(); alert(dataAbove.message); return; }
+    if (data.status === 'error') { showLeafletMap(); alert(data.message); return; }
     initDynamicMap(key, null, data.content, null, colorbarTitleAbove, 
-                    null, colorbarKey, 'vector', false);
+                    null, colorbarKey, colorbarScaler, false);
     showLeafletMap();
 }

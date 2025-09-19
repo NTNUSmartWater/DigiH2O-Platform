@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=2" />
-  <link rel="stylesheet" href="static/css/projectCreator.css?v=2">
+  <link rel="stylesheet" href="static/css/projectHYDCreator.css?v=2">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 </head>
 <body>
@@ -33,22 +33,9 @@
     <section class="card tabs" id="parent-tab" style="display: none;">
       <div class="tabs__header" id="main-tabs">
         <div class="tabs__list">
-          <button class="tab-btn" data-tab="model-settings">
-            Model Settings
-            <span class="ink"></span>
-          </button>
-          <button class="tab-btn" data-tab="hydro-meteo">
-            Hydro and Meteo Parameters
-            <span class="ink"></span>
-          </button>
-          <button class="tab-btn" data-tab="water-quality-settings">
-            Water Quality Parameters
-            <span class="ink"></span>
-          </button>
-          <button class="tab-btn" data-tab="output-settings">
-            Output Parameters
-            <span class="ink"></span>
-          </button>
+          <button class="tab-btn" data-tab="model-settings">Model Settings<span class="ink"></span></button>
+          <button class="tab-btn" data-tab="hydro-meteo">Hydro and Meteo Parameters<span class="ink"></span></button>
+          <button class="tab-btn" data-tab="output-settings">Output Parameters<span class="ink"></span></button>
         </div>
       </div>
       <div class="tabs__content">
@@ -108,11 +95,11 @@
                   </div>
                   <div class="tile"><h3>Simulation time</h3>
                     <div class="row">
-                      <label for="start-date">Start date:</label>
+                      <label for="start-date">Start time:</label>
                       <input type="text" class="datetime" id="start-date" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-04-25 00:00:00">
                     </div>
                     <div class="row">
-                      <label for="stop-date">Stop date:</label>
+                      <label for="stop-date">Stop time:</label>
                       <input type="text" class="datetime" id="stop-date" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-11-20 00:00:00">
                     </div>                                    
                   </div>
@@ -441,58 +428,7 @@
               </div>
             </div>
         </div>
-        <!-- Tab 3: Water Quality Settings -->
-        <div class="tabpanel main-panel" data-panel="water-quality-settings">
-          <!-- Sub Tabs -->
-          <div class="card tabs tabs--sub">
-            <div class="tabs__header">
-              <button class="tab-btn" data-tab="water-quality-setting-1">Physical<span class="ink"></span></button>
-              <button class="tab-btn" data-tab="water-quality-setting-2">Chemical<span class="ink"></span></button>
-              <button class="tab-btn" data-tab="water-quality-setting-3">Microbiology<span class="ink"></span></button>
-            </div>
-          </div>
-          <div class="tabs__content">
-            <div class="tabpanel" data-panel="water-quality-setting-1">
-              <div class="grid">
-                
-                <div class="tile"><h3>Micro/Nano Plastic</h3>
-
-                </div>
-
-                <div class="tile"><h3>Turbidity</h3>
-
-                </div>
-                <div class="tile"><h3>Sediment</h3>
-
-                </div>
-              </div>
-            </div>
-            <div class="tabpanel" data-panel="water-quality-setting-2">
-              <div class="grid">
-                <div class="tile"><h3>Heavy Metals</h3>
-
-                </div>
-                <div class="tile"><h3>pH</h3>
-
-                </div>
-                <div class="tile"><h3>PAH</h3>
-
-                </div>
-              </div>
-            </div>
-            <div class="tabpanel" data-panel="water-quality-setting-3">
-              <div class="grid">
-                <div class="tile"><h3>Bateria</h3>
-
-                </div>
-                <div class="tile"><h3>Pitogant</h3>
-
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <!-- Tab 4: Output Settings -->
+        <!-- Tab 3: Output Settings -->
         <div class="tabpanel main-panel" data-panel="output-settings">
           <!-- Sub Tabs -->
           <div class="card tabs tabs--sub">
@@ -514,7 +450,7 @@
                     <input type="text" class="datetime" id="his-output-start" placeholder="YYYY-mm-dd HH:mm:ss">
                   </div>
                   <div class="row">
-                    <label for="his-output-end">End time:</label>
+                    <label for="his-output-end">Stop time:</label>
                     <input type="text" class="datetime" id="his-output-end" placeholder="YYYY-mm-dd HH:mm:ss">
                   </div>                                    
                 </div>
@@ -534,7 +470,7 @@
                     <input type="text" class="datetime" id="map-output-start" placeholder="YYYY-mm-dd HH:mm:ss">
                   </div>
                   <div class="row">
-                    <label for="map-output-end">End time:</label>
+                    <label for="map-output-end">Stop time:</label>
                     <input type="text" class="datetime" id="map-output-end" placeholder="YYYY-mm-dd HH:mm:ss">
                   </div>                                    
                 </div>
@@ -554,7 +490,7 @@
                     <input type="text" class="datetime" id="water-quality-output-start" placeholder="YYYY-mm-dd HH:mm:ss">
                   </div>
                   <div class="row">
-                    <label for="water-quality-output-end">End time:</label>
+                    <label for="water-quality-output-end">Stop time:</label>
                     <input type="text" class="datetime" id="water-quality-output-end" placeholder="YYYY-mm-dd HH:mm:ss">
                   </div>                                    
                 </div>
@@ -574,7 +510,7 @@
                     <input type="text" class="datetime" id="restart-output-start" placeholder="YYYY-mm-dd HH:mm:ss">
                   </div>
                   <div class="row">
-                    <label for="restart-output-end">End time:</label>
+                    <label for="restart-output-end">Stop time:</label>
                     <input type="text" class="datetime" id="restart-output-end" placeholder="YYYY-mm-dd HH:mm:ss">
                   </div>                                    
                 </div>
@@ -615,7 +551,7 @@
   <script type="module">
     const script = document.createElement('script');
     script.type = 'module';
-    script.src = `/static/js/projectCreator.js`;
+    script.src = `/static/js/projectHYDCreator.js?v=${Date.now()}`;
     document.body.appendChild(script);
   </script>
 </body>

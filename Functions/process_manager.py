@@ -86,7 +86,6 @@ async def process_data(request: Request):
     result = {'content': data, 'status': status, 'message': message, 'project': project}
     return JSONResponse(content=result)
 
-
 # Read grid
 @router.post("/open_grid")
 async def open_grid(request: Request):

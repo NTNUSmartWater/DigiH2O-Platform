@@ -152,7 +152,7 @@ def getVariablesNames(data: xr.Dataset) -> dict:
         if ('cross_section' in data.sizes and data.sizes['cross_section'] > 0):
             x = np.unique(data['cross_section_geom_node_coordx'].values)
             y = np.unique(data['cross_section_geom_node_coordy'].values)
-            if (x.shape[0] > 1 and y.shape[0] > 1 and x != y): result['cross_sections'] = True
+            if (x.shape[0] > 1 and y.shape[0] > 1 and x.all() != y.all()): result['cross_sections'] = True
         result['sources'] = data.sizes['source_sink'] > 0 if ('source_sink' in data.sizes) else False
         # Prepare data for measured locations
         # 1. Observation points
@@ -964,16 +964,14 @@ def postProcess(directory: str) -> dict:
     os.makedirs(output_path, exist_ok=True)
     subdirs = [d for d in os.listdir(directory) if os.path.isdir(os.path.join(directory, d))]
     if len(subdirs) == 0: return {'status': 'error', 'message': 'No output directory for simulations found.'}
-    
-    # # Copy folder DFM_DELWAQ to the parent directory
-    # DFM_DELWAQ_path = os.path.join(parent_path, 'DFM_DELWAQ')
-    # if os.path.exists(DFM_DELWAQ_path): shutil.rmtree(DFM_DELWAQ_path, onexc=remove_readonly)
-    # try: shutil.copytree(os.path.join(directory, 'DFM_DELWAQ'), DFM_DELWAQ_path)
-    # except Exception as e: return {'status': 'error', 'message': {str(e)}}
-    # # Delete folder DFM_DELWAQ
-    # try: shutil.rmtree(os.path.join(directory, 'DFM_DELWAQ'), onexc=remove_readonly)
-    # except Exception as e: return {'status': 'error', 'message': {str(e)}}
-
+    # Copy folder DFM_DELWAQ to the parent directory
+    DFM_DELWAQ_path = os.path.join(parent_path, 'DFM_DELWAQ')
+    if os.path.exists(DFM_DELWAQ_path): shutil.rmtree(DFM_DELWAQ_path, onexc=remove_readonly)
+    try: shutil.copytree(os.path.join(directory, 'DFM_DELWAQ'), DFM_DELWAQ_path)
+    except Exception as e: return {'status': 'error', 'message': {str(e)}}
+    # Delete folder DFM_DELWAQ
+    try: shutil.rmtree(os.path.join(directory, 'DFM_DELWAQ'), onexc=remove_readonly)
+    except Exception as e: return {'status': 'error', 'message': {str(e)}}
     # Copy files to the directory output
     try:
         # Copy files to the directory output

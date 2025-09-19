@@ -2,7 +2,8 @@ import uvicorn, config
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.gzip import GZipMiddleware
-from Functions import route_page, process_manager, project_manager, run_simulation
+from Functions import route_page, process_manager, wq_process
+from Functions import project_manager, run_simulation
 from config import PROJECT_STATIC_ROOT
 
 
@@ -22,6 +23,7 @@ app.include_router(route_page.router)
 app.include_router(process_manager.router)
 app.include_router(project_manager.router)
 app.include_router(run_simulation.router)
+app.include_router(wq_process.router)
 
 # Register WebSockets route
 run_simulation.register_websocket_routes(app)

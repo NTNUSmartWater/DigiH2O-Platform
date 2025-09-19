@@ -1,11 +1,6 @@
 import { startLoading, showLeafletMap } from "./mapManager.js";
 import { n_decimals, superscriptMap, getState, setState} from "./constants.js";
 
-const mapLayer = getState().mapLayer;
-const featureMap = getState().featureMap;
-const scalerValue = getState().scalerValue;
-const lastFeatureColors = getState().lastFeatureColors;
-
 export const colorbar_container = () => document.getElementById("custom-colorbar");
 export const colorbar_vector_container = () => document.getElementById("custom-colorbar-vector");
 export let colorbar_title = () => document.getElementById("colorbar-title");
@@ -134,7 +129,7 @@ export function updateColorbar(min, max, title, colorbarKey, colorbarScaler, swa
         color_colorbar = colorbar_vector_color();
         title_colorbar = colorbar_vector_title();
         label_colorbar = colorbar_vector_label();
-        colorbar_vector_scaler().innerHTML = `Scaler: ${scalerValue}`;
+        colorbar_vector_scaler().innerHTML = `Scaler: ${getState().scalerValue}`;
     }
     title_colorbar.textContent = title;
     // Minimum difference
@@ -169,22 +164,22 @@ export function updateColorbar(min, max, title, colorbarKey, colorbarScaler, swa
 
 export function updateMapByTime(layerMap, timestamp, currentIndex, vmin, vmax, colorbarKey, swap) {
     const getColumnName = () => timestamp[currentIndex];
-    for (let i = 0; i < mapLayer.length; i++) {
-        const id = mapLayer[i];
-        const feature = featureMap[id];
+    for (let i = 0; i < getState().mapLayer.length; i++) {
+        const id = getState().mapLayer[i];
+        const feature = getState().featureMap[id];
         if (!feature) continue;
         const value = feature.properties[getColumnName()];
         if (value === null || value === undefined) continue;
         const { r, g, b, a } = getColorFromValue(value, vmin, vmax, colorbarKey, swap);
         const colorKey = `${r},${g},${b},${a}`;
-        if (lastFeatureColors[id] === colorKey) continue;
-        lastFeatureColors[id] = colorKey;
+        if (getState().lastFeatureColors[id] === colorKey) continue;
+        getState().lastFeatureColors[id] = colorKey;
         layerMap.setFeatureStyle(id, { 
             fill: true, fillColor: `rgb(${r},${g},${b})`, 
             fillOpacity: a, weight: 0, opacity: 1 
         });
     }
-    setState({ lastFeatureColors: lastFeatureColors });
+    setState({ lastFeatureColors: getState().lastFeatureColors });
 }
 
 // Get min and max values from GeoJSON
