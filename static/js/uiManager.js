@@ -122,8 +122,8 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
     objWindow.style.display = 'flex';
 }
 
-// iframeInit("run_simulation", simulationWindow(), simulationHeader(), 
-//                     simulationContent(), "Run Simulation");
+iframeInit("new_WQ_project", projectSetting(), projectSettingHeader(), 
+                    projectSettingContent(), "Set up and Run Water Quality Simulation");
 
 function updateEvents() {
     // Search locations
@@ -212,21 +212,25 @@ function updateEvents() {
             if (name === 'open-project') {
                 iframeInit("open_project", projectSetting(), projectSettingHeader(), 
                     projectSettingContent(), "Open Project");
-            } else if (name === 'new-project') { 
+            } else if (name === 'new-hyd-project') { 
                 projectChecker();
-                iframeInit("new_project", projectSetting(), projectSettingHeader(), 
-                    projectSettingContent(), "New Project");
+                iframeInit("new_HYD_project", projectSetting(), projectSettingHeader(), 
+                    projectSettingContent(), "Set up a new Hydrodynamic project");
+            } else if (name === 'run-hyd-simulation') {
+                projectChecker();
+                // Run Simulation
+                iframeInit("run_hyd_simulation", simulationWindow(), simulationHeader(), 
+                    simulationContent(), "Run Hydrodynamic Simulation");
+            } else if (name === 'new-wq-project') { 
+                projectChecker();
+                iframeInit("new_WQ_project", projectSetting(), projectSettingHeader(), 
+                    projectSettingContent(), "Set up and Run Water Quality Simulation");
             } else if (name === 'grid-generation') {
                 projectChecker();
                 // Grid Generation
                 iframeInit("grid_generation", projectSetting(), projectSettingHeader(), 
                     projectSettingContent(), "Grid Generation");
-            } else if (name === 'run-simulation') {
-                projectChecker();
-                // Run Simulation
-                iframeInit("run_simulation", simulationWindow(), simulationHeader(), 
-                    simulationContent(), "Run Simulation");
-            }
+            } 
         }
     });
     // Listent events from open project iframe
@@ -299,6 +303,15 @@ function updateEvents() {
             const columns = event.data.columns;
             const chartData = { columns, data: rows };
             drawChart(chartData, 'Source Data Chart', 'Time', 'Value', false);
+        }
+        if (event.data?.type === 'addWQSource') {
+            const sources = event.data.sources;
+            sources.forEach(row => {
+                const [name, lat, lon] = row;
+                if (!name || isNaN(lat) || isNaN(lon)) return;
+                const marker = L.marker([parseFloat(lat), parseFloat(lon)]).addTo(map);
+                marker.bindPopup(name);
+            })
         }
         if (event.data?.type === 'showGrid') {
             startLoading(event.data.message);

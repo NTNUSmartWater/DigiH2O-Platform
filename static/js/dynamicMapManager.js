@@ -3,21 +3,17 @@ import { startLoading, showLeafletMap, map } from './mapManager.js';
 import { plot2DMapDynamic, plot2DVectorMap, layerAbove, timeControl } from './map2DManager.js';
 import { setState, getState } from './constants.js';
 
-const vectorMain = getState().vectorMain;
-const scalerValue = getState().scalerValue;
-const vectorSelected = getState().vectorSelected;
-
 const vectorObjectMain = () => document.getElementById("vector-object-main");
 const vectorObjectSubMain = () => document.getElementById("vector-object-submain");
 const vectorPlotBtn = () => document.getElementById("plotVectorBtn");
 export const scaler_value = () => document.getElementById("scaler-value");
 
 async function checkVectorComponents() {
-    if (vectorMain){
-        vectorObjectMain().value = vectorMain;
-        if (vectorMain === 'Velocity'){
+    if (getState().vectorMain){
+        vectorObjectMain().value = getState().vectorMain;
+        if (getState().vectorMain === 'Velocity'){
             await initOptions(vectorObjectSubMain, 'velocity');
-            vectorObjectSubMain().value = vectorSelected;
+            vectorObjectSubMain().value = getState().vectorSelected;
             vectorObjectSubMain().style.display = 'block';
         } else {
             setState({vectorSelected: ''});
@@ -45,7 +41,7 @@ export async function dynamicMapManager() {
     });
     // Set function for Vector plot
     vectorPlotBtn().addEventListener('click', () => {
-        const filename = `${vectorSelected}_velocity`, key = 'velocity';
+        const filename = `${getState().vectorSelected}_velocity`, key = 'velocity';
         const colorbarTitle = 'Velocity (m/s)', colorbarKey = 'velocity';
         plot2DVectorMap(filename, key, colorbarTitle, colorbarKey);
     });
@@ -67,12 +63,12 @@ export async function dynamicMapManager() {
         checkVectorComponents();
     });
     vectorObjectSubMain().addEventListener('change', () => {
-        setVectorSelected(vectorObjectSubMain().value);
+        setState({vectorSelected: vectorObjectSubMain().value});
     });
     initWaterQualityObjects(); // Initiate objects for water quality object
     // Initialize vector scale
-    if (scalerValue === null) setState({scalerValue: 1000});
-    scaler_value().value = scalerValue;
+    if (getState().scalerValue === null) setState({scalerValue: 1000});
+    scaler_value().value = getState().scalerValue;
 }
 
 function initWaterQualityObjects() {

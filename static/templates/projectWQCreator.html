@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=2" />
+  <link rel="stylesheet" href="static/css/projectHYDCreator.css?v=2">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+</head>
+<body>
+    <div class="wrapper">
+        <div class="page-title">
+            <label for="project-name">Project Name</label>
+            <div id="project-name-wrapper">
+                <input type="text" id="project-name" placeholder="Enter project name">
+                <ul id="project-list"></ul>
+            </div>
+            <button class="tab-btn" id="create-project-button">Create Project<span class="ink"></span></button>
+        </div>
+        <section class="card tabs" id="desription-tab" style="margin-left: 15px; margin-right: 15px;">
+            <p style="text-align: center; font-weight: bold; font-size: 20px;">
+                You should prepare the following data in advance:
+            </p>
+            <ul style="text-align: left; margin-left: 80px; line-height: 2.5;">
+                <li>A project with hydrodynamics simulation was run</li>
+                <li>List of observation points (inside the grid)</li>
+                <li>Time format: YYYY-MM-DD HH:MM:SS</li>
+            </ul>
+        </section>
+        <section class="card tabs" id="parent-tab" style="display: none;">
+            <div class="tabs__header" id="main-tabs">
+                <div class="tabs__list">
+                    <button class="tab-btn" data-tab="model-settings">Model Overview<span class="ink"></span></button>
+                    <button class="tab-btn" data-tab="observation-settings">Observation Points<span class="ink"></span></button>
+                    <button class="tab-btn" data-tab="chemical-settings">Chemical<span class="ink"></span></button>
+                    <button class="tab-btn" data-tab="physical-settings">Physical<span class="ink"></span></button>
+                    <button class="tab-btn" data-tab="microbiology-settings">Microbial<span class="ink"></span></button>
+                </div>
+            </div>
+            <div class="tabs__content">
+                <!-- Tab 1: Model Settings -->
+                <div class="tabpanel main-panel" data-panel="model-settings">
+                    <div class="grid">
+                        <!-- Sub Tabs -->
+                        <div class="tile"><h3>Hydrodynamics (*.hyd)</h3>
+                            <div class="row">
+                                <label for="hyd-filename">Hydrodynamics file:</label>
+                                <input type="text" id="hyd-filename">
+                            </div>
+                        </div>
+                        <div class="tile"><h3>Layers</h3>
+                            <div class="row">
+                                <label for="n-layer">Nr. sigma layers:</label>
+                                <input type="number" id="n-layer">
+                            </div>
+                        </div>
+                        <div class="tile"><h3>Simulation time</h3>
+                            <div class="row">
+                                <label for="reference-date">Reference time:</label>
+                                <input type="text" class="datetime" id="reference-time" placeholder="YYYY-mm-dd HH:mm:ss">
+                            </div>
+                            <div class="row">
+                                <label for="start-time">Start time:</label>
+                                <input type="text" class="datetime" id="start-time" placeholder="YYYY-mm-dd HH:mm:ss">
+                            </div>
+                            <div class="row">
+                                <label for="stop-time">Stop time:</label>
+                                <input type="text" class="datetime" id="stop-time" placeholder="YYYY-mm-dd HH:mm:ss">
+                            </div>
+                        </div>
+                        <div class="tile" id="source-sink-container"><h3>Sources/Sinks</h3>
+                            <table class="attributes-table" id="source-sink-table">
+                                <thead>
+                                    <tr><th>Source/Sink</th><th>Latitude (°)</th><th>Longitude (°)</th></tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- Tab 2: Observation Settings -->
+                <div class="tabpanel main-panel" data-panel="observation-settings">
+
+
+                </div>
+                <!-- Tab 3: Chemical Settings -->
+                <div class="tabpanel main-panel" data-panel="chemical-settings">
+                    <div class="grid">
+                        <div class="tile"><h3>Simple Oxygen</h3>
+                            <div class="row">
+                                <label for="simple-oxygen">Name:</label>
+                                <input type="text" id="simple-oxygen" value="Oxygen">
+                            </div>
+
+
+
+                            <div class="row">
+                                <button class="wq-simulation" type="button" data-info="simple-oxygen">Validate and Run model</button>
+                            </div>
+                        </div>
+                        <div class="tile"><h3>Oxygen and BOD (water phase only)</h3>
+                            <div class="row">
+                                <label for="oxygen-bod-water">Name:</label>
+                                <input type="text" id="oxygen-bod-water" value="Oxygen_BOD_Water">
+                            </div>
+
+
+
+
+                            <div class="row">
+                                <button class="wq-simulation" type="button" data-info="oxygen-bod-water">Validate and Run model</button>
+                            </div>
+                        </div>
+                        <div class="tile"><h3>Metals</h3>
+                            <div class="row">
+                                <label for="metals">Name:</label>
+                                <input type="text" id="metals" value="Metals">
+                            </div>
+
+
+
+
+                            <div class="row">
+                                <button class="wq-simulation" type="button" data-info="metals">Validate and Run model</button>
+                            </div>
+                        </div>
+                        <div class="tile"><h3>Eutrof 1a</h3>
+                            <div class="row">
+                                <label for="eutrof1a">Name:</label>
+                                <input type="text" id="eutrof1a" value="Eutrof1a">
+                            </div>
+
+
+
+
+                            <div class="row">
+                                <button class="wq-simulation" type="button" data-info="eutrof1a">Validate and Run model</button>
+                            </div>
+                        </div>
+                        <div class="tile"><h3>Zware metalen</h3>
+                            <div class="row">
+                                <label for="zware-metalen">Name:</label>
+                                <input type="text" id="zware-metalen" value="Zware_Metalen">
+                            </div>
+
+
+
+
+
+                            <div class="row">
+                                <button class="wq-simulation" type="button" data-info="zware-metalen">Validate and Run model</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                </div>
+                <!-- Tab 4: Physical Settings -->
+                <div class="tabpanel main-panel" data-panel="physical-settings">
+                    <div class="grid">
+                        <div class="tile"><h3>Conservative and decaying tracers</h3>
+                            <div class="row">
+                                <label for="conservative-tracers">Name:</label>
+                                <input type="text" id="conservative-tracers" value="Conservative_Tracers">
+                            </div>
+
+
+
+                            <div class="row">
+                                <button class="wq-simulation" type="button" data-info="conservative-tracers">Validate and Run model</button>
+                            </div>
+                        </div>
+                        <div class="tile"><h3>Suspended sediment (three fractions)</h3>
+                            <div class="row">
+                                <label for="suspend-sediment">Name:</label>
+                                <input type="text" id="suspend-sediment" value="Suspended_Sediment">
+                            </div>
+
+
+                            <div class="row">
+                                <button class="wq-simulation" type="button" data-info="suspend-sediment">Validate and Run model</button>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </div>
+                <!-- Tab 5: Microbiology Settings -->
+                <div class="tabpanel main-panel" data-panel="microbiology-settings">
+                    <div class="grid">
+                        <div class="tile tile-double"><h3>Coliform bacteria</h3>
+                            <div class="row">
+                                <label for="coliform">Name:</label>
+                                <input type="text" id="coliform" value="Coliform">
+                            </div>
+
+
+
+                            <div class="row">
+                                <button class="wq-simulation" type="button" data-info="coliform">Validate and Run model</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+    <script src="static/js/tooltipManager.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script>
+        flatpickr(".datetime", {
+        enableTime: true, enableSeconds: true,
+        dateFormat: "Y-m-d H:i:S", time_24hr: true});
+    </script>
+    <!-- Load the newest version of the script -->
+    <script type="module">
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = `/static/js/projectWQCreator.js?v=${Date.now()}`;
+        document.body.appendChild(script);
+    </script>
+</body>
+</html>    

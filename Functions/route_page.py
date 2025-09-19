@@ -33,10 +33,15 @@ def load_contact(request: Request):
 def open_project(request: Request):
     return templates.TemplateResponse("projectSelector.html", {"request": request})
 
-# Load new project
-@router.get("/new_project")
-def new_project(request: Request):
-    return templates.TemplateResponse("projectCreator.html", {"request": request})
+# Load new hyd project
+@router.get("/new_HYD_project")
+def new_HYD_project(request: Request):
+    return templates.TemplateResponse("projectHYDCreator.html", {"request": request})
+
+# Load new wq project
+@router.get("/new_WQ_project")
+def new_WQ_project(request: Request):
+    return templates.TemplateResponse("projectWQCreator.html", {"request": request})
 
 # Run grid generator
 @router.get("/grid_generation")
@@ -44,9 +49,9 @@ def grid_generation(request: Request):
     return templates.TemplateResponse("gridGenerator.html", {"request": request})
 
 # Run simulation page
-@router.get("/run_simulation")
-def run_simulation(request: Request):
-    return templates.TemplateResponse("simulationRunner.html", {"request": request})
+@router.get("/run_hyd_simulation")
+def run_hyd_simulation(request: Request):
+    return templates.TemplateResponse("simulationHYDRunner.html", {"request": request})
 
 # Load favicon
 @router.get("/favicon.ico")

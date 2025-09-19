@@ -4,5 +4,9 @@
   "n-layer": "Number of depth layers.",
   "unstructured-grid": "Unstructured grid that includes bathymetry.",
   "observation-cross-section-table": "Data can be directly pasted here from a spreadsheet or a CSV file.\nRemember to exclude a header row.",
+  "protist": "Algae module, including heterotrophic and mixotrophic plankton.",
+  "eutrophication-dynamo": "Use the Eutrophication DYNAMO approach.",
+  "eutrophication-bloom": "Use the Eutrophication BLOOM approach, multiple species.",
+  "metals": "Cadmium as an example.",
   "homeMenu": "Back to home page."
 }

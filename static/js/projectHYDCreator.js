@@ -193,7 +193,7 @@ function setupTabs(root) {
 }
 
 async function getProjectList(){
-    const data = await sendQuery('select_project', {filename: '', key: 'getProjects', folder_check: 'input'});
+    const data = await sendQuery('select_project', {filename: '', key: 'getProjects', folder_check: ''});
     if (data.status === "ok") projectList = data.content;
 }
 function sourceChange(target){
@@ -534,7 +534,5 @@ function initializeProject(){
     });
 }
 
-await getProjectList();
-initializeProject();
-setupTabs(document);
-updateOption();
+await getProjectList(); initializeProject();
+setupTabs(document); updateOption();

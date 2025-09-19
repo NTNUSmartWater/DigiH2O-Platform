@@ -5,16 +5,6 @@ import { plotChart, plotWindow, plotProfile} from "./chartManager.js";
 
 let stationLayer = null, sourceLayer = null, crosssectionLayer = null, currentMarker = null;
 let pathLine = null, marker = null, pointContainer = [], selectedMarkers = [];
-const crossLayer = getState().crosssectionLayer;
-const isClickedInsideLayer = getState().isClickedInsideLayer;
-const isMultiLayer = getState().isMultiLayer;
-const isPathQuery = getState().isPathQuery;
-const isPointQuery = getState().isPointQuery;
-const mapLayer = getState().mapLayer;
-const polygonCentroids = getState().polygonCentroids;
-const storedLayer = getState().storedLayer;
-const sourceSinkLayer = getState().sourceLayer;
-const pointLayer = getState().stationLayer;
 
 const mapContainer = () => map.getContainer();
 const stationOption = () => document.getElementById("stationCheckbox");
@@ -30,7 +20,7 @@ async function activeStationCheck(filename) {
     startLoading('Reading Stations from Database. Please wait...'); // Show spinner
     const data = await loadData(filename, 'stations'); // Load data
     if (data.status === "error") { alert(data.message); return; }
-    if (pointLayer) { map.removeLayer(stationLayer); stationLayer = null; }
+    if (getState().stationLayer && stationLayer) { map.removeLayer(stationLayer); stationLayer = null; }
     // Add station layer to the map
     stationLayer = L.geoJSON(data.content, {
         // Custom marker icon
@@ -76,7 +66,7 @@ async function activeSourceCheck(filename) {
     startLoading('Reading Sources from Database. Please wait...');
     const data = await loadData(filename, 'sources');
     if (data.status === "error") { alert(data.message); return; }
-    if (sourceSinkLayer) { map.removeLayer(sourceLayer); sourceLayer = null; }
+    if (getState().sourceLayer && sourceLayer) { map.removeLayer(sourceLayer); sourceLayer = null; }
     sourceLayer = L.geoJSON(data.content, {
         pointToLayer: function (feature, latlng) {
             const customIcon = L.icon({
@@ -105,7 +95,7 @@ async function activeCrossSectionCheck(filename) {
     startLoading('Reading Cross Sections from Database. Please wait...');
     const data = await loadData(filename, 'crosssections');
     if (data.status === "error") { alert(data.message); showLeafletMap(); return; }
-    if (crossLayer) { map.removeLayer(crosssectionLayer); crosssectionLayer = null; }
+    if (getState().crosssectionLayer && crosssectionLayer) { map.removeLayer(crosssectionLayer); crosssectionLayer = null; }
     crosssectionLayer = L.geoJSON(data.content, { color: 'blue', weight: 3 });
     map.addLayer(crosssectionLayer);
     if (crosssectionLayer && crosssectionLayer.getBounds().isValid()) {
@@ -118,11 +108,11 @@ async function activeCrossSectionCheck(filename) {
 
 export function updateStationManager(filename) {
     // Check status of the station checkbox
-    if (pointLayer) { stationOption().checked = true; 
+    if (getState().stationLayer) { stationOption().checked = true; 
     } else { stationOption().checked = false; }
     // Add event listener to the station checkbox
     stationOption().addEventListener('change', () => {
-        if (stationOption().checked) { activeStationCheck(filename);
+        if (stationOption().checked) { activeStationCheck(filename); setState({stationLayer: true});
         } else {
             map.removeLayer(stationLayer); stationLayer = null; setState({stationLayer: false});  
         }
@@ -130,10 +120,10 @@ export function updateStationManager(filename) {
 }
 
 export function updateSourceManager(filename) {
-    if (sourceSinkLayer) { sourceOption().checked = true; 
+    if (getState().sourceLayer) { sourceOption().checked = true; 
     } else { sourceOption().checked = false; }
     sourceOption().addEventListener('change', () => {
-        if (sourceOption().checked) { activeSourceCheck(filename); 
+        if (sourceOption().checked) { activeSourceCheck(filename); setState({sourceLayer: true});
         } else {
             map.removeLayer(sourceLayer); sourceLayer = null; setState({sourceLayer: false});  
         }
@@ -141,10 +131,10 @@ export function updateSourceManager(filename) {
 }
 
 export function updateCrossSectionManager(filename) {
-    if (crossLayer) { crossSectionOption().checked = true; 
+    if (getState().crosssectionLayer) { crossSectionOption().checked = true; 
     } else { crossSectionOption().checked = false; }
     crossSectionOption().addEventListener('change', () => {
-        if (crossSectionOption().checked) { activeCrossSectionCheck(filename); 
+        if (crossSectionOption().checked) { activeCrossSectionCheck(filename); setState({crosssectionLayer: true});
         } else {
             map.removeLayer(crosssectionLayer); crosssectionLayer = null; setState({crosssectionLayer: false});  
         }
@@ -153,7 +143,7 @@ export function updateCrossSectionManager(filename) {
 
 // ============================ Point Manager ============================
 function checkPoint(){
-    if (isPointQuery) { pointQueryCheckbox().checked = true; 
+    if (getState().isPointQuery) { pointQueryCheckbox().checked = true; 
     } else { pointQueryCheckbox().checked = false; deactivePointQuery(); }
 }
 export function deactivePointQuery() {
@@ -186,7 +176,7 @@ export function updatePointManager() {
 
 function activePointQuery(){
     setState({isPointQuery: true});
-    if (!isMultiLayer && mapLayer) { 
+    if (!getState().isMultiLayer && getState().mapLayer) { 
         infoDetail().style.display = "block";
         deactivePathQuery();
         mapContainer().style.cursor = "help";
@@ -199,13 +189,13 @@ function activePointQuery(){
 }
 
 export function mapPoint(e) {
-    if (!isPointQuery) return;
+    if (!getState().isPointQuery) return;
     if (currentMarker) { map.removeLayer(currentMarker); }
     if (e.layerProps) {
         const lat = e.latlng.lat.toFixed(degree_decimals);
         const lng = e.latlng.lng.toFixed(degree_decimals);
         currentMarker = L.marker(e.latlng).addTo(map);
-        const fieldName = storedLayer.getColumnName();
+        const fieldName = getState().storedLayer.getColumnName();
         const value = e.layerProps[fieldName] ?? 'N/A';
         const html = `<div style="display: flex; justify-content: space-between;">
             <div style="padding-left: 10px;">Location:</div>
@@ -223,7 +213,7 @@ export function mapPoint(e) {
 
 // ============================ Path Manager ============================
 function checkPath(){
-    if (isPathQuery) { pathQueryCheckbox().checked = true; 
+    if (getState().isPathQuery) { pathQueryCheckbox().checked = true; 
     } else { pathQueryCheckbox().checked = false; deactivePathQuery(); }
 }
 
@@ -247,7 +237,7 @@ export function deactivePathQuery() {
 }
 
 function activePathQuery(){
-    if (!isMultiLayer && mapLayer) {
+    if (!getState().isMultiLayer && getState().mapLayer) {
         setState({isPathQuery: true});
         deactivePointQuery();
         mapContainer().style.cursor = "crosshair";
@@ -262,7 +252,7 @@ function activePathQuery(){
 }
 
 export function mapPath(e) {
-    if (!isPathQuery) return;
+    if (!getState().isPathQuery) return;
     // Right-click
     if (e.type === "contextmenu") {
         e.originalEvent.preventDefault(); // Suppress context menu
@@ -271,19 +261,19 @@ export function mapPath(e) {
             return;
         }
         const title = colorbar_title().textContent;
-        plotProfile(pointContainer, polygonCentroids, title, undefined, n_decimals);
+        plotProfile(pointContainer, getState().polygonCentroids, title, undefined, n_decimals);
     }
     // Left-click
     if (e.type === "click" && e.originalEvent.button === 0) {
         // Check which layer selected
-        if (isClickedInsideLayer) {
+        if (getState().isClickedInsideLayer) {
             // Add marker
             marker = L.circleMarker(e.latlng, {
                 radius: 5, color: 'blue', fillColor: 'cyan', fillOpacity: 0.9
             }).addTo(map);
             selectedMarkers.push(marker);
             // Get selected value
-            const value = e.layerProps?.[storedLayer?.getColumnName()] ?? null;
+            const value = e.layerProps?.[getState().storedLayer?.getColumnName()] ?? null;
             // Add point
             pointContainer.push({
                 lat: e.latlng.lat, lng: e.latlng.lng, value: value

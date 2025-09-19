@@ -101,10 +101,6 @@ export async function saveProject(elements) {
     const checkHydro = await sendQuery('check_condition', {projectName: name, forceName: 'FlowFM.ext'});
     if (checkHydro.status === 'ok') data.set('external_forcing', 'FlowFM.ext'); 
     else data.set('external_forcing', '');
-    // Get water quality parameters
-
-    
-
     // Get output parameters
     data.set('his_interval', '0'); data.set('his_start', ''); data.set('his_end', '');
     if (outputHis().checked) {
@@ -136,9 +132,9 @@ export async function saveProject(elements) {
             data.set('map_end', mapStopSec);
         }
     }
-    data.set('wq_interval', '0'); data.set('wq_start', ''); data.set('wq_end', '');
+    data.set('wq_interval', '0'); data.set('wq_start', ''); data.set('wq_end', ''); data.set('wq_output_dir', '');
     if (outputWQ().checked) {
-        data.set('wq_interval', wqInterval);
+        data.set('wq_interval', wqInterval); data.set('wq_output_dir', 'DFM_DELWAQ');
         const start = wqStart().value, stop = wqStop().value;
         if (start !== '') {
             const wqStartFormatted = toUTC(start) - refSimulation;
