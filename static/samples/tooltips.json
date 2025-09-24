@@ -1,12 +1,14 @@
 {
-  "projectMenu": "Turn on/off project menu.",
-  "latitude": "Average latitude of the study area.",
-  "n-layer": "Number of depth layers.",
-  "unstructured-grid": "Unstructured grid that includes bathymetry.",
-  "observation-cross-section-table": "Data can be directly pasted here from a spreadsheet or a CSV file.\nRemember to exclude a header row.",
-  "protist": "Algae module, including heterotrophic and mixotrophic plankton.",
-  "eutrophication-dynamo": "Use the Eutrophication DYNAMO approach.",
-  "eutrophication-bloom": "Use the Eutrophication BLOOM approach, multiple species.",
-  "metals": "Cadmium as an example.",
-  "homeMenu": "Back to home page."
+  "Turn on/off project menu.":["projectMenu"],
+  "Average latitude of the study area.":["latitude"],
+  "Number of depth layers.":["n-layer"],
+  "Unstructured grid that includes bathymetry.":["unstructured-grid"],
+  "Data can be directly pasted here from a spreadsheet or a CSV file.\nRemember to exclude a header row.":[
+    "observation-cross-section-table", "wq-time-series-table", "wq-obs-table", "wq-loads-table"],
+  "Name of chemical substance.":["wq-chemical-name"],
+  "Name of physical substance.":["wq-physical-name"],
+  "Name of microbial substance.":["wq-microbial-name"], 
+  "Name of load will be used in the tab 'Time-series Process'.":["wq-loads-point"],
+  "Query for USEFORS data can be adjusted here.":["wq-usefors-chemical", "wq-usefors-physical", "wq-usefors-microbial"],
+  "Back to home page.":["homeMenu"]
 }

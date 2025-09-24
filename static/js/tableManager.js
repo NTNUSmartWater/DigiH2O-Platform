@@ -15,6 +15,12 @@ export function copyPaste(table, nCols){
     table.addEventListener('paste', (e) => {
         e.preventDefault();
         const text = (e.clipboardData || window.Clipboard).getData('text'); // Get clipboard data
+        // Get the first row
+        const firstLine = text.split(/\r?\n/)[0];
+        const columns = firstLine.split(/\t|,/);
+        if (columns.length !== nCols) { 
+            alert(`The current table has ${columns.length} columns.\nNumber of columns must be ${nCols}.`); 
+            return; }
         const rows = text.split(/\r?\n/).filter(row => row.trim() !== ''); // Split into rows 
         const data_arr = rows.map(row => row.split(/\t|,/).slice(0, nCols)); // Split into columns
         fillTable(data_arr, table);

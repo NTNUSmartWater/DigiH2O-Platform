@@ -850,7 +850,7 @@ def velocityComputer(data_map: xr.Dataset, value_type: str, key: int) -> gpd.Geo
         result["values"].append(big_list[start:end])
     return result
 
-def fileWriter(template_path=str, params=dict) -> str:
+def fileWriter(template_path: str, params: dict) -> str:
     """
     Write to file with predefined parameters
 
@@ -875,10 +875,10 @@ def fileWriter(template_path=str, params=dict) -> str:
     # Adjust the structure
     lines, result = [], []
     for line in file_content.split('\n'):
-        if "#" in line and not line.strip().startswith("#"):
-            left, right = line.split("#", 1)
+        if '#' in line and not line.strip().startswith('#'):
+            left, right = line.split('#', 1)
             left, middle = left.split("=", 1)
-            lines.append((left + " = ", middle.strip(), "# " + right.strip()))
+            lines.append((left + " = ", middle.strip(), '#' + right.strip()))
         else: lines.append((line.strip(), "", ""))
     max_len = max(len(middle) for _, middle, _ in lines) + 1
     for left, middle, right in lines:
@@ -958,10 +958,12 @@ def postProcess(directory: str) -> dict:
     None
     """
     parent_path = os.path.dirname(directory)
-    output_path = os.path.join(parent_path, 'output')
-    # Create the directory output
-    if os.path.exists(output_path): shutil.rmtree(output_path, onexc=remove_readonly)
-    os.makedirs(output_path, exist_ok=True)
+    output_folder = os.path.join(parent_path, 'output')
+    if not os.path.exists(output_folder): os.makedirs(output_folder)
+    output_HYD_path = os.path.join(output_folder, 'HYD')
+    # Create the directory output_HYD_path
+    if os.path.exists(output_HYD_path): shutil.rmtree(output_HYD_path, onexc=remove_readonly)
+    os.makedirs(output_HYD_path, exist_ok=True)
     subdirs = [d for d in os.listdir(directory) if os.path.isdir(os.path.join(directory, d))]
     if len(subdirs) == 0: return {'status': 'error', 'message': 'No output directory for simulations found.'}
     # Copy folder DFM_DELWAQ to the parent directory
@@ -975,14 +977,14 @@ def postProcess(directory: str) -> dict:
     # Copy files to the directory output
     try:
         # Copy files to the directory output
-        DFM_OUTPUT_path = os.path.join(directory, 'DFM_OUTPUT')
+        DFM_OUTPUT_folder = os.path.join(directory, 'DFM_OUTPUT')
         select_files = ['FlowFM.dia', 'FlowFM_his.nc', 'FlowFM_map.nc']
-        files = [f for f in os.listdir(DFM_OUTPUT_path) if (os.path.isfile(os.path.join(DFM_OUTPUT_path, f)) and f in select_files)]
+        files = [f for f in os.listdir(DFM_OUTPUT_folder) if (os.path.isfile(os.path.join(DFM_OUTPUT_folder, f)) and f in select_files)]
         if len(files) <= 1: return {'status': 'error', 'message': 'No *.nc files found.'}
         for f in files:
-            shutil.copy(os.path.join(DFM_OUTPUT_path, f), output_path)
+            shutil.copy(os.path.join(DFM_OUTPUT_folder, f), output_HYD_path)
         # Delete folder DFM_OUTPUT
-        shutil.rmtree(DFM_OUTPUT_path, onexc=remove_readonly)
+        shutil.rmtree(DFM_OUTPUT_folder, onexc=remove_readonly)
     except Exception as e: return {'status': 'error', 'message': {str(e)}}
     # Delete files in folder common_files
     common_path = os.path.join(parent_path, 'common_files')

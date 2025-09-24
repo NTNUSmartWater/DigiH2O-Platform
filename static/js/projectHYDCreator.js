@@ -30,8 +30,8 @@ const boundaryEditTable = () => document.getElementById('boundary-edit-table');
 const boundaryEditUpdate = () => document.getElementById('boundary-update');
 const boundaryEditRemove = () => document.getElementById('boundary-edit-remove');
 const boundarySelectorView = () => document.getElementById('option-boundary-type-view');
-const boundaryViewContainer = () => document.getElementById('boundary-textarea-container');
-const boundaryText = () => document.getElementById('boundary-data-view');
+const boundaryViewContainer = () => document.getElementById('textarea-container');
+const boundaryText = () => document.getElementById('data-view');
 const sourceName = () => document.getElementById('source-name');
 const sourceOptionNew = () => document.getElementById('source-sink-new');
 const sourceOptionExist = () => document.getElementById('source-sink-exist');
@@ -228,7 +228,6 @@ async function fileUploader(target, projectName, gridName){
 }
 
 function updateOption(){
-    obsPointTable().addEventListener('change', () => { console.log('change'); });
     // Update location
     mapPicker(getLocation(), 'pickLocation');
     mapPicker(obsPointPicker(), 'pickPoint', () => getDataFromTable(obsPointTable(), true));
@@ -362,14 +361,14 @@ function updateOption(){
             boundaryViewContainer().style.display = 'none'; return;
         }
         const value = boundarySelectorView().value;
+        boundaryText().value = '';
         // Create boundary
         const data = await sendQuery('view_boundary', {projectName: projectName().value, boundaryType: value});
         if (data.status === "error") {
             boundarySelectorView().value = ''; alert(data.message);
-            boundaryViewContainer().style.display = 'none'; boundaryText().value = ''; return;
+            boundaryViewContainer().style.display = 'none'; return;
         };
-        boundaryText().value = data.content;
-        boundaryViewContainer().style.display = 'flex';
+        boundaryText().value = data.content; boundaryViewContainer().style.display = 'flex';
     });
     // Reset sub-boundary condition
     boundaryRemove().addEventListener('click', async () => {
