@@ -60,7 +60,7 @@ def register_websocket_routes(app):
             else: message = f"\n\n[STATUS] Simulation ended with errors: {return_code}."
             try: await websocket.send_text(message)
             except WebSocketDisconnect: pass
-        except WebSocketDisconnect: print(f"Client disconnected from project: '{project_name}'")
+        except WebSocketDisconnect: websocket.send_text(f"Client disconnected from project: '{project_name}'")
         finally:
             proc = processes.pop(project_name, None)
             if proc and proc.poll() is None: proc.terminate()
