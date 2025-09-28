@@ -5,7 +5,7 @@ export const superscriptMap = {
 };
 
 const defaultState = {
-    stationLayer: false, sourceLayer: false, crosssectionLayer: false, isPointQuery: false, isPathQuery: false,
+    stationLayer: null, waqLayer: null, sourceLayer: null, crosssectionLayer: null, isPointQuery: false, isPathQuery: false,
     lastFeatureColors: {}, featureMap: {}, mapLayer: null, storedLayer: null, polygonCentroids: [],
     globalChartData: {data: null, chartTitle: "", titleX: "", titleY: "", validColumns: [], swap: false},
     isPlaying: null, isMultiLayer: false, isClickedInsideLayer: false, vectorMain: '', vectorSelected: '', scalerValue: null

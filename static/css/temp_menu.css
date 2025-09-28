@@ -58,14 +58,6 @@
   color: #0004fa; font-size: 17px; 
 }
 
-.submenu-1 a {
-  display: block; font-size: 14px; padding: 3px 0 3px 35px; 
-  font-family: 'Segoe UI', Tahoma, sans-serif;
-}
-.submenu-1 a:hover, .custom-selector-sub a:hover {
-  color: #0004fa; font-size: 15px;
-}
-
 .menu-link, .menu-link-1 {
   cursor: pointer; display: block; margin: 2px 0;
 }
@@ -88,18 +80,25 @@
 }
 
 .submenu-label {
-  font-size: 15px; padding: 5px 0 5px 20px; display: inline-block;
+  font-size: 15px; padding: 5px 0 5px 20px; display: flex; gap: 8px;
   font-family: 'Segoe UI', Tahoma, sans-serif; cursor: pointer;
 }
 .submenu-label:hover {
   color: #0004fa; font-size: 16px; 
 }
 
+.submenu, .submenu-1 { display: none; }
+.submenu.open, .submenu-1.open { display: block; }
+.submenu-1 a {
+  display: block; font-size: 14px; padding: 3px 0 3px 35px; 
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+}
+.submenu-1 a:hover, .custom-selector-sub a:hover {
+  color: #0004fa; font-size: 15px;
+}
 .menu-link.active .arrow, .menu-link-1.active .arrow-1 {
   transform: rotate(90deg); transition: transform 0.3s ease;
 }
-.submenu, .submenu-1 { display: none; }
-.submenu.open, .submenu-1.open { display: block; }
 .arrow, .arrow-1 {
   display: inline-block; transition: transform 0.3s ease;
 }

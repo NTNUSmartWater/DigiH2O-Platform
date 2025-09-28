@@ -14,77 +14,68 @@ router = APIRouter()
 async def process_data(request: Request):
     # Get body data
     body = await request.json()
-    data_filename, key = body.get('data_filename'), body.get('key')
+    query, key = body.get('query'), body.get('key')
     # Get project state
-    BASE_DIR = request.app.state.BASE_DIR
-    data_his = request.app.state.data_his
-    data_map = request.app.state.data_map
-    data_wq_his = request.app.state.data_wq_his
-    data_wq_map = request.app.state.data_wq_map
-    grid = request.app.state.grid
-    layer_reverse = request.app.state.layer_reverse
-    # Prepare temp files
-    temp_folder = os.path.join(BASE_DIR, "common_files")
-    temp_files = [f for f in os.listdir(temp_folder) 
-        if os.path.isfile(os.path.join(temp_folder, f))] if os.path.exists(temp_folder) else []
-    # Check if the file exists
-    filename = [f for f in temp_files if f == data_filename]
-    if filename:
-        # Load the JSON/GeoJSON file that exists
-        with open(filename[0], 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        status, message = 'ok', 'JSON loaded successfully.'
-    else:
-        # File not found, need to read the NetCDF file
-        try:
-            if key == 'summary':
-                dia_file = os.path.join(BASE_DIR, "output", "FlowFM.dia")
-                data = functions.getSummary(dia_file, data_his, data_wq_map)
-            elif key == 'stations':
-                data = json.loads(functions.stationCreator(data_his).to_json())
-            elif key == 'sources':
-                data = json.loads(functions.sourceCreator(data_his).to_json())
-            elif key == 'crosssections':
-                data = json.loads(functions.crosssectionCreator(data_his).to_json())
-            elif key == '_in-situ':
-                temp = data_filename.split('*')
-                name, stationId, type = temp[0], temp[1], temp[2]
-                temp = functions.selectInsitu(data_his, data_map, name, stationId, type)
-                data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
-            elif key == 'thermocline':
-                temp = functions.thermoclineComputer(data_map)
-                data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
-            elif '_dynamic' in key:
-                # Create dynamic data
-                data_, time_column = data_map, 'time'
-                if '_wq' in data_filename:
-                    data_, time_column = data_wq_map, 'nTimesDlwq'
-                temp_mesh = functions.assignValuesToMeshes(grid, data_, key, time_column)
-                data = json.loads(temp_mesh.to_json())
-            elif '_static' in key:
-                # Create static data for map
-                temp = grid.copy()
-                if 'depth' in key:
-                    x = data_map['mesh2d_node_x'].values
-                    y = data_map['mesh2d_node_y'].values
-                    z = data_map['mesh2d_node_z'].values
-                    values = functions.interpolation_Z(temp, x, y, z)
-                temp['value'] = values
-                data = json.loads(temp.to_json())
-            elif key == 'velocity':
-                value_type = data_filename.replace('_velocity', '')
-                idx = len(data_map['mesh2d_layer_z'].values) - int(layer_reverse[value_type]) - 1
-                data = functions.velocityComputer(data_map, value_type, idx)
-            else:
-                # Create time series data
-                data_ = data_wq_his if '_wq' in key else data_his
-                temp = functions.timeseriesCreator(data_, key)
-                data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
-            status, message, project = 'ok', '', request.app.state.project_selected
-        except Exception as e:
-            data, status, message, project = None, 'error', f"Error: {e}", ''
-    result = {'content': data, 'status': status, 'message': message, 'project': project}
-    return JSONResponse(content=result)
+    PROJECT_DIR = request.app.state.PROJECT_DIR
+    try:
+        if key == 'summary':
+            dia_path = os.path.join(PROJECT_DIR, "output", "FlowFM.dia")
+            data_his = [request.app.state.hyd_his, request.app.state.waq_his]
+            data = functions.getSummary(dia_path, data_his)
+        elif key == 'hyd_station':
+            temp = functions.stationCreator(request.app.state.hyd_his,
+                x_column='station_x_coordinate', y_column='station_y_coordinate')
+            data = json.loads(temp.to_json())
+        elif key == 'sources':
+            data = json.loads(functions.sourceCreator(request.app.state.hyd_his).to_json())
+        elif key == 'crosssections':
+            data = json.loads(functions.crosssectionCreator(request.app.state.hyd_his).to_json())
+        elif key == '_in-situ':
+            temp = query.split('*')
+            name, stationId, type = temp[0], temp[1], temp[2]
+            temp = functions.selectInsitu(request.app.state.hyd_his, request.app.state.hyd_map, name, stationId, type)
+            data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
+        elif key == 'thermocline':
+            temp = functions.thermoclineComputer(request.app.state.hyd_map)
+            data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
+        elif '_dynamic' in key:
+            # Create dynamic data
+            data_, time_column = request.app.state.hyd_map, 'time'
+            if '_wq' in query:
+                data_, time_column = request.app.state.wq_map, 'nTimesDlwq'
+            temp_mesh = functions.assignValuesToMeshes(request.app.state.grid, data_, key, time_column)
+            data = json.loads(temp_mesh.to_json())
+        elif '_static' in key:
+            # Create static data for map
+            temp = request.app.state.grid.copy()
+            if 'depth' in key:
+                data_map = xr.open_dataset(request.app.state.hyd_map)
+                x = data_map['mesh2d_node_x'].values
+                y = data_map['mesh2d_node_y'].values
+                z = data_map['mesh2d_node_z'].values
+                values = functions.interpolation_Z(temp, x, y, z)
+            temp['value'] = values
+            data = json.loads(temp.to_json())
+        elif key == 'velocity':
+            value_type = query.replace('_velocity', '')
+            data = functions.velocityComputer(request.app.state.hyd_map, value_type, request.app.state.layer_reverse)
+        elif key == 'substance_check':
+            substance = request.app.state.config[query]
+            if len(substance) > 0: data, status, message = substance, 'ok', ''
+            else: data, status, message = None, 'error', f"No substance defined."
+            return JSONResponse({'content': data, 'status': status, 'message': message})
+        elif key == 'substance':
+            substance = query.split(' ')[0]
+            temp = functions.timeseriesCreator(request.app.state.waq_his, substance, timeColumn='nTimesDlwq')
+            data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
+        else:
+            # Create time series data
+            temp = functions.timeseriesCreator(request.app.state.hyd_his, key)
+            data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
+        status, message = 'ok', ''
+    except Exception as e:
+        data, status, message = None, 'error', f"Error: {e}"
+    return JSONResponse({'content': data, 'status': status, 'message': message})
 
 # Read grid
 @router.post("/open_grid")
@@ -92,9 +83,9 @@ async def open_grid(request: Request):
     # Get body data
     body = await request.json()
     project_name, grid_name = body.get('projectName'), body.get('gridName')
-    path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input", grid_name)
     try:
-        grid = functions.unstructuredGridCreator(xr.open_dataset(path))        
+        path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input", grid_name)
+        grid = functions.unstructuredGridCreator(path)        
         data = json.loads(grid.to_json())       
         status, message = 'ok', ""
     except Exception as e:
@@ -105,12 +96,10 @@ async def open_grid(request: Request):
 async def select_polygon(request: Request):
     body = await request.json()
     key, idx = body.get('key'), int(body.get('id'))
-    data_map = request.app.state.data_map
-    data_wq_map = request.app.state.data_wq_map
     try:
-        data_, time_column, column_layer = data_map, 'time', 'mesh2d_layer_z'
+        data_, time_column, column_layer = request.app.state.hyd_map, 'time', 'mesh2d_layer_z'
         if '_wq' in key:
-            time_column, data_, column_layer = 'nTimesDlwq', data_wq_map, 'mesh2d_layer_dlwq'
+            time_column, data_, column_layer = 'nTimesDlwq', request.app.state.wq_map, 'mesh2d_layer_dlwq'
         temp = functions.selectPolygon(data_, idx, key, time_column, column_layer)
         data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
         status, message = 'ok', 'Data loaded successfully.'
@@ -123,25 +112,12 @@ async def select_polygon(request: Request):
 async def initiate_options(request: Request):
     body = await request.json()
     key = body.get('key')
-    BASE_DIR = request.app.state.BASE_DIR
-    data_map = request.app.state.data_map
     try:
         if key == 'vector': data = functions.getVectorNames()
-        elif key == 'velocity':
-            # Try to file velocity checker file
-            temp_folder = os.path.join(BASE_DIR, "common_files")
-            temp_files = [f for f in os.listdir(temp_folder) 
-                    if os.path.isfile(os.path.join(temp_folder, f))] if os.path.exists(temp_folder) else []
-            filename = [f for f in temp_files if f == 'velocity_layers.json']
-            if filename:
-                with open(os.path.join(temp_folder, filename[0]), 'r', encoding='utf-8') as f:
-                    temp = json.load(f)
-            else:
-                temp = functions.velocityChecker(data_map)
-            data = [value for _, value in temp.items()]
-        status, message = 'ok', 'Data loaded successfully.'
-    except:
-        data, status, message = None, 'error', 'File not found.'
+        elif key == 'velocity': data = [value for _, value in request.app.state.n_layers.items()]
+        status, message = 'ok', ''
+    except Exception as e:
+        data, status, message = None, 'error', f"Error: {e}"
     result = {'content': data, 'status': status, 'message': message}
     return JSONResponse(content=result)
 

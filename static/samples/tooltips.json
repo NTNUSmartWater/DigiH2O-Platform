@@ -3,8 +3,9 @@
   "Average latitude of the study area.":["latitude"],
   "Number of depth layers.":["n-layer"],
   "Unstructured grid that includes bathymetry.":["unstructured-grid"],
-  "Data can be directly pasted here from a spreadsheet or a CSV file.\nRemember to exclude a header row.":[
+  "- Data can be directly pasted here from a spreadsheet or a CSV file.\n- Remember to exclude a header row.":[
     "observation-cross-section-table", "wq-time-series-table", "wq-obs-table", "wq-loads-table"],
+  "- Data can be directly pasted here from a spreadsheet or a CSV file.\n- Remember to exclude a header row.\n- After changing data, hit button 'Process TS Data' to update.":["wq-time-series-table"],  
   "Name of chemical substance.":["wq-chemical-name"],
   "Name of physical substance.":["wq-physical-name"],
   "Name of microbial substance.":["wq-microbial-name"], 

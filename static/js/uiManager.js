@@ -1,10 +1,10 @@
 // Import necessary functions
 import { initializeMap, baseMapButtonFunctionality } from './mapManager.js';
 import { startLoading, showLeafletMap, map } from './mapManager.js';
-import { plotChart, plotEvents, drawChart } from './chartManager.js';
+import { plotChart, plotEvents, drawChart, plotWindow } from './chartManager.js';
 import { plot2DMapStatic } from "./map2DManager.js";
 import { deactivePointQuery, deactivePathQuery } from "./queryManager.js";
-import { generalObtionsManager } from './generalOptionManager.js';
+import { generalOptionsManager } from './generalOptionManager.js';
 import { dynamicMapManager } from './dynamicMapManager.js';
 import { sendQuery } from './tableManager.js';
 import { resetState } from './constants.js';
@@ -22,6 +22,14 @@ const contactInfoCloseBtn = () => document.getElementById('closeInformationConta
 const locationSearcher = () => document.getElementById('search');
 const sugesstionSearcher = () => document.getElementById('suggestions');
 const projectTitle = () => document.getElementById('projectTitle');
+const projectOpenWindow = () => document.getElementById('project-open-window');
+const projectOpenWindowHeader = () => document.getElementById('project-open-window-header');
+const projectOpenWindowContent = () => document.getElementById('project-open-window-content');
+const projectOpenCloseBtn = () => document.getElementById('project-open-window-close');
+const substanceWindow = () => document.getElementById('substance-window');
+const substanceWindowHeader = () => document.getElementById('substance-window-header');
+const substanceWindowContent = () => document.getElementById('substance-window-content');
+const substanceWindowCloseBtn = () => document.getElementById('substance-window-close');
 const projectSetting = () => document.getElementById('projectWindow');
 const projectSettingHeader = () => document.getElementById('projectWindowHeader');
 const projectSettingContent = () => document.getElementById('projectWindowContent');
@@ -39,7 +47,6 @@ initializeMenu();
 updateEvents();
 plotEvents();
 
-
 // ============================ Functions ============================
 
 async function showPopupMenu(id, htmlFile) {
@@ -47,12 +54,11 @@ async function showPopupMenu(id, htmlFile) {
         const response = await fetch(`/load_popupMenu?htmlFile=${htmlFile}`);
         const html = await response.text();
         popupContent().innerHTML = html;
-        if (id === '1') generalObtionsManager('summary.json', 'stations.geojson', 
-            'sources.geojson', 'crosssections.geojson'); // Events on general options submenu
+        if (id === '1') generalOptionsManager(); // Events on general options submenu
         if (id === '2') measuredPointManager(); // Events on measured points submenu
         if (id === '3') dynamicMapManager(); // Events on dynamic map submenu
         if (id === '4') staticMapManager(); // Events on static map submenu
-    } catch (error) {alert(error + ' ' + htmlFile);}
+    } catch (error) {alert(error + ': ' + htmlFile);}
 }
 
 async function projectChecker(name=null, params=null) {
@@ -122,8 +128,11 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
     objWindow.style.display = 'flex';
 }
 
-iframeInit("new_WQ_project", projectSetting(), projectSettingHeader(), 
-                    projectSettingContent(), "Set up and Run Water Quality Simulation");
+// iframeInit("new_WQ_project", projectSetting(), projectSettingHeader(), 
+//                     projectSettingContent(), "Set up and Run Water Quality Simulation");
+
+iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
+                    projectOpenWindowContent(), "Open Project");
 
 function updateEvents() {
     // Search locations
@@ -210,8 +219,8 @@ function updateEvents() {
         if (project) {
             const name = project.dataset.info;
             if (name === 'open-project') {
-                iframeInit("open_project", projectSetting(), projectSettingHeader(), 
-                    projectSettingContent(), "Open Project");
+                iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
+                    projectOpenWindowContent(), "Open Project");
             } else if (name === 'new-hyd-project') { 
                 projectChecker();
                 iframeInit("new_HYD_project", projectSetting(), projectSettingHeader(), 
@@ -237,7 +246,7 @@ function updateEvents() {
     window.addEventListener('message', async (event) => {
         if (event.data?.type === 'projectConfirmed') {          
             projectChecker(event.data.project, event.data.values);
-            projectSetting().style.display = 'none';
+            projectOpenWindow().style.display = 'none';
         }
         if (event.data?.type === 'projectPreparation') { 
             const data = await sendQuery('setup_new_project', {projectName: event.data.name});
@@ -315,14 +324,12 @@ function updateEvents() {
         }
         if (event.data?.type === 'showGrid') {
             startLoading(event.data.message);
-            const name = event.data.projectName;
-            const gridName = event.data.gridName;
+            const name = event.data.projectName, gridName = event.data.gridName;
             const data = await sendQuery('open_grid', {projectName: name, gridName: gridName});
             if (data.status === "error") {alert(data.message); return;}
             // Show the grid on the map
             if (gridLayer) map.removeLayer(gridLayer);
             gridLayer = L.geoJSON(data.content, {style: {color: 'black', weight: 1}}).addTo(map);
-            gridLayer.bindPopup("Grid: " + gridName);
             showLeafletMap();
         }
         if (event.data?.type === 'showGridTool') {
@@ -331,14 +338,19 @@ function updateEvents() {
         }
     });
     // Move window
-    moveWindow(contactInfo, contactInfoHeader);
-    moveWindow(projectSetting, projectSettingHeader);
-    moveWindow(simulationWindow, simulationHeader);
+    moveWindow(contactInfo, contactInfoHeader); moveWindow(projectOpenWindow, projectOpenWindowHeader);
+    moveWindow(projectSetting, projectSettingHeader); moveWindow(simulationWindow, simulationHeader);
+    moveWindow(substanceWindow, substanceWindowHeader);
     // Close windows
+    substanceWindowCloseBtn().addEventListener('click', () => { 
+        substanceWindow().style.display = 'none'; plotWindow().style.display = 'none';
+    });
     contactInfoCloseBtn().addEventListener('click', () => { contactInfo().style.display = 'none'; });
+    projectOpenCloseBtn().addEventListener('click', () => { projectOpenWindow().style.display = 'none'; });
     projectSettingCloseBtn().addEventListener('click', () => { 
+        // Clear map
+        map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
         projectSetting().style.display = 'none'; 
-        if (gridLayer) map.removeLayer(gridLayer);
     });
     simulationCloseBtn().addEventListener('click', () => { simulationWindow().style.display = 'none'; });
     map.on('mousemove', function (e) {
@@ -446,18 +458,41 @@ function measuredPointManager() {
     // Set function for plot using Plotly
     document.querySelectorAll('.function').forEach(plot => {
         plot.addEventListener('click', () => {
-            const [filename, key, titleY, chartTitle] = plot.dataset.info.split('|');
-            plotChart(filename, key, chartTitle, 'Time', titleY, false);
+            const [key, titleY, chartTitle] = plot.dataset.info.split('|');
+            plotChart('', key, chartTitle, 'Time', titleY, false);
         });
     });
+    // Process water quality selector
+    document.querySelectorAll('.waq_his').forEach(item => {
+        item.addEventListener('click', async() => {
+            const [query, key] = item.dataset.info.split('|');
+            const data = await sendQuery('process_data', {query: query, key: key});
+            if (data.status === "error") {alert(data.message); substanceWindow().style.display = 'none'; return;}
+            substanceWindowContent().innerHTML = '';
+            // Add content
+            substanceWindowContent().innerHTML = data.content.map((substance, i) => 
+                `<label for="${substance}"><input type="radio" name="waq-substance" id="${substance}"
+                    value="${substance}" ${i === 0 ? 'checked' : ''}>${substance}</label>`).join('');
+            substanceWindow().style.display = 'flex';
+            plotChart(data.content[0], 'substance', `Substance: ${data.content[0]}`, 'Time', data.content[0], false);
+        });
+    });
+    // Listen to substance selection
+    substanceWindowContent().addEventListener('change', (e) => {
+        if (e.target && e.target.name === "waq-substance") {
+            const value = e.target.value;
+            plotChart(value, 'substance', `Substance: ${value}`, 'Time', value, false);
+        }
+    });
+    
 }
 
 function staticMapManager() {
     deactivePathQuery(); deactivePointQuery(); 
     document.querySelectorAll('.map2D_static').forEach(plot => {
         plot.addEventListener('click', () => {
-            const [filename, key, colorbarTitle, colorbarKey] = plot.dataset.info.split('|');
-            plot2DMapStatic(filename, key, colorbarTitle, colorbarKey);
+            const [key, colorbarTitle, colorbarKey] = plot.dataset.info.split('|');
+            plot2DMapStatic(key, colorbarTitle, colorbarKey);
         });
     });
 }

@@ -17,220 +17,72 @@
 </div>
 <hr style="border-top: 1px solid #000000; margin: 5px 50px 5px 50px;">
 <!-- Hydrodynamics -->
-<div class="menu {% if not configuration.spatial_hydrodynamic %}hidden{% endif %}">
-    <a class="menu-link">Hydrodynamic (Single Layer) <span class="arrow">&#x25B8;</span></a>
+<div class="menu {% if not configuration.hyd_spatial %}hidden{% endif %}">
+    <a class="menu-link">Hydrodynamics<span class="arrow">&#x25B8;</span></a>
     <div class="submenu">
-        <div class="menu-1 {% if not configuration.hydrodynamic_waterlevel_dynamic %}hidden{% endif %}">
-            <a class="map2D_dynamic" data-info="water_level_dynamic.geojson|wl_dynamic|Water Level (m)|depth">• Water Level</a>
+        <div class="menu-1 {% if not configuration.single_layer %}hidden{% endif %}">
+            <a class="menu-link-1">• Single Layer<span class="arrow-1">&#x25B8;</span></a>
+            <div class="submenu-1">
+                <a class="map2D_dynamic {% if not configuration.hyd_wl_dynamic %}hidden{% endif %}" 
+                    data-info="wl_dynamic|Water Level (m)|depth">- Water Level</a>
+                <a class="map2D_dynamic {% if not configuration.hyd_wd_dynamic %}hidden{% endif %}" 
+                    data-info="wd_dynamic|Water Depth (m)|depth">- Water Depth</a>
+            </div>
         </div>
-        <div class="menu-1 {% if not configuration.hydrodynamic_waterdepth_dynamic %}hidden{% endif %}">
-            <a class="map2D_dynamic" data-info="water_depth_dynamic.geojson|wd_dynamic|Water Depth (m)|depth">• Water Depth</a>
+        <div class="menu-1 {% if not configuration.multi_layer %}hidden{% endif %}">
+            <a class="menu-link-1">• Multi Layer<span class="arrow-1">&#x25B8;</span></a>
+            <div class="submenu-1">
+                <a class="map2D_dynamic {% if not configuration.thermocline %}hidden{% endif %}" 
+                    data-info="temp_multi_dynamic|Temperature (°C)|temperature">- Temperature</a>
+                <a class="map2D_dynamic {% if not configuration.spatial_salinity %}hidden{% endif %}" 
+                    data-info="sal_multi_dynamic|Salinity (ppt)|salinity">- Salinity</a>
+                <a class="map2D_dynamic {% if not configuration.spatial_contaminant %}hidden{% endif %}" 
+                    data-info="cont_multi_dynamic|Contaminant (g/L)|contaminant">- Contaminant</a>
+            </div>
         </div>
         <!-- <a >• Velocity (2D)</a>
         <a >• Velocity (3D)</a>
         <a >• Sediment Thickness</a> -->
     </div>
 </div>
-<!-- Physical -->
-<div class="menu {% if not configuration.spatial_physical %}hidden{% endif %}">
-    <a class="menu-link">Physical (Multi Layer) <span class="arrow">&#x25B8;</span></a>
-    <div class="submenu">
-        <div class="menu-1 {% if not configuration.thermocline %}hidden{% endif %}">
-            <a class="map2D_dynamic" data-info="temperature_multilayers.geojson|temp_multi_dynamic|Temperature (°C)|temperature">• Temperature</a>
-        </div>
-        <div class="menu-1 {% if not configuration.spatial_salinity %}hidden{% endif %}">
-            <a class="map2D_dynamic" data-info="salinity_multilayers.geojson|sal_multi_dynamic|Salinity (ppt)|salinity">• Salinity</a>
-        </div>
-        <div class="menu-1 {% if not configuration.spatial_contaminant %}hidden{% endif %}">
-            <a class="map2D_dynamic" data-info="contaminant_multilayers.geojson|cont_multi_dynamic|Contaminant (g/L)|contaminant">• Contaminant</a>
-        </div>
-    </div>
-</div>
-<!-- Water Quality Map-->
-<hr class="separate  {% if not configuration.wq_map %}hidden{% endif %}" style="border-top: 1px solid #0213f7; margin: 5px 10px 5px 10px;">
+
+<!-- Water Quality -->
 <div class="menu {% if not configuration.wq_map %}hidden{% endif %}">
     <a class="menu-link">Water Quality <span class="arrow">&#x25B8;</span></a>
     <div class="submenu">
-        <!-- Particulate Organic -->
-        <div class="menu-1 {% if not configuration.wq_map_fdf %}hidden{% endif %}">
-            <a class="menu-link-1">• Fast Decomposing Fraction<span class="arrow-1">&#x25B8;</span></a>
+        <!-- Physical -->
+        <div class="menu-1 {% if not configuration.waq_map_physical %}hidden{% endif %}">
+            <a class="menu-link-1">• Physical<span class="arrow-1">&#x25B8;</span></a>
             <div class="submenu-1">
-                <div class="custom-selector-sub {% if not configuration.wq_map_fdf_carbon %}hidden{% endif %}">
-                    <a>- Carbon</a>
-                    <select class="wq-function" data-info="fdf_carbon_wq.geojson|fdf_POC_wq_map|POC1 (gC/m³)|depth">
-                        <option value="" disabled selected hidden>- No Selection -</option>
-                    </select>
-                </div>
-                <div class="custom-selector-sub {% if not configuration.wq_map_fdf_nitrogen %}hidden{% endif %}">
-                    <a>- Nitrogen</a>
-                    <select class="wq-function" data-info="fdf_nitrogen_wq.geojson|fdf_PON_wq_map|PON1 (gN/m³)|depth">
-                        <option value="" disabled selected hidden>- No Selection -</option>
-                    </select>
-                </div>
-                <div class="custom-selector-sub {% if not configuration.wq_map_fdf_phosphate %}hidden{% endif %}">
-                    <a>- Phosphate</a>
-                    <select class="wq-function" data-info="fdf_phosphate_wq.geojson|fdf_POP_wq_map|POP1 (gP/m³)|depth">
-                        <option value="" disabled selected hidden>- No Selection -</option>
-                    </select>
-                </div>
+                <a class="waq_map {% if not configuration.waq_map_conservative_decay %}hidden{% endif %}"
+                    data-info="waq_map_conservative_selector|substance_check">- Conservative and decaying tracers</a>
+                <a class="waq_map {% if not configuration.waq_map_suspended_sediment %}hidden{% endif %}"
+                    data-info="waq_map_suspended_sediment_selector|substance_check">- Suspended sediment (three fractions)</a>
             </div>
         </div>
-        <!-- Dissolved Form -->
-        <div class="menu-1 {% if not configuration.wq_map_df %}hidden{% endif %}">
-            <a class="menu-link-1">• Dissolved Form<span class="arrow-1">&#x25B8;</span></a>
+        <!-- Chemical -->
+        <div class="menu-1 {% if not configuration.waq_map_chemical %}hidden{% endif %}">
+            <a class="menu-link-1">• Chemical<span class="arrow-1">&#x25B8;</span></a>
             <div class="submenu-1">
-                <div class="custom-selector-sub {% if not configuration.wq_map_ammonium %}hidden{% endif %}">
-                    <a>- Ammonium (NH₄)</a>
-                    <select class="wq-function" data-info="dissolved_ammonium_wq.geojson|df_NH4_wq_map|NH₄ (gN/m³)|depth">
-                        <option value="" disabled selected hidden>- No Selection -</option>
-                    </select>
-                </div>
-                <div class="custom-selector-sub {% if not configuration.wq_map_nitrate %}hidden{% endif %}">
-                    <a>- Nitrate (NO₃)</a>
-                    <select class="wq-function" data-info="dissolved_nitrate_wq.geojson|df_NO3_wq_map|NO₃ (gN/m³)|depth">
-                        <option value="" disabled selected hidden>- No Selection -</option>
-                    </select>
-                </div>
-                <div class="custom-selector-sub {% if not configuration.wq_map_phosphate %}hidden{% endif %}">
-                    <a>- Ortho-Phosphate (PO₄)</a>
-                    <select class="wq-function" data-info="dissolved_phosphate_wq.geojson|df_PO4_wq_map|PO₄ (gP/m³)|depth">
-                        <option value="" disabled selected hidden>- No Selection -</option>
-                    </select>
-                </div>
-                <div class="custom-selector-sub {% if not configuration.wq_map_oxygen %}hidden{% endif %}">
-                    <a>- Dissolved Oxygen</a>
-                    <select class="wq-function" data-info="dissolved_oxygen_wq.geojson|df_OXY_wq_map|DO (g/m³)|depth">
-                        <option value="" disabled selected hidden>- No Selection -</option>
-                    </select>
-                </div>
-                <div class="custom-selector-sub {% if not configuration.wq_map_chloride %}hidden{% endif %}">
-                    <a>- Chloride</a>
-                    <select class="wq-function" data-info="dissolved_chloride_wq.geojson|df_Chl_wq_map|Chloride (g/m³)|depth">
-                        <option value="" disabled selected hidden>- No Selection -</option>
-                    </select>
-                </div>
+                <a class="waq_map {% if not configuration.waq_map_simple_oxygen %}hidden{% endif %}"
+                    data-info="waq_map_simple_oxygen_selector|substance_check">- Simple Oxygen</a>
+                <a class="waq_map {% if not configuration.waq_map_simple_oxygen %}hidden{% endif %}"
+                    data-info="waq_map_simple_oxygen_selector|substance_check">- Oxygen and BOD (water phase only)</a>
+                <a class="waq_map {% if not configuration.waq_map_cadmium %}hidden{% endif %}"
+                    data-info="waq_map_cadmium_selector|substance_check">- Cadmium</a>
+                <a class="waq_map {% if not configuration.waq_map_eutrophication %}hidden{% endif %}"
+                    data-info="waq_map_eutrophication_selector|substance_check">- Eutrophication</a>
+                <a class="waq_map {% if not configuration.waq_map_trace_metals %}hidden{% endif %}"
+                    data-info="waq_map_trace_metals_selector|substance_check">- Trace metals</a>
             </div>
         </div>
-        <!-- Nitrogen -->
-        <div class="menu-1 {% if not configuration.wq_map_nitrogen %}hidden{% endif %}">
-            <a class="menu-link-1">• Nitrogen<span class="arrow-1">&#x25B8;</span></a>
+        <!-- Microbial -->
+        <div class="menu-1 {% if not configuration.waq_map_microbial %}hidden{% endif %}">
+            <a class="menu-link-1">• Microbial<span class="arrow-1">&#x25B8;</span></a>
             <div class="submenu-1">
-                <div class="custom-selector-sub {% if not configuration.wq_map_nitrogen_total %}hidden{% endif %}">
-                    <a>- Total Nitrogen</a>
-                    <select class="wq-function" data-info="total_nitrogen_wq.geojson|nitrogen_total_wq_map|Nitrogen (gN/m³)|depth">
-                        <option value="" disabled selected hidden>- No Selection -</option>
-                    </select>
-                </div>
-                <div class="custom-selector-sub {% if not configuration.wq_map_nitrogen_algae %}hidden{% endif %}">
-                    <a>- Total Nitrogen (in Algae)</a>
-                    <select class="wq-function" data-info="nitrogen_algae_wq.geojson|nitrogen_algae_wq_map|AlgN (gN/m³)|depth">
-                        <option value="" disabled selected hidden>- No Selection -</option>
-                    </select>
-                </div>
-                <div class="custom-selector-sub {% if not configuration.wq_map_nitrogen_kjeldahl %}hidden{% endif %}">
-                    <a>- Kjeldahl Nitrogen</a>
-                    <select class="wq-function" data-info="kjeldahl_nitrogen_wq.geojson|nitrogen_kjeldahl_wq_map|Kjeldahl Nitrogen (gN/m³)|depth">
-                        <option value="" disabled selected hidden>- No Selection -</option>
-                    </select>
-                </div>
+                <a class="waq_map {% if not configuration.waq_map_coliform %}hidden{% endif %}"
+                    data-info="waq_map_coliform_selector|substance_check">- Coliform bacteria</a>
             </div>
-        </div>
-        <!-- Phosphorus -->
-        <div class="menu-1 {% if not configuration.wq_map_phosphorus %}hidden{% endif %}">
-            <a class="menu-link-1">• Phosphorus<span class="arrow-1">&#x25B8;</span></a>
-            <div class="submenu-1">
-                <div class="custom-selector-sub {% if not configuration.wq_map_phosphorus_total %}hidden{% endif %}">
-                    <a>- Total Phosphorus</a>
-                    <select class="wq-function" data-info="total_phosphorus_wq.geojson|total_phosphorus_wq_map|Phosphorus (gP/m³)|depth">
-                        <option value="" disabled selected hidden>- No Selection -</option>
-                    </select>
-                </div>
-                <div class="custom-selector-sub {% if not configuration.wq_map_phosphorus_algae %}hidden{% endif %}">
-                    <a>- Total Phosphorus (in Algae)</a>
-                    <select class="wq-function" data-info="phosphorus_algae_wq.geojson|phosphorus_algae_wq_map|AlgP (gP/m³)|depth">
-                        <option value="" disabled selected hidden>- No Selection -</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-        <!-- Limitation Function for Greens -->
-        <div class="menu-1 {% if not configuration.wq_map_greens %}hidden{% endif %}">
-            <a class="menu-link-1">• Limitation Function for Greens<span class="arrow-1">&#x25B8;</span></a>
-            <div class="submenu-1">
-                <div class="custom-selector-sub {% if not configuration.wq_map_daylength %}hidden{% endif %}">
-                    <a>- Daylength</a>
-                    <select class="wq-function" data-info="daylength_greens_wq.geojson|daylength_greens_wq_map|Daylength <0-1>|depth">
-                        <option value="" disabled selected hidden>- No Selection -</option>
-                    </select>
-                </div>
-                <div class="custom-selector-sub {% if not configuration.wq_map_nutrient %}hidden{% endif %}">
-                    <a>- Nutrient</a>
-                    <select class="wq-function" data-info="nutrient_greens_wq.geojson|nutrient_greens_wq_map|Nutrient <0-1>|depth">
-                        <option value="" disabled selected hidden>- No Selection -</option>
-                    </select>
-                </div>
-                <div class="custom-selector-sub {% if not configuration.wq_map_radiation %}hidden{% endif %}">
-                    <a>- Radiation</a>
-                    <select class="wq-function" data-info="radiation_greens_wq.geojson|radiation_greens_wq_map|Radiation <0-1>|depth">
-                        <option value="" disabled selected hidden>- No Selection -</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-        <!-- Other Functions -->
-        <div class="custom-menu-1 {% if not configuration.wq_map_aap %}hidden{% endif %}">
-            <a>• Adsorbed Ortho Phosphate</a>
-            <select class="wq-function" data-info="adsorbed_ortho_phosphate_wq.geojson|adsorbed_ortho_phosphate_wq_map|AOP (gP/m³)|depth">
-                <option value="" disabled selected hidden>- No Selection -</option>
-            </select>
-        </div>
-        <div class="custom-menu-1 {% if not configuration.wq_map_dyamo %}hidden{% endif %}">
-            <a>• Algae (non-Diatoms)</a>
-            <select class="wq-function" data-info="dyamo_wq.geojson|dyamo_wq_map|DYNAMO (gC/m³)|depth">
-                <option value="" disabled selected hidden>- No Selection -</option>
-            </select>
-        </div>
-        <div class="custom-menu-1 {% if not configuration.wq_map_organic %}hidden{% endif %}">
-            <a>• Inorganic Matter</a>
-            <select class="wq-function" data-info="inorganic_matter_wq.geojson|inorganic_matter_wq_map|IM (gDM/m³)|depth">
-                <option value="" disabled selected hidden>- No Selection -</option>
-            </select>
-        </div>
-        <div class="custom-menu-1 {% if not configuration.wq_map_opal_si %}hidden{% endif %}">
-            <a>• Opal-bound Silica</a>
-            <select class="wq-function" data-info="opal_si_wq.geojson|opal_si_wq_map|Opal-Si (gSi/m³)|depth">
-                <option value="" disabled selected hidden>- No Selection -</option>
-            </select>
-        </div>
-        <div class="custom-menu-1 {% if not configuration.wq_map_sediment %}hidden{% endif %}">
-            <a>• Sediment Oxygen Demand</a>
-            <select class="wq-function" data-info="sediment_oxygen_wq.geojson|sediment_oxygen_wq_map|SOD (gO₂/m²)|depth">
-                <option value="" disabled selected hidden>- No Selection -</option>
-            </select>
-        </div>
-        <div class="custom-menu-1 {% if not configuration.wq_map_suspend %}hidden{% endif %}">
-            <a>• Suspended Solids</a>
-            <select class="wq-function" data-info="suspended_solids_wq.geojson|suspended_solids_wq_map|SS (g/m³)|depth">
-                <option value="" disabled selected hidden>- No Selection -</option>
-            </select> 
-        </div>
-        <div class="custom-menu-1 {% if not configuration.wq_map_chlorophyll %}hidden{% endif %}">
-            <a>• Chlorophyll-a Concentration</a>
-            <select class="wq-function" data-info="chlorophyll_wq.geojson|chlorophyll_wq_map|Chlorophyll-a (mg/m³)|depth">
-                <option value="" disabled selected hidden>- No Selection -</option>
-            </select>
-        </div>
-        <div class="custom-menu-1 {% if not configuration.wq_map_extinction %}hidden{% endif %}">
-            <a>• VL Extinction (Phytoplankton)</a>
-            <select class="wq-function" data-info="extinction_phytoplankton_wq.geojson|extinction_phytoplankton_wq_map|Chlorophyll-VLEP (1/m)|depth">
-                <option value="" disabled selected hidden>- No Selection -</option>
-            </select>
-        </div>
-        <div class="custom-menu-1 {% if not configuration.wq_map_volume %}hidden{% endif %}">
-            <a>• Sea Water Volume</a>
-            <select class="wq-function" data-info="volume_wq.geojson|volume_wq_map|Volume (m³)|depth">
-                <option value="" disabled selected hidden>- No Selection -</option>
-            </select>
-        </div>
+        </div>       
     </div>
 </div>

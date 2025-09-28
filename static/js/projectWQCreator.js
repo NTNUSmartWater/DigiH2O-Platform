@@ -420,8 +420,7 @@ function initializeProject(){
         flowPath = data.content.flow_path; lengthPath = data.content.length_path;
         if (data.content.n_layers) nLayers().value = data.content.n_layers;
         parametersPath = data.content.parameters_path; vdfPath = data.content.vdf_path;
-        temPath = data.content.tem_path;
-        referenceTime().value = data.content.ref_time;
+        temPath = data.content.tem_path; referenceTime().value = data.content.ref_time;
         startTime().value = data.content.start_time; stopTime().value = data.content.stop_time;
     });
 }

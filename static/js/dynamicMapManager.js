@@ -35,8 +35,8 @@ export async function dynamicMapManager() {
     // Set function for 2D plot
     document.querySelectorAll('.map2D_dynamic').forEach(plot => {
         plot.addEventListener('click', () => {
-            const [filename, key, colorbarTitle, colorbarKey] = plot.dataset.info.split('|');
-            plot2DMapDynamic(false, filename, key, colorbarTitle, colorbarKey);
+            const [key, colorbarTitle, colorbarKey] = plot.dataset.info.split('|');
+            plot2DMapDynamic(false, key, colorbarTitle, colorbarKey);
         });
     });
     // Set function for Vector plot

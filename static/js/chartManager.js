@@ -15,9 +15,9 @@ const chartDiv = () => document.getElementById('myChart');
 const viewDataBtn = () => document.getElementById('viewDataBtn');
 const downloadBtn = () => document.getElementById('downloadExcel');
 
-export async function plotChart(filename, key, chartTitle, titleX, titleY, swap) {
-    startLoading(); // Show spinner
-    const data = await loadData(filename, key); // Load data
+export async function plotChart(query, key, chartTitle, titleX, titleY, swap) {
+    startLoading('Preparing Data for Chart. Please wait...'); // Show spinner
+    const data = await loadData(query, key); // Load data
     drawChart(data.content, chartTitle, titleX, titleY, swap);
     showLeafletMap(); // Hide the spinner and show the map
 }

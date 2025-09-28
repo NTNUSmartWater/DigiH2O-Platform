@@ -54,7 +54,6 @@ async def wq_time(request: Request):
                 f"INCLUDE 'includes_deltashell\\load_data_tables\\{folder}.usefors'",
                 "TIME LINEAR DATA", subs]
                 to_ = ['NH4', 'CBOD5', 'OXY', 'SOD']
-
             elif key == 'oxygen-bod-water':
                 temp = []
                 to_ = ['OXY', 'CBOD5']
@@ -73,9 +72,11 @@ async def wq_time(request: Request):
             elif key == 'conservative-tracers':
                 temp = []
                 to_ = ['cTR1', 'cTR2', 'cTR3', 'dTR1', 'dTR2', 'dTR3']
+
             elif key == 'suspend-sediment':
                 temp = []
                 to_ = ['IM1', 'IM2', 'IM3', 'IM1S1', 'IM2S1', 'IM3S1']
+
             elif key == 'coliform':
                 temp = []
                 to_ = ['Salinity', 'EColi']
@@ -212,7 +213,7 @@ async def run_wq(websocket: WebSocket):
         # Delete folder
         try: shutil.rmtree(wq_folder, onexc=functions.remove_readonly)
         except Exception as e: await websocket.send_json({'error': str(e)})
-        await websocket.send_json({"status": "Done"})
+        await websocket.send_json({"status": "Simulation completed successfully"})
         await websocket.close()
     except WebSocketDisconnect: pass
     except Exception as e:
