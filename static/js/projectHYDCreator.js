@@ -266,18 +266,14 @@ function updateOption(){
         if (event.data.type === 'crossSectionPicked') {
             const content = event.data.content;
             let value = crossSectionName().value.trim();
-            if (value === '') {
-                value = `Cross-Section`; crossSectionName().value = value;
-            }
+            if (value === '') { value = `Cross-Section`; crossSectionName().value = value; }
             const data_arr = content.map((row, idx) => [`${value}_${idx + 1}`, Number(row.lat).toFixed(12), Number(row.lng).toFixed(12)]);
             fillTable(data_arr, crossSectionTable(), true);
         }
         if (event.data.type === 'boundaryPicked') {
             const content = event.data.content;
             let value = boundaryName().value.trim();
-            if (value === '') {
-                value = `Boundary`; boundaryName().value = value;
-            }
+            if (value === '') { value = `Boundary`; boundaryName().value = value; }
             const data_arr = content.map((row, idx) => [`${value}_${idx + 1}`, Number(row.lat).toFixed(12), Number(row.lng).toFixed(12)]);
             fillTable(data_arr, boundaryTable(), true);
             // Update boundary option

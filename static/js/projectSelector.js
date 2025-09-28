@@ -1,12 +1,11 @@
 const projectSelector = () => document.getElementById("project");
-const generalHisSelector = () => document.getElementById("general-option-his");
-const generalMapSelector = () => document.getElementById("general-option-map");
-const waterQualityHisSelector = () => document.getElementById("water-quality-his");
-const waterQualityMapSelector = () => document.getElementById("water-quality-map");
+const hydOptions = () => document.getElementById("hyd-option");
+const waqOptions = () => document.getElementById("waq-option");
 const confirmButton = () => document.getElementById("button");
 const deleteButton = () => document.getElementById("delete-button");
 
-const defaultOption = `<option value="" selected>--- No selected ---</option>`;
+const defaultOption = `<option value="">--- No selected ---</option>`;
+let hydHis = '', hydMap = '', waqHis = '', waqMap = '';
 
 async function loadProjectList(){
     const data = await loadList('', 'getProjects', 'output');
@@ -21,42 +20,37 @@ async function projectDefinition(projectName){
     const data = await loadList(projectName, 'getFiles');
     if (data.status === "error") {alert(data.message);}
     // Get NC files
-    const files = data.content;
-    const hisContents = files.filter(file => file.endsWith('_his.nc'));
-    const mapContents = files.filter(file => file.endsWith('_map.nc'));
+    const hydFiles = data.content.hyd, waqFiles = data.content.waq;
     // Assign files to components
-    const hisFiles = hisContents.map(file => `<option value="${file}">${file}</option>`).join('');
-    const mapFiles = mapContents.map(file => `<option value="${file}">${file}</option>`).join('');
-    generalHisSelector().innerHTML = defaultOption + hisFiles;
-    generalMapSelector().innerHTML = defaultOption + mapFiles;
-    waterQualityHisSelector().innerHTML = defaultOption + hisFiles;
-    waterQualityMapSelector().innerHTML = defaultOption + mapFiles;
+    if (hydFiles.length === 0) { hydOptions().innerHTML = defaultOption; 
+    } else { hydOptions().innerHTML = hydFiles.map(file => `<option value="${file}">${file}</option>`).join(''); }
+    if (waqFiles.length > 0) { waqOptions().innerHTML = waqFiles.map(file => `
+        <label for="${file}"><input type="radio" name="waq" value="${file}" id="${file}">${file}</label>`).join(''); 
+    } else { waqOptions().innerHTML = `<p style="size: 10px; text-align: center;">No Water Quality files found.</p>`; }
 }
 
 async function confirmSelection(){
-    if (projectSelector().value === '') {
-        alert('No project selected.'); return;
-    }
-    const params = [generalHisSelector().value, generalMapSelector().value,
-        waterQualityHisSelector().value, waterQualityMapSelector().value];
-    if (params.every(v => v === '')) {
-        alert('No file selected.\nAt least one file (history or map) must be selected.');
-        return;
-    }
+    if (projectSelector().value === '') { alert('No project selected.'); return; }
+    // Check if at least one file is selected
+    const waq = document.querySelector('input[name="waq"]:checked') ? 
+        document.querySelector('input[name="waq"]:checked').value : '';
+    if (hydOptions().value === '' && waq === '') { 
+        alert('No file selected.\nSelect a Hydrodynamic and/or Water Quality simulation.'); return; }
+    if (hydOptions().value !== '') {
+        hydHis = `${hydOptions().value}_his.nc`; hydMap = `${hydOptions().value}_map.nc`; }
+    if (waq !== '') { waqHis = `${waq}_his.nc`; waqMap = `${waq}_map.nc`; }
+    const params = [hydHis, hydMap, waqHis, waqMap];
     // Send message and data to parent
     window.parent.postMessage({type: 'projectConfirmed',
         project: projectSelector().value, values: params}, '*');
 }
 
 function projectOption(){
-    loadProjectList();
     projectSelector().addEventListener('change', () => {
-        if (projectSelector().value === '') {
-            const comboBox = [generalHisSelector, generalMapSelector, 
-                waterQualityHisSelector, waterQualityMapSelector];
-            comboBox.forEach(comboBox => comboBox().innerHTML = defaultOption);
-            return;
-        } else { projectDefinition(projectSelector().value); }
+        if (projectSelector().value === '') { 
+            waqOptions().innerHTML = `<p style="size:10px; text-align:center;">No Water Quality files found.</p>`; 
+            hydOptions().innerHTML = defaultOption; return; }
+        projectDefinition(projectSelector().value);
     });
     confirmButton().addEventListener('click', () => { confirmSelection(); });
     deleteButton().addEventListener('click', async () => {
@@ -70,7 +64,7 @@ function projectOption(){
         const data = await response.json();
         alert(data.message);
         loadProjectList();
-    });
+    });    
 }
 
 async function loadList(fileName, key, folder_check = '') {
@@ -82,4 +76,4 @@ async function loadList(fileName, key, folder_check = '') {
     return data;
 }
 
-projectOption();
+loadProjectList(); projectOption();

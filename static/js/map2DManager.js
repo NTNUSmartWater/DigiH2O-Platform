@@ -175,10 +175,10 @@ function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarK
     return layerMap;
 }
 
-export async function plot2DMapStatic(filename, key, colorbarTitle, colorbarKey, 
-                                        colorbarScaler='normal', swap=false,) {
+export async function plot2DMapStatic(key, colorbarTitle, colorbarKey, 
+                                        colorbarScaler='normal', swap=false) {
     startLoading();
-    const data = await loadData(filename, key);
+    const data = await loadData('', key);
     if (data.status === 'error') { showLeafletMap(); alert(data.message); return; }
     setState({isPlaying: false});
     // Hide timeslider
@@ -187,7 +187,8 @@ export async function plot2DMapStatic(filename, key, colorbarTitle, colorbarKey,
     const values = data.content.features.map(f => f.properties.value)
                     .filter(v => typeof v === 'number' && !isNaN(v));
     const vmin = Math.min(...values), vmax = Math.max(...values);
-    layerMap = layerCreator(data.content, key, "value", vmin, vmax, colorbarTitle, colorbarKey, colorbarScaler, swap);
+    layerMap = layerCreator(data.content, key, "value", vmin, vmax,
+        colorbarTitle,colorbarKey, colorbarScaler, swap);
     map.addLayer(layerMap);
     showLeafletMap();
 }
@@ -321,13 +322,13 @@ function initDynamicMap(key, data_below, data_above, colorbarTitleBelow, colorba
     }
 }
 
-export async function plot2DMapDynamic(waterQuality, filename, key, colorbarTitle, colorbarKey, colorbarScaler='normal') {
+export async function plot2DMapDynamic(waterQuality, key, colorbarTitle, colorbarKey, colorbarScaler='normal') {
     startLoading('Preparing Dynamic Map. Please wait...');
     let data_below = null, data_above = null, swap = false;
     let colorbarTitleAbove = null, colorbarKeyAbove = null;
     if (key === 'wd_dynamic') {swap = true;} else {swap = false;}
     // Process below layer
-    const dataBelow = await loadData(filename, key);
+    const dataBelow = await loadData('', key);
     if (dataBelow.status === 'error') { showLeafletMap(); alert(dataBelow.message); return; }
     data_below = dataBelow.content;
     // If data is not water quality
@@ -349,7 +350,7 @@ export async function plot2DMapDynamic(waterQuality, filename, key, colorbarTitl
     showLeafletMap();
 }
 
-export async function plot2DVectorMap(filename, key, colorbarTitleAbove, colorbarKey, colorbarScaler='vector') {
+export async function plot2DVectorMap(query, key, colorbarTitleAbove, colorbarKey, colorbarScaler='vector') {
     const vectorName = getState().vectorMain, vectorKey = getState().vectorSelected;
     if ((vectorName === 'Velocity' && !vectorKey) || (!vectorName)) return;
     if ((!scaler_value().value)||(parseFloat(scaler_value().value) <= 0)) {
@@ -359,7 +360,7 @@ export async function plot2DVectorMap(filename, key, colorbarTitleAbove, colorba
     setState({scalerValue: scaler_value().value});
     startLoading('Preparing Dynamic Map. Please wait...');
     if (layerMap) map.removeLayer(layerMap);
-    const data = await loadData(filename, key);
+    const data = await loadData(query, key);
     if (data.status === 'error') { showLeafletMap(); alert(data.message); return; }
     initDynamicMap(key, null, data.content, null, colorbarTitleAbove, 
                     null, colorbarKey, colorbarScaler, false);

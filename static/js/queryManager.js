@@ -3,11 +3,10 @@ import { degree_decimals, n_decimals, getState, setState } from "./constants.js"
 import { loadData, colorbar_title } from "./utils.js";
 import { plotChart, plotWindow, plotProfile} from "./chartManager.js";
 
-let stationLayer = null, sourceLayer = null, crosssectionLayer = null, currentMarker = null;
-let pathLine = null, marker = null, pointContainer = [], selectedMarkers = [];
+let currentMarker = null, pathLine = null, marker = null, pointContainer = [], selectedMarkers = [];
 
 const mapContainer = () => map.getContainer();
-const stationOption = () => document.getElementById("stationCheckbox");
+const stationOption = () => document.getElementById("hyd-obs-checkbox");
 const sourceOption = () => document.getElementById("sourceCheckbox");
 const crossSectionOption = () => document.getElementById("crossSectionCheckbox");
 const pointQueryCheckbox = () => document.getElementById("pointQuery");
@@ -15,14 +14,35 @@ const pathQueryCheckbox = () => document.getElementById("pathQuery");
 const infoDetail = () => document.getElementById("infoDetails");
 const infoContent = () => document.getElementById("infoDetailsContent");
 
+
+function checkUpdater(setLayer, objCheckbox, checkFunction){
+    objCheckbox.checked = getState()[setLayer] !== null;
+    objCheckbox.addEventListener('change', async () => {
+        if (objCheckbox.checked) { 
+            const layer = await checkFunction();
+            setState({[setLayer]: layer});
+        } else { 
+            const currentLayer = getState()[setLayer];
+            if (currentLayer) { map.removeLayer(currentLayer); }
+            setState({[setLayer]: null}); }
+    });
+}
+
+export function queryUpdate(){
+    checkUpdater("stationLayer", stationOption(), activeStationCheck);
+    checkUpdater("sourceLayer", sourceOption(), activeSourceCheck);
+    checkUpdater("crosssectionLayer", crossSectionOption(), activeCrossSectionCheck);
+}
+
+
 // ============================ Station Manager ============================
-async function activeStationCheck(filename) {
-    startLoading('Reading Stations from Database. Please wait...'); // Show spinner
-    const data = await loadData(filename, 'stations'); // Load data
+async function activeStationCheck() {
+    startLoading('Reading Hydrodynamic Observation Points from Database. Please wait...'); // Show spinner
+    const data = await loadData('', 'hyd_station'); // Load data
     if (data.status === "error") { alert(data.message); return; }
-    if (getState().stationLayer && stationLayer) { map.removeLayer(stationLayer); stationLayer = null; }
+    if (getState().stationLayer) { map.removeLayer(getState().stationLayer); }
     // Add station layer to the map
-    stationLayer = L.geoJSON(data.content, {
+    const layer = L.geoJSON(data.content, {
         // Custom marker icon
         pointToLayer: function (feature, latlng) {
             const customIcon = L.icon({
@@ -52,22 +72,19 @@ async function activeStationCheck(filename) {
             return marker;
         }
     });
-    map.addLayer(stationLayer);
+    map.addLayer(layer);
     // Zoom to the extent of the station layer
-    if (stationLayer && stationLayer.getBounds().isValid()) {
-        const center = stationLayer.getBounds().getCenter();
-        map.setView(center, ZOOM);
-    }
-    setState({stationLayer: true});
+    map.setView(layer.getBounds().getCenter(), ZOOM);
     showLeafletMap(); // Hide the spinner and show the map
+    return layer;
 }
 
-async function activeSourceCheck(filename) {
+async function activeSourceCheck() {
     startLoading('Reading Sources from Database. Please wait...');
-    const data = await loadData(filename, 'sources');
+    const data = await loadData('', 'sources');
     if (data.status === "error") { alert(data.message); return; }
-    if (getState().sourceLayer && sourceLayer) { map.removeLayer(sourceLayer); sourceLayer = null; }
-    sourceLayer = L.geoJSON(data.content, {
+    if (getState().sourceLayer) { map.removeLayer(getState().sourceLayer); }
+    const layer = L.geoJSON(data.content, {
         pointToLayer: function (feature, latlng) {
             const customIcon = L.icon({
                 iconUrl: `static/images/source.png?v=${Date.now()}`,
@@ -82,63 +99,22 @@ async function activeSourceCheck(filename) {
             return marker;
         }
     });
-    map.addLayer(sourceLayer);
-    if (sourceLayer && sourceLayer.getBounds().isValid()) {
-        const center = sourceLayer.getBounds().getCenter();
-        map.setView(center, ZOOM);
-    }
-    setState({sourceLayer: true});
+    map.addLayer(layer);
+    map.setView(layer.getBounds().getCenter(), ZOOM);
     showLeafletMap();
+    return layer;
 }
 
-async function activeCrossSectionCheck(filename) {
+async function activeCrossSectionCheck() {
     startLoading('Reading Cross Sections from Database. Please wait...');
-    const data = await loadData(filename, 'crosssections');
+    const data = await loadData('', 'crosssections');
     if (data.status === "error") { alert(data.message); showLeafletMap(); return; }
-    if (getState().crosssectionLayer && crosssectionLayer) { map.removeLayer(crosssectionLayer); crosssectionLayer = null; }
-    crosssectionLayer = L.geoJSON(data.content, { color: 'blue', weight: 3 });
-    map.addLayer(crosssectionLayer);
-    if (crosssectionLayer && crosssectionLayer.getBounds().isValid()) {
-        const center = crosssectionLayer.getBounds().getCenter();
-        map.setView(center, ZOOM);
-    }
-    setState({crosssectionLayer: true});
+    if (getState().crosssectionLayer) { map.removeLayer(getState().crosssectionLayer); }
+    const layer = L.geoJSON(data.content, { color: 'blue', weight: 3 });
+    map.addLayer(layer);
+    map.setView(layer.getBounds().getCenter(), ZOOM);
     showLeafletMap();
-}
-
-export function updateStationManager(filename) {
-    // Check status of the station checkbox
-    if (getState().stationLayer) { stationOption().checked = true; 
-    } else { stationOption().checked = false; }
-    // Add event listener to the station checkbox
-    stationOption().addEventListener('change', () => {
-        if (stationOption().checked) { activeStationCheck(filename); setState({stationLayer: true});
-        } else {
-            map.removeLayer(stationLayer); stationLayer = null; setState({stationLayer: false});  
-        }
-    });
-}
-
-export function updateSourceManager(filename) {
-    if (getState().sourceLayer) { sourceOption().checked = true; 
-    } else { sourceOption().checked = false; }
-    sourceOption().addEventListener('change', () => {
-        if (sourceOption().checked) { activeSourceCheck(filename); setState({sourceLayer: true});
-        } else {
-            map.removeLayer(sourceLayer); sourceLayer = null; setState({sourceLayer: false});  
-        }
-    })
-}
-
-export function updateCrossSectionManager(filename) {
-    if (getState().crosssectionLayer) { crossSectionOption().checked = true; 
-    } else { crossSectionOption().checked = false; }
-    crossSectionOption().addEventListener('change', () => {
-        if (crossSectionOption().checked) { activeCrossSectionCheck(filename); setState({crosssectionLayer: true});
-        } else {
-            map.removeLayer(crosssectionLayer); crosssectionLayer = null; setState({crosssectionLayer: false});  
-        }
-    })
+    return layer;
 }
 
 // ============================ Point Manager ============================
@@ -167,9 +143,9 @@ export function updatePointManager() {
     document.addEventListener('click', function(e) {
         if (e.target && e.target.classList.contains('in-situ')) {
             e.preventDefault();
-            const [filename, colorbarTitle] = e.target.dataset.info.split('|');
+            const [query, colorbarTitle] = e.target.dataset.info.split('|');
             const chartTitle = colorbarTitle.split('(')[0].trim();
-            plotChart(filename, '_in-situ', chartTitle, 'Time', colorbarTitle, false);
+            plotChart(query, '_in-situ', chartTitle, 'Time', colorbarTitle, false);
         }
     });
 }

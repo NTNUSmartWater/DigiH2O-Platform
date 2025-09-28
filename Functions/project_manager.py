@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
-import os, json, shutil, stat, subprocess, re
-import xarray as xr, numpy as np
+import os, shutil, subprocess, re
+import numpy as np
 from fastapi.templating import Jinja2Templates
 from Functions import functions
 from config import PROJECT_STATIC_ROOT, ROOT_DIR
@@ -16,16 +16,51 @@ templates = Jinja2Templates(directory="static/templates")
 async def setup_new_project(request: Request):
     body = await request.json()
     project_name = body.get('projectName')
-    project_path = os.path.join(PROJECT_STATIC_ROOT, project_name)
+    project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
     # Check if project already exists
-    if os.path.exists(project_path):
+    if os.path.exists(project_folder):
         return JSONResponse({"status": 'ok', "message": f"Project '{project_name}' already exists."})
     try:
         # Create project directories
-        os.makedirs(project_path, exist_ok=True)
-        os.makedirs(os.path.join(project_path, "common_files"), exist_ok=True)
-        os.makedirs(os.path.join(project_path, "input"), exist_ok=True)
+        os.makedirs(project_folder, exist_ok=True)
+        os.makedirs(os.path.join(project_folder, "input"), exist_ok=True)
         status, message = 'ok', f"Project '{project_name}' created successfully!"
+    except Exception as e:
+        status, message = 'error', f"Error: {str(e)}"
+    return JSONResponse({"status": status, "message": message})
+
+# Set up the database depending on the project
+@router.post("/setup_database")
+async def setup_database(request: Request):
+    body = await request.json()
+    project_name, params = body.get('projectName'), body.get('params')
+    try:
+        # Set PROJECT_DIR
+        project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
+        request.app.state.PROJECT_DIR = project_folder
+        # Templates
+        templates_dir = os.path.join(project_folder, "templates")
+        request.app.state.templates = Jinja2Templates(directory=templates_dir)
+        # Load NetCDF
+        output_dir = os.path.join(project_folder, "output")
+        if params[0] != '' and os.path.exists(os.path.join(output_dir, 'HYD', params[0])):
+            request.app.state.hyd_his = os.path.join(output_dir, 'HYD', params[0])
+        if params[1] != '' and os.path.exists(os.path.join(output_dir, 'HYD', params[1])):
+            request.app.state.hyd_map = os.path.join(output_dir, 'HYD', params[1])
+        if params[2] != '' and os.path.exists(os.path.join(output_dir, 'WAQ', params[2])):
+            request.app.state.waq_his = os.path.join(output_dir, 'WAQ', params[2])
+        if params[3] != '' and os.path.exists(os.path.join(output_dir, 'WAQ', params[3])):
+            request.app.state.waq_map = os.path.join(output_dir, 'WAQ', params[3])
+        if request.app.state.hyd_map:
+            # Grid/layers generation
+            request.app.state.grid = functions.unstructuredGridCreator(request.app.state.hyd_map)
+            request.app.state.n_layers = functions.velocityChecker(request.app.state.hyd_map)
+            request.app.state.layer_reverse = {v: k for k, v in request.app.state.n_layers.items()}
+        # Get configurations
+        NCfiles = [request.app.state.hyd_his, request.app.state.hyd_map, 
+            request.app.state.waq_his, request.app.state.waq_map]
+        request.app.state.config = functions.getVariablesNames(NCfiles)
+        status, message = 'ok', ''
     except Exception as e:
         status, message = 'error', f"Error: {str(e)}"
     return JSONResponse({"status": status, "message": message})
@@ -35,21 +70,17 @@ async def setup_new_project(request: Request):
 async def delete_project(request: Request):
     body = await request.json()
     project_name = body.get('projectName')
-    project_path = os.path.join(PROJECT_STATIC_ROOT, project_name)
-    if not os.path.exists(project_path):
+    project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
+    if not os.path.exists(project_folder):
         status, message = 'error', f"Project '{project_name}' does not exist."
     else:
-        # Remove read-only attribute if set
-        def remove_readonly(func, path, _):
-            os.chmod(path, stat.S_IWRITE)
-            func(path)
         try:
-            shutil.rmtree(project_path, onexc=remove_readonly)
+            shutil.rmtree(project_folder, onexc=functions.remove_readonly)
             status, message = 'ok', f"Project '{project_name}' was deleted successfully."
         except:
             if os.name == 'nt':
                 try:
-                    subprocess.run(['rmdir', '/s', '/q', project_path], shell=True, check=True)
+                    subprocess.run(['rmdir', '/s', '/q', project_folder], shell=True, check=True)
                     return JSONResponse({"status": "ok", "message": f"Project '{project_name}' was deleted successfully."})
                 except Exception as e2:
                     return JSONResponse({"status": "error", "message": f"Error: {str(e2)}"})
@@ -69,54 +100,17 @@ async def select_project(request: Request):
                     project.remove(p)
             data = sorted(project)
         elif key == 'getFiles': # List the files
-            project_path = os.path.join(PROJECT_STATIC_ROOT, project_name)
-            data = [f for f in os.listdir(os.path.join(project_path, "output")) if f.endswith(".nc")]
-        status, message = 'ok', 'JSON loaded successfully.'
-    except Exception as e:
-        status, message, data = 'error', f"Error: {str(e)}", None
-    return JSONResponse({"status": status, "message": message, "content": data})
-
-# Set up the database depending on the project
-@router.post("/setup_database")
-async def setup_database(request: Request):
-    body = await request.json()
-    project_name, params = body.get('projectName'), body.get('params')
-    try:
-        # Set BASE_DIR
-        project_path = os.path.join(PROJECT_STATIC_ROOT, project_name)
-        request.app.state.BASE_DIR = project_path
-        request.app.state.project_selected = project_name
-        common_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "common_files")
-        # Templates
-        templates_dir = os.path.join(project_path, "templates")
-        request.app.state.templates = Jinja2Templates(directory=templates_dir)
-        # Load NetCDF
-        output_dir = os.path.join(project_path, "output")
-        request.app.state.data_his = xr.open_dataset(os.path.join(output_dir, params[0])) if len(params[0]) > 0 else None
-        request.app.state.data_map = xr.open_dataset(os.path.join(output_dir, params[1])) if len(params[1]) > 0 else None
-        if request.app.state.data_map:
-            # Grid / layers
-            request.app.state.grid = functions.unstructuredGridCreator(request.app.state.data_map)
-            request.app.state.n_layers = functions.velocityChecker(request.app.state.data_map)
-            path = os.path.join(common_path, "velocity_layers.json")
-            with open(path, 'w') as f:
-                json.dump(request.app.state.n_layers, f)
-            request.app.state.layer_reverse = {v: k for k, v in request.app.state.n_layers.items()}
-        request.app.state.data_wq_his = xr.open_dataset(os.path.join(output_dir, params[2])) if len(params[2]) > 0 else None
-        request.app.state.data_wq_map = xr.open_dataset(os.path.join(output_dir, params[3])) if len(params[3]) > 0 else None
-        # Generate the configuration file
-        config_file = os.path.join(common_path, "configuration.json")
-        if not os.path.exists(config_file):
-            configuration = {}
-            NCfiles = [
-                request.app.state.data_his, request.app.state.data_map, 
-                request.app.state.data_wq_his, request.app.state.data_wq_map
-            ]
-            for file in NCfiles:
-                if file: configuration.update(functions.getVariablesNames(file))
-            with open(config_file, 'w', encoding='utf-8') as f:
-                json.dump(configuration, f)
-        data = project_name
+            project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
+            hyd_folder = os.path.join(project_folder, "output", 'HYD')
+            waq_folder = os.path.join(project_folder, "output", 'WAQ')
+            hyd_files, waq_files = [], []
+            if os.path.exists(hyd_folder):
+                hyd_files = [f for f in os.listdir(hyd_folder) if f.endswith(".nc")]
+                hyd_files = set([f.replace('_his.nc', '').replace('_map.nc', '') for f in hyd_files])
+            if os.path.exists(waq_folder):
+                waq_files = [f for f in os.listdir(waq_folder) if f.endswith(".nc")]
+                waq_files = set([f.replace('_his.nc', '').replace('_map.nc', '') for f in waq_files])
+            data = {'hyd': list(hyd_files), 'waq': list(waq_files)}
         status, message = 'ok', 'JSON loaded successfully.'
     except Exception as e:
         status, message, data = 'error', f"Error: {str(e)}", None
@@ -132,22 +126,11 @@ async def load_popupMenu(request: Request, htmlFile: str):
     template_path = os.path.join(ROOT_DIR, "static", "templates", htmlFile)
     if not os.path.exists(template_path):
         return HTMLResponse(f"<p>Popup menu template not found</p>", status_code=404)
-    config_file = os.path.join(request.app.state.BASE_DIR, "common_files", "configuration.json")
-    if os.path.exists(config_file):
-        with open(config_file, 'r', encoding='utf-8') as f:
-            configuration = json.load(f)
-    else:
-        configuration = {}
-        NCfiles = [
-            request.app.state.data_his, request.app.state.data_map, 
-            request.app.state.data_wq_his, request.app.state.data_wq_map
-        ]
-        for file in NCfiles:
-            if file: configuration.update(functions.getVariablesNames(file))
-        with open(config_file, 'w', encoding='utf-8') as f:
-            json.dump(configuration, f)
-    return templates.TemplateResponse(htmlFile, 
-            {"request": request, 'configuration': configuration})
+    if not request.app.state.config:
+        NCfiles = [request.app.state.hyd_his, request.app.state.hyd_map, 
+            request.app.state.waq_his, request.app.state.waq_map]
+        request.app.state.config = functions.getVariablesNames(NCfiles)
+    return templates.TemplateResponse(htmlFile, {"request": request, 'configuration': request.app.state.config})
 
 # Get list of files in a directory
 @router.post("/get_files")

@@ -1,4 +1,4 @@
-import { updatePointManager, updatePathManager, updateStationManager, updateSourceManager, updateCrossSectionManager } from "./queryManager.js";
+import { updatePointManager, updatePathManager, queryUpdate } from "./queryManager.js";
 import { loadData } from './utils.js';
 import { plotChart } from "./chartManager.js";
 
@@ -10,24 +10,16 @@ const closeSummaryOption = () => document.getElementById('closeSummaryOption');
 
 let Dragging = false;
 
-export function generalObtionsManager(summaryProjectFileName=null, 
-    stationFileName=null, sourceFileName=null, crosssectionFileName=null){
-    projectSummaryEvents(summaryProjectFileName);
-    updateStationManager(stationFileName);
-    updatePointManager();
-    updateSourceManager(sourceFileName); 
-    updateCrossSectionManager(crosssectionFileName);
-    updatePathManager(); thermoclinePlot();
+export function generalOptionsManager(){
+    projectSummaryEvents(); thermoclinePlot();
+    updatePointManager(); updatePathManager();
+    queryUpdate();
 }
 
 // ============================ Project Manager ============================
-function projectSummaryEvents(filename){
-    projectSummaryOption().addEventListener('click', () => {
-        openProjectSummary(filename);
-    });
-    closeSummaryOption().addEventListener('click', () => {
-        summaryWindow().style.display = "none";
-    });
+function projectSummaryEvents(){
+    projectSummaryOption().addEventListener('click', () => { openProjectSummary(); });
+    closeSummaryOption().addEventListener('click', () => { summaryWindow().style.display = "none"; });
     // Move summary window
     let offsetX = 0, offsetY = 0;
     summaryHeader().addEventListener("mousedown", function(e) {
@@ -44,8 +36,9 @@ function projectSummaryEvents(filename){
     });
 }
 
-async function openProjectSummary(filename) {
-    const data = await loadData(filename, 'summary');
+async function openProjectSummary() {
+    const data = await loadData('', 'summary');
+    if (data.status === 'error') { alert(data.message); return; }
     const currentDisplay = window.getComputedStyle(summaryWindow()).display;
     if (currentDisplay === "none") {
         // Create a table to display the summary
@@ -75,8 +68,8 @@ function thermoclinePlot(){
     // Set function for plot using Plotly
     document.querySelectorAll('.thermocline').forEach(plot => {
         plot.addEventListener('click', () => {
-            const [filename, titleY, chartTitle] = plot.dataset.info.split('|');
-            plotChart(filename, 'thermocline', chartTitle, 'Temperature (°C)', titleY, true);
+            const [titleY, chartTitle] = plot.dataset.info.split('|');
+            plotChart('', 'thermocline', chartTitle, 'Temperature (°C)', titleY, true);
         });
     });
 }

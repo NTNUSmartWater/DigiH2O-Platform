@@ -19,6 +19,7 @@ async function loadTooltips(jsonPath) {
           tooltip.style.fontSize = "14px";
           tooltip.style.pointerEvents = "none";
           tooltip.style.zIndex = "1000";
+          tooltip.style.lineHeight = "1.8";
           // Set tooltip position
           const rect = element.getBoundingClientRect();
           tooltip.style.top = rect.bottom + window.scrollY + 5 + "px";

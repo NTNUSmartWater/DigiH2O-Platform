@@ -208,10 +208,10 @@ export function getMinMaxFromGeoJSON(data, columns) {
 }
 
 // Load data (including JSON and GeoJSON)
-export async function loadData(filename, key){
+export async function loadData(query, key){
     const response = await fetch('/process_data', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({data_filename: filename, key: key})});
+    body: JSON.stringify({query: query, key: key})});
     const data = await response.json();
     return data;
 }

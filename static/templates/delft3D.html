@@ -11,8 +11,8 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
         <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
         <!-- My styles -->
-        <link rel="stylesheet" href="static/css/temp_style.css?v=123">
-        <link rel="stylesheet" href="static/css/temp_menu.css?v=1234">
+        <link rel="stylesheet" href="static/css/temp_style.css?v=1">
+        <link rel="stylesheet" href="static/css/temp_menu.css?v=1">
         <!-- Favicon -->
         <link rel="icon" type="image/png" href="static/images/Logo.png">
     </head>
@@ -132,6 +132,16 @@
             <div id="informationContactContent"></div>
         </div>
         <!-- Add a floating window for open project -->
+        <div id="project-open-window">
+            <div id="project-open-window-header">Open Project<span id="project-open-window-close">×</span></div>
+            <div id="project-open-window-content"></div>
+        </div>
+        <!-- Add a floating window for substance selector -->
+        <div id="substance-window">
+            <div id="substance-window-header">Substance<span id="substance-window-close">×</span></div>
+            <div id="substance-window-content"></div>
+        </div>
+        <!-- Add a floating window for project setting -->
         <div id="projectWindow">
             <div id="projectWindowHeader">Project Setup<span id="closeProjectWindow">×</span></div>
             <div id="projectWindowContent"></div>
@@ -141,7 +151,6 @@
             <div id="simulationWindowHeader">Run Simulation<span id="closeSimulationWindow">×</span></div>
             <div id="simulationWindowContent"></div>
         </div>
-
         <!-- Add a floating plot window -->
         <div id="plotWindow">
             <div id="plotHeader"><span id="plotTitle">Plot Window</span><span id="closePlotBtn">×</span></div>
