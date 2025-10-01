@@ -128,11 +128,11 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
     objWindow.style.display = 'flex';
 }
 
-// iframeInit("new_WQ_project", projectSetting(), projectSettingHeader(), 
-//                     projectSettingContent(), "Set up and Run Water Quality Simulation");
+iframeInit("new_WQ_project", projectSetting(), projectSettingHeader(), 
+                    projectSettingContent(), "Set up and Run Water Quality Simulation");
 
-iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
-                    projectOpenWindowContent(), "Open Project");
+// iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
+//                     projectOpenWindowContent(), "Open Project");
 
 function updateEvents() {
     // Search locations
