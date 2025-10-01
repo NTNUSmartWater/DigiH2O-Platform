@@ -11,5 +11,7 @@
   "Name of microbial substance.":["wq-microbial-name"], 
   "Name of load will be used in the tab 'Time-series Process'.":["wq-loads-point"],
   "Query for USEFORS data can be adjusted here.":["wq-usefors-chemical", "wq-usefors-physical", "wq-usefors-microbial"],
+  "Maximum number of iterations.":["max-iterations-chemical", "max-iterations-physical", "max-iterations-microbial"],
+  "Iterations convergence criterion.":["tolerance-chemical", "tolerance-physical", "tolerance-microbial"],
   "Back to home page.":["homeMenu"]
 }

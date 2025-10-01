@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=2" />
-  <link rel="stylesheet" href="static/css/projectHYDCreator.css?v=123">
+  <link rel="stylesheet" href="static/css/projectHYDCreator.css?v=1">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 </head>
 <body>
@@ -151,7 +151,7 @@
                             </div>
                             <div class="textarea-container" id="wq-textarea-container">
                                 <label style="margin:20px 0 20px 0; display:inline-block;">Post-process Data</label>
-                                <textarea class="data-textarea" id="wq-data-view" style="height:300px; min-height:300px;"></textarea>
+                                <textarea class="data-textarea" id="wq-data-view" style="height:400px; min-height:400px;"></textarea>
                             </div>
                         </div>
                         <!-- Right Layout -->
@@ -186,18 +186,31 @@
                                     </div>
                                     <div class="row">
                                         <div class="textarea-container tile" style="display:block;">
-                                            <label>USEFORS</label><br>
-                                            <select id="wq-chemical-usefors-from" style="margin: 10px 0 10px 0; width: 80px;"></select>
+                                            <label>Assigned Substance</label><br>
+                                            <select id="wq-chemical-usefors-from" style="margin: 10px 0 10px 0; width: 120px;"></select>
                                             <label> --> </label>
-                                            <select id="wq-chemical-usefors-to" style="width: 80px;"></select>
+                                            <select id="wq-chemical-usefors-to" style="width: 120px;"></select>
                                             <button class="wq-usefors" type="button" data-info="chemical">Update</button>
                                             <textarea class="data-textarea" id="wq-usefors-chemical" style="height:80px; min-height:80px;"></textarea>
                                             <label style="margin-top:20px; display:inline-block;">Initial Value</label><br>
-                                            <select id="wq-chemical-initial-from" style="margin: 10px 0 10px 0; width: 80px;"></select>
+                                            <select id="wq-chemical-initial-from" style="margin: 10px 0 10px 0; width: 120px;"></select>
                                             <label> --> </label>
-                                            <input type="text" id="wq-chemical-initial" value="0" style="width: 80px;">
+                                            <input type="text" id="wq-chemical-initial" value="0" style="width: 120px;">
                                             <button class="wq-initial" type="button" data-info="chemical">Update</button>
                                             <textarea class="data-textarea" id="wq-initial-chemical" style="height:80px; min-height:80px;"></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="field">
+                                            <label>Intergration method</label>
+                                            <select id="wq-scheme-chemical">
+                                                <option value="15" selected>Scheme 15</option>
+                                                <option value="22">Scheme 22</option>
+                                            </select>
+                                        </div>
+                                        <div class="field">
+                                            <label>Max iter.</label><input type="text" id="max-iterations-chemical" value="500">
+                                            <label>Tolerance</label><input type="text" id="tolerance-chemical" value="1E-07">
                                         </div>
                                     </div>
                                     <div class="row" style="justify-content: center;">
@@ -224,12 +237,31 @@
                                     </div>
                                     <div class="row">
                                         <div class="textarea-container tile" style="display:block;">
-                                            <label>USEFORS</label><br>
-                                            <select id="wq-physical-usefors-from" style="margin: 10px 0 10px 0;"></select>
+                                            <label>Assigned Substance</label><br>
+                                            <select id="wq-physical-usefors-from" style="margin: 10px 0 10px 0; width: 120px;"></select>
                                             <label> --> </label>
-                                            <select id="wq-physical-usefors-to"></select>
+                                            <select id="wq-physical-usefors-to" style="width: 120px;"></select>
                                             <button class="wq-usefors" type="button" data-info="physical">Update</button>
-                                            <textarea class="data-textarea" id="wq-usefors-physical" style="height:20px;"></textarea>
+                                            <textarea class="data-textarea" id="wq-usefors-physical" style="height:80px; min-height:80px;"></textarea>
+                                            <label style="margin-top:20px; display:inline-block;">Initial Value</label><br>
+                                            <select id="wq-physical-initial-from" style="margin: 10px 0 10px 0; width: 120px;"></select>
+                                            <label> --> </label>
+                                            <input type="text" id="wq-physical-initial" value="0" style="width: 120px;">
+                                            <button class="wq-initial" type="button" data-info="physical">Update</button>
+                                            <textarea class="data-textarea" id="wq-initial-physical" style="height:80px; min-height:80px;"></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="field">
+                                            <label>Intergration method</label>
+                                            <select id="wq-scheme-physical">
+                                                <option value="15" selected>Scheme 15</option>
+                                                <option value="22">Scheme 22</option>
+                                            </select>
+                                        </div>
+                                        <div class="field">
+                                            <label>Max iter.</label><input type="text" id="max-iterations-physical" value="500">
+                                        <label>Tolerance</label><input type="text" id="tolerance-physical" value="1E-07">
                                         </div>
                                     </div>
                                     <div class="row" style="justify-content: center;">
@@ -255,12 +287,31 @@
                                     </div>
                                     <div class="row">
                                         <div class="textarea-container tile" style="display:block;">
-                                            <label>USEFORS</label><br>
-                                            <select id="wq-microbial-usefors-from" style="margin: 10px 0 10px 0;"></select>
+                                            <label>Assigned Substance</label><br>
+                                            <select id="wq-microbial-usefors-from" style="margin: 10px 0 10px 0; width: 120px;"></select>
                                             <label> --> </label>
-                                            <select id="wq-microbial-usefors-to"></select>
+                                            <select id="wq-microbial-usefors-to" style="width: 120px;"></select>
                                             <button class="wq-usefors" type="button" data-info="microbial">Update</button>
-                                            <textarea class="data-textarea" id="wq-usefors-microbial" style="height: 50px;"></textarea>
+                                            <textarea class="data-textarea" id="wq-usefors-microbial" style="height:80px; min-height:80px;"></textarea>
+                                            <label style="margin-top:20px; display:inline-block;">Initial Value</label><br>
+                                            <select id="wq-microbial-initial-from" style="margin: 10px 0 10px 0; width: 120px;"></select>
+                                            <label> --> </label>
+                                            <input type="text" id="wq-microbial-initial" value="0" style="width: 120px;">
+                                            <button class="wq-initial" type="button" data-info="microbial">Update</button>
+                                            <textarea class="data-textarea" id="wq-initial-microbial" style="height:80px; min-height:80px;"></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="field">
+                                            <label>Intergration method</label>
+                                            <select id="wq-scheme-microbial">
+                                                <option value="15" selected>Scheme 15</option>
+                                                <option value="22">Scheme 22</option>
+                                            </select>
+                                        </div>
+                                        <div class="field">
+                                            <label>Max iter.</label><input type="text" id="max-iterations-microbial" value="500">
+                                            <label>Tolerance</label><input type="text" id="tolerance-microbial" value="1E-07">
                                         </div>
                                     </div>
                                     <div class="row" style="justify-content: center;">
