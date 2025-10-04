@@ -59,7 +59,7 @@
                   <div class="tile"><h3>Location</h3>
                     <div class="row">
                       <label for="latitude">Avg. latitude (°):</label>
-                      <input type="text" id="latitude" placeholder="Enter latitude" value=62.5>
+                      <input type="text" id="latitude" placeholder="Enter latitude">
                     </div>
                     <div class="row">
                       <button type="button" id="location-picker">Pick from map</button>
@@ -88,19 +88,14 @@
               </div>
               <div class="tabpanel" data-panel="model-setting-2">
                 <div class="grid">
-                  <div class="tile"><h3>Reference date</h3>
-                    <div class="row">
-                      <input type="text" class="datetime-ref" id="reference-date" placeholder="YYYY-mm-dd" value="2024-04-01">
-                    </div>
-                  </div>
                   <div class="tile"><h3>Simulation time</h3>
                     <div class="row">
                       <label for="start-date">Start time:</label>
-                      <input type="text" class="datetime" id="start-date" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-04-25 00:00:00">
+                      <input type="text" class="datetime" id="start-date" placeholder="YYYY-mm-dd HH:mm:ss">
                     </div>
                     <div class="row">
                       <label for="stop-date">Stop time:</label>
-                      <input type="text" class="datetime" id="stop-date" placeholder="YYYY-mm-dd HH:mm:ss" value="2024-11-20 00:00:00">
+                      <input type="text" class="datetime" id="stop-date" placeholder="YYYY-mm-dd HH:mm:ss">
                     </div>                                    
                   </div>
                   <div class="tile"><h3>Time interval</h3>
@@ -304,8 +299,6 @@
                         <input type="radio" id="source-sink-list" name="source" value="3">
                         <label for="source-sink-list">Select from list</label>
                       </div>
-                    </div>
-                    <div class="tile"><h3>Create data</h3>                          
                       <div class="row">
                         <label for="source-name">Name:</label>
                         <input type="text" id="source-name" placeholder="Name of source/sink">
@@ -539,7 +532,6 @@
   <script src="static/js/tooltipManager.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script>
-    flatpickr(".datetime-ref",{ dateFormat: "Y-m-d" });
     flatpickr(".datetime-interval",{ 
       noCalendar: true, enableSeconds: true, time_24hr: true,
       enableTime: true, dateFormat: "H:i:S" });

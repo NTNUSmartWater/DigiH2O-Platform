@@ -2,14 +2,14 @@
 import { initializeMap, baseMapButtonFunctionality } from './mapManager.js';
 import { startLoading, showLeafletMap, map } from './mapManager.js';
 import { plotChart, plotEvents, drawChart, plotWindow } from './chartManager.js';
-import { plot2DMapStatic } from "./map2DManager.js";
+import { plot2DMapStatic, timeControl, colorbar_container } from "./map2DManager.js";
 import { deactivePointQuery, deactivePathQuery } from "./queryManager.js";
 import { generalOptionsManager } from './generalOptionManager.js';
 import { dynamicMapManager } from './dynamicMapManager.js';
 import { sendQuery } from './tableManager.js';
 import { resetState } from './constants.js';
 
-let pickerState = { location: false, point: false, crosssection: false, boundary: false, source: false };
+let pickerState = { location: false, point: false, crosssection: false, boundary: false, source: false }, cachedMenus = {};
 let markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [], pathLineBoundary = null;
 let gridLayer = null, timeOut=null, markersCrosssection = [], crosssectionContainer = [], pathLineCrosssection = null;
 
@@ -51,8 +51,14 @@ plotEvents();
 
 async function showPopupMenu(id, htmlFile) {
     try {
-        const response = await fetch(`/load_popupMenu?htmlFile=${htmlFile}`);
-        const html = await response.text();
+        let html;
+        if (cachedMenus[htmlFile]) html = cachedMenus[htmlFile];
+        else {
+            const response = await fetch(`/load_popupMenu?htmlFile=${htmlFile}`);
+            if (response.status === 'error') {alert(response.message); return;}
+            html = await response.text();
+            cachedMenus[htmlFile] = html;
+        }
         popupContent().innerHTML = html;
         if (id === '1') generalOptionsManager(); // Events on general options submenu
         if (id === '2') measuredPointManager(); // Events on measured points submenu
@@ -62,6 +68,7 @@ async function showPopupMenu(id, htmlFile) {
 }
 
 async function projectChecker(name=null, params=null) {
+    cachedMenus = {}; // Clear cache of menus for new project
     const projectMenu = document.querySelectorAll('.menu');
     projectMenu.forEach(menu => { menu.style.display = (name===null)?'none':'block'; });
     const project = document.querySelector('.menu[data-info="0|project_menu.html"]');
@@ -73,7 +80,7 @@ async function projectChecker(name=null, params=null) {
     projectTitle().textContent = `Project: ${name}`;
     startLoading('Reading Simulation Outputs and Setting up Database.\nThis takes for a while. Please wait...');
     const data = await sendQuery('setup_database', {projectName: name, params: params});
-    if (data.status === "error") alert(data.message);
+    if (data.status === "error") {alert(data.message); location.reload(); }
     showLeafletMap();
 }
 
@@ -128,11 +135,11 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
     objWindow.style.display = 'flex';
 }
 
-iframeInit("new_WQ_project", projectSetting(), projectSettingHeader(), 
-                    projectSettingContent(), "Set up and Run Water Quality Simulation");
+iframeInit("new_HYD_project", projectSetting(), projectSettingHeader(), 
+                    projectSettingContent(), "Set up a new Hydrodynamic project");
 
 // iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
-//                     projectOpenWindowContent(), "Open Project");
+//                     projectOpenWindowContent(), "Select Project with Simulation Result(s)");
 
 function updateEvents() {
     // Search locations
@@ -220,7 +227,7 @@ function updateEvents() {
             const name = project.dataset.info;
             if (name === 'open-project') {
                 iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
-                    projectOpenWindowContent(), "Open Project");
+                    projectOpenWindowContent(), "Select Project with Simulation Result(s)");
             } else if (name === 'new-hyd-project') { 
                 projectChecker();
                 iframeInit("new_HYD_project", projectSetting(), projectSettingHeader(), 
@@ -344,6 +351,9 @@ function updateEvents() {
     // Close windows
     substanceWindowCloseBtn().addEventListener('click', () => { 
         substanceWindow().style.display = 'none'; plotWindow().style.display = 'none';
+        map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
+        if (timeControl().style.display === 'flex') timeControl().style.display = 'none';
+        if (colorbar_container().style.display === 'block') colorbar_container().style.display = 'none';
     });
     contactInfoCloseBtn().addEventListener('click', () => { contactInfo().style.display = 'none'; });
     projectOpenCloseBtn().addEventListener('click', () => { projectOpenWindow().style.display = 'none'; });
@@ -465,8 +475,8 @@ function measuredPointManager() {
     // Process water quality selector
     document.querySelectorAll('.waq_his').forEach(item => {
         item.addEventListener('click', async() => {
-            const [query, key] = item.dataset.info.split('|');
-            const data = await sendQuery('process_data', {query: query, key: key});
+            const query = item.dataset.info;
+            const data = await sendQuery('process_data', {query: query, key: 'substance_check'});
             if (data.status === "error") {alert(data.message); substanceWindow().style.display = 'none'; return;}
             substanceWindowContent().innerHTML = '';
             // Add content
@@ -484,7 +494,6 @@ function measuredPointManager() {
             plotChart(value, 'substance', `Substance: ${value}`, 'Time', value, false);
         }
     });
-    
 }
 
 function staticMapManager() {
@@ -506,4 +515,3 @@ function contacInformation() {
     }
     contactInfo().style.display = 'flex';
 }
-

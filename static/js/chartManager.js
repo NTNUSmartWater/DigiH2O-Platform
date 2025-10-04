@@ -15,10 +15,10 @@ const chartDiv = () => document.getElementById('myChart');
 const viewDataBtn = () => document.getElementById('viewDataBtn');
 const downloadBtn = () => document.getElementById('downloadExcel');
 
-export async function plotChart(query, key, chartTitle, titleX, titleY, swap) {
+export async function plotChart(query, key, chartTitle, titleX, titleY) {
     startLoading('Preparing Data for Chart. Please wait...'); // Show spinner
     const data = await loadData(query, key); // Load data
-    drawChart(data.content, chartTitle, titleX, titleY, swap);
+    drawChart(data.content, chartTitle, titleX, titleY);
     showLeafletMap(); // Hide the spinner and show the map
 }
 
@@ -61,11 +61,9 @@ function updateChart() {
     const selectedColumns = Array.from(checkboxes)
         .filter(cb => cb.checked && cb.value !== 'All')
         .map(cb => cb.value);
-    const {data, chartTitle, titleX, titleY, undefined, swap} = getState().globalChartData;
-    drawChart(data, chartTitle, titleX, titleY, swap, selectedColumns);
+    const {data, chartTitle, titleX, titleY, undefined} = getState().globalChartData;
+    drawChart(data, chartTitle, titleX, titleY, selectedColumns);
 }
-
-
 
 function populateCheckboxList(columns) {
     const list = checkboxList();
@@ -104,7 +102,7 @@ function populateCheckboxList(columns) {
 }
 
 // Draw the chart using Plotly
-export function drawChart(data, chartTitle, titleX, titleY, swap, selectedColumns=null) {
+export function drawChart(data, chartTitle, titleX, titleY, selectedColumns=null) {
     const cols = data.columns, rows = data.data;
     const obj = '#select-object .checkbox-list input[type="checkbox"]';
     let checkboxInputs = document.querySelectorAll(obj);
@@ -112,14 +110,13 @@ export function drawChart(data, chartTitle, titleX, titleY, swap, selectedColumn
     // Populate checkbox list
     if (checkboxInputs.length === 0) {
         const validColumns = [];
-        const startCol = swap ? 1 : 1;
-        for (let i = startCol; i < cols.length; i++) {
-            const y = rows.map(r => swap ? r[0] : r[i]);
+        for (let i = 1; i < cols.length; i++) {
+            const y = rows.map(r => r[i]);
             const hasValid = y.some(val => val !== null && !isNaN(val));
             if (hasValid) validColumns.push(i);
         }
         // Update global variable
-        setState({ globalChartData: { data, chartTitle, titleX, titleY, validColumns, swap } });
+        setState({ globalChartData: { data, chartTitle, titleX, titleY, validColumns } });
         populateCheckboxList(validColumns.map(i => data.columns[i]));
         checkboxInputs = document.querySelectorAll(obj);
     }
@@ -136,19 +133,18 @@ export function drawChart(data, chartTitle, titleX, titleY, swap, selectedColumn
         Plotly.purge(chartDiv());
         return;
     }
-    const x = rows.map(r => swap ? r.slice(1) : r[0]);
+    const x = rows.map(r => r[0]);
     const traces = [];
     let traceIndex = 0;
     const n = drawColumns.length;  
     for (const colName of drawColumns) {
         const i = cols.indexOf(colName);
         if (i === -1) continue;
-        const y = rows.map(r => swap ? r[0] : r[i]);
-        const xVals = swap ? rows.map(r => r[i]) : x;  
+        const y = rows.map(r => r[i]);
         const t = n <= 1 ? 0 : traceIndex / (n - 1);
         const color = interpolateJet(1-t);
         traces.push({
-            x: xVals, y: y, name: cols[i],
+            x: x, y: y, name: cols[i],
             type: 'scatter', mode: 'lines', line: { color: color }
         });
         traceIndex++;
@@ -173,7 +169,7 @@ export function drawChart(data, chartTitle, titleX, titleY, swap, selectedColumn
     Plotly.Plots.resize(chartDiv()); // Resize the chart
     // Update the header and maintain the close button
     plotTitle().innerHTML = chartTitle;
-    swap = false; plotWindow().style.display = "flex"; // Show the chart
+    plotWindow().style.display = "flex"; // Show the chart
 }
 
 function numberFormatter(num, decimals) {

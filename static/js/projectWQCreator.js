@@ -9,7 +9,6 @@ const sectionTab = () => document.getElementById('parent-tab');
 const sectionDescription = () => document.getElementById('desription-tab');
 const hydFilename = () => document.getElementById("hyd-filename");
 const nLayers = () => document.getElementById("n-layer");
-const referenceTime = () => document.getElementById("reference-time");
 const startTime = () => document.getElementById("start-time");
 const stopTime = () => document.getElementById("stop-time");
 const sourcesContainer = () => document.getElementById("wq-sources-container");
@@ -42,11 +41,10 @@ const microbialSelector = () => document.getElementById('wq-microbial');
 const microbialName = () => document.getElementById('wq-microbial-name');
 
 
-let projectList=[], subKey='', folderName='', usefors=null, from_usefors=null, to_usefors=null, pointSelected=null;
-let timeStep1=0, timeStep2='', nSegments=0, attrPath_='', volPath='', exchange_x=0, exchange_y=0, exchange_z=0;
-let ptrPath='', areaPath='', flowPath='', lengthPath='', srfPath='', vdfPath='', temPath='', maxiter=null,
-tolerance=null, scheme=null, salPath='';
-let from_initial=null, initial_value=null, initial_area=null, initialList=[], progressbar=null, progressText=null;
+let projectList=[], subKey='', folderName='', usefors=null, from_usefors=null, to_usefors=null, pointSelected=null, 
+    timeStep1=0, timeStep2='', nSegments=0, attrPath_='', volPath='', exchange_x=0, exchange_y=0, exchange_z=0, 
+    ptrPath='', areaPath='', flowPath='', lengthPath='', srfPath='', vdfPath='', temPath='', maxiter=null, tolerance=null,
+    scheme=null, salPath='', from_initial=null, initial_value=null, initial_area=null, initialList=[], progressbar=null, progressText=null;
 
 function setupTabs(root) {
     const buttonPanels = root.querySelectorAll('#main-tabs button');
@@ -150,7 +148,7 @@ function substanceChanger(target, name){
         else if (key === 'oxygen-bod-water') subKey = 'Oxygen_BOD';
         else if (key === 'cadmium') subKey = 'Cadmium';
         else if (key === 'eutrophication') subKey = 'Eutrophication';
-        else if (key === 'tracer-metals') subKey = 'Tracer_Metals';
+        else if (key === 'trace-metals') subKey = 'Trace_Metals';
         else if (key === 'conservative-tracers') subKey = 'Conservative_Tracers';
         else if (key === 'suspend-sediment') subKey = 'Suspend_Sediment';
         else if (key === 'coliform') subKey = 'Coliform';
@@ -373,8 +371,6 @@ function updateOption(){
             const timeTable = timePreview().value.trim();
             if (!timeTable || timeTable === '') { alert("Post-processing field is required"); return; }
             if (!folderName || folderName === '') { alert("Name of substance is required"); return; }
-            const refTime = referenceTime().value.trim();
-            if (!refTime || refTime === '') { alert("The field 'Reference time' is required"); return; }
             const start = startTime().value.trim(), stop = stopTime().value.trim();
             if (!start || start === '' || !stop || stop === '') { alert("The fields 'Start time' and 'Stop time' are required"); return; }
             const userforValue = usefors.value.trim();
@@ -393,9 +389,8 @@ function updateOption(){
                     timeStep1: timeStep1, timeStep2: timeStep2, nSegments: nSegments, attrPath: attrPath_, volPath: volPath, exchangeY: exchange_y,
                     exchangeX: exchange_x, exchangeZ: exchange_z, ptrPath: ptrPath, areaPath: areaPath, flowPath: flowPath, lengthPath: lengthPath,
                     nLayers: nLayers().value, sources: sourceTable.rows, loadsData: loadTable.rows, srfPath: srfPath, vdfPath: vdfPath,
-                    temPath: temPath, initial: initialValue, initialList: initialList, refTime: toUTC(refTime), startTime: toUTC(start), 
-                    stopTime: toUTC(stop), obsPoints: obsTable.rows, timeTable: timeTable, maxiter: maxiter.value, tolerance: tolerance.value,
-                    scheme: scheme.value, salPath: salPath
+                    temPath: temPath, initial: initialValue, initialList: initialList, startTime: toUTC(start), stopTime: toUTC(stop),
+                    obsPoints: obsTable.rows, timeTable: timeTable, maxiter: maxiter.value, tolerance: tolerance.value, scheme: scheme.value, salPath: salPath
                 }));
                 progressText.innerText = ''; progressbar.value = 0;
             }
@@ -443,8 +438,7 @@ function initializeProject(){
         flowPath = data.content.flow_path; lengthPath = data.content.length_path;
         if (data.content.n_layers) nLayers().value = data.content.n_layers;
         srfPath = data.content.srf_path; vdfPath = data.content.vdf_path;
-        temPath = data.content.tem_path; referenceTime().value = data.content.ref_time;
-        salPath = data.content.sal_path;
+        temPath = data.content.tem_path; salPath = data.content.sal_path;
         startTime().value = data.content.start_time; stopTime().value = data.content.stop_time;
     });
 }

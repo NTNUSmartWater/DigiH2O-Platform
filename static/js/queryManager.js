@@ -7,10 +7,12 @@ let currentMarker = null, pathLine = null, marker = null, pointContainer = [], s
 
 const mapContainer = () => map.getContainer();
 const stationOption = () => document.getElementById("hyd-obs-checkbox");
-const sourceOption = () => document.getElementById("sourceCheckbox");
-const crossSectionOption = () => document.getElementById("crossSectionCheckbox");
-const pointQueryCheckbox = () => document.getElementById("pointQuery");
-const pathQueryCheckbox = () => document.getElementById("pathQuery");
+const waqObsOption = () => document.getElementById("waq-obs-checkbox");
+const waqLoadsOption = () => document.getElementById("waq-loads-checkbox");
+const sourceOption = () => document.getElementById("source-checkbox");
+const crossSectionOption = () => document.getElementById("cross-section-checkbox");
+const pointQueryCheckbox = () => document.getElementById("point-query");
+const pathQueryCheckbox = () => document.getElementById("path-query");
 const infoDetail = () => document.getElementById("infoDetails");
 const infoContent = () => document.getElementById("infoDetailsContent");
 
@@ -30,6 +32,8 @@ function checkUpdater(setLayer, objCheckbox, checkFunction){
 
 export function queryUpdate(){
     checkUpdater("stationLayer", stationOption(), activeStationCheck);
+    checkUpdater("wqObsLayer", waqObsOption(), activeWAQObsCheck);
+    checkUpdater("wqLoadsLayer", waqLoadsOption(), activeWAQLoadsCheck);
     checkUpdater("sourceLayer", sourceOption(), activeSourceCheck);
     checkUpdater("crosssectionLayer", crossSectionOption(), activeCrossSectionCheck);
 }
@@ -52,7 +56,7 @@ async function activeStationCheck() {
             const marker = L.marker(latlng, {icon: customIcon});
             const stationId = feature.properties.name || 'Unknown';
             // Add tooltip
-            const value = `<div style="text-align: center;">
+            const value = `<div style="text-align: center; weight: bold;">
                     <b>${stationId}</b><br>Select object to see more parameters
                 </div>`;
             marker.bindTooltip(value, {
@@ -78,6 +82,67 @@ async function activeStationCheck() {
     showLeafletMap(); // Hide the spinner and show the map
     return layer;
 }
+
+async function activeWAQObsCheck() {
+    startLoading('Loading Water Quality Observation Points from Database. Please wait...');
+    const data = await loadData('', 'wq_obs');
+    if (data.status === "error") { alert(data.message); return; }
+    if (getState().wqObsLayer) { map.removeLayer(getState().wqObsLayer); }
+    const layer = L.geoJSON(data.content, {
+        // Custom marker icon
+        pointToLayer: function (feature, latlng) {
+            const customIcon = L.icon({
+                iconUrl: `static/images/waq_obs.png?v=${Date.now()}`,
+                iconSize: [27, 27], popupAnchor: [1, -34],
+            });
+            const marker = L.marker(latlng, {icon: customIcon});
+            const stationId = feature.properties.name || 'Unknown';
+            // Add tooltip
+            const value = `<div style="text-align: center; weight: bold;">
+                    <b>${stationId}</b>
+                </div>`;
+            marker.bindTooltip(value, {
+                permanent: false, direction: 'top', offset: [0, 0]
+            });
+            return marker;
+        }
+    });
+    map.addLayer(layer);
+    map.setView(layer.getBounds().getCenter(), ZOOM);
+    showLeafletMap();
+    return layer;
+}
+
+async function activeWAQLoadsCheck() {
+    startLoading('Loading Loads of Water Quality Observation Points from Database. Please wait...');
+    const data = await loadData('', 'wq_loads');
+    if (data.status === "error") { alert(data.message); return; }
+    if (getState().wqLoadsLayer) { map.removeLayer(getState().wqLoadsLayer); }
+    const layer = L.geoJSON(data.content, {
+        // Custom marker icon
+        pointToLayer: function (feature, latlng) {
+            const customIcon = L.icon({
+                iconUrl: `static/images/waq_loads.png?v=${Date.now()}`,
+                iconSize: [20, 20], popupAnchor: [1, -34],
+            });
+            const marker = L.marker(latlng, {icon: customIcon});
+            const stationId = feature.properties.name || 'Unknown';
+            // Add tooltip
+            const value = `<div style="text-align: center; weight: bold;">
+                    <b>${stationId}</b>
+                </div>`;
+            marker.bindTooltip(value, {
+                permanent: false, direction: 'top', offset: [0, 0]
+            });
+            return marker;
+        }
+    });
+    map.addLayer(layer);
+    map.setView(layer.getBounds().getCenter(), ZOOM);
+    showLeafletMap();
+    return layer;
+}
+
 
 async function activeSourceCheck() {
     startLoading('Reading Sources from Database. Please wait...');

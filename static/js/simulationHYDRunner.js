@@ -1,10 +1,11 @@
 const projectSelector = () => document.getElementById("options");
 const runBtn = () => document.getElementById("run-button");
 const stopBtn = () => document.getElementById("stop-button");
-const infoArea = () => document.getElementById("textarea");
+const progressbar = () => document.getElementById("progressbar");
+const progressText = () => document.getElementById("progress-text");
+
 
 let ws = null, content = '', currentProject = null;;
-
 
 async function sendQuery(functionName, content){
     const response = await fetch(`/${functionName}`, {
@@ -24,33 +25,74 @@ async function getProjectList(target){
 
 function updateSelection(){
     getProjectList(projectSelector());
+    projectSelector().addEventListener('change', async() => {
+        const projectName = projectSelector().value;
+        if (!projectName || projectName === '') {alert('Please select a project.'); return;}
+        const statusRes = await sendQuery('check_sim_status', {projectName: projectName});
+        if (statusRes.status === "running") {
+            currentProject = projectName;
+            content = statusRes.logs.join("\n");
+            progressText().innerText = `Simulation is running: ${statusRes.progress}%`;
+            progressbar().value = statusRes.progress;
+            // Open websocket connection to get simulation progress
+            ws = new WebSocket(`ws://${window.location.host}/sim_progress/${projectName}`);
+            ws.onmessage = (event) => {
+                const info = event.data;
+                if (info.startsWith("[ERROR]")) { alert(info.replace('[ERROR]','')); return; }
+                if (info.startsWith("[PROGRESS]")) {
+                    const percent = parseFloat(info.replace('[PROGRESS]', '').trim());
+                    progressText().innerText = 'Completed: ' + percent + '%';
+                    progressbar().value = percent;
+                }
+                if (info.startsWith("[FINISHED]")) progressText().innerText = info.replace('[FINISHED]','');
+            };
+        } else {
+            progressText().innerText = "No simulation running."; progressbar().value = 0;
+        }
+    });
+    // Run new simulation
     runBtn().addEventListener('click', async () => {
         const projectName = projectSelector().value;
-        if (projectName === '') {alert('Please select a project.'); return;}
-        const data = await sendQuery('check_folder', {projectName: projectName, folder: ['output']});
-        if (data.status === "ok") {
+        if (!projectName || projectName === '') {alert('Please select a project.'); return;}
+        // Check if simulation is running
+        const statusRes = await sendQuery('check_sim_status', {projectName: projectName});
+        if (statusRes.status === "running") {
+            alert("Simulation is already running for this project.");
+            return;
+        }
+        const res = await sendQuery('check_folder', {projectName: projectName, folder: ['output']});
+        if (res.status === "ok") {
             const result = confirm("Output is available in this project." + 
                 "\nRe-run simulation will overwrite the existing output." +
                 "\nDo you want to continue?"
             );
             if (!result) return;
         }
+        const res_check = await sendQuery('start_sim', {projectName: projectName});
+        if (res_check.status === "error") {alert(res_check.message); return;}
         currentProject = projectName; content = '';
         // Run hydrodynamics simulation
-        ws = new WebSocket(`ws://${window.location.host}/run_sim/${projectName}`);
-        content += 'Start running hydrodynamic simulation...\n=========================================\n\n';
+        ws = new WebSocket(`ws://${window.location.host}/sim_progress/${projectName}`);
+        progressText().innerText = 'Start running hydrodynamic simulation...';
         ws.onmessage = (event) => {
-            content += event.data + '\n';
-            infoArea().value = content;
-            if (event.data.includes('[STATUS]')) alert(event.data.replace('\n\n', ''));
+            const info = event.data;
+            if (info.startsWith("[ERROR]")) { 
+                alert(info.replace('[ERROR]','')); 
+                progressText().innerText = "Simulation finished unseccessfully.";
+                return; }
+            if (info.startsWith("[PROGRESS]")) {
+                const percent = parseFloat(info.replace('[PROGRESS]', '').trim());
+                progressText().innerText = 'Completed: ' + percent + '%';
+                progressbar().value = percent;
+            }
+            if (info.startsWith("[FINISHED]")) progressText().innerText = info.replace('[FINISHED]','');
         };
     });
     stopBtn().addEventListener('click', async () => {
         if (ws) { ws.close(); ws = null; }
-        if (currentProject) {
-            const data = await sendQuery('stop_sim', {projectName: currentProject});
-            alert(data.message);
-        }
+        if (!currentProject) return;
+        const res = await sendQuery('stop_sim', {projectName: currentProject});
+        alert(res.message); progressText().innerText = "Simulation stopped by user.";
     });
 }
 updateSelection();

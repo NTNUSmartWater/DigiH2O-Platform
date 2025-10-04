@@ -6,7 +6,6 @@ from Functions import route_page, process_manager, wq_process
 from Functions import project_manager, run_simulation
 from config import PROJECT_STATIC_ROOT
 
-
 app = FastAPI(lifespan=config.lifespan)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
@@ -25,8 +24,5 @@ app.include_router(project_manager.router)
 app.include_router(run_simulation.router)
 app.include_router(wq_process.router)
 
-# Register WebSockets route
-run_simulation.register_websocket_routes(app)
-
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload_dirs=['.'], reload=True) # Remove reload=True for production

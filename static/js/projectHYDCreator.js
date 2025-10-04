@@ -1,6 +1,6 @@
 import { fillTable, getDataFromTable, removeRowFromTable, deleteTable, copyPaste } from "./tableManager.js";
 import { csvUploader, mapPicker, renderProjects, pointUpdate, updateTable, plotTable, sendQuery } from "./tableManager.js";
-import { saveProject, toUTC, timeStepCalculator } from "./projectSaver.js";
+import { saveProject, timeStepCalculator } from "./projectSaver.js";
 
 const sectionDescription = () => document.getElementById('desription-tab');
 const sectionTab = () => document.getElementById('parent-tab');
@@ -74,7 +74,6 @@ const latitude = () => document.getElementById('latitude');
 const nLayers = () => document.getElementById('n-layer');
 const gridPath = () => document.getElementById('unstructured-grid');
 const gridTool = () => document.getElementById('activate-grid');
-const referenceDate = () => document.getElementById('reference-date');
 const startDate = () => document.getElementById('start-date');
 const stopDate = () => document.getElementById('stop-date');
 const obsPointTable = () => document.getElementById('observation-point-table');
@@ -331,18 +330,16 @@ function updateOption(){
         const nameBoundary = boundaryName().value.trim();
         const subBoundary = boundarySelector().value;
         const boundaryType = boundaryTypeSelector().value;
-        const refDate = referenceDate().value;
-        if (nameProject === '' || nameBoundary === '' || subBoundary === '' || boundaryType === '' || refDate === '') {
+        if (nameProject === '' || nameBoundary === '' || subBoundary === '' || boundaryType === '') {
             alert('Please check: \n     1. Name of project/boundary/sub-boundary option is required.' + 
                 '\n     2. Boundary type is required.' + '\n     3. Reference date is required.'); return;
         }
-        const refSimulation = toUTC(`${refDate} 00:00:00`);
         const boundaryData = getDataFromTable(boundaryTable(), true);
         if (boundaryData.rows.length === 0) { alert('No data in the table. Please check boundary condition.'); return; }
         const subBoundaryData = getDataFromTable(boundaryEditTable());
         if (subBoundaryData.rows.length === 0) { alert('No data in the table. Please check sub-boundary condition.'); return; }
         // Create boundary
-        const content = {projectName: nameProject, refDate: refSimulation, boundaryName: nameBoundary, boundaryData: boundaryData.rows,
+        const content = {projectName: nameProject, boundaryName: nameBoundary, boundaryData: boundaryData.rows,
             subBoundaryName: subBoundary, boundaryType: boundaryType, subBoundaryData: subBoundaryData.rows}
         const data = await sendQuery('update_boundary', content);
         alert(data.message);
@@ -443,16 +440,13 @@ function updateOption(){
         const nameProject = projectName().value.trim();
         if (nameProject === ''){ alert('Please check project name.'); return; }
         const table = getDataFromTable(sourceTable());
-        const refDate = referenceDate().value;
         const name = sourceName().value;
         const lat = sourceLatitude().value;
         const lon = sourceLongitude().value;
         if (table.rows.length === 0) { alert('No data to save. Please check the table.'); return; }
-        if (refDate === ''){ alert('Please check reference date of simulation.'); return; }
         if (lat === '' || lon === '' || name === ''){ alert('Please check Name/Latitude/Longitude.'); return; }
-        const refSimulation = toUTC(`${refDate} 00:00:00`);
         const content = {projectName: nameProject, nameSource: name, key: 'saveSource',
-                refDate: refSimulation, lat: lat, lon: lon, data: table.rows}
+            lat: lat, lon: lon, data: table.rows}
         const data = await sendQuery('save_source', content);
         updateTable(sourceRemoveTable(), sourceSelectorRemove(), nameProject);
         alert(data.message);
@@ -461,12 +455,9 @@ function updateOption(){
     meteoSaveBtn().addEventListener('click', async () => {
         const nameProject = projectName().value.trim();
         if (nameProject === ''){ alert('Please check project name.'); return; }        
-        const refDate = referenceDate().value;
-        if (refDate === ''){ alert('Please check reference date of simulation.'); return; }
         const table = getDataFromTable(meteoTable());
         if (table.rows.length === 0) { alert('No data to save. Please check the table.'); return; }
-        const refSimulation = toUTC(`${refDate} 00:00:00`);
-        const data = await sendQuery('save_meteo', {projectName: nameProject, refDate: refSimulation, data: table.rows});
+        const data = await sendQuery('save_meteo', {projectName: nameProject, data: table.rows});
         alert(data.message);
     });
     // Weather data
@@ -480,12 +471,9 @@ function updateOption(){
     weatherUpload().addEventListener('click', async () => {
         const nameProject = projectName().value.trim();
         if (nameProject === ''){ alert('Please check project name.'); return; }        
-        const refDate = referenceDate().value;
-        if (refDate === ''){ alert('Please check reference date of simulation.'); return; }
         const table = getDataFromTable(weatherTable());
         if (table.rows.length === 0) { alert('No data to save. Please check the table.'); return; }
-        const refSimulation = toUTC(`${refDate} 00:00:00`);
-        const data = await sendQuery('save_weather', {projectName: nameProject, refDate: refSimulation, data: table.rows});
+        const data = await sendQuery('save_weather', {projectName: nameProject, data: table.rows});
         alert(data.message);
     })
     // Save project
@@ -498,7 +486,7 @@ function updateOption(){
         const rtsInterval = timeStepCalculator(rstIntervalDate().value, rstIntervalTime().value);
         const sttInterval = timeStepCalculator(statisticDate().value, statisticTime().value);
         const timingInterval = timeStepCalculator(timingDate().value, timingTime().value);
-        const elements = { projectName, latitude, nLayers, gridPath, referenceDate, startDate, stopDate,
+        const elements = { projectName, latitude, nLayers, gridPath, startDate, stopDate,
             userTimeSec, nodalTimeSec, obsPointTable, crossSectionName, crossSectionTable, salinity, 
             temperature, initWaterLevel, initSalinity, initTemperature , outputHis, hisInterval, hisStart, 
             hisStop, outputMap, mapInterval, mapStart, mapStop, outputWQ, wqInterval, wqStart, wqStop, 

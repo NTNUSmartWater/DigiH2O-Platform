@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request, WebSocket
 from config import PROJECT_STATIC_ROOT
 from fastapi.responses import JSONResponse
 from datetime import datetime, timezone
-from Functions import wq_functions, functions
+from Functions import wq_functions
 from starlette.websockets import WebSocketDisconnect
 
 router = APIRouter()
@@ -87,49 +87,38 @@ async def run_wq(websocket: WebSocket):
     try:
         # Get parameters from frontend
         body = await websocket.receive_json()
-        project_name, key = body.get('projectName'), body.get('key')
-        hyd_name, file_name = body.get('hydName'), body.get('folderName')
-        obs_data, usefors = body.get('obsPoints'), body.get('usefors')
-        time_data, ref_time = body.get('timeTable'), body.get('refTime')
-        start_time, stop_time = body.get('startTime'), body.get('stopTime')
-        time_step1, time_step2 = body.get('timeStep1'), body.get('timeStep2')
-        n_segments, attr_path = body.get('nSegments'), body.get('attrPath')
-        vol_path, exchange_x = body.get('volPath'), body.get('exchangeX')
-        exchange_y, exchange_z = body.get('exchangeY'), body.get('exchangeZ')
-        ptr_path, area_path = body.get('ptrPath'), body.get('areaPath')
-        flow_path, length_path = body.get('flowPath'), body.get('lengthPath')
-        srf_path, vdf_path = body.get('srfPath'), body.get('vdfPath')
-        tem_path, initial = body.get('temPath'), body.get('initial')
-        sal_path = body.get('salPath')
-        t_ref = datetime.fromtimestamp(int(ref_time)/1000.0, tz=timezone.utc)
-        t_start = datetime.fromtimestamp(int(start_time)/1000.0, tz=timezone.utc)
-        t_stop = datetime.fromtimestamp(int(stop_time)/1000.0, tz=timezone.utc)
-        hyd_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "DFM_DELWAQ", hyd_name)
-        hyd_folder, initial_list = os.path.dirname(hyd_path), body.get('initialList')
-        parameters = {'hyd_path': hyd_path, "t_ref": t_ref, "t_start": t_start, "t_stop": t_stop,
-            "maxiter": body.get('maxiter'), "tolerance": body.get('tolerance'), "scheme": body.get('scheme'),
-            "t_step1": time_step1, "t_step2": time_step2, "obs_data": obs_data, 'n_segments': n_segments,
-            'attr_path': os.path.join(hyd_folder, attr_path), 'vol_path': os.path.join(hyd_folder, vol_path),
-            'exchange_x': exchange_x, 'exchange_y': exchange_y, 'exchange_z': exchange_z, 'folder_name': file_name,
-            'ptr_path': os.path.join(hyd_folder, ptr_path), 'area_path': os.path.join(hyd_folder, area_path),
-            'flow_path': os.path.join(hyd_folder, flow_path), 'length_path': os.path.join(hyd_folder, length_path),
-            'n_layers': body.get('nLayers'), 'sources': body.get('sources'), 'loads_data': body.get('loadsData'),
-            'srf_path': os.path.join(hyd_folder, srf_path), 'vdf_path': os.path.join(hyd_folder, vdf_path),
-            'tem_path': os.path.join(hyd_folder, tem_path), 'initial_list': initial_list, 'initial_set': initial.split('\n'),
-            'sal_path': os.path.join(hyd_folder, sal_path)
-        }
+        project_name, key = body['projectName'], body['key']
+        file_name, time_data, usefors = body['folderName'], body['timeTable'], body['usefors']
+        t_start = datetime.fromtimestamp(int(body['startTime']/1000.0), tz=timezone.utc)
+        t_stop = datetime.fromtimestamp(int(body['stopTime']/1000.0), tz=timezone.utc)
+        hyd_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "DFM_DELWAQ", body['hydName'])
+        hyd_folder = os.path.dirname(hyd_path)
+        sal_path, attr_path = os.path.join(hyd_folder, body['salPath']), os.path.join(hyd_folder, body['attrPath'])
+        vol_path, ptr_path = os.path.join(hyd_folder, body['volPath']), os.path.join(hyd_folder, body['ptrPath'])
+        area_path, flow_path = os.path.join(hyd_folder, body['areaPath']), os.path.join(hyd_folder, body['flowPath'])
+        length_path, srf_path = os.path.join(hyd_folder, body['lengthPath']), os.path.join(hyd_folder, body['srfPath'])
+        vdf_path, tem_path = os.path.join(hyd_folder, body['vdfPath']), os.path.join(hyd_folder, body['temPath'])
         wq_folder = os.path.join(PROJECT_STATIC_ROOT, project_name, "WAQ")
-        if not os.path.exists(wq_folder): os.makedirs(wq_folder)
+        os.makedirs(wq_folder, exist_ok=True)
+        # Clear data if exists
         output_folder = os.path.join(wq_folder, file_name)
-        if os.path.exists(output_folder):
-            try: shutil.rmtree(output_folder, onexc=functions.remove_readonly)
-            except Exception as e: await websocket.send_json({'error': str(e)})
-        os.makedirs(output_folder)
+        if os.path.exists(output_folder): shutil.rmtree(output_folder, ignore_errors=True)
+        os.makedirs(output_folder, exist_ok=True)
         # Prepare input files
+        await websocket.send_json({"status": "Preparing inputs for WAQ simulation..."})
+        parameters = {'hyd_path': hyd_path, "t_start": t_start, "t_stop": t_stop, 'sal_path': sal_path,
+            "maxiter": body['maxiter'], "tolerance": body['tolerance'], "scheme": body['scheme'], 'srf_path': srf_path, 
+            "t_step1": body['timeStep1'], "t_step2": body['timeStep2'], "obs_data": body['obsPoints'],
+            'n_segments': body['nSegments'], 'attr_path': attr_path, 'vol_path': vol_path, 'exchange_x': body['exchangeX'],
+            'exchange_y': body['exchangeY'], 'exchange_z': body['exchangeZ'], 'folder_name': file_name,
+            'ptr_path': ptr_path, 'area_path': area_path, 'flow_path': flow_path, 'length_path': length_path,
+            'n_layers': body['nLayers'], 'sources': body['sources'], 'loads_data': body['loadsData'],
+            'vdf_path': vdf_path, 'tem_path': tem_path, 'initial_list': body['initialList'], 'initial_set': body['initial'].split('\n')
+        }
         includes_folder = os.path.join(output_folder, "includes_deltashell")
-        if not os.path.exists(includes_folder): os.makedirs(includes_folder)
+        os.makedirs(includes_folder, exist_ok=True)
         table_folder = os.path.join(includes_folder, "load_data_tables")
-        if not os.path.exists(table_folder): os.makedirs(table_folder)
+        os.makedirs(table_folder, exist_ok=True)
         # Write *.tbl file
         tbl_path = os.path.join(table_folder, f"{file_name}.tbl")
         with open(tbl_path, 'w', encoding='ascii', newline='\n') as f:
@@ -140,8 +129,9 @@ async def run_wq(websocket: WebSocket):
             f.write(usefors)
         # Prepare external inputs
         inp_file, ms = wq_functions.wqPreparation(parameters, key, output_folder, includes_folder)
-        if inp_file is None: return JSONResponse({"status": 'error', "message": ms})
-        inp_name = os.path.basename(inp_file)
+        if not inp_file: 
+            await websocket.send_json({'error': ms})
+            return
         # Run WAQ simulation
         delwaq1_path = 'C:/Program Files/Deltares/Delft3D FM Suite 2023.02 HMWQ/plugins/DeltaShell.Dimr/kernels/x64/dwaq/bin/delwaq1.exe'
         delwaq2_path = 'C:/Program Files/Deltares/Delft3D FM Suite 2023.02 HMWQ/plugins/DeltaShell.Dimr/kernels/x64/dwaq/bin/delwaq2.exe'
@@ -150,94 +140,79 @@ async def run_wq(websocket: WebSocket):
         paths_to_check = [ delwaq1_path, delwaq2_path, proc_path, bloom_path ]
         # Check if all paths exist and are valid to run the simulation
         for path in paths_to_check:
-            if not os.path.exists(path):
-                return JSONResponse({"status": 'error', "message": f"File not found: {path}"})
-            if not os.access(path, os.R_OK):
-                return JSONResponse({"status": 'error', "message": f"No read permission: {path}"})
+            if not os.path.exists(path): await websocket.send_json({'error': f"File not found: {path}"})
+            if not os.access(path, os.R_OK): await websocket.send_json({'error': f"No read permission: {path}"})
         delwaq1_path, delwaq2_path = os.path.normpath(delwaq1_path), os.path.normpath(delwaq2_path)
         proc_path, bloom_path = os.path.normpath(proc_path), os.path.normpath(bloom_path)
         # Add dll path
         dll_path = 'C:/Program Files/Deltares/Delft3D FM Suite 2023.02 HMWQ/plugins/DeltaShell.Dimr/kernels/x64/share/bin'
         os.environ["PATH"] += os.pathsep + dll_path
         # Run Simulation and get output
-        success1, success2 = False, False
+        inp_name = os.path.basename(inp_file)
         # === Run delwaq1 ===
         print('=== Run delwaq1 ===')
-        await websocket.send_json({"status": "Preparing inputs for WAQ simulation..."})
-        process1 = subprocess.Popen([delwaq1_path, inp_name, "-p", proc_path, "-eco", bloom_path],
-            cwd=output_folder, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-        for line in process1.stdout:
-            line = line.strip()
-            if not line: continue
-            if "Normal end" in line: success1 = True
-            if line: print("[OUT]", line)
-            await asyncio.sleep(0)
-        for line in process1.stderr:
-            line = line.strip()
-            if line: print("[ERR]", line)
-        process1.wait()
-        if not success1:
-            await websocket.send_json({"status": "Error: Prepare inputs failed."})
-            await websocket.close()
+        await websocket.send_json({"status": "Running WAQ simulation..."})
+        cmd = [delwaq1_path, inp_name, "-p", proc_path, "-eco", bloom_path]
+        process1 = await subprocessRunner(cmd, output_folder, websocket)
+        if not process1:
+            await websocket.send_json({"error": "Prepare inputs failed."})
             return
-        await websocket.send_json({"status": "Finished preparing inputs."})
+        await websocket.send_json({"status": "Finished preparing inputs."})    
         # === Run delwaq2 ===
         print('=== Run delwaq2 ===')
         progress_pattern = re.compile(r"(\d+(?:\.\d+)?)% Completed")
-        await websocket.send_json({"status": "Running WAQ simulation..."})
-        process2 = subprocess.Popen( [delwaq2_path, inp_name], cwd=output_folder, 
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-        for line in process2.stdout:
-            line = line.strip()
-            if not line: continue
-            if "ERROR in GMRES" in line:
-                await websocket.send_json({"status": "Error: GMRES solver failed.\nConsider increasing the maximum number of iterations."})
-                process2.terminate()
-                await websocket.close()
-                return
-            if "Normal end" in line: success2 = True
-            print("[OUT]", line)
-            match = progress_pattern.search(line)
-            if match:
-                percent = float(match.group(1))
-                await websocket.send_json({"progress": percent})
-            await asyncio.sleep(0)
-        for line in process2.stderr:
-            line = line.strip()
-            if line: print("[ERR]", line)
-        process2.wait()
-        if not success2:
-            await websocket.send_json({"status": "Error: WAQ simulation failed."})
-            await websocket.close()
+        await websocket.send_json({"status": "Starting simulation..."})
+        cmd, stop_on_error = [delwaq2_path, inp_name], "ERROR in GMRES"
+        process2 = await subprocessRunner(cmd, output_folder, websocket, progress_pattern, stop_on_error)
+        if not process2:
+            await websocket.send_json({"status": "Run WAQ failed."})
             return
         await websocket.send_json({"progress": 100.0})
         print('=== Finished ===')
         # Move WAQ output files to output folder
-        await websocket.send_json({"status": "Reorganizing NC files..."})
-        out_folder = os.path.join(PROJECT_STATIC_ROOT, project_name, "output")
-        if not os.path.exists(out_folder): os.makedirs(out_folder)
-        output_WAQ_folder = os.path.join(out_folder, 'WAQ')
+        await websocket.send_json({"status": "Moving NC output files..."})
+        output_folder = os.path.join(PROJECT_STATIC_ROOT, project_name, "output")
+        if not os.path.exists(output_folder): os.makedirs(output_folder)
+        output_WAQ_folder = os.path.join(output_folder, 'WAQ')
         if not os.path.exists(output_WAQ_folder): os.makedirs(output_WAQ_folder)
-        his_path = os.path.join(output_folder, f"{file_name}_his.nc")
-        map_path = os.path.join(output_folder, f"{file_name}_map.nc")
-        if not os.path.exists(his_path) and not os.path.exists(map_path):
-            await websocket.send_json({"status": "Error: Cannot find both his and map NC files."})
-            await websocket.close()
-            return
-        # Copy NC files
-        if os.path.exists(his_path):
-            tem_path = os.path.join(output_WAQ_folder, f"{file_name}_his.nc")
-            shutil.copy(his_path, tem_path)
-        if os.path.exists(map_path):
-            tem_path = os.path.join(output_WAQ_folder, f"{file_name}_map.nc")
-            shutil.copy(map_path, tem_path)
-        await websocket.send_json({"status": "NC files moved."})
+        for suffix in ["_his.nc", "_map.nc", ".json"]:
+            src = os.path.join(output_folder, f"{file_name}{suffix}")
+            if os.path.exists(src):
+                shutil.copy(src, os.path.join(output_WAQ_folder, f"{file_name}{suffix}"))
+        await websocket.send_json({"status": "NC files copied."})
         # Delete folder
-        try: shutil.rmtree(wq_folder, onexc=functions.remove_readonly)
+        try: shutil.rmtree(wq_folder, ignore_errors=True)
         except Exception as e: await websocket.send_json({'error': str(e)})
         await websocket.send_json({"status": "Simulation completed successfully."})
-        await websocket.close()
     except WebSocketDisconnect: pass
     except Exception as e:
-        try: await websocket.send_json({"error": str(e)})
-        except Exception: pass
+        await websocket.send_json({"error": str(e)})
+    finally: await websocket.close()
+
+async def subprocessRunner(cmd, cwd, websocket, progress_regex=None, stop_on_error=None):
+    process = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd, universal_newlines=True)
+    success = False
+    for line in process.stdout:
+        line = line.strip()
+        if not line: continue
+        print("[OUT]", line)
+        # Check for progress
+        if progress_regex:
+            match = progress_regex.search(line)
+            if match:
+                percent = float(match.group(1))
+                await websocket.send_json({"progress": percent})
+        # Check special errors
+        if stop_on_error and stop_on_error in line:
+            if "ERROR in GMRES" in line: await websocket.send_json({"error": "GMRES solver failed.\nConsider increasing the maximum number of iterations."})
+            await websocket.send_json({"error": f"Error detected: {line}"})
+            process.terminate()
+            return False
+        if "Normal end" in line: success = True
+    for line in process.stderr:
+        if not line.strip(): continue
+        print("[ERR]", line.strip())
+        await websocket.send_json({"error": line.strip()})    
+    await asyncio.to_thread(process.wait)
+    return success

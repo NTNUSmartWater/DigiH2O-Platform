@@ -133,7 +133,7 @@ Rouwav                            = FR84                                        
 Gammax                            = 1                                           # Maximum wave height/water depth ratio
 
 [time]
-RefDate                           = {ref_date}                                  # Reference date [YYYY-MM-DD HH:MM:SS]
+RefDate                           = 19700101                                    # Reference date [YYYY-MM-DD HH:MM:SS]
 Tzone                             = 0                                           # Time zone assigned to input time series
 DtUser                            = {user_time_s}                               # Time interval for external forcing update [Dd HH:MM:SS.ZZZ]
 DtNodal                           = {nodal_time_s}                              # Time interval (s) for updating nodal factors in astronomical boundary conditions [Dd HH:MM:SS.ZZZ]
