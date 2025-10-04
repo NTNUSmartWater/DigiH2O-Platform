@@ -3,9 +3,7 @@ from fastapi import APIRouter, Request, File, UploadFile, Form
 from Functions import functions
 from fastapi.responses import JSONResponse
 from config import PROJECT_STATIC_ROOT, ROOT_DIR
-from datetime import datetime, timezone
 import xarray as xr
-
 
 router = APIRouter()
 
@@ -16,16 +14,15 @@ async def process_data(request: Request):
     body = await request.json()
     query, key = body.get('query'), body.get('key')
     # Get project state
-    PROJECT_DIR = request.app.state.PROJECT_DIR
     try:
         if key == 'summary':
-            dia_path = os.path.join(PROJECT_DIR, "output", "FlowFM.dia")
+            dia_path = os.path.join(request.app.state.PROJECT_DIR, "output", "FlowFM.dia")
             data_his = [request.app.state.hyd_his, request.app.state.waq_his]
             data = functions.getSummary(dia_path, data_his)
         elif key == 'hyd_station':
-            temp = functions.stationCreator(request.app.state.hyd_his,
-                x_column='station_x_coordinate', y_column='station_y_coordinate')
-            data = json.loads(temp.to_json())
+            data = json.loads(functions.stationCreator(request.app.state.hyd_his).to_json())
+        elif key == 'wq_obs' or key == 'wq_loads':
+            data = json.loads(functions.obsCreator(request.app.state.obs[key]).to_json())
         elif key == 'sources':
             data = json.loads(functions.sourceCreator(request.app.state.hyd_his).to_json())
         elif key == 'crosssections':
@@ -39,29 +36,27 @@ async def process_data(request: Request):
             temp = functions.thermoclineComputer(request.app.state.hyd_map)
             data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
         elif '_dynamic' in key:
-            # Create dynamic data
-            data_, time_column = request.app.state.hyd_map, 'time'
-            if '_wq' in query:
-                data_, time_column = request.app.state.wq_map, 'nTimesDlwq'
+            if query == '': data_, time_column = request.app.state.hyd_map, 'time' # For hydrodynamic data
+            else: data_, time_column, key = request.app.state.waq_map, 'nTimesDlwq', query
             temp_mesh = functions.assignValuesToMeshes(request.app.state.grid, data_, key, time_column)
             data = json.loads(temp_mesh.to_json())
         elif '_static' in key:
             # Create static data for map
             temp = request.app.state.grid.copy()
             if 'depth' in key:
-                data_map = xr.open_dataset(request.app.state.hyd_map)
-                x = data_map['mesh2d_node_x'].values
-                y = data_map['mesh2d_node_y'].values
-                z = data_map['mesh2d_node_z'].values
+                x = request.app.state.hyd_map['mesh2d_node_x'].values
+                y = request.app.state.hyd_map['mesh2d_node_y'].values
+                z = request.app.state.hyd_map['mesh2d_node_z'].values
                 values = functions.interpolation_Z(temp, x, y, z)
             temp['value'] = values
             data = json.loads(temp.to_json())
         elif key == 'velocity':
             value_type = query.replace('_velocity', '')
-            data = functions.velocityComputer(request.app.state.hyd_map, value_type, request.app.state.layer_reverse)
+            layer_reverse = {v: k for k, v in request.app.state.n_layers.items()}
+            data = functions.velocityComputer(request.app.state.hyd_map, value_type, layer_reverse)
         elif key == 'substance_check':
             substance = request.app.state.config[query]
-            if len(substance) > 0: data, status, message = substance, 'ok', ''
+            if len(substance) > 0: data, status, message = sorted(substance), 'ok', ''
             else: data, status, message = None, 'error', f"No substance defined."
             return JSONResponse({'content': data, 'status': status, 'message': message})
         elif key == 'substance':
@@ -85,7 +80,8 @@ async def open_grid(request: Request):
     project_name, grid_name = body.get('projectName'), body.get('gridName')
     try:
         path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input", grid_name)
-        grid = functions.unstructuredGridCreator(path)        
+        temp_grid = xr.open_dataset(path, chunks={})
+        grid = functions.unstructuredGridCreator(temp_grid).dissolve()      
         data = json.loads(grid.to_json())       
         status, message = 'ok', ""
     except Exception as e:
@@ -98,8 +94,9 @@ async def select_polygon(request: Request):
     key, idx = body.get('key'), int(body.get('id'))
     try:
         data_, time_column, column_layer = request.app.state.hyd_map, 'time', 'mesh2d_layer_z'
-        if '_wq' in key:
-            time_column, data_, column_layer = 'nTimesDlwq', request.app.state.wq_map, 'mesh2d_layer_dlwq'
+        if '_multi_dynamic' in key:
+            key = f"mesh2d_{key.replace('_multi_dynamic', '')}"
+            data_, time_column, column_layer = request.app.state.waq_map, 'nTimesDlwq', 'mesh2d_layer_dlwq'
         temp = functions.selectPolygon(data_, idx, key, time_column, column_layer)
         data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
         status, message = 'ok', 'Data loaded successfully.'
@@ -143,20 +140,16 @@ async def update_boundary(request: Request):
     body = await request.json()
     project_name, subBoundaryName = body.get('projectName'), body.get('subBoundaryName')
     boundary_name, data_boundary = body.get('boundaryName'), body.get('boundaryData')
-    boundary_type, data_sub, ref_date = body.get('boundaryType'), body.get('subBoundaryData'), body.get('refDate')
+    boundary_type, data_sub = body.get('boundaryType'), body.get('subBoundaryData')
     if boundary_type == 'Contaminant': unit = '-'; quantity = 'tracerbndContaminant'
     else: unit = 'm'; quantity = 'waterlevelbnd'
     # Parse date
-    seconds = int(ref_date)/1000.0
-    t_ref = datetime.fromtimestamp(seconds, tz=timezone.utc)
-    temp_date = t_ref.strftime('%Y-%m-%d %H:%M:%S')
-    config = {'sub_boundary': subBoundaryName, 'ref_date': temp_date, 'boundary_type': quantity, 'unit': unit}
+    config = {'sub_boundary': subBoundaryName, 'boundary_type': quantity, 'unit': unit}
     temp_file = os.path.join(ROOT_DIR, 'static', 'samples', 'BC.bc')
     try:
         temp, bc = [], [boundary_name]
         for row in data_sub:
-            t = datetime.fromtimestamp(int(row[0])/1000.0, tz=timezone.utc)
-            row[0] = int((t - t_ref).total_seconds()); temp.append(row)
+            row[0] = int(row[0]/1000.0); temp.append(row)
         lines = [f"{int(x)}  {y}" for x, y in temp]
         config['data'] = '\n'.join(lines)
         path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")

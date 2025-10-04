@@ -7,3 +7,4 @@ shapely==2.1.1
 netCDF4==1.7.2
 scipy==1.16.1
 python-multipart==0.0.20
+dask==2025.9.1

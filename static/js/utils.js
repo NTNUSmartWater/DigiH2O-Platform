@@ -5,14 +5,6 @@ export const colorbar_container = () => document.getElementById("custom-colorbar
 export const colorbar_vector_container = () => document.getElementById("custom-colorbar-vector");
 export let colorbar_title = () => document.getElementById("colorbar-title");
 
-let colorbar_color = () => document.getElementById("colorbar-gradient");
-let colorbar_label = () => document.getElementById("colorbar-labels");
-let colorbar_vector_title = () => document.getElementById("colorbar-title-vector");
-let colorbar_vector_color = () => document.getElementById("colorbar-gradient-vector");
-let colorbar_vector_label = () => document.getElementById("colorbar-labels-vector");
-let colorbar_vector_scaler = () => document.getElementById("custom-colorbar-scaler");
-
-
 function toSuperscript(num) {
     return String(num).split('').map(ch => superscriptMap[ch] || ch).join('');
 }
@@ -72,7 +64,7 @@ export function interpolateValue(location, centroids, power = 5, maxDistance = I
 }
 
 // Convert value to color
-export function getColorFromValue(value, vmin, vmax, colorbarKey, swap) {
+export function getColorFromValue(value, vmin, vmax, colorbarKey) {
     if (typeof value !== 'number' || isNaN(value)) {
         return { r: 150, g: 150, b: 150, a: 0 };
     }
@@ -87,7 +79,6 @@ export function getColorFromValue(value, vmin, vmax, colorbarKey, swap) {
         t = (Math.log(value + epsilon) - Math.log(vmin + epsilon)) / (Math.log(vmax + epsilon) - Math.log(vmin + epsilon));
     }
     t = Math.max(0, Math.min(1, t));
-    if (swap) t = 1 - t;
     let colors;
     if (colorbarKey === "depth") { // used for depth
         colors = [
@@ -95,13 +86,13 @@ export function getColorFromValue(value, vmin, vmax, colorbarKey, swap) {
             { r: 0,   g: 119, b: 190 }, // light blue
             { r: 160, g: 216, b: 239 }  // very light blue
         ];
-    }else if (colorbarKey === "velocity") { // used for velocity
+    } else if (colorbarKey === "velocity") { // used for velocity
         colors = [
             { r: 255, g: 255, b: 255 },  // White
             { r: 255, g: 255, b: 85  },  // Yellow
             { r: 255, g: 4,   b: 0   }   // Red
         ];
-    }else { // used for temperature, salinity, contaminant, ...
+    } else { // used for temperature, salinity, contaminant, ...
         colors = [
             { r: 0,   g: 0,   b: 255 }, // blue
             { r: 255, g: 165, b: 0   }, // orange
@@ -121,22 +112,13 @@ export function getColorFromValue(value, vmin, vmax, colorbarKey, swap) {
 }
 
 // Update color for colorbar
-export function updateColorbar(min, max, title, colorbarKey, colorbarScaler, swap) {
-    let color_colorbar = colorbar_color();
-    let title_colorbar = colorbar_title();
-    let label_colorbar = colorbar_label();
-    if (colorbarScaler === 'vector') {
-        color_colorbar = colorbar_vector_color();
-        title_colorbar = colorbar_vector_title();
-        label_colorbar = colorbar_vector_label();
-        colorbar_vector_scaler().innerHTML = `Scaler: ${getState().scalerValue}`;
-    }
-    title_colorbar.textContent = title;
+export function updateColorbar(min, max, title, colorbarKey, bar_color, bar_title, bar_label) {
+    bar_title.textContent = title;
     // Minimum difference
     const minDiff = 1e-2, epsilon = 1e-6;
     if (max - min < minDiff) max = min + minDiff;
     // Update 5 labels
-    const labels = label_colorbar.children;
+    const labels = bar_label.children;
     for (let i = 0; i < 5; i++) {
         const percent = i / 4; // 0,0.25,0.5,0.75,1
         let value;
@@ -150,19 +132,19 @@ export function updateColorbar(min, max, title, colorbarKey, colorbarScaler, swa
         labels[i].textContent = valueFormatter(value, minDiff);
     }
     // Generate color for colorbar
-    const minColor = getColorFromValue(min, min, max, colorbarKey, swap);
-    const midColor = getColorFromValue((min + max) / 2, min, max, colorbarKey, swap);
-    const maxColor = getColorFromValue(max, min, max, colorbarKey, swap);
+    const minColor = getColorFromValue(min, min, max, colorbarKey);
+    const midColor = getColorFromValue((min + max) / 2, min, max, colorbarKey);
+    const maxColor = getColorFromValue(max, min, max, colorbarKey);
     // Update gradient
     const gradient = `linear-gradient(to top,
         rgb(${minColor.r}, ${minColor.g}, ${minColor.b}) 0%,
         rgb(${midColor.r}, ${midColor.g}, ${midColor.b}) 50%,
         rgb(${maxColor.r}, ${maxColor.g}, ${maxColor.b}) 100%
     )`;
-    color_colorbar.style.background = gradient;
+    bar_color.style.background = gradient;
 }
 
-export function updateMapByTime(layerMap, timestamp, currentIndex, vmin, vmax, colorbarKey, swap) {
+export function updateMapByTime(layerMap, timestamp, currentIndex, vmin, vmax, colorbarKey) {
     const getColumnName = () => timestamp[currentIndex];
     for (let i = 0; i < getState().mapLayer.length; i++) {
         const id = getState().mapLayer[i];
@@ -170,7 +152,7 @@ export function updateMapByTime(layerMap, timestamp, currentIndex, vmin, vmax, c
         if (!feature) continue;
         const value = feature.properties[getColumnName()];
         if (value === null || value === undefined) continue;
-        const { r, g, b, a } = getColorFromValue(value, vmin, vmax, colorbarKey, swap);
+        const { r, g, b, a } = getColorFromValue(value, vmin, vmax, colorbarKey);
         const colorKey = `${r},${g},${b},${a}`;
         if (getState().lastFeatureColors[id] === colorKey) continue;
         getState().lastFeatureColors[id] = colorKey;

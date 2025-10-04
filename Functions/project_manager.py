@@ -1,15 +1,12 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
-import os, shutil, subprocess, re
+import os, shutil, subprocess, re, json
 import numpy as np
 from fastapi.templating import Jinja2Templates
 from Functions import functions
 from config import PROJECT_STATIC_ROOT, ROOT_DIR
-from datetime import datetime, timezone
 
 router = APIRouter()
-templates = Jinja2Templates(directory="static/templates")
-
 
 # Create a new project with necessary folders
 @router.post("/setup_new_project")
@@ -34,32 +31,60 @@ async def setup_new_project(request: Request):
 async def setup_database(request: Request):
     body = await request.json()
     project_name, params = body.get('projectName'), body.get('params')
+    request.app.state.templates = None
     try:
         # Set PROJECT_DIR
         project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
         request.app.state.PROJECT_DIR = project_folder
         # Templates
-        templates_dir = os.path.join(project_folder, "templates")
-        request.app.state.templates = Jinja2Templates(directory=templates_dir)
-        # Load NetCDF
+        request.app.state.templates = Jinja2Templates(directory="static/templates")
         output_dir = os.path.join(project_folder, "output")
-        if params[0] != '' and os.path.exists(os.path.join(output_dir, 'HYD', params[0])):
-            request.app.state.hyd_his = os.path.join(output_dir, 'HYD', params[0])
-        if params[1] != '' and os.path.exists(os.path.join(output_dir, 'HYD', params[1])):
-            request.app.state.hyd_map = os.path.join(output_dir, 'HYD', params[1])
-        if params[2] != '' and os.path.exists(os.path.join(output_dir, 'WAQ', params[2])):
-            request.app.state.waq_his = os.path.join(output_dir, 'WAQ', params[2])
-        if params[3] != '' and os.path.exists(os.path.join(output_dir, 'WAQ', params[3])):
-            request.app.state.waq_map = os.path.join(output_dir, 'WAQ', params[3])
-        if request.app.state.hyd_map:
+        # Reset app state
+        dm = request.app.state.dataset_manager
+        request.app.state.waq_model, request.app.state.config = None, None
+        request.app.state.hyd_his, request.app.state.hyd_map = None, None
+        request.app.state.waq_his, request.app.state.waq_map = None, None
+        request.app.state.grid, request.app.state.n_layers = None, None
+        # Assign datasets
+        if params[0]:
+            path = os.path.join(output_dir, 'HYD', params[0])
+            if os.path.exists(path): request.app.state.hyd_his = dm.get(path)
+        if params[1]:
+            path = os.path.join(output_dir, 'HYD', params[1])
+            if os.path.exists(path): request.app.state.hyd_map = dm.get(path)
+        if params[2]:
+            path = os.path.join(output_dir, 'WAQ', params[2])
+            if os.path.exists(path): request.app.state.waq_his = dm.get(path)
+        if params[3]:
+            path = os.path.join(output_dir, 'WAQ', params[3])
+            if os.path.exists(path): request.app.state.waq_map = dm.get(path)
+        # Get WAQ model
+        temp = params[2].replace('_his.nc', '') if params[2] != '' else params[3].replace('_his.nc', '')
+        model_path = os.path.join(output_dir, 'WAQ', f'{temp}.json')
+        if os.path.exists(model_path):
+            with open(model_path, 'r') as f:
+                temp_data = json.load(f)
+            request.app.state.waq_model = temp_data['model_type']
+            request.app.state.config, request.app.state.obs = {}, {}
+            if 'wq_obs'in temp_data: 
+                request.app.state.config['wq_obs'] = True
+                request.app.state.obs['wq_obs'] = temp_data['wq_obs']
+            if 'wq_loads' in temp_data:
+                request.app.state.config['wq_loads'] = True
+                request.app.state.obs['wq_loads'] = temp_data['wq_loads']
+        # Transfer data to app state
+        if request.app.state.hyd_map is not None:
             # Grid/layers generation
             request.app.state.grid = functions.unstructuredGridCreator(request.app.state.hyd_map)
             request.app.state.n_layers = functions.velocityChecker(request.app.state.hyd_map)
-            request.app.state.layer_reverse = {v: k for k, v in request.app.state.n_layers.items()}
+        if (request.app.state.waq_his or request.app.state.waq_map) and not request.app.state.waq_model:
+            return JSONResponse({"status": 'error', "message": "Some WAQ-related parameters are missing.\nConsider running the model again."})
         # Get configurations
         NCfiles = [request.app.state.hyd_his, request.app.state.hyd_map, 
             request.app.state.waq_his, request.app.state.waq_map]
-        request.app.state.config = functions.getVariablesNames(NCfiles)
+        temp_config = functions.getVariablesNames(NCfiles, request.app.state.waq_model)
+        if request.app.state.config: temp_config.update(request.app.state.config)
+        request.app.state.config = temp_config
         status, message = 'ok', ''
     except Exception as e:
         status, message = 'error', f"Error: {str(e)}"
@@ -71,19 +96,17 @@ async def delete_project(request: Request):
     body = await request.json()
     project_name = body.get('projectName')
     project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
-    if not os.path.exists(project_folder):
-        status, message = 'error', f"Project '{project_name}' does not exist."
-    else:
-        try:
-            shutil.rmtree(project_folder, onexc=functions.remove_readonly)
-            status, message = 'ok', f"Project '{project_name}' was deleted successfully."
-        except:
-            if os.name == 'nt':
-                try:
-                    subprocess.run(['rmdir', '/s', '/q', project_folder], shell=True, check=True)
-                    return JSONResponse({"status": "ok", "message": f"Project '{project_name}' was deleted successfully."})
-                except Exception as e2:
-                    return JSONResponse({"status": "error", "message": f"Error: {str(e2)}"})
+    if not os.path.exists(project_folder): return JSONResponse({"status": 'error', "message": f"Project '{project_name}' does not exist."})
+    try:
+        shutil.rmtree(project_folder, onexc=functions.remove_readonly)
+        status, message = 'ok', f"Project '{project_name}' was deleted successfully."
+    except:
+        if os.name == 'nt':
+            try:
+                subprocess.run(['rmdir', '/s', '/q', project_folder], shell=True, check=True)
+                return JSONResponse({"status": "ok", "message": f"Project '{project_name}' was deleted successfully."})
+            except Exception as e2:
+                return JSONResponse({"status": "error", "message": f"Error: {str(e2)}"})
     return JSONResponse({"status": status, "message": message})
 
 # Open a project
@@ -108,9 +131,9 @@ async def select_project(request: Request):
                 hyd_files = [f for f in os.listdir(hyd_folder) if f.endswith(".nc")]
                 hyd_files = set([f.replace('_his.nc', '').replace('_map.nc', '') for f in hyd_files])
             if os.path.exists(waq_folder):
-                waq_files = [f for f in os.listdir(waq_folder) if f.endswith(".nc")]
-                waq_files = set([f.replace('_his.nc', '').replace('_map.nc', '') for f in waq_files])
-            data = {'hyd': list(hyd_files), 'waq': list(waq_files)}
+                waq_files = [f for f in os.listdir(waq_folder) if f.endswith(".json")]
+                waq_files = set([f.replace('.json', '') for f in waq_files])
+            data = {'hyd': list(hyd_files), 'waq': sorted(list(waq_files))}
         status, message = 'ok', 'JSON loaded successfully.'
     except Exception as e:
         status, message, data = 'error', f"Error: {str(e)}", None
@@ -120,6 +143,7 @@ async def select_project(request: Request):
 @router.get("/load_popupMenu", response_class=HTMLResponse)
 async def load_popupMenu(request: Request, htmlFile: str):
     if htmlFile == 'project_menu.html':
+        templates = Jinja2Templates(directory="static/templates")
         return templates.TemplateResponse(htmlFile, {"request": request})
     if not request.app.state.templates:
         return HTMLResponse("<p>No project selected</p>", status_code=400)
@@ -127,10 +151,12 @@ async def load_popupMenu(request: Request, htmlFile: str):
     if not os.path.exists(template_path):
         return HTMLResponse(f"<p>Popup menu template not found</p>", status_code=404)
     if not request.app.state.config:
+        if (request.app.state.waq_his or request.app.state.waq_map) and not request.app.state.waq_model:
+            return JSONResponse({"status": 'error', "message": "Some WAQ-related parameters are missing.\nConsider running the model again."})
         NCfiles = [request.app.state.hyd_his, request.app.state.hyd_map, 
             request.app.state.waq_his, request.app.state.waq_map]
-        request.app.state.config = functions.getVariablesNames(NCfiles)
-    return templates.TemplateResponse(htmlFile, {"request": request, 'configuration': request.app.state.config})
+        request.app.state.config = functions.getVariablesNames(NCfiles, request.app.state.waq_model)
+    return request.app.state.templates.TemplateResponse(htmlFile, {"request": request, 'configuration': request.app.state.config})
 
 # Get list of files in a directory
 @router.post("/get_files")
@@ -190,10 +216,8 @@ async def save_obs(request: Request):
 @router.post("/save_source")
 async def save_source(request: Request):
     body = await request.json()
-    project_name, source_name, key = body.get('projectName'), body.get('nameSource'), body.get('key')
-    ref_date, lat, lon, data = body.get('refDate'), body.get('lat'), body.get('lon'), body.get('data')
-    seconds = int(ref_date)/1000.0
-    t_ref = datetime.fromtimestamp(seconds, tz=timezone.utc)
+    project_name, source_name = body.get('projectName'), body.get('nameSource')
+    lat, lon, data, key = body.get('lat'), body.get('lon'), body.get('data'), body.get('key')
     try:
         path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
         if key == 'saveSource':
@@ -223,8 +247,7 @@ async def save_source(request: Request):
         # Write .tim file
         with open(os.path.join(path, f"{source_name}.tim"), 'w') as f:
             for row in data:
-                t = datetime.fromtimestamp(int(row[0])/1000.0, tz=timezone.utc)
-                row[0] = int((t - t_ref).total_seconds()/60.0)
+                row[0] = int(row[0]/(1000.0*60.0))
                 temp = '  '.join([str(r) for r in row])
                 f.write(f"{temp}\n")
         status, message = 'ok', f"Source '{source_name}' saved successfully."
@@ -277,19 +300,19 @@ async def init_source(request: Request):
 @router.post("/save_meteo")
 async def save_meteo(request: Request):
     body = await request.json()
-    project_name, ref_time, data = body.get('projectName'), body.get('refDate'), body.get('data')
+    project_name, data = body.get('projectName'), body.get('data')
     content = 'QUANTITY=humidity_airtemperature_cloudiness_solarradiation\n' + \
             'FILENAME=FlowFM_meteo.tim\n' + 'FILETYPE=1\n' + 'METHOD=1\n' + 'OPERAND=O'
     # Time difference in minutes
-    status, message = functions.contentWriter(project_name, "FlowFM_meteo.tim", data, content, ref_time, 'min')
+    status, message = functions.contentWriter(project_name, "FlowFM_meteo.tim", data, content, 'min')
     return JSONResponse({"status": status, "message": message})
 
 # Save meteo data to project
 @router.post("/save_weather")
 async def save_weather(request: Request):
     body = await request.json()
-    project_name, ref_time, data = body.get('projectName'), body.get('refDate'), body.get('data')
+    project_name, data = body.get('projectName'), body.get('data')
     content = 'QUANTITY=windxy\n' + 'FILENAME=windxy.tim\n' + 'FILETYPE=2\n' + 'METHOD=1\n' + 'OPERAND=+'
     # Time difference in minutes
-    status, message = functions.contentWriter(project_name, "windxy.tim", data, content, ref_time, 'min')
+    status, message = functions.contentWriter(project_name, "windxy.tim", data, content, 'min')
     return JSONResponse({"status": status, "message": message})

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="static/css/simulationHYDRunner.css?v=001">
+  <link rel="stylesheet" href="static/css/simulationHYDRunner.css?v=002">
 </head>
 <body>
   <div class="form-container">
@@ -13,10 +13,11 @@
           <label for="options">Select Project:</label>
           <select id="options"></select>
           <button type="button" id="run-button">Run Simulation</button>
-          <button type="button" id="stop-button">Stop Simulation</button>        
-        </div>
-        <div class="form-row">
-          <textarea id="textarea" readonly></textarea>
+          <div class="progress-container">
+            <progress id="progressbar" value="0" max="100" style="width:100%; height:25px;"></progress>
+            <span id="progress-text" style="align-items:center;"></span>
+          </div>
+          <button type="button" id="stop-button">Stop Simulation</button>
         </div>
       </form>
     </div>

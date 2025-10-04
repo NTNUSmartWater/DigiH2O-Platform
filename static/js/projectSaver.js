@@ -14,7 +14,7 @@ export function timeStepCalculator(daysString, timeString){
 }
 
 export async function saveProject(elements) {
-    const { projectName, latitude, nLayers, gridPath, referenceDate, startDate, stopDate,
+    const { projectName, latitude, nLayers, gridPath, startDate, stopDate,
         userTimeSec, nodalTimeSec, obsPointTable, crossSectionName, crossSectionTable, salinity, 
         temperature, initWaterLevel, initSalinity, initTemperature , outputHis, hisInterval, hisStart, 
         hisStop, outputMap, mapInterval, mapStart, mapStop, outputWQ, wqInterval, wqStart, wqStop, 
@@ -39,24 +39,19 @@ export async function saveProject(elements) {
     const fileInput = gridPath();
     if (!fileInput || fileInput.files.length === 0) { alert('Please select a grid file!'); return; }
     data.set('netNC_file', 'FlowFM_net.nc');
-    // Get reference date
-    const refDate = referenceDate().value;
-    if (!refDate || refDate === '') { alert('Please select a reference date for the simulation!'); return; }
-    data.set('ref_date', refDate.replace(/-/g, ''));
     // Get start date
     const start_ = startDate().value, stop_ = stopDate().value;
     if (!startDate() || start_ === '' || !stopDate() || stop_ === '') {
         alert('Please select a start/stop date for the simulation!'); return; }
     // Save start/stop date
-    const refSimulation = toUTC(`${refDate} 00:00:00`);
-    const startSimulation = toUTC(start_) - refSimulation;            
-    const stopSimulation = toUTC(stop_) - refSimulation;   
+    const startSimulation = toUTC(start_);            
+    const stopSimulation = toUTC(stop_);   
     // Check if start/stop is after reference date
     if(startSimulation<0 || stopSimulation<0 || stopSimulation<=startSimulation){
         alert('Start/Stop date must be after reference date!'); return; }
     // Convert to seconds
-    const startSimulationSec = Math.floor(startSimulation/1000);
-    const stopSimulationSec = Math.floor(stopSimulation/1000);
+    const startSimulationSec = Math.floor(startSimulation/1000.0);
+    const stopSimulationSec = Math.floor(stopSimulation/1000.0);
     // Add to data
     data.set('start_time_s', startSimulationSec);
     data.set('end_time_s', stopSimulationSec);
@@ -107,13 +102,11 @@ export async function saveProject(elements) {
         data.set('his_interval', hisInterval);
         const start = hisStart().value, stop = hisStop().value;
         if (start !== '') {
-            const hisStartFormatted = toUTC(start) - refSimulation;
-            const hisStartSec = Math.floor(hisStartFormatted/1000);
+            const hisStartSec = Math.floor(toUTC(start)/1000);
             data.set('his_start', hisStartSec);
         }
         if (stop !== '') {
-            const hisStopFormatted = toUTC(stop) - refSimulation;
-            const hisStopSec = Math.floor(hisStopFormatted/1000);
+            const hisStopSec = Math.floor(toUTC(stop)/1000);
             data.set('his_end', hisStopSec);
         }
     }
@@ -122,13 +115,11 @@ export async function saveProject(elements) {
         data.set('map_interval', mapInterval);
         const start = mapStart().value, stop = mapStop().value;
         if (start !== '') {
-            const mapStartFormatted = toUTC(start) - refSimulation;
-            const mapStartSec = Math.floor(mapStartFormatted/1000);
+            const mapStartSec = Math.floor(toUTC(start)/1000);
             data.set('map_start', mapStartSec);
         }
         if (stop !== '') {
-            const mapStopFormatted = toUTC(stop) - refSimulation;
-            const mapStopSec = Math.floor(mapStopFormatted/1000);
+            const mapStopSec = Math.floor(toUTC(stop)/1000);
             data.set('map_end', mapStopSec);
         }
     }
@@ -137,13 +128,11 @@ export async function saveProject(elements) {
         data.set('wq_interval', wqInterval); data.set('wq_output_dir', 'DFM_DELWAQ');
         const start = wqStart().value, stop = wqStop().value;
         if (start !== '') {
-            const wqStartFormatted = toUTC(start) - refSimulation;
-            const wqStartSec = Math.floor(wqStartFormatted/1000);
+            const wqStartSec = Math.floor(toUTC(start)/1000);
             data.set('wq_start', wqStartSec);
         }
         if (stop !== '') {
-            const wqStopFormatted = toUTC(stop) - refSimulation;
-            const wqStopSec = Math.floor(wqStopFormatted/1000);
+            const wqStopSec = Math.floor(toUTC(stop)/1000);
             data.set('wq_end', wqStopSec);
         }
     }
@@ -152,13 +141,11 @@ export async function saveProject(elements) {
         data.set('rst_interval', rtsInterval);
         const start = rtsStart().value, stop = rtsStop().value;
         if (start !== '') {
-            const rstStartFormatted = toUTC(start) - refSimulation;
-            const rstStartSec = Math.floor(rstStartFormatted/1000);
+            const rstStartSec = Math.floor(toUTC(start)/1000);
             data.set('rst_start', rstStartSec);
         }
         if (stop !== '') {
-            const rstStopFormatted = toUTC(stop) - refSimulation;
-            const rstStopSec = Math.floor(rstStopFormatted/1000);
+            const rstStopSec = Math.floor(toUTC(stop)/1000);
             data.set('rst_end', rstStopSec);
         }
     }

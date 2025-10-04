@@ -1,6 +1,5 @@
 import { toUTC } from "./projectSaver.js";
 
-
 export async function sendQuery(functionName, content){
     const response = await fetch(`/${functionName}`, {
         method: 'POST', headers: {'Content-Type': 'application/json'},

@@ -25,7 +25,7 @@ fieldset {
 }
 fieldset:hover { border-color: #fff; box-shadow: 0px 6px 20px rgba(0,0,0,0.4); }
 legend { font-size: 15px; font-weight: bold; padding: 10px; }
-.groupbox select { display: block; width: 100%; }
+.groupbox select { display: block; width: 100%; max-height: 100%;}
 .input-row { display: flex; align-items: center; gap: 10px; }
 .input-row select { flex: 1;}
 .btn-row { text-align: center; margin-top: auto; padding-bottom: 10px;}

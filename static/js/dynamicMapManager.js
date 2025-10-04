@@ -1,12 +1,18 @@
-import { initOptions, colorbar_vector_container } from './utils.js';
-import { startLoading, showLeafletMap, map } from './mapManager.js';
 import { plot2DMapDynamic, plot2DVectorMap, layerAbove, timeControl } from './map2DManager.js';
+import { initOptions, colorbar_vector_container } from './utils.js';
 import { setState, getState } from './constants.js';
+import { map } from './mapManager.js';
+import { sendQuery } from './tableManager.js';
 
+export const scaler_value = () => document.getElementById("scaler-value");
 const vectorObjectMain = () => document.getElementById("vector-object-main");
 const vectorObjectSubMain = () => document.getElementById("vector-object-submain");
 const vectorPlotBtn = () => document.getElementById("plotVectorBtn");
-export const scaler_value = () => document.getElementById("scaler-value");
+const substanceWindow = () => document.getElementById('substance-window');
+const substanceWindowContent = () => document.getElementById('substance-window-content');
+const substanceWindowCloseBtn = () => document.getElementById('substance-window-close');
+
+let newKey = '', queryKey = '';
 
 async function checkVectorComponents() {
     if (getState().vectorMain){
@@ -36,7 +42,7 @@ export async function dynamicMapManager() {
     document.querySelectorAll('.map2D_dynamic').forEach(plot => {
         plot.addEventListener('click', () => {
             const [key, colorbarTitle, colorbarKey] = plot.dataset.info.split('|');
-            plot2DMapDynamic(false, key, colorbarTitle, colorbarKey);
+            plot2DMapDynamic(false, '', key, colorbarTitle, colorbarKey);
         });
     });
     // Set function for Vector plot
@@ -45,17 +51,40 @@ export async function dynamicMapManager() {
         const colorbarTitle = 'Velocity (m/s)', colorbarKey = 'velocity';
         plot2DVectorMap(filename, key, colorbarTitle, colorbarKey);
     });
-
     // Set function for water quality
-    document.querySelectorAll('.wq-function').forEach(obj => {
-        obj.addEventListener('change', () => {
-            const [filename, key, colorbarTitle, colorbarKey] = obj.dataset.info.split('|');
-            let newKey = `${key}_dynamic`;
-            const selectedIndex = obj.selectedIndex;
-            if (selectedIndex === 0) return;
-            if (selectedIndex === 2) {newKey = `${key}_multi_dynamic`;}
-            plot2DMapDynamic(true, filename, newKey, colorbarTitle, colorbarKey);
+    document.querySelectorAll('.waq-function').forEach(obj => {
+        obj.addEventListener('click', async() => {
+            const [query, type] = obj.dataset.info.split('|');
+            const data = await sendQuery('process_data', {query: query, key: 'substance_check'});
+            if (data.status === "error") { alert(data.message); substanceWindow().style.display = 'none'; return; }
+            substanceWindowContent().innerHTML = '';
+            // Add content
+            substanceWindowContent().innerHTML = data.content.map((substance, i) => {
+                return `<label for="${substance[0]}"><input type="radio" name="waq-substance" id="${substance[0]}"
+                    value="${substance[0]}|${type}" ${i === 0 ? 'checked' : ''}>${substance[1]}</label>`;
+            }).join('');
+            substanceWindow().style.display = 'flex';
+            const name = data.content[0][0];
+            if (type === 'single') {newKey = `${name}_dynamic`; queryKey = `mesh2d_${name}`;}
+            else {newKey = `${name}_multi_dynamic`; queryKey = `mesh2d_2d_${name}`;}
+            const colorbarTitle = data.content[0][1];
+            plot2DMapDynamic(true, queryKey, newKey, colorbarTitle, '');
         });
+    });
+    // Listen to substance selection
+    substanceWindowContent().addEventListener('change', (e) => {
+        if (e.target && e.target.name === "waq-substance") {
+            const [value, type] = e.target.value.split('|');
+            if (type === 'single') {newKey = `${value}_dynamic`; queryKey = `mesh2d_${value}`;}
+            else {newKey = `${value}_multi_dynamic`; queryKey = `mesh2d_2d_${value}`;}
+            const label = e.target.closest('label');
+            const colorbarTitle = label ? label.textContent.trim() : value;
+            plot2DMapDynamic(true, queryKey, newKey, colorbarTitle, '');
+        }
+    });
+    // Close windows
+    substanceWindowCloseBtn().addEventListener('click', () => { 
+        substanceWindow().style.display = 'none';
     });
     // Add event listener for vector objects
     vectorObjectMain().addEventListener('change', () => {
@@ -65,28 +94,7 @@ export async function dynamicMapManager() {
     vectorObjectSubMain().addEventListener('change', () => {
         setState({vectorSelected: vectorObjectSubMain().value});
     });
-    initWaterQualityObjects(); // Initiate objects for water quality object
     // Initialize vector scale
     if (getState().scalerValue === null) setState({scalerValue: 1000});
     scaler_value().value = getState().scalerValue;
-}
-
-function initWaterQualityObjects() {
-    startLoading();
-    document.querySelectorAll('.wq-function').forEach(obj => {
-        obj.innerHTML = '';
-        // Add hint to the velocity object
-        const hint = document.createElement('option');
-        hint.value = ''; hint.selected = true;
-        hint.textContent = '- No Selection -'; 
-        obj.add(hint);
-        const items = ['Average', 'Each Layer']
-        // Add options
-        items.forEach(item => {
-            const option = document.createElement('option');
-            option.value = item; option.text = item;
-            obj.add(option);
-        });
-    });
-    showLeafletMap();
 }

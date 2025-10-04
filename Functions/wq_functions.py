@@ -1,7 +1,7 @@
-import os
+import os, json
 from config import ROOT_DIR
 from Functions import functions
-import geopandas as gpd
+import geopandas as gpd, xarray as xr
 from shapely.geometry import Point
 from datetime import datetime
 
@@ -25,10 +25,6 @@ def hydReader(hyd_path: str) -> dict:
         lines = f.readlines()
     for line in lines:
         if "number-hydrodynamic-layers" in line: data['n_layers'] = line.split()[1]
-        if "reference-time" in line:
-            temp = line.split()[1].replace("'", "")
-            dt = datetime.strptime(temp, '%Y%m%d%H%M%S')
-            data['ref_time'] = dt.strftime('%Y-%m-%d %H:%M:%S')
         if "hydrodynamic-start-time" in line:
             temp = line.split()[1].replace("'", "")
             dt = datetime.strptime(temp, '%Y%m%d%H%M%S')
@@ -74,7 +70,6 @@ def hydReader(hyd_path: str) -> dict:
             data['tem_path'] = line.split()[1].replace("'", "")
         if "salinity-file" in line:
             data['sal_path'] = line.split()[1].replace("'", "")
-
     data['sink_sources'] = sinks
     if 'n_layer' in data and isinstance(data['n_layer'], int):
         data['n_segments'] = data['n_segments'] * data['n_layer']
@@ -132,10 +127,11 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
     try:
         inp_path = os.path.join(output_folder, f'{parameters["folder_name"]}.inp')
         sample_path = os.path.join(ROOT_DIR, 'static', 'samples', 'waq')
-        params_INP, params_INC = {}, {}
+        params_INP, params_INC, model_type = {}, {}, {"model_type": key}
         grid_path = os.path.join(os.path.dirname(parameters['hyd_path']), 'FlowFM_waqgeom.nc')
-        grid = functions.unstructuredGridCreator(grid_path)
-        params_INC['t0'], params_INC['t0_scu'] = parameters['t_ref'].strftime('%Y.%m.%d %H:%M:%S'), 1
+        data = xr.open_dataset(grid_path, chunks={})
+        grid = functions.unstructuredGridCreator(data)
+        params_INC['t0'], params_INC['t0_scu'] = '1970.01.01 00:00:00', 1
         params_INC['B2_numsettings'] = f'{parameters["scheme"]}.70 ; integration option\n; detailed balance options'
         # Prepare for the config file B2_simtimers
         start = parameters['t_start'].strftime('%Y/%m/%d-%H:%M:%S')
@@ -152,6 +148,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
                 if segment == 0: continue
                 points.append(f'{point[0]} 1\n{segment}')
             params_INC['B2_outlocs'] = f"{content}\n{'\n'.join(points)}"
+            model_type['wq_obs'] = obs_point
         else: params_INC['B2_outlocs'] = '0 ; nr of monitor locations'
         # Prepare for the config file B2_outputtimers
         params_INC['B2_outputtimers'] = [';  output control (see DELWAQ-manual)', ';  yyyy/mm/dd-hh:mm:ss  yyyy/mm/dd-hh:mm:ss  dddhhmmss',
@@ -193,6 +190,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
         params_INC['B5_boundaliases'], params_INC['B5_bounddata'] = '', ''
         # Prepare for the config file B6_loads
         n_loads = parameters["loads_data"]
+        if len(list(parameters["loads_data"])) > 0: model_type['wq_loads'] = list(parameters["loads_data"])
         params_INC['B6_loads'] = [f'{len(n_loads)} ; Number of loads']
         params_INC['B6_loads'].append(';SegmentID  Load-name  Comment  Load-type')
         for load in n_loads:
@@ -466,7 +464,6 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
         
         # ######################## Block 3 ########################
         # Write file B3_ugrid.inc
-        
         with open(os.path.join(includes_folder, 'B3_ugrid.inc'), 'w', encoding='ascii') as f:
             f.write(params_INC['B3_ugrid'])
         # Write file B3_nrofseg.inc
@@ -566,6 +563,9 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
         # Open the file and read its contents
         with open(os.path.join(sample_path, 'INPFile.inp'), 'r') as file:
             content_inp = file.read()
+        # Write file to store model type
+        with open(os.path.join(output_folder, f'{parameters["folder_name"]}.json'), 'w') as f:
+            json.dump(model_type, f, indent=4)
         # Replace placeholders with actual values
         for key, value in params_INP.items():
             content_inp = content_inp.replace(f'{{{key}}}', str(value))

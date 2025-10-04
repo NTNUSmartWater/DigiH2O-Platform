@@ -38,9 +38,9 @@
                     data-info="cloudiness|Cloudiness (%)|Cloudiness">- Cloudiness</a>
             </div>
         </div>
-        <hr style="border-top: 1px solid #0414f5; margin: 5px 30px 5px 30px;">
         <!-- Sources/Sinks Points -->
         <div class="menu-1 {% if not configuration.sources %}hidden{% endif %}">
+            <hr style="border-top: 1px solid #0414f5; margin: 5px 30px 5px 30px;">
             <a class="menu-link-1">• Sources/Sinks<span class="arrow-1">&#x25B8;</span></a>
             <div class="submenu-1">
                 <a class="function {% if not configuration.source_current_discharge %}hidden{% endif %}"
@@ -57,9 +57,9 @@
                     data-info="cumulative_volume_source|Cumulative Volume (m<sup>3</sup>)|Cumulative Volume">- Cumulative Volume</a>
             </div>
         </div>
-        <hr style="border-top: 1px solid #0414f5; margin: 5px 30px 5px 30px;">
         <!-- Cross Sections -->
         <div class="menu-1 {% if not configuration.cross_sections %}hidden{% endif %}">
+            <hr style="border-top: 1px solid #0414f5; margin: 5px 30px 5px 30px;">
             <a class="menu-link-1">• Cross-Sections<span class="arrow-1">&#x25B8;</span></a>
             <div class="submenu-1">
                 <a class="function {% if not configuration.cross_sections_velocity %}hidden{% endif %}"
@@ -123,39 +123,26 @@
 <div class="menu {% if not configuration.wq_his %}hidden{% endif %}">
     <a class="menu-link">Water Quality<span class="arrow">&#x25B8;</span></a>
     <div class="submenu">
-        <!-- Physical -->
-        <div class="menu-1 {% if not configuration.waq_his_physical %}hidden{% endif %}">
-            <a class="menu-link-1">• Physical<span class="arrow-1">&#x25B8;</span></a>
-            <div class="submenu-1">
-                <a class="waq_his {% if not configuration.waq_his_conservative_decay %}hidden{% endif %}"
-                    data-info="waq_his_conservative_selector|substance_check">- Conservative and decaying tracers</a>
-                <a class="waq_his {% if not configuration.waq_his_suspended_sediment %}hidden{% endif %}"
-                    data-info="waq_his_suspended_sediment_selector|substance_check">- Suspended sediment (three fractions)</a>
-            </div>
-        </div>
-        <!-- Chemical -->
-        <div class="menu-1 {% if not configuration.waq_his_chemical %}hidden{% endif %}">
-            <a class="menu-link-1">• Chemical<span class="arrow-1">&#x25B8;</span></a>
-            <div class="submenu-1">
-                <a class="waq_his {% if not configuration.waq_his_simple_oxygen %}hidden{% endif %}"
-                    data-info="waq_his_simple_oxygen_selector|substance_check">- Simple Oxygen</a>
-                <a class="waq_his {% if not configuration.waq_his_simple_oxygen %}hidden{% endif %}"
-                    data-info="waq_his_simple_oxygen_selector|substance_check">- Oxygen and BOD (water phase only)</a>
-                <a class="waq_his {% if not configuration.waq_his_cadmium %}hidden{% endif %}"
-                    data-info="waq_his_cadmium_selector|substance_check">- Cadmium</a>
-                <a class="waq_his {% if not configuration.waq_his_eutrophication %}hidden{% endif %}"
-                    data-info="waq_his_eutrophication_selector|substance_check">- Eutrophication</a>
-                <a class="waq_his {% if not configuration.waq_his_trace_metals %}hidden{% endif %}"
-                    data-info="waq_his_trace_metals_selector|substance_check">- Trace metals</a>
-            </div>
-        </div>
-        <!-- Microbial -->
-        <div class="menu-1 {% if not configuration.waq_his_microbial %}hidden{% endif %}">
-            <a class="menu-link-1">• Microbial<span class="arrow-1">&#x25B8;</span></a>
-            <div class="submenu-1">
-                <a class="waq_his {% if not configuration.waq_his_coliform %}hidden{% endif %}"
-                    data-info="waq_his_coliform_selector|substance_check">- Coliform bacteria</a>
-            </div>
+        <div class="menu-1">
+            <!-- Physical -->
+            <a class="waq_his {% if not configuration.waq_his_conservative_decay %}hidden{% endif %}"
+                data-info="waq_his_conservative_selector">• Conservative and decaying tracers</a>
+            <a class="waq_his {% if not configuration.waq_his_suspended_sediment %}hidden{% endif %}"
+                data-info="waq_his_suspended_sediment_selector">• Suspended sediment (three fractions)</a>
+            <!-- Chemical -->
+            <a class="waq_his {% if not configuration.waq_his_simple_oxygen %}hidden{% endif %}"
+                data-info="waq_his_simple_oxygen_selector">• Simple Oxygen</a>
+            <a class="waq_his {% if not configuration.waq_his_oxygen_bod %}hidden{% endif %}"
+                data-info="waq_his_oxygen_bod_selector">• Oxygen and BOD (water phase only)</a>
+            <a class="waq_his {% if not configuration.waq_his_cadmium %}hidden{% endif %}"
+                data-info="waq_his_cadmium_selector">• Cadmium</a>
+            <a class="waq_his {% if not configuration.waq_his_eutrophication %}hidden{% endif %}"
+                data-info="waq_his_eutrophication_selector">• Eutrophication</a>
+            <a class="waq_his {% if not configuration.waq_his_trace_metals %}hidden{% endif %}"
+                data-info="waq_his_trace_metals_selector">• Trace metals</a>
+            <!-- Microbial -->
+            <a class="waq_his {% if not configuration.waq_his_coliform %}hidden{% endif %}"
+                data-info="waq_his_coliform_selector">- Coliform bacteria</a>
         </div>
     </div>
 </div>
