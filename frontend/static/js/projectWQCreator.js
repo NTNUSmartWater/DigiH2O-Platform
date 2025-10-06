@@ -1,6 +1,7 @@
 import { fillTable, getDataFromTable, removeRowFromTable } from "./tableManager.js";
 import { renderProjects, sendQuery, deleteTable, copyPaste } from "./tableManager.js";
 import { toUTC } from "./projectSaver.js";
+import { map } from "./mapManager.js";
 
 const projectName = () => document.getElementById('project-name');
 const projects = () => document.getElementById("project-list");
@@ -14,17 +15,11 @@ const stopTime = () => document.getElementById("stop-time");
 const sourcesContainer = () => document.getElementById("wq-sources-container");
 const sourcesTable = () => document.getElementById("wq-sources-table");
 const obsPointName = () => document.getElementById('wq-obs-point');
-const obsPointLatitude = () => document.getElementById('wq-obs-latitude');
-const obsPointLongitude = () => document.getElementById('wq-obs-longitude');
 const obsPointPicker = () => document.getElementById('wq-obs-picker');
-const obsPointSave = () => document.getElementById('wq-obs-save');
 const obsPointRemove = () => document.getElementById('wq-obs-remove');
 const obsPointTable = () => document.getElementById('wq-obs-table');
 const loadsPointName = () => document.getElementById('wq-loads-point');
-const loadsPointLatitude = () => document.getElementById('wq-loads-latitude');
-const loadsPointLongitude = () => document.getElementById('wq-loads-longitude');
 const loadsPointPicker = () => document.getElementById('wq-loads-picker');
-const loadsPointSave = () => document.getElementById('wq-loads-save');
 const loadsPointRemove = () => document.getElementById('wq-loads-remove');
 const loadsPointTable = () => document.getElementById('wq-loads-table');
 const timeTable = () => document.getElementById('wq-time-series-table');
@@ -41,8 +36,8 @@ const microbialSelector = () => document.getElementById('wq-microbial');
 const microbialName = () => document.getElementById('wq-microbial-name');
 
 
-let projectList=[], subKey='', folderName='', usefors=null, from_usefors=null, to_usefors=null, pointSelected=null, 
-    timeStep1=0, timeStep2='', nSegments=0, attrPath_='', volPath='', exchange_x=0, exchange_y=0, exchange_z=0, 
+let projectList=[], subKey='', folderName='', usefors=null, from_usefors=null, to_usefors=null, pointSelected=null, nPoints=0, nLoads=0,
+    timeStep1=0, timeStep2='', nSegments=0, attrPath_='', volPath='', exchange_x=0, exchange_y=0, exchange_z=0, markersPoints = [],
     ptrPath='', areaPath='', flowPath='', lengthPath='', srfPath='', vdfPath='', temPath='', maxiter=null, tolerance=null,
     scheme=null, salPath='', from_initial=null, initial_value=null, initial_area=null, initialList=[], progressbar=null, progressText=null;
 
@@ -156,28 +151,45 @@ function substanceChanger(target, name){
     });
 }
 
-function updatePoint(target, objName, objLat, objLon, table){
-    target.addEventListener('click', () => {
-        const name = objName.value.trim(), lat = objLat.value.trim(), lon = objLon.value.trim();
-        if (name === '' || lat === '' || lon === '' || isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-            alert('Please check name, latitude, and longitude of the observation point.'); return;}
-        // Add to table
-        const data_arr = [[name, lat, lon]];
-        fillTable(data_arr, table, false);
-        // Clear input
-        objName.value = ''; objLat.value = ''; objLon.value = '';
-    });
-}
-
 function updateOption(){
     // Update location
     obsPointPicker().addEventListener('click', () => {
+        const data = getDataFromTable(obsPointTable(), true);
+        if (data.rows.length > 0) {
+            // Remove existing markers
+            markersPoints.forEach(marker => map.removeLayer(marker)); markersPoints = [];
+            // const customIcon = L.icon({
+            //     iconUrl: `/static_backend/images/waq_loads.png?v=${Date.now()}`,
+            //     iconSize: [20, 20], popupAnchor: [1, -34],
+            // });
+            // rows.forEach(row => {
+            //     const [name, lat, lon] = row;
+            //     if (!name || isNaN(lat) || isNaN(lon)) return;
+            //     const marker = L.marker([parseFloat(lat), parseFloat(lon)], { icon: customIcon }).addTo(map);
+            //     marker.bindPopup(name); markersPoints.push(marker);
+            // })
+        }
         pointSelected = 'obsPoint'; 
-        window.parent.postMessage({type: 'pickPoint', data: getDataFromTable(obsPointTable(), true)}, '*');
+        window.parent.postMessage({type: 'pickPoint', data: getDataFromTable(obsPointTable(), true), pointType: 'waqPoint'}, '*');
     });
     loadsPointPicker().addEventListener('click', () => {
+        const data = getDataFromTable(loadsPointTable(), true);
+        if (data.rows.length > 0) {
+            // Remove existing markers
+            markersPoints.forEach(marker => map.removeLayer(marker)); markersPoints = [];
+            // const customIcon = L.icon({
+            //     iconUrl: `/static_backend/images/waq_obs.png?v=${Date.now()}`,
+            //     iconSize: [20, 20], popupAnchor: [1, -34],
+            // });
+            // rows.forEach(row => {
+            //     const [name, lat, lon] = row;
+            //     if (!name || isNaN(lat) || isNaN(lon)) return;
+            //     const marker = L.marker([parseFloat(lat), parseFloat(lon)], { icon: customIcon }).addTo(map);
+            //     marker.bindPopup(name); markersPoints.push(marker);
+            // })
+        }
         pointSelected = 'loadsPoint'; 
-        window.parent.postMessage({type: 'pickPoint', data: getDataFromTable(loadsPointTable(), true)}, '*');
+        window.parent.postMessage({type: 'pickPoint', data: getDataFromTable(loadsPointTable(), true), pointType: 'loadsPoint'}, '*');
     });
     // Copy and paste to tables
     copyPaste(obsPointTable(), 3); copyPaste(loadsPointTable(), 3);
@@ -213,17 +225,16 @@ function updateOption(){
             }
         }, {once: true});
     });
-    // Save point to table
-    updatePoint(obsPointSave(), obsPointName(), obsPointLatitude(), obsPointLongitude(), obsPointTable());
-    updatePoint(loadsPointSave(), loadsPointName(), loadsPointLatitude(), loadsPointLongitude(), loadsPointTable());
     // Remove point from table
     obsPointRemove().addEventListener('click', () => {
         const name = obsPointName().value.trim();
+        if (name === '') { alert('Please select observation point to remove.'); return; }
         removeRowFromTable(obsPointTable(), name);
         obsPointName().value = '';
     });
     loadsPointRemove().addEventListener('click', () => {
         const name = loadsPointName().value.trim();
+        if (name === '') { alert('Please select loads point to remove.'); return; }
         removeRowFromTable(loadsPointTable(), name);
         loadsPointName().value = ''; 
     });
@@ -238,12 +249,15 @@ function updateOption(){
             const lat = Number(event.data.content.lat).toFixed(12);
             const lon = Number(event.data.content.lng).toFixed(12);
             if (pointSelected === 'obsPoint') {
-                if (obsPointName().value.trim() === '') obsPointName().value = `Point_${Number(lat).toFixed(2)}_${Number(lon).toFixed(2)}`;
-                obsPointLatitude().value = lat; obsPointLongitude().value = lon;
+                nPoints++;
+                // Add to table
+                const data_arr = [[`Point_${nPoints}`, lat, lon]];
+                fillTable(data_arr, obsPointTable(), false);
             }
             else if (pointSelected === 'loadsPoint') {
-                if (loadsPointName().value.trim() === '') loadsPointName().value = `Load_${Number(lat).toFixed(2)}_${Number(lon).toFixed(2)}`;
-                loadsPointLatitude().value = lat; loadsPointLongitude().value = lon;
+                nLoads++;
+                const data_arr = [[`Point_${nLoads}`, lat, lon]];
+                fillTable(data_arr, loadsPointTable(), false);
             }
         }
     });

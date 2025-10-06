@@ -4,7 +4,6 @@ const stopBtn = () => document.getElementById("stop-button");
 const progressbar = () => document.getElementById("progressbar");
 const progressText = () => document.getElementById("progress-text");
 
-
 let ws = null, content = '', currentProject = null;;
 
 async function sendQuery(functionName, content){
@@ -44,7 +43,7 @@ function updateSelection(){
                     progressText().innerText = 'Completed: ' + percent + '%';
                     progressbar().value = percent;
                 }
-                if (info.startsWith("[FINISHED]")) progressText().innerText = info.replace('[FINISHED]','');
+                if (info.startsWith("[FINISHED]")) simulationWindow().style.display = 'none';
             };
         } else {
             progressText().innerText = "No simulation running."; progressbar().value = 0;

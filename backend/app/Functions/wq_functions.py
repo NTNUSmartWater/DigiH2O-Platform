@@ -1,5 +1,5 @@
 import os, json
-from backend.config import ROOT_DIR
+from config import STATIC_DIR_BACKEND
 from Functions import functions
 import geopandas as gpd, xarray as xr
 from shapely.geometry import Point
@@ -126,7 +126,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
     """
     try:
         inp_path = os.path.join(output_folder, f'{parameters["folder_name"]}.inp')
-        sample_path = os.path.join(ROOT_DIR, 'static', 'samples', 'waq')
+        sample_path = os.path.join(STATIC_DIR_BACKEND, 'samples', 'waq')
         params_INP, params_INC, model_type = {}, {}, {"model_type": key}
         grid_path = os.path.join(os.path.dirname(parameters['hyd_path']), 'FlowFM_waqgeom.nc')
         data = xr.open_dataset(grid_path, chunks={})

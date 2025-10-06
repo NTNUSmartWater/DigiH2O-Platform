@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=2" />
-  <link rel="stylesheet" href="static/css/projectHYDCreator.css?v=123">
+  <link rel="stylesheet" href="/static_frontend/css/projectHYDCreator.css?v=123">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 </head>
 <body>
@@ -60,8 +60,6 @@
                     <div class="row">
                       <label for="latitude">Avg. latitude (°):</label>
                       <input type="text" id="latitude" placeholder="Enter latitude">
-                    </div>
-                    <div class="row">
                       <button type="button" id="location-picker">Pick from map</button>
                     </div>
                   </div>
@@ -142,7 +140,8 @@
                       <div class="row">
                         <button type="button" id="observation-point-picker">Pick on map</button>
                         <button type="button" id="observation-point-save">Add to list</button>
-                        <button type="button" id="observation-point-remove">Remove from list</button>
+                        <button type="button" id="observation-point-remove"
+                          style="color: crimson; background-color: aliceblue;">Remove from list</button>
                       </div>
                     </div>
                     <!-- Layer 2: "Create a new observation point" -->
@@ -169,7 +168,8 @@
                     </div>
                     <div class="row">
                       <button type="button" id="observation-cross-section-picker">Draw on map</button>
-                      <button type="button" id="observation-cross-section-remove">Delete list</button>
+                      <button type="button" id="observation-cross-section-remove"
+                        style="color: crimson; background-color: aliceblue;">Delete list</button>
                     </div>
                     <table class="attributes-table" id="observation-cross-section-table">
                       <thead>
@@ -189,7 +189,8 @@
                     </div>
                     <div class="row">
                       <button type="button" id="boundary-picker">Draw on map</button>
-                      <button type="button" id="boundary-remove">Delete BC</button>
+                      <button type="button" id="boundary-remove"
+                        style="color: crimson; background-color: aliceblue;">Delete BC</button>
                     </div>
                     <table class="attributes-table" id="boundary-table">
                       <thead>
@@ -218,7 +219,8 @@
                     </table>
                     <div class="row">
                       <button type="button" id="boundary-update">Create/Update boundary</button>
-                      <button type="button" id="boundary-edit-remove">Delete table</button>
+                      <button type="button" id="boundary-edit-remove"
+                        style="color: crimson; background-color: aliceblue;">Delete table</button>
                     </div>
                   </div>
                   <div class="tile"><h3>View boundary conditions</h3>
@@ -344,14 +346,16 @@
                         <tbody></tbody>
                       </table>
                       <div class="row">
-                        <button type="button" id="source-remove">Remove from project</button>
+                        <button type="button" id="source-remove"
+                          style="color: crimson; background-color: aliceblue;">Remove from project</button>
                       </div>
                     </div>
                     <div class="tile tile-double">
                       <div class="table-header">
                         <h3>Attribute Table</h3>
                         <button class="tile-btn" id="plot-source-btn">Plot</button>
-                        <button class="tile-btn" id="delete-source-btn">Delete table</button>
+                        <button class="tile-btn" id="delete-source-btn"
+                          style="color: crimson; background-color: aliceblue;">Delete table</button>
                         <button class="tile-btn" id="save-source-btn">Create/Update source data</button>
                       </div>
                       <table class="attributes-table" id="source-table">
@@ -405,7 +409,8 @@
                       <div class="table-header">
                         <h3>Attribute Table</h3>
                         <button class="tile-btn" id="plot-meteo-btn">Plot</button>
-                        <button class="tile-btn" id="delete-meteo-btn">Delete table</button>
+                        <button class="tile-btn" id="delete-meteo-btn"
+                          style="color: crimson; background-color: aliceblue;">Delete table</button>
                         <button class="tile-btn" id="save-meteo-btn">Create/Update meteo data</button>
                       </div>
                       <table class="attributes-table" id="edit-meteo-table">
@@ -529,7 +534,7 @@
       <button class="tab-btn" id="complete-button">Save Components to Project<span class="ink"></span></button>
     </section>
   </div>
-  <script src="static/js/tooltipManager.js"></script>
+  <script src="/static_frontend/js/tooltipManager.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script>
     flatpickr(".datetime-interval",{ 
@@ -543,7 +548,7 @@
   <script type="module">
     const script = document.createElement('script');
     script.type = 'module';
-    script.src = `/static/js/projectHYDCreator.js?v=${Date.now()}`;
+    script.src = `/static_frontend/js/projectHYDCreator.js?v=${Date.now()}`;
     document.body.appendChild(script);
   </script>
 </body>

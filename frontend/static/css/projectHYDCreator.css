@@ -220,3 +220,6 @@ body {
 
 #project-list li:hover { background-color: rgba(30,136,229,0.2); }
 
+input[type="checkbox"], input[type="radio"] {
+  accent-color: var(--primary); cursor: pointer;
+}

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=2" />
-  <link rel="stylesheet" href="static/css/projectHYDCreator.css?v=1">
+  <link rel="stylesheet" href="/static_frontend/css/projectHYDCreator.css?v=1">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 </head>
 <body>
@@ -76,21 +76,10 @@
                     <div class="grid">
                         <div class="tile"><h3>Observations</h3>
                             <div class="row">
-                                <label for="wq-obs-point">Name:</label>
-                                <input type="text" id="wq-obs-point" placeholder="Enter name">
-                            </div>
-                            <div class="row">
-                                <label for="wq-obs-latitude">Latitude (°):</label>
-                                <input type="text" id="wq-obs-latitude" placeholder="Enter latitude">
-                            </div>
-                            <div class="row">
-                                <label for="wq-obs-longitude">Longitude (°):</label>
-                                <input type="text" id="wq-obs-longitude" placeholder="Enter longitude">
-                            </div>
-                            <div class="row">
                                 <button type="button" id="wq-obs-picker">Pick on map</button>
-                                <button type="button" id="wq-obs-save">Add to list</button>
-                                <button type="button" id="wq-obs-remove">Remove from list</button>
+                                <input type="text" id="wq-obs-point" placeholder="Enter name to remove">
+                                <button type="button" id="wq-obs-remove"
+                                    style="color: crimson; background-color: aliceblue;">Remove Point</button>
                             </div>
                             <h4>List of Observations</h4>
                             <table class="attributes-table" id="wq-obs-table">
@@ -102,21 +91,10 @@
                         </div>
                         <div class="tile"><h3>Loads</h3>
                             <div class="row">
-                                <label for="wq-loads-point">Name:</label>
-                                <input type="text" id="wq-loads-point" placeholder="Enter name">
-                            </div>
-                            <div class="row">
-                                <label for="wq-loads-latitude">Latitude (°):</label>
-                                <input type="text" id="wq-loads-latitude" placeholder="Enter latitude">
-                            </div>
-                            <div class="row">
-                                <label for="wq-loads-longitude">Longitude (°):</label>
-                                <input type="text" id="wq-loads-longitude" placeholder="Enter longitude">
-                            </div>
-                            <div class="row">
                                 <button type="button" id="wq-loads-picker">Pick on map</button>
-                                <button type="button" id="wq-loads-save">Add to list</button>
-                                <button type="button" id="wq-loads-remove">Remove from list</button>
+                                <input type="text" id="wq-loads-point" placeholder="Enter name to remove">
+                                <button type="button" id="wq-loads-remove"
+                                    style="color: crimson; background-color: aliceblue;">Remove Point</button>
                             </div>
                             <h4>List of Loads</h4>
                             <table class="attributes-table" id="wq-loads-table">
@@ -143,7 +121,8 @@
                             <div class="row">
                                 <input type="file" id="input-csv" style="display:none;" />
                                 <button type="button" id="time-series-csv">Upload CSV</button>
-                                <button type="button" id="time-series-remove">Delete table</button>
+                                <button type="button" id="time-series-remove"
+                                    style="color: crimson; background-color: aliceblue;">Delete table</button>
                             </div>
                             <div class="textarea-container" id="wq-textarea-container">
                                 <label style="margin:20px 0 20px 0; display:inline-block;">Post-process Data</label>
@@ -325,7 +304,7 @@
             </div>
         </section>
     </div>
-    <script src="/static/js/tooltipManager.js"></script>
+    <script src="/static_frontend/js/tooltipManager.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script>
         flatpickr(".datetime", {
@@ -336,7 +315,7 @@
     <script type="module">
         const script = document.createElement('script');
         script.type = 'module';
-        script.src = `/static/js/projectWQCreator.js?v=${Date.now()}`;
+        script.src = `/static_frontend/js/projectWQCreator.js?v=${Date.now()}`;
         document.body.appendChild(script);
     </script>
 </body>
