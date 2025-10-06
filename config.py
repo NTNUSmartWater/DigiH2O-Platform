@@ -2,10 +2,13 @@ import os
 from pathlib import Path
 from contextlib import asynccontextmanager
 from Functions import dataset_manager
+from dotenv import load_dotenv
 
 # ============== Root directory ================
+load_dotenv()
 ROOT_DIR = Path(__file__).parent
 PROJECT_STATIC_ROOT = os.path.join(ROOT_DIR, "Delft_Projects")
+DELFT_PATH = os.getenv("DELFT3D_PATH")
 
 # ============== Lifespan ================
 @asynccontextmanager
