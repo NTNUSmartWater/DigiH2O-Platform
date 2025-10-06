@@ -11,17 +11,17 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
         <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
         <!-- My styles -->
-        <link rel="stylesheet" href="static/css/temp_style.css?v=1">
-        <link rel="stylesheet" href="static/css/temp_menu.css?v=1">
+        <link rel="stylesheet" href="/static_frontend/css/temp_style.css?v=1">
+        <link rel="stylesheet" href="/static_frontend/css/temp_menu.css?v=1">
         <!-- Favicon -->
-        <link rel="icon" type="image/png" href="static/images/Logo.png">
+        <link rel="icon" type="image/png" href="/static_backend/images/Logo.png">
     </head>
     <body>
         <!-- Add the header -->
         <header class="header">
             <nav class="nav">
                 <ul class="nav-left">
-                    <li><a class="menu" data-info="0|project_menu.html" id="projectMenu">Project Management</a></li>
+                    <li><a class="menu" data-info="0|projectMenu.html" id="projectMenu">Project Management</a></li>
                     <li style="border-left:3px solid #d5d4dd; margin-left:5px; padding-left:5px;">
                         <a class="menu" data-info="1|generalMenu.html" id="generalMenu">General Options</a>
                     </li>
@@ -51,12 +51,12 @@
         <div id="right-side-controls">
             <!-- Add base map button and compass on one row -->
             <button type="button" id="custom_compass_btn">
-                <img src="static/images/compass.png?v=2"alt="Compass">
+                <img src="/static_backend/images/compass.png?v=2"alt="Compass">
             </button>
             <!-- Add a popup menu for base map -->
             <div class="basemap-container">
                 <button type="button" id="custom_map_background_btn">
-                    <img src="static/images/basemap.png?v=3" alt="Basemap">
+                    <img src="/static_backend/images/basemap.png?v=3" alt="Basemap">
                 </button>
                 <div id="basemap-popup">
                     <div><strong>Select Base Map</strong></div>
@@ -182,11 +182,11 @@
         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
         <!-- Load the newest version of the script -->
-        <script src="static/js/tooltipManager.js"></script>
+        <script src="/static_frontend/js/tooltipManager.js"></script>
         <script type="module">
             const script = document.createElement('script');
             script.type = 'module';
-            script.src = `static/js/uiManager.js?v=${Date.now()}`;
+            script.src = `/static_frontend/js/uiManager.js?v=${Date.now()}`;
             document.body.appendChild(script);
         </script>
     </body>

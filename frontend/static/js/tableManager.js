@@ -190,10 +190,10 @@ export function csvUploader(target, table, nCols, isIgnoreHeader=true, objName=n
         reader.readAsText(file);
     })
 }
-export function mapPicker(obj, type, content=null){
+export function mapPicker(obj, type, content=null, pointType=null){
     const handler = () => {
         const freshData = typeof content === 'function' ? content() : content;
-        window.parent.postMessage({type: type, data: freshData}, '*');
+        window.parent.postMessage({type: type, data: freshData, pointType: pointType}, '*');
     };
     if (obj.__mapPickerHandler) {
         obj.removeEventListener('click', obj.__mapPickerHandler);

@@ -2,7 +2,7 @@ import os, json, re, subprocess
 from fastapi import APIRouter, Request, File, UploadFile, Form
 from Functions import functions
 from fastapi.responses import JSONResponse
-from backend.config import PROJECT_STATIC_ROOT, ROOT_DIR
+from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND
 import xarray as xr
 
 router = APIRouter()
@@ -145,7 +145,7 @@ async def update_boundary(request: Request):
     else: unit = 'm'; quantity = 'waterlevelbnd'
     # Parse date
     config = {'sub_boundary': subBoundaryName, 'boundary_type': quantity, 'unit': unit}
-    temp_file = os.path.join(ROOT_DIR, 'static', 'samples', 'BC.bc')
+    temp_file = os.path.join(STATIC_DIR_BACKEND, 'samples', 'BC.bc')
     try:
         temp, bc = [], [boundary_name]
         for row in data_sub:
@@ -267,7 +267,7 @@ async def generate_mdu(request: Request):
         project_name = params['project_name']
         # Create MDU file
         project_path = os.path.join(PROJECT_STATIC_ROOT, project_name, 'input')
-        mdu_path = os.path.join(ROOT_DIR, 'static', 'samples', 'MDUFile.mdu')
+        mdu_path = os.path.join(STATIC_DIR_BACKEND, 'samples', 'MDUFile.mdu')
         file_content = functions.fileWriter(mdu_path, params)
         # Write file
         with open(os.path.join(project_path, 'FlowFM.mdu'), 'w') as file:

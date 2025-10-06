@@ -39,3 +39,22 @@ button:hover { background-color: #00264d; }
 }
 
 select:focus { border-color: #004080; box-shadow: 0 0 4px #004080; }
+
+progress {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 5px;
+}
+
+/* Phần nền (chưa chạy) */
+progress::-webkit-progress-bar {
+  background-color: #838080; border-radius: 6px;
+}
+
+/* Phần đã chạy */
+progress::-webkit-progress-value {
+  background-color: #004080; border-radius: 6px;
+}
+
+/* Firefox */
+progress::-moz-progress-bar {
+  background-color: #004080; border-radius: 6px;
+}

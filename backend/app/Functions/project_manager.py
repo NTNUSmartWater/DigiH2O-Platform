@@ -4,7 +4,7 @@ import os, shutil, subprocess, re, json
 import numpy as np
 from fastapi.templating import Jinja2Templates
 from Functions import functions
-from backend.config import PROJECT_STATIC_ROOT, ROOT_DIR
+from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND
 
 router = APIRouter()
 
@@ -139,30 +139,11 @@ async def select_project(request: Request):
         status, message, data = 'error', f"Error: {str(e)}", None
     return JSONResponse({"status": status, "message": message, "content": data})
 
-# Load popup menu
-@router.get("/load_popupMenu", response_class=HTMLResponse)
-async def load_popupMenu(request: Request, htmlFile: str):
-    if htmlFile == 'project_menu.html':
-        templates = Jinja2Templates(directory="static/templates")
-        return templates.TemplateResponse(htmlFile, {"request": request})
-    if not request.app.state.templates:
-        return HTMLResponse("<p>No project selected</p>", status_code=400)
-    template_path = os.path.join(ROOT_DIR, "static", "templates", htmlFile)
-    if not os.path.exists(template_path):
-        return HTMLResponse(f"<p>Popup menu template not found</p>", status_code=404)
-    if not request.app.state.config:
-        if (request.app.state.waq_his or request.app.state.waq_map) and not request.app.state.waq_model:
-            return JSONResponse({"status": 'error', "message": "Some WAQ-related parameters are missing.\nConsider running the model again."})
-        NCfiles = [request.app.state.hyd_his, request.app.state.hyd_map, 
-            request.app.state.waq_his, request.app.state.waq_map]
-        request.app.state.config = functions.getVariablesNames(NCfiles, request.app.state.waq_model)
-    return request.app.state.templates.TemplateResponse(htmlFile, {"request": request, 'configuration': request.app.state.config})
-
 # Get list of files in a directory
 @router.post("/get_files")
 async def get_files():
     try:
-        path = os.path.join(ROOT_DIR, 'static', 'samples', 'sources')
+        path = os.path.join(STATIC_DIR_BACKEND, 'samples', 'sources')
         files = [f for f in os.listdir(path) if f.endswith(".csv")]
         data = [f.replace('.csv', '') for f in files]
         status, message = 'ok', 'Files loaded successfully.'
@@ -176,7 +157,7 @@ async def get_source(request: Request):
     body = await request.json()
     filename = body.get('filename')
     try:
-        path = os.path.join(ROOT_DIR, 'static', 'samples', 'sources')
+        path = os.path.join(STATIC_DIR_BACKEND, 'samples', 'sources')
         with open(os.path.join(path, f"{filename}.csv"), 'r') as f:
             lines = f.readlines()
         first_row = lines[0].strip().split(',')

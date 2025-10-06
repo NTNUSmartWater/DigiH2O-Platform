@@ -71,7 +71,7 @@ async function projectChecker(name=null, params=null) {
     cachedMenus = {}; // Clear cache of menus for new project
     const projectMenu = document.querySelectorAll('.menu');
     projectMenu.forEach(menu => { menu.style.display = (name===null)?'none':'block'; });
-    const project = document.querySelector('.menu[data-info="0|project_menu.html"]');
+    const project = document.querySelector('.menu[data-info="0|projectMenu.html"]');
     project.style.display = 'block'; projectTitle().textContent = '';
     // Clear map
     map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
@@ -94,7 +94,7 @@ async function initializeMenu(){
             if (pm.classList.contains('show')) pm.classList.remove('show');
             const info = link.dataset.info;
             if (info === 'home') { history.back(); return; }
-            if (info === 'help') { contacInformation(); return;}
+            if (info === 'help') { contactInformation(); return;}
             const [id, htmlFile] = info.split('|');
             startLoading('Getting Information. Please wait...');
             await showPopupMenu(id, htmlFile);
@@ -135,8 +135,8 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
     objWindow.style.display = 'flex';
 }
 
-// iframeInit("new_HYD_project", projectSetting(), projectSettingHeader(), 
-//                     projectSettingContent(), "Set up a new Hydrodynamic project");
+iframeInit("new_WQ_project", projectSetting(), projectSettingHeader(), 
+                    projectSettingContent(), "Set up and Run Water Quality Simulation");
 
 // iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
 //                     projectOpenWindowContent(), "Select Project with Simulation Result(s)");
@@ -225,7 +225,7 @@ function updateEvents() {
         const project = e.target.closest('.project');
         if (project) {
             const name = project.dataset.info;
-            if (name === 'open-project') {
+            if (name === 'visualization') {
                 iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
                     projectOpenWindowContent(), "Select Project with Simulation Result(s)");
             } else if (name === 'new-hyd-project') { 
@@ -265,28 +265,39 @@ function updateEvents() {
         }
         if (event.data?.type === 'pickPoint') { 
             showPicker('point');
+            // Set custom icon
+            const pointType = event.data.pointType;
+            let inconUrl = null;
+            if (pointType === 'obsPoint') inconUrl = `/static_backend/images/station.png?v=${Date.now()}`;
+            else if (pointType === 'waqPoint') inconUrl = `/static_backend/images/waq_obs.png?v=${Date.now()}`;
+            else if (pointType === 'loadsPoint') inconUrl = `/static_backend/images/waq_loads.png?v=${Date.now()}`;
             // Remove existing markers
             markersPoints.forEach(marker => map.removeLayer(marker)); markersPoints = [];
             const rows = event.data.data.rows;
+            const customIcon = L.icon({
+                iconUrl: inconUrl, iconSize: [20, 20], popupAnchor: [1, -34],
+            });
             // Add new markers
             rows.forEach(row => {
                 const [name, lat, lon] = row;
                 if (!name || isNaN(lat) || isNaN(lon)) return;
-                const marker = L.marker([parseFloat(lat), parseFloat(lon)]).addTo(map);
+                const marker = L.marker([parseFloat(lat), parseFloat(lon)], { icon: customIcon }).addTo(map);
                 marker.bindPopup(name); markersPoints.push(marker);
             })
         }
         if (event.data?.type === 'updateObsPoint') {
             const rows = event.data.data.rows;
             // Remove existing markers
-            markersPoints.forEach(marker => map.removeLayer(marker));
-            markersPoints = [];
-            if (rows.length === 0) return;
+            markersPoints.forEach(marker => map.removeLayer(marker)); markersPoints = [];
+            const customIcon = L.icon({
+                iconUrl: `/static_backend/images/station.png?v=${Date.now()}`,
+                iconSize: [20, 20], popupAnchor: [1, -34],
+            });
             // Add new markers
             rows.forEach(row => {
                 const [name, lat, lon] = row;
                 if (!name || isNaN(lat) || isNaN(lon)) return;
-                const marker = L.marker([parseFloat(lat), parseFloat(lon)]).addTo(map);
+                const marker = L.marker([parseFloat(lat), parseFloat(lon)], { icon: customIcon }).addTo(map);
                 marker.bindPopup(name); markersPoints.push(marker);
             })
         }
@@ -506,7 +517,7 @@ function staticMapManager() {
     });
 }
 
-function contacInformation() {
+function contactInformation() {
     // Add iframe if not exist
     if (!contactInfoContent().querySelector("iframe")) {
         const iframe = document.createElement("iframe");

@@ -229,7 +229,7 @@ async function fileUploader(target, projectName, gridName){
 function updateOption(){
     // Update location
     mapPicker(getLocation(), 'pickLocation');
-    mapPicker(obsPointPicker(), 'pickPoint', () => getDataFromTable(obsPointTable(), true));
+    mapPicker(obsPointPicker(), 'pickPoint', () => getDataFromTable(obsPointTable(), true), 'obsPoint');
     mapPicker(crossSectionPicker(), 'pickCrossSection', () => getDataFromTable(crossSectionTable(), true));
     mapPicker(boundaryPicker(), 'pickBoundary', () => getDataFromTable(boundaryTable(), true));
     mapPicker(sourceOptionPicker(), 'pickSource');
@@ -246,10 +246,8 @@ function updateOption(){
     });
     gridTool().addEventListener('click', () => { window.parent.postMessage({type: 'showGridTool'}, '*'); });
     // Copy and paste to tables
-    copyPaste(boundaryEditTable(), 2);
-    copyPaste(sourceTable(), 5);
-    copyPaste(meteoTable(), 5);
-    copyPaste(weatherTable(), 3);
+    copyPaste(boundaryEditTable(), 2); copyPaste(sourceTable(), 5); 
+    copyPaste(meteoTable(), 5); copyPaste(weatherTable(), 3); copyPaste(obsPointTable(), 3);
     // Get data from main page
     window.addEventListener('message', (event) => {
         if (event.data.type === 'locationPicked') {
@@ -304,8 +302,7 @@ function updateOption(){
     // Remove point from table
     obsPointRemove().addEventListener('click', () => {
         const name = obsPointName().value.trim();
-        removeRowFromTable(obsPointTable(), name);
-        obsPointName().value = '';
+        removeRowFromTable(obsPointTable(), name); obsPointName().value = '';
     });
     // Event when user change radio button for observation points
     pointUpdate(document.getElementById('observation-point-new'), obsPointTable(), false);
@@ -313,6 +310,7 @@ function updateOption(){
     // Update observation point on map
     obsPointUpdate().addEventListener('click', () => {
         const content = getDataFromTable(obsPointTable(), true);
+        if (content.rows.length === 0) {alert('No observation points found.'); return;}
         window.parent.postMessage({type: 'updateObsPoint', data: content}, '*');
     });
     // Event when user delete
