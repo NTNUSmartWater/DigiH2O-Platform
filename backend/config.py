@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 load_dotenv()
 ROOT_DIR = Path(__file__).parent
 PROJECT_STATIC_ROOT = os.path.join(ROOT_DIR, "Delft_Projects")
+STATIC_DIR_BACKEND = os.path.join(ROOT_DIR, "backend", "static")
+STATIC_DIR_FRONTEND = os.path.join(ROOT_DIR, "frontend", "static")
 DELFT_PATH = os.getenv("DELFT3D_PATH")
 
 # ============== Lifespan ================

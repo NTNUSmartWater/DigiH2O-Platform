@@ -1,7 +1,7 @@
 import os, subprocess, asyncio, re, shutil
 import pandas as pd, numpy as np
 from fastapi import APIRouter, Request, WebSocket
-from config import PROJECT_STATIC_ROOT, DELFT_PATH
+from backend.config import PROJECT_STATIC_ROOT, DELFT_PATH
 from fastapi.responses import JSONResponse
 from datetime import datetime, timezone
 from Functions import wq_functions

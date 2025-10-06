@@ -2,7 +2,7 @@ import os
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
-from config import ROOT_DIR
+from backend.config import ROOT_DIR
 
 router = APIRouter()
 templates = Jinja2Templates(directory="static/templates")
