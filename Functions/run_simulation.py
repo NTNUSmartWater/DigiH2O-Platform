@@ -2,7 +2,7 @@ import os, subprocess, threading, asyncio, re
 from Functions import functions
 from fastapi import APIRouter, Request, WebSocket
 from fastapi.responses import JSONResponse
-from config import PROJECT_STATIC_ROOT
+from config import PROJECT_STATIC_ROOT, DELFT_PATH
 from starlette.websockets import WebSocketDisconnect
 
 router = APIRouter()
@@ -39,7 +39,7 @@ async def start_sim(request: Request):
     if project_name in processes and processes[project_name]["status"] == "running":
         return JSONResponse({"status": "error", "message": "Simulation is already running."})
     path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
-    bat_path = os.path.normpath("C:/Program Files/Deltares/Delft3D FM Suite 2023.02 HMWQ/plugins/DeltaShell.Dimr/kernels/x64/dflowfm/scripts/run_dflowfm.bat")
+    bat_path = os.path.normpath(os.path.join(DELFT_PATH, "dflowfm/scripts/run_dflowfm.bat"))
     mdu_path = os.path.join(path, "FlowFM.mdu")
     if not os.path.exists(bat_path) or not os.path.exists(mdu_path):
         return JSONResponse({"status": "error", "message": "Executable or MDU file not found."})
@@ -67,7 +67,15 @@ async def start_sim(request: Request):
             if match:
                 processes[project_name]["progress"] = float(match.group(1))
         process.wait()
-        processes[project_name]["status"] = "finished"
+        # Post process
+        if processes[project_name]["status"] != "error":
+            processes[project_name]["status"] = "finished"
+            try:
+                post_result = functions.postProcess(path)
+                if post_result["status"] == "error": msg = f"[ERROR] {post_result['message']}"
+                else: msg = f"[FINISHED] {post_result['message']}"
+                processes[project_name]["logs"].append(msg)
+            except Exception as e: processes[project_name]["logs"].append(f"[POSTPROCESS FAILED] {str(e)}")
     threading.Thread(target=stream_logs, daemon=True).start()
     return JSONResponse({"status": "ok", "message": "Simulation started."})
 

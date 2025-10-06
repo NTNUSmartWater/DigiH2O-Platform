@@ -1,13 +1,15 @@
 import os, subprocess, asyncio, re, shutil
 import pandas as pd, numpy as np
 from fastapi import APIRouter, Request, WebSocket
-from config import PROJECT_STATIC_ROOT
+from config import PROJECT_STATIC_ROOT, DELFT_PATH
 from fastapi.responses import JSONResponse
 from datetime import datetime, timezone
 from Functions import wq_functions
 from starlette.websockets import WebSocketDisconnect
 
 router = APIRouter()
+
+
 
 @router.post("/select_hyd")
 async def select_hyd(request: Request):
@@ -133,10 +135,10 @@ async def run_wq(websocket: WebSocket):
             await websocket.send_json({'error': ms})
             return
         # Run WAQ simulation
-        delwaq1_path = 'C:/Program Files/Deltares/Delft3D FM Suite 2023.02 HMWQ/plugins/DeltaShell.Dimr/kernels/x64/dwaq/bin/delwaq1.exe'
-        delwaq2_path = 'C:/Program Files/Deltares/Delft3D FM Suite 2023.02 HMWQ/plugins/DeltaShell.Dimr/kernels/x64/dwaq/bin/delwaq2.exe'
-        bloom_path = 'C:/Program Files/Deltares/Delft3D FM Suite 2023.02 HMWQ/plugins/DeltaShell.Dimr/kernels/x64/dwaq/default/bloom.spe'
-        proc_path = 'C:/Program Files/Deltares/Delft3D FM Suite 2023.02 HMWQ/plugins/DeltaShell.Dimr/kernels/x64/dwaq/default/proc_def.def'
+        delwaq1_path = os.path.join(DELFT_PATH, 'dwaq/bin/delwaq1.exe')
+        delwaq2_path = os.path.join(DELFT_PATH, 'dwaq/bin/delwaq2.exe')
+        bloom_path = os.path.join(DELFT_PATH, 'dwaq/default/bloom.spe')
+        proc_path = os.path.join(DELFT_PATH, 'dwaq/default/proc_def.def')
         paths_to_check = [ delwaq1_path, delwaq2_path, proc_path, bloom_path ]
         # Check if all paths exist and are valid to run the simulation
         for path in paths_to_check:
@@ -145,7 +147,7 @@ async def run_wq(websocket: WebSocket):
         delwaq1_path, delwaq2_path = os.path.normpath(delwaq1_path), os.path.normpath(delwaq2_path)
         proc_path, bloom_path = os.path.normpath(proc_path), os.path.normpath(bloom_path)
         # Add dll path
-        dll_path = 'C:/Program Files/Deltares/Delft3D FM Suite 2023.02 HMWQ/plugins/DeltaShell.Dimr/kernels/x64/share/bin'
+        dll_path = os.path.join(DELFT_PATH, 'share/bin')
         os.environ["PATH"] += os.pathsep + dll_path
         # Run Simulation and get output
         inp_name = os.path.basename(inp_file)
