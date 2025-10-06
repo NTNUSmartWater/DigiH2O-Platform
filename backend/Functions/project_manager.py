@@ -4,7 +4,7 @@ import os, shutil, subprocess, re, json
 import numpy as np
 from fastapi.templating import Jinja2Templates
 from Functions import functions
-from config import PROJECT_STATIC_ROOT, ROOT_DIR
+from backend.config import PROJECT_STATIC_ROOT, ROOT_DIR
 
 router = APIRouter()
 

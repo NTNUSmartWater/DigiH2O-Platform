@@ -1,4 +1,4 @@
-import { plot2DMapDynamic, plot2DVectorMap, layerAbove, timeControl } from './map2DManager.js';
+import { plot2DMapDynamic, plot2DVectorMap, layerAbove } from './map2DManager.js';
 import { initOptions, colorbar_vector_container } from './utils.js';
 import { setState, getState } from './constants.js';
 import { map } from './mapManager.js';
@@ -27,7 +27,6 @@ async function checkVectorComponents() {
         }
     } else {
         colorbar_vector_container().style.display = 'none';
-        timeControl().style.display = 'none';
         if (layerAbove) map.removeLayer(layerAbove);
         setState({vectorSelected: ''});
         vectorObjectSubMain().style.display = 'none';
@@ -65,8 +64,8 @@ export async function dynamicMapManager() {
             }).join('');
             substanceWindow().style.display = 'flex';
             const name = data.content[0][0];
-            if (type === 'single') {newKey = `${name}_dynamic`; queryKey = `mesh2d_${name}`;}
-            else {newKey = `${name}_multi_dynamic`; queryKey = `mesh2d_2d_${name}`;}
+            if (type === 'single') {newKey = `${name}_waq_dynamic`; queryKey = `mesh2d_${name}`;}
+            else {newKey = `${name}_waq_multi_dynamic`; queryKey = `mesh2d_2d_${name}`;}
             const colorbarTitle = data.content[0][1];
             plot2DMapDynamic(true, queryKey, newKey, colorbarTitle, '');
         });
@@ -75,8 +74,8 @@ export async function dynamicMapManager() {
     substanceWindowContent().addEventListener('change', (e) => {
         if (e.target && e.target.name === "waq-substance") {
             const [value, type] = e.target.value.split('|');
-            if (type === 'single') {newKey = `${value}_dynamic`; queryKey = `mesh2d_${value}`;}
-            else {newKey = `${value}_multi_dynamic`; queryKey = `mesh2d_2d_${value}`;}
+            if (type === 'single') {newKey = `${value}_waq_dynamic`; queryKey = `mesh2d_${value}`;}
+            else {newKey = `${value}_waq_multi_dynamic`; queryKey = `mesh2d_2d_${value}`;}
             const label = e.target.closest('label');
             const colorbarTitle = label ? label.textContent.trim() : value;
             plot2DMapDynamic(true, queryKey, newKey, colorbarTitle, '');

@@ -1,12 +1,14 @@
 # Folders
 /__pycache__
 /Delft_Projects
+backend/Delft_Projects
 
 # Files
 *.txt
 
 # Additional files
 *.ipynb
+*.pyc
 
 # Environment
 .env

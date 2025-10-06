@@ -2,7 +2,7 @@ import os, json, re, subprocess
 from fastapi import APIRouter, Request, File, UploadFile, Form
 from Functions import functions
 from fastapi.responses import JSONResponse
-from config import PROJECT_STATIC_ROOT, ROOT_DIR
+from backend.config import PROJECT_STATIC_ROOT, ROOT_DIR
 import xarray as xr
 
 router = APIRouter()
@@ -94,8 +94,8 @@ async def select_polygon(request: Request):
     key, idx = body.get('key'), int(body.get('id'))
     try:
         data_, time_column, column_layer = request.app.state.hyd_map, 'time', 'mesh2d_layer_z'
-        if '_multi_dynamic' in key:
-            key = f"mesh2d_{key.replace('_multi_dynamic', '')}"
+        if '_waq_multi_dynamic' in key:
+            key = f"mesh2d_{key.replace('_waq_multi_dynamic', '')}"
             data_, time_column, column_layer = request.app.state.waq_map, 'nTimesDlwq', 'mesh2d_layer_dlwq'
         temp = functions.selectPolygon(data_, idx, key, time_column, column_layer)
         data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))

@@ -1,5 +1,5 @@
 import os, json
-from config import ROOT_DIR
+from backend.config import ROOT_DIR
 from Functions import functions
 import geopandas as gpd, xarray as xr
 from shapely.geometry import Point

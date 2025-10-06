@@ -3,7 +3,7 @@ import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
 from datetime import datetime, timezone
-from config import PROJECT_STATIC_ROOT
+from backend.config import PROJECT_STATIC_ROOT
 
 def remove_readonly(func, path, excinfo):
     # Change the readonly bit, but not the file contents

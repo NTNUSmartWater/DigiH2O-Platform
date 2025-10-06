@@ -135,8 +135,8 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
     objWindow.style.display = 'flex';
 }
 
-iframeInit("new_HYD_project", projectSetting(), projectSettingHeader(), 
-                    projectSettingContent(), "Set up a new Hydrodynamic project");
+// iframeInit("new_HYD_project", projectSetting(), projectSettingHeader(), 
+//                     projectSettingContent(), "Set up a new Hydrodynamic project");
 
 // iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
 //                     projectOpenWindowContent(), "Select Project with Simulation Result(s)");

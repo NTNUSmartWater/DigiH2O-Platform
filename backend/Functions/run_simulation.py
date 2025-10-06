@@ -2,7 +2,7 @@ import os, subprocess, threading, asyncio, re
 from Functions import functions
 from fastapi import APIRouter, Request, WebSocket
 from fastapi.responses import JSONResponse
-from config import PROJECT_STATIC_ROOT, DELFT_PATH
+from backend.config import PROJECT_STATIC_ROOT, DELFT_PATH
 from starlette.websockets import WebSocketDisconnect
 
 router = APIRouter()
