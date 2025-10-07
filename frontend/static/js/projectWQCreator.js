@@ -35,11 +35,10 @@ const physicalName = () => document.getElementById('wq-physical-name');
 const microbialSelector = () => document.getElementById('wq-microbial');
 const microbialName = () => document.getElementById('wq-microbial-name');
 
-
-let projectList=[], subKey='', folderName='', usefors=null, from_usefors=null, to_usefors=null, pointSelected=null, nPoints=0, nLoads=0,
-    timeStep1=0, timeStep2='', nSegments=0, attrPath_='', volPath='', exchange_x=0, exchange_y=0, exchange_z=0, markersPoints = [],
+let projectList=[], subKey='', folderName='', usefors=null, from_usefors=null, to_usefors=null, pointSelected=null, nPoints=0,
+    timeStep1=0, timeStep2='', nSegments=0, attrPath_='', volPath='', exchange_x=0, exchange_y=0, exchange_z=0, nLoads=0,
     ptrPath='', areaPath='', flowPath='', lengthPath='', srfPath='', vdfPath='', temPath='', maxiter=null, tolerance=null,
-    scheme=null, salPath='', from_initial=null, initial_value=null, initial_area=null, initialList=[], progressbar=null, progressText=null;
+    scheme=null, salPath='', from_initial=null, initial_value=null, initial_area=null, initialList=[];
 
 function setupTabs(root) {
     const buttonPanels = root.querySelectorAll('#main-tabs button');
@@ -154,42 +153,16 @@ function substanceChanger(target, name){
 function updateOption(){
     // Update location
     obsPointPicker().addEventListener('click', () => {
-        const data = getDataFromTable(obsPointTable(), true);
-        if (data.rows.length > 0) {
-            // Remove existing markers
-            markersPoints.forEach(marker => map.removeLayer(marker)); markersPoints = [];
-            // const customIcon = L.icon({
-            //     iconUrl: `/static_backend/images/waq_loads.png?v=${Date.now()}`,
-            //     iconSize: [20, 20], popupAnchor: [1, -34],
-            // });
-            // rows.forEach(row => {
-            //     const [name, lat, lon] = row;
-            //     if (!name || isNaN(lat) || isNaN(lon)) return;
-            //     const marker = L.marker([parseFloat(lat), parseFloat(lon)], { icon: customIcon }).addTo(map);
-            //     marker.bindPopup(name); markersPoints.push(marker);
-            // })
-        }
-        pointSelected = 'obsPoint'; 
-        window.parent.postMessage({type: 'pickPoint', data: getDataFromTable(obsPointTable(), true), pointType: 'waqPoint'}, '*');
+        pointSelected = 'obsPoint';
+        const obsPoints = getDataFromTable(obsPointTable(), true);
+        const loadsPoints = getDataFromTable(loadsPointTable(), true);
+        window.parent.postMessage({type: 'pickPoint', data: [loadsPoints, obsPoints], pointType: 'waqPoint'}, '*');
     });
     loadsPointPicker().addEventListener('click', () => {
-        const data = getDataFromTable(loadsPointTable(), true);
-        if (data.rows.length > 0) {
-            // Remove existing markers
-            markersPoints.forEach(marker => map.removeLayer(marker)); markersPoints = [];
-            // const customIcon = L.icon({
-            //     iconUrl: `/static_backend/images/waq_obs.png?v=${Date.now()}`,
-            //     iconSize: [20, 20], popupAnchor: [1, -34],
-            // });
-            // rows.forEach(row => {
-            //     const [name, lat, lon] = row;
-            //     if (!name || isNaN(lat) || isNaN(lon)) return;
-            //     const marker = L.marker([parseFloat(lat), parseFloat(lon)], { icon: customIcon }).addTo(map);
-            //     marker.bindPopup(name); markersPoints.push(marker);
-            // })
-        }
         pointSelected = 'loadsPoint'; 
-        window.parent.postMessage({type: 'pickPoint', data: getDataFromTable(loadsPointTable(), true), pointType: 'loadsPoint'}, '*');
+        const obsPoints = getDataFromTable(obsPointTable(), true);
+        const loadsPoints = getDataFromTable(loadsPointTable(), true);
+        window.parent.postMessage({type: 'pickPoint', data: [obsPoints, loadsPoints], pointType: 'loadsPoint'}, '*');
     });
     // Copy and paste to tables
     copyPaste(obsPointTable(), 3); copyPaste(loadsPointTable(), 3);
@@ -228,13 +201,13 @@ function updateOption(){
     // Remove point from table
     obsPointRemove().addEventListener('click', () => {
         const name = obsPointName().value.trim();
-        if (name === '') { alert('Please select observation point to remove.'); return; }
+        if (name === '') { alert('Please enter name of observation point from list to remove.'); return; }
         removeRowFromTable(obsPointTable(), name);
         obsPointName().value = '';
     });
     loadsPointRemove().addEventListener('click', () => {
         const name = loadsPointName().value.trim();
-        if (name === '') { alert('Please select loads point to remove.'); return; }
+        if (name === '') { alert('Please enter name of loads point from list to remove.'); return; }
         removeRowFromTable(loadsPointTable(), name);
         loadsPointName().value = ''; 
     });
@@ -255,8 +228,10 @@ function updateOption(){
                 fillTable(data_arr, obsPointTable(), false);
             }
             else if (pointSelected === 'loadsPoint') {
-                nLoads++;
-                const data_arr = [[`Point_${nLoads}`, lat, lon]];
+                let name = ''; nLoads++;
+                if (loadsPointName().value.trim() !== '') name = loadsPointName().value.trim();
+                else name = `Point_${nLoads}`; 
+                const data_arr = [[name, lat, lon]];
                 fillTable(data_arr, loadsPointTable(), false);
             }
         }
@@ -360,20 +335,14 @@ function updateOption(){
     document.querySelectorAll('.wq-simulation').forEach(btn => {
         btn.addEventListener('click', async () => {
             if (btn.dataset.info === 'chemical') {
-                progressbar = document.getElementById('progressbar-chemical');
-                progressText = document.getElementById('progress-text-chemical');
                 maxiter = document.getElementById('max-iterations-chemical');
                 tolerance = document.getElementById('tolerance-chemical');
                 scheme = document.getElementById('wq-scheme-chemical');
             } else if (btn.dataset.info === 'physical') {
-                progressbar = document.getElementById('progressbar-physical');
-                progressText = document.getElementById('progress-text-physical');
                 maxiter = document.getElementById('max-iterations-physical');
                 tolerance = document.getElementById('tolerance-physical');
                 scheme = document.getElementById('wq-scheme-physical');
             } else if (btn.dataset.info === 'microbial') {
-                progressbar = document.getElementById('progressbar-microbial');
-                progressText = document.getElementById('progress-text-microbial');
                 maxiter = document.getElementById('max-iterations-microbial');
                 tolerance = document.getElementById('tolerance-microbial');
                 scheme = document.getElementById('wq-scheme-microbial');
@@ -396,27 +365,14 @@ function updateOption(){
             if (loadTable.rows.length === 0) { alert('No loads data found. Please add at least one load.'); return; }
             if (maxiter.value === '' || parseInt(maxiter.value) <= 0) { alert('Please define maximum number of iterations.'); return; }
             if (tolerance.value === '' || parseFloat(tolerance.value) <= 0) { alert('Please define tolerance.'); return; }
-            const ws = new WebSocket(`ws://${window.location.host}/run_wq`);
-            ws.onopen = () => {
-                // Send message to the server to start the simulation
-                ws.send(JSON.stringify({projectName: name, key: subKey, hydName: hydPath, folderName: folderName, usefors: userforValue,
-                    timeStep1: timeStep1, timeStep2: timeStep2, nSegments: nSegments, attrPath: attrPath_, volPath: volPath, exchangeY: exchange_y,
-                    exchangeX: exchange_x, exchangeZ: exchange_z, ptrPath: ptrPath, areaPath: areaPath, flowPath: flowPath, lengthPath: lengthPath,
-                    nLayers: nLayers().value, sources: sourceTable.rows, loadsData: loadTable.rows, srfPath: srfPath, vdfPath: vdfPath,
-                    temPath: temPath, initial: initialValue, initialList: initialList, startTime: toUTC(start), stopTime: toUTC(stop),
-                    obsPoints: obsTable.rows, timeTable: timeTable, maxiter: maxiter.value, tolerance: tolerance.value, scheme: scheme.value, salPath: salPath
-                }));
-                progressText.innerText = ''; progressbar.value = 0;
+            const params = {projectName: name, key: subKey, hydName: hydPath, folderName: folderName, usefors: userforValue,
+                timeStep1: timeStep1, timeStep2: timeStep2, nSegments: nSegments, attrPath: attrPath_, volPath: volPath, exchangeY: exchange_y,
+                exchangeX: exchange_x, exchangeZ: exchange_z, ptrPath: ptrPath, areaPath: areaPath, flowPath: flowPath, lengthPath: lengthPath,
+                nLayers: nLayers().value, sources: sourceTable.rows, loadsData: loadTable.rows, srfPath: srfPath, vdfPath: vdfPath,
+                temPath: temPath, initial: initialValue, initialList: initialList, startTime: toUTC(start), stopTime: toUTC(stop),
+                obsPoints: obsTable.rows, timeTable: timeTable, maxiter: maxiter.value, tolerance: tolerance.value, scheme: scheme.value, salPath: salPath
             }
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                if (data.error) { alert(data.error); return; }
-                if (data.status !== undefined) progressText.innerText = data.status;
-                if (data.progress !== undefined) {
-                    progressText.innerText = 'Completed: ' + data.progress + '%';
-                    progressbar.value = data.progress;
-                }
-            }
+            window.parent.postMessage({ type: 'run-wq', data: params}, '*');
         });
     });
 }

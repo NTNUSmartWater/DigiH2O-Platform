@@ -8,6 +8,22 @@ from starlette.websockets import WebSocketDisconnect
 router = APIRouter()
 processes = {}
 
+def kill_process(process):
+    try:
+        # Try terminate
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            # Force kill
+            if os.name == 'nt':  # Windows
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return {"status": "ok", "message": "Simulation stopped."}
+    except Exception as e: 
+        return {"status": "error", "message": str(e)}
+
+
 @router.post("/check_folder")
 async def check_folder(request: Request):
     body = await request.json()
@@ -18,8 +34,8 @@ async def check_folder(request: Request):
     return JSONResponse({"status": status})
 
 # Check if simulation is running
-@router.post("/check_sim_status")
-async def check_sim_status(request: Request):
+@router.post("/check_sim_status_hyd")
+async def check_sim_status_hyd(request: Request):
     body = await request.json()
     project_name = body.get("projectName")
     if project_name in processes:
@@ -31,9 +47,9 @@ async def check_sim_status(request: Request):
         })
     return JSONResponse({"status": "none", "progress": 0, "logs": []})
 
-# Start simulation
-@router.post("/start_sim")
-async def start_sim(request: Request):
+# Start a hydrodynamic simulation
+@router.post("/start_sim_hyd")
+async def start_sim_hyd(request: Request):
     body = await request.json()
     project_name = body["projectName"]
     if project_name in processes and processes[project_name]["status"] == "running":
@@ -59,8 +75,12 @@ async def start_sim(request: Request):
             # Catch error messages
             if "forrtl:" in line.lower():
                 processes[project_name]["logs"].append(f"[ERROR] {line}")
-                if process.poll() is None: process.terminate()
-                processes[project_name]["status"] = "error"
+                if process.poll() is None: 
+                    try:
+                        subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    except Exception as e: processes[project_name]["status"] = "error"
+                processes[project_name]["status"] = "finished"
                 break
             # Check for progress
             match = progress_pattern.search(line)
@@ -79,8 +99,8 @@ async def start_sim(request: Request):
     threading.Thread(target=stream_logs, daemon=True).start()
     return JSONResponse({"status": "ok", "message": "Simulation started."})
 
-@router.websocket("/sim_progress/{project_name}")
-async def sim_progress(websocket: WebSocket, project_name: str):
+@router.websocket("/sim_progress_hyd/{project_name}")
+async def sim_progress_hyd(websocket: WebSocket, project_name: str):
     await websocket.accept()
     try:
         last_log, last_progress = 0, None
@@ -105,14 +125,15 @@ async def sim_progress(websocket: WebSocket, project_name: str):
     except WebSocketDisconnect: pass
 
 # Stop simulation
-@router.post("/stop_sim")
-async def stop_sim(request: Request):
+@router.post("/stop_sim_hyd")
+async def stop_sim_hyd(request: Request):
     body = await request.json()
     project_name = body["projectName"]
-    if project_name in processes:
-        proc = processes[project_name]["process"]
-        if proc.poll() is None:
-            proc.terminate()
-            processes[project_name]["status"] = "stopped"
-            return {"status": "ok", "message": "Simulation stopped."}
-    return {"status": "error", "message": "No running simulation found."}
+    if project_name not in processes:
+        return {"status": "error", "message": "No running simulation found."}
+    processes[project_name]["stopped"] = True
+    processes[project_name]["status"] = "stopped"
+    process = processes[project_name]["process"]
+    if process: res = kill_process(process)
+    else: res = res = {"status": "ok", "message": "Simulation stop requested."}
+    return res

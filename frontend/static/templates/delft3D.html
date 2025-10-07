@@ -11,7 +11,7 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
         <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
         <!-- My styles -->
-        <link rel="stylesheet" href="/static_frontend/css/temp_style.css?v=1">
+        <link rel="stylesheet" href="/static_frontend/css/temp_style.css?v=12">
         <link rel="stylesheet" href="/static_frontend/css/temp_menu.css?v=1">
         <!-- Favicon -->
         <link rel="icon" type="image/png" href="/static_backend/images/Logo.png">
@@ -146,10 +146,31 @@
             <div id="projectWindowHeader">Project Setup<span id="closeProjectWindow">×</span></div>
             <div id="projectWindowContent"></div>
         </div>
-         <!-- Add a floating window for running a simulation -->
+        <!-- Add a floating window for running a hydrodynamic simulation -->
         <div id="simulationWindow">
-            <div id="simulationWindowHeader">Run Simulation<span id="closeSimulationWindow">×</span></div>
+            <div id="simulationWindowHeader">Run HYD Simulation<span id="closeSimulationWindow">×</span></div>
             <div id="simulationWindowContent"></div>
+        </div>
+        <!-- Add a floating window for running a water quality simulation -->
+        <div id="waqWindow">
+            <div id="waqWindowHeader">Water Quality Simulation Progress<span id="closeWAQWindow">×</span></div>
+            <div id="waqWindowContent">
+                <div class="progress-container">
+                    <progress id="progressbar" value="0" max="100" style="width:100%; height:10px;"></progress>
+                    <span id="progress-text" style="align-items:center; margin-top: 10px;"></span>
+                </div>
+                <button type="button" id="stop-waq-button">Stop Simulation</button>
+            </div>
+        </div>
+        <!-- Add a floating window for drawing a profile -->
+        <div id="profileWindow">
+            <div id="profileWindowHeader">Dynamic Profile<span id="closeProfileWindow">×</span></div>
+            <div id="profileWindowContent">
+
+
+
+
+            </div>
         </div>
         <!-- Add a floating plot window -->
         <div id="plotWindow">
