@@ -4,7 +4,7 @@ const stopBtn = () => document.getElementById("stop-button");
 const progressbar = () => document.getElementById("progressbar");
 const progressText = () => document.getElementById("progress-text");
 
-let ws = null, content = '', currentProject = null;;
+let ws = null, content = '', currentProject = null;
 
 async function sendQuery(functionName, content){
     const response = await fetch(`/${functionName}`, {
@@ -54,10 +54,9 @@ function updateSelection(){
         const projectName = projectSelector().value;
         if (!projectName || projectName === '') {alert('Please select a project.'); return;}
         // Check if simulation is running
-        const statusRes = await sendQuery('check_sim_status', {projectName: projectName});
+        const statusRes = await sendQuery('check_sim_status_hyd', {projectName: projectName});
         if (statusRes.status === "running") {
-            alert("Simulation is already running for this project.");
-            return;
+            alert("Simulation is already running for this project."); return;
         }
         const res = await sendQuery('check_folder', {projectName: projectName, folder: ['output']});
         if (res.status === "ok") {
@@ -67,11 +66,11 @@ function updateSelection(){
             );
             if (!result) return;
         }
-        const res_check = await sendQuery('start_sim', {projectName: projectName});
+        const res_check = await sendQuery('start_sim_hyd', {projectName: projectName});
         if (res_check.status === "error") {alert(res_check.message); return;}
         currentProject = projectName; content = '';
         // Run hydrodynamics simulation
-        ws = new WebSocket(`ws://${window.location.host}/sim_progress/${projectName}`);
+        ws = new WebSocket(`ws://${window.location.host}/sim_progress_hyd/${projectName}`);
         progressText().innerText = 'Start running hydrodynamic simulation...';
         ws.onmessage = (event) => {
             const info = event.data;
@@ -90,8 +89,8 @@ function updateSelection(){
     stopBtn().addEventListener('click', async () => {
         if (ws) { ws.close(); ws = null; }
         if (!currentProject) return;
-        const res = await sendQuery('stop_sim', {projectName: currentProject});
-        alert(res.message); progressText().innerText = "Simulation stopped by user.";
+        const res = await sendQuery('stop_sim_hyd', {projectName: currentProject});
+        progressText().innerText = res.message;
     });
 }
 updateSelection();

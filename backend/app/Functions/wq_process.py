@@ -8,8 +8,28 @@ from Functions import wq_functions
 from starlette.websockets import WebSocketDisconnect
 
 router = APIRouter()
+processes = {}
 
 
+def path_process(full_path:str, head:int=3, tail:int=2):
+    parts  = full_path.split('/')
+    if len(parts) <= head + tail: return full_path
+    return '/'.join(parts[:head]) + '/ ... /' + '/'.join(parts[-tail:])
+
+def kill_process(process):
+    try:
+        # Try terminate
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            # Force kill
+            if os.name == 'nt':  # Windows
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return {"status": "ok", "message": "Simulation stopped."}
+    except Exception as e: 
+        return {"status": "error", "message": str(e)}
 
 @router.post("/select_hyd")
 async def select_hyd(request: Request):
@@ -83,14 +103,33 @@ async def wq_time(request: Request):
         status, message, data, from_, to_ = 'error', f"Error: {str(e)}", None, None, None
     return JSONResponse({"status": status, "message": message, "content": data, "froms": from_, "tos": to_})
 
-@router.websocket("/run_wq")
-async def run_wq(websocket: WebSocket):
+# Check if simulation is running
+@router.post("/check_sim_status_waq")
+async def check_sim_status_waq(request: Request):
+    body = await request.json()
+    project_name = body.get("projectName")
+    if project_name in processes:
+        info = processes[project_name]
+        status = "stopped" if info.get("stopped") else info.get("status", "none")
+        return JSONResponse({
+            "status": status,
+            "progress": info.get("progress", 0),
+            "logs": info.get("logs", [])
+        })
+    return JSONResponse({"status": "none", "progress": 0, "logs": []})
+
+@router.websocket("/sim_progress_waq/{project_name}")
+async def sim_progress_waq(websocket: WebSocket, project_name: str):
     await websocket.accept()
+    print('Running', project_name)
+    print('Processes', processes)
     try:
-        # Get parameters from frontend
         body = await websocket.receive_json()
-        project_name, key = body['projectName'], body['key']
-        file_name, time_data, usefors = body['folderName'], body['timeTable'], body['usefors']
+        if project_name in processes and processes[project_name]["status"] == "running":
+            await websocket.send_json({"error": "Simulation for this project is already running."})
+            return
+        processes[project_name] = {"progress": 0, "logs": [], "status": "running", "process": None, "stopped": False}
+        key, file_name, time_data, usefors = body['key'], body['folderName'], body['timeTable'], body['usefors']
         t_start = datetime.fromtimestamp(int(body['startTime']/1000.0), tz=timezone.utc)
         t_stop = datetime.fromtimestamp(int(body['stopTime']/1000.0), tz=timezone.utc)
         hyd_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "DFM_DELWAQ", body['hydName'])
@@ -106,8 +145,6 @@ async def run_wq(websocket: WebSocket):
         output_folder = os.path.join(wq_folder, file_name)
         if os.path.exists(output_folder): shutil.rmtree(output_folder, ignore_errors=True)
         os.makedirs(output_folder, exist_ok=True)
-        # Prepare input files
-        await websocket.send_json({"status": "Preparing inputs for WAQ simulation..."})
         parameters = {'hyd_path': hyd_path, "t_start": t_start, "t_stop": t_stop, 'sal_path': sal_path,
             "maxiter": body['maxiter'], "tolerance": body['tolerance'], "scheme": body['scheme'], 'srf_path': srf_path, 
             "t_step1": body['timeStep1'], "t_step2": body['timeStep2'], "obs_data": body['obsPoints'],
@@ -131,48 +168,52 @@ async def run_wq(websocket: WebSocket):
             f.write(usefors)
         # Prepare external inputs
         inp_file, ms = wq_functions.wqPreparation(parameters, key, output_folder, includes_folder)
-        if not inp_file: 
+        if not inp_file:
             await websocket.send_json({'error': ms})
             return
         # Run WAQ simulation
-        delwaq1_path = os.path.join(DELFT_PATH, 'dwaq/bin/delwaq1.exe')
-        delwaq2_path = os.path.join(DELFT_PATH, 'dwaq/bin/delwaq2.exe')
-        bloom_path = os.path.join(DELFT_PATH, 'dwaq/default/bloom.spe')
-        proc_path = os.path.join(DELFT_PATH, 'dwaq/default/proc_def.def')
+        delwaq1_path = os.path.normpath(os.path.join(DELFT_PATH, 'dwaq/bin/delwaq1.exe'))
+        delwaq2_path = os.path.normpath(os.path.join(DELFT_PATH, 'dwaq/bin/delwaq2.exe'))
+        bloom_path = os.path.normpath(os.path.join(DELFT_PATH, 'dwaq/default/bloom.spe'))
+        proc_path = os.path.normpath(os.path.join(DELFT_PATH, 'dwaq/default/proc_def.def'))
         paths_to_check = [ delwaq1_path, delwaq2_path, proc_path, bloom_path ]
         # Check if all paths exist and are valid to run the simulation
         for path in paths_to_check:
-            if not os.path.exists(path): await websocket.send_json({'error': f"File not found: {path}"})
-            if not os.access(path, os.R_OK): await websocket.send_json({'error': f"No read permission: {path}"})
-        delwaq1_path, delwaq2_path = os.path.normpath(delwaq1_path), os.path.normpath(delwaq2_path)
-        proc_path, bloom_path = os.path.normpath(proc_path), os.path.normpath(bloom_path)
+            if not os.path.exists(path):
+                await websocket.send_json({'error': f"File not found: {path_process(path)}"})
+                processes[project_name]["status"] = "finished"
+                return
+            if not os.access(path, os.R_OK):
+                await websocket.send_json({'error': f"No read permission: {path_process(path)}"})
+                processes[project_name]["status"] = "finished"
+                return
         # Add dll path
         dll_path = os.path.join(DELFT_PATH, 'share/bin')
         os.environ["PATH"] += os.pathsep + dll_path
         # Run Simulation and get output
         inp_name = os.path.basename(inp_file)
         # === Run delwaq1 ===
+        await websocket.send_json({'status': "Checking inputs for WAQ simulation..."})
         print('=== Run delwaq1 ===')
-        await websocket.send_json({"status": "Running WAQ simulation..."})
-        cmd = [delwaq1_path, inp_name, "-p", proc_path, "-eco", bloom_path]
-        process1 = await subprocessRunner(cmd, output_folder, websocket)
-        if not process1:
-            await websocket.send_json({"error": "Prepare inputs failed."})
+        cmd1 = [delwaq1_path, inp_name, "-p", proc_path, "-eco", bloom_path]
+        ok1 = await subprocessRunner(cmd1, output_folder, websocket, project_name)
+        if not ok1:
+            await websocket.send_json({'error': "Prepare inputs failed."})
+            processes[project_name]["status"] = "finished"
             return
-        await websocket.send_json({"status": "Finished preparing inputs."})    
         # === Run delwaq2 ===
+        await websocket.send_json({'status': "Running WAQ simulation..."})
         print('=== Run delwaq2 ===')
-        progress_pattern = re.compile(r"(\d+(?:\.\d+)?)% Completed")
-        await websocket.send_json({"status": "Starting simulation..."})
-        cmd, stop_on_error = [delwaq2_path, inp_name], "ERROR in GMRES"
-        process2 = await subprocessRunner(cmd, output_folder, websocket, progress_pattern, stop_on_error)
-        if not process2:
-            await websocket.send_json({"status": "Run WAQ failed."})
+        progress_regex = re.compile(r"(\d+(?:\.\d+)?)% Completed")
+        cmd2 = [delwaq2_path, inp_name]
+        ok2 = await subprocessRunner(cmd2, output_folder, websocket, project_name, progress_regex, "ERROR in GMRES")
+        if not ok2:
+            await websocket.send_json({'error': "Run failed."})
+            processes[project_name]["status"] = "finished"
             return
-        await websocket.send_json({"progress": 100.0})
         print('=== Finished ===')
         # Move WAQ output files to output folder
-        await websocket.send_json({"status": "Moving NC output files..."})
+        await websocket.send_json({'status': "Reorganizing NC output files..."})
         output_folder = os.path.join(PROJECT_STATIC_ROOT, project_name, "output")
         if not os.path.exists(output_folder): os.makedirs(output_folder)
         output_WAQ_folder = os.path.join(output_folder, 'WAQ')
@@ -181,40 +222,76 @@ async def run_wq(websocket: WebSocket):
             src = os.path.join(output_folder, f"{file_name}{suffix}")
             if os.path.exists(src):
                 shutil.copy(src, os.path.join(output_WAQ_folder, f"{file_name}{suffix}"))
-        await websocket.send_json({"status": "NC files copied."})
         # Delete folder
         try: shutil.rmtree(wq_folder, ignore_errors=True)
-        except Exception as e: await websocket.send_json({'error': str(e)})
-        await websocket.send_json({"status": "Simulation completed successfully."})
+        except Exception as e: await websocket.send_json({'status': str(e)})
+        processes[project_name]["status"] = "finished"
+        await websocket.send_json({'status': "Simulation completed successfully."})
     except WebSocketDisconnect: pass
-    except Exception as e:
-        await websocket.send_json({"error": str(e)})
-    finally: await websocket.close()
+    # except Exception as e: await websocket.send_json({'error': str(e)})
+    finally:
+        if project_name in processes and not processes[project_name].get("stopped", False):
+            processes.pop(project_name, None)
+        elif project_name in processes and processes[project_name].get("stopped", False):
+            await asyncio.sleep(2)
+            processes.pop(project_name, None)
 
-async def subprocessRunner(cmd, cwd, websocket, progress_regex=None, stop_on_error=None):
-    process = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd, universal_newlines=True)
-    success = False
-    for line in process.stdout:
-        line = line.strip()
-        if not line: continue
-        print("[OUT]", line)
-        # Check for progress
-        if progress_regex:
-            match = progress_regex.search(line)
-            if match:
-                percent = float(match.group(1))
-                await websocket.send_json({"progress": percent})
-        # Check special errors
-        if stop_on_error and stop_on_error in line:
-            if "ERROR in GMRES" in line: await websocket.send_json({"error": "GMRES solver failed.\nConsider increasing the maximum number of iterations."})
-            await websocket.send_json({"error": f"Error detected: {line}"})
-            process.terminate()
-            return False
-        if "Normal end" in line: success = True
-    for line in process.stderr:
-        if not line.strip(): continue
-        print("[ERR]", line.strip())
-        await websocket.send_json({"error": line.strip()})    
-    await asyncio.to_thread(process.wait)
+async def subprocessRunner(cmd, cwd, websocket, project_name, progress_regex=None, stop_on_error=None):
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd, bufsize=1,
+                                universal_newlines=True, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+    processes[project_name]["process"], success = process, False
+    try:
+        while True:
+            # Check if simulation is stopped
+            if processes[project_name]["status"] == "stopped":
+                res = kill_process(process)
+                await websocket.send_json({"status": res["message"]})                
+                return False
+            
+            line = process.stdout.readline()
+            if not line:
+                if process.poll() is not None: break
+                await asyncio.sleep(0.1)
+                continue
+            line = line.strip()
+            if not line: continue
+            print("[OUT]", line)
+            # Check for progress
+            if progress_regex:
+                match = progress_regex.search(line)
+                if match:
+                    percent = float(match.group(1))
+                    processes[project_name]["progress"] = percent
+                    await websocket.send_json({"progress": percent})     
+            # Check special errors
+            if stop_on_error and stop_on_error in line:
+                if "ERROR in GMRES" in line: await websocket.send_json({"error": "GMRES solver failed.\nConsider increasing the maximum number of iterations."})
+                await websocket.send_json({"error": f"Error detected: {line}"})
+                kill_process(process)
+                processes[project_name]["status"] = "error"
+                return False
+            if "Normal end" in line: success = True
+        for line in process.stderr:
+            if not line.strip(): continue
+            print("[ERR]", line.strip())
+            await websocket.send_json({"error": line.strip()}) 
+    finally:
+        process.stdout.close()
+        process.stderr.close()
+        process.wait(timeout=3)
+        if process.poll() is None: kill_process(process)
     return success
+
+# Stop simulation
+@router.post("/stop_sim_waq")
+async def stop_sim_waq(request: Request):
+    body = await request.json()
+    project_name = body["projectName"]
+    if project_name not in processes:
+        return {"status": "error", "message": "No running simulation found."}
+    processes[project_name]["stopped"] = True
+    processes[project_name]["status"] = "stopped"
+    process = processes[project_name]["process"]
+    if process: res = kill_process(process)
+    else: res = res = {"status": "ok", "message": "Simulation stop requested."}
+    return res

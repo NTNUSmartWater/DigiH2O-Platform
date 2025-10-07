@@ -9,9 +9,10 @@ import { dynamicMapManager } from './dynamicMapManager.js';
 import { sendQuery } from './tableManager.js';
 import { resetState } from './constants.js';
 
-let pickerState = { location: false, point: false, crosssection: false, boundary: false, source: false }, cachedMenus = {};
-let markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [], pathLineBoundary = null;
-let gridLayer = null, timeOut=null, markersCrosssection = [], crosssectionContainer = [], pathLineCrosssection = null;
+let pickerState = { location: false, point: false, crosssection: false, boundary: false, source: false },
+    cachedMenus = {}, markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [],
+    pathLineBoundary = null, ws = null, currentProject = null, gridLayer = null, timeOut=null,
+    markersCrosssection = [], crosssectionContainer = [], pathLineCrosssection = null;
 
 const popupMenu = () => document.getElementById('popup-menu');
 const popupContent = () => document.getElementById('popup-content');
@@ -38,6 +39,15 @@ const simulationWindow = () => document.getElementById('simulationWindow');
 const simulationHeader = () => document.getElementById('simulationWindowHeader');
 const simulationContent = () => document.getElementById('simulationWindowContent');
 const simulationCloseBtn = () => document.getElementById('closeSimulationWindow');
+const waqWindow = () => document.getElementById('waqWindow');
+const waqWindowHeader = () => document.getElementById('waqWindowHeader');
+const waqCloseBtn = () => document.getElementById('closeWAQWindow');
+const profileWindow = () => document.getElementById('profileWindow');
+const profileWindowHeader = () => document.getElementById('profileWindowHeader');
+const profileCloseBtn = () => document.getElementById('closeProfileWindow');
+const waqProgressbar = () => document.getElementById('progressbar');
+const waqProgressText = () => document.getElementById('progress-text');
+const waqStopBtn = () => document.getElementById('stop-waq-button');
 const mapContainer = () => map.getContainer();
 
 initializeMap();
@@ -267,13 +277,48 @@ function updateEvents() {
             showPicker('point');
             // Set custom icon
             const pointType = event.data.pointType;
-            let inconUrl = null;
-            if (pointType === 'obsPoint') inconUrl = `/static_backend/images/station.png?v=${Date.now()}`;
-            else if (pointType === 'waqPoint') inconUrl = `/static_backend/images/waq_obs.png?v=${Date.now()}`;
-            else if (pointType === 'loadsPoint') inconUrl = `/static_backend/images/waq_loads.png?v=${Date.now()}`;
+            let inconUrl = null, rows = null;
             // Remove existing markers
             markersPoints.forEach(marker => map.removeLayer(marker)); markersPoints = [];
-            const rows = event.data.data.rows;
+            if (pointType === 'obsPoint') {
+                rows = event.data.data.rows;
+                inconUrl = `/static_backend/images/station.png?v=${Date.now()}`;
+            }
+            else if (pointType === 'waqPoint') {
+                const temp = event.data.data[0].rows;
+                // Plot loads on map if available
+                if (temp.length > 0) {
+                    inconUrl = `/static_backend/images/waq_loads.png?v=${Date.now()}`;
+                    const customIcon = L.icon({
+                        iconUrl: inconUrl, iconSize: [20, 20], popupAnchor: [1, -34],
+                    });
+                    temp.forEach(row => {
+                        const [name, lat, lon] = row;
+                        if (!name || isNaN(lat) || isNaN(lon)) return;
+                        const marker = L.marker([parseFloat(lat), parseFloat(lon)], { icon: customIcon }).addTo(map);
+                        marker.bindPopup(name); markersPoints.push(marker);
+                    })
+                }
+                rows = event.data.data[1].rows;
+                inconUrl = `/static_backend/images/waq_obs.png?v=${Date.now()}`;
+            }
+            else if (pointType === 'loadsPoint') {
+                const temp = event.data.data[0].rows;
+                if (temp.length > 0) {
+                    inconUrl = `/static_backend/images/waq_obs.png?v=${Date.now()}`;
+                    const customIcon = L.icon({
+                        iconUrl: inconUrl, iconSize: [20, 20], popupAnchor: [1, -34],
+                    });
+                    temp.forEach(row => {
+                        const [name, lat, lon] = row;
+                        if (!name || isNaN(lat) || isNaN(lon)) return;
+                        const marker = L.marker([parseFloat(lat), parseFloat(lon)], { icon: customIcon }).addTo(map);
+                        marker.bindPopup(name); markersPoints.push(marker);
+                    })
+                }
+                rows = event.data.data[1].rows;
+                inconUrl = `/static_backend/images/waq_loads.png?v=${Date.now()}`;
+            }
             const customIcon = L.icon({
                 iconUrl: inconUrl, iconSize: [20, 20], popupAnchor: [1, -34],
             });
@@ -354,11 +399,48 @@ function updateEvents() {
             const data = await sendQuery('open_gridTool', {});
             if (data.status === "error") {alert(data.message); return;}
         }
+        if (event.data?.type === 'run-wq') {
+            const params = event.data.data;
+            // Check if simulation is running
+            const statusRes = await sendQuery('check_sim_status_waq', {projectName: params.projectName});
+            if (statusRes.status === "running") {
+                alert("Simulation is already running for this project."); return;
+            }
+            waqWindow().style.display = 'flex'; waqStopBtn().style.display = 'block';
+            currentProject = params.projectName;
+            ws = new WebSocket(`ws://${window.location.host}/sim_progress_waq/${currentProject}`);
+            waqProgressText().innerText = 'Start running water quality simulation...';
+            ws.onopen = () => {
+                ws.send(JSON.stringify(params));
+                waqProgressText().innerText = ''; waqProgressbar().value = 0;
+            }
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.error) { waqProgressText().innerText = data.error; return; }
+                if (data.status !== undefined) {
+                    waqProgressText().innerText = data.status;
+                    if (data.status.includes('Simulation completed successfully')) waqStopBtn().style.display = 'none';
+                }
+                if (data.logs !== undefined) waqProgressText().innerText = data.logs;
+                if (data.progress !== undefined) {
+                    waqProgressText().innerText = 'Completed: ' + data.progress + '%';
+                    waqProgressbar().value = data.progress;
+                }
+            };
+        }
     });
+    // Stop water quality simulation
+    waqStopBtn().addEventListener('click', async () => {
+        if (ws) { ws.close(); ws = null; }
+        if (!currentProject) return;
+        const res = await sendQuery('stop_sim_waq', {projectName: currentProject});
+        waqProgressText().innerText = res.message;
+    })
     // Move window
     moveWindow(contactInfo, contactInfoHeader); moveWindow(projectOpenWindow, projectOpenWindowHeader);
     moveWindow(projectSetting, projectSettingHeader); moveWindow(simulationWindow, simulationHeader);
-    moveWindow(substanceWindow, substanceWindowHeader);
+    moveWindow(substanceWindow, substanceWindowHeader); moveWindow(waqWindow, waqWindowHeader);
+    moveWindow(profileWindow, profileWindowHeader);
     // Close windows
     substanceWindowCloseBtn().addEventListener('click', () => { 
         substanceWindow().style.display = 'none'; plotWindow().style.display = 'none';
@@ -368,12 +450,15 @@ function updateEvents() {
     });
     contactInfoCloseBtn().addEventListener('click', () => { contactInfo().style.display = 'none'; });
     projectOpenCloseBtn().addEventListener('click', () => { projectOpenWindow().style.display = 'none'; });
+    profileCloseBtn().addEventListener('click', () => { profileWindow().style.display = 'none'; });
     projectSettingCloseBtn().addEventListener('click', () => { 
         // Clear map
         map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
         projectSetting().style.display = 'none'; 
     });
     simulationCloseBtn().addEventListener('click', () => { simulationWindow().style.display = 'none'; });
+    waqCloseBtn().addEventListener('click', () => { waqWindow().style.display = 'none'; });
+    profileCloseBtn().addEventListener('click', () => { profileWindow().style.display = 'none'; });
     map.on('mousemove', function (e) {
         if (!pickerState.location && !pickerState.point && !pickerState.source && !pickerState.crosssection && 
             !pickerState.boundary) {
