@@ -23,10 +23,9 @@ def kill_process(process):
         try:
             process.wait(timeout=5)
         except subprocess.TimeoutExpired:
-            # Force kill
-            if os.name == 'nt':  # Windows
-                subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # Force kill for Windows
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return {"status": "ok", "message": "Simulation stopped."}
     except Exception as e: 
         return {"status": "error", "message": str(e)}
@@ -121,8 +120,6 @@ async def check_sim_status_waq(request: Request):
 @router.websocket("/sim_progress_waq/{project_name}")
 async def sim_progress_waq(websocket: WebSocket, project_name: str):
     await websocket.accept()
-    print('Running', project_name)
-    print('Processes', processes)
     try:
         body = await websocket.receive_json()
         if project_name in processes and processes[project_name]["status"] == "running":
@@ -228,7 +225,6 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
         processes[project_name]["status"] = "finished"
         await websocket.send_json({'status': "Simulation completed successfully."})
     except WebSocketDisconnect: pass
-    # except Exception as e: await websocket.send_json({'error': str(e)})
     finally:
         if project_name in processes and not processes[project_name].get("stopped", False):
             processes.pop(project_name, None)
@@ -247,7 +243,6 @@ async def subprocessRunner(cmd, cwd, websocket, project_name, progress_regex=Non
                 res = kill_process(process)
                 await websocket.send_json({"status": res["message"]})                
                 return False
-            
             line = process.stdout.readline()
             if not line:
                 if process.poll() is not None: break
@@ -281,17 +276,3 @@ async def subprocessRunner(cmd, cwd, websocket, project_name, progress_regex=Non
         process.wait(timeout=3)
         if process.poll() is None: kill_process(process)
     return success
-
-# Stop simulation
-@router.post("/stop_sim_waq")
-async def stop_sim_waq(request: Request):
-    body = await request.json()
-    project_name = body["projectName"]
-    if project_name not in processes:
-        return {"status": "error", "message": "No running simulation found."}
-    processes[project_name]["stopped"] = True
-    processes[project_name]["status"] = "stopped"
-    process = processes[project_name]["process"]
-    if process: res = kill_process(process)
-    else: res = res = {"status": "ok", "message": "Simulation stop requested."}
-    return res

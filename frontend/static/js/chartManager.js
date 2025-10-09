@@ -18,6 +18,7 @@ const downloadBtn = () => document.getElementById('downloadExcel');
 export async function plotChart(query, key, chartTitle, titleX, titleY) {
     startLoading('Preparing Data for Chart. Please wait...'); // Show spinner
     const data = await loadData(query, key); // Load data
+    if (data.status === 'error') { showLeafletMap(); alert(data.message); return; }
     drawChart(data.content, chartTitle, titleX, titleY);
     showLeafletMap(); // Hide the spinner and show the map
 }

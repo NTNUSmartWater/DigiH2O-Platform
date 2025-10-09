@@ -3,7 +3,7 @@ import { startLoading, showLeafletMap, L, map } from "./mapManager.js";
 import { arrowShape, getState, setState } from "./constants.js";
 import { drawChart } from "./chartManager.js";
 import { mapPoint } from "./queryManager.js";
-import { scaler_value } from "./dynamicMapManager.js";
+// import { scaler_value } from "./dynamicMapManager.js";
 
 
 export const timeControl = () => document.getElementById('time-controls');
@@ -18,6 +18,7 @@ const colorbar_vector_title = () => document.getElementById("colorbar-title-vect
 const colorbar_vector_color = () => document.getElementById("colorbar-gradient-vector");
 const colorbar_vector_label = () => document.getElementById("colorbar-labels-vector");
 const colorbar_vector_scaler = () => document.getElementById("custom-colorbar-scaler");
+const scaler_value = () => document.getElementById("scaler-value");
 
 export let layerAbove = null;
 let layerMap = null,  currentIndex = 0, playHandlerAttached = false;

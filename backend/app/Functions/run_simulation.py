@@ -8,22 +8,6 @@ from starlette.websockets import WebSocketDisconnect
 router = APIRouter()
 processes = {}
 
-def kill_process(process):
-    try:
-        # Try terminate
-        process.terminate()
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            # Force kill
-            if os.name == 'nt':  # Windows
-                subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return {"status": "ok", "message": "Simulation stopped."}
-    except Exception as e: 
-        return {"status": "error", "message": str(e)}
-
-
 @router.post("/check_folder")
 async def check_folder(request: Request):
     body = await request.json()
@@ -123,17 +107,3 @@ async def sim_progress_hyd(websocket: WebSocket, project_name: str):
                 break
             await asyncio.sleep(1)
     except WebSocketDisconnect: pass
-
-# Stop simulation
-@router.post("/stop_sim_hyd")
-async def stop_sim_hyd(request: Request):
-    body = await request.json()
-    project_name = body["projectName"]
-    if project_name not in processes:
-        return {"status": "error", "message": "No running simulation found."}
-    processes[project_name]["stopped"] = True
-    processes[project_name]["status"] = "stopped"
-    process = processes[project_name]["process"]
-    if process: res = kill_process(process)
-    else: res = res = {"status": "ok", "message": "Simulation stop requested."}
-    return res

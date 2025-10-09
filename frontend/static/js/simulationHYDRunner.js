@@ -1,6 +1,5 @@
 const projectSelector = () => document.getElementById("options");
 const runBtn = () => document.getElementById("run-button");
-const stopBtn = () => document.getElementById("stop-button");
 const progressbar = () => document.getElementById("progressbar");
 const progressText = () => document.getElementById("progress-text");
 
@@ -22,28 +21,37 @@ async function getProjectList(target){
     target.innerHTML = defaultOption + options;
 }
 
+function statusUpdate(info, barObject, textObject) {
+    if (info.startsWith("[ERROR]")) { 
+        alert(info.replace('[ERROR]','')); 
+        textObject().innerText = "Simulation finished unseccessfully.";
+        return false;
+    }
+    if (info.startsWith("[PROGRESS]")) {
+        const percent = parseFloat(info.replace('[PROGRESS]', '').trim());
+        textObject().innerText = 'Completed: ' + percent + '%';
+        barObject().value = percent;
+    }
+    if (info.startsWith("[FINISHED]")) textObject().innerText = info.replace('[FINISHED]','');
+    return true;
+}
+
 function updateSelection(){
     getProjectList(projectSelector());
     projectSelector().addEventListener('change', async() => {
         const projectName = projectSelector().value;
         if (!projectName || projectName === '') {alert('Please select a project.'); return;}
-        const statusRes = await sendQuery('check_sim_status', {projectName: projectName});
+        const statusRes = await sendQuery('check_sim_status_hyd', {projectName: projectName});
         if (statusRes.status === "running") {
             currentProject = projectName;
             content = statusRes.logs.join("\n");
             progressText().innerText = `Simulation is running: ${statusRes.progress}%`;
             progressbar().value = statusRes.progress;
             // Open websocket connection to get simulation progress
-            ws = new WebSocket(`ws://${window.location.host}/sim_progress/${projectName}`);
+            ws = new WebSocket(`ws://${window.location.host}/sim_progress_hyd/${projectName}`);
             ws.onmessage = (event) => {
-                const info = event.data;
-                if (info.startsWith("[ERROR]")) { alert(info.replace('[ERROR]','')); return; }
-                if (info.startsWith("[PROGRESS]")) {
-                    const percent = parseFloat(info.replace('[PROGRESS]', '').trim());
-                    progressText().innerText = 'Completed: ' + percent + '%';
-                    progressbar().value = percent;
-                }
-                if (info.startsWith("[FINISHED]")) simulationWindow().style.display = 'none';
+                const success = statusUpdate(event.data, progressbar, progressText);
+                if (!success) return;
             };
         } else {
             progressText().innerText = "No simulation running."; progressbar().value = 0;
@@ -73,24 +81,9 @@ function updateSelection(){
         ws = new WebSocket(`ws://${window.location.host}/sim_progress_hyd/${projectName}`);
         progressText().innerText = 'Start running hydrodynamic simulation...';
         ws.onmessage = (event) => {
-            const info = event.data;
-            if (info.startsWith("[ERROR]")) { 
-                alert(info.replace('[ERROR]','')); 
-                progressText().innerText = "Simulation finished unseccessfully.";
-                return; }
-            if (info.startsWith("[PROGRESS]")) {
-                const percent = parseFloat(info.replace('[PROGRESS]', '').trim());
-                progressText().innerText = 'Completed: ' + percent + '%';
-                progressbar().value = percent;
-            }
-            if (info.startsWith("[FINISHED]")) progressText().innerText = info.replace('[FINISHED]','');
+            const success = statusUpdate(event.data, progressbar, progressText);
+            if (!success) return;
         };
-    });
-    stopBtn().addEventListener('click', async () => {
-        if (ws) { ws.close(); ws = null; }
-        if (!currentProject) return;
-        const res = await sendQuery('stop_sim_hyd', {projectName: currentProject});
-        progressText().innerText = res.message;
     });
 }
 updateSelection();

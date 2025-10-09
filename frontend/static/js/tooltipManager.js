@@ -36,4 +36,4 @@ async function loadTooltips(jsonPath) {
     });
   });
 }
-loadTooltips('static_backend/samples/tooltips.json');
+loadTooltips('/static_backend/samples/tooltips.json');

@@ -2,7 +2,6 @@ import shapely, os, re, shutil, stat
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
-from datetime import datetime, timezone
 from config import PROJECT_STATIC_ROOT
 
 def remove_readonly(func, path, excinfo):
@@ -12,14 +11,17 @@ def remove_readonly(func, path, excinfo):
 
 variablesNames = {
     # For In-situ options
-    'temp':'temperature', 'sal':'salinity', 'cont':'Contaminant', # For stations
+    'temperature':'Temperature (°C)', 'salinity':'Salinity (PSU)', 'contaminant':'Contaminant (mg/m³)', # For hydrodynamic stations
+    'velocity_magnitude':'Velocity (m/s)', 'discharge_magnitude':'Discharge (m³/s)', # For hydrodynamic stations
+    'x_velocity':'X-Velocity (m/s)', 'y_velocity':'X-Velocity (m/s)','z_velocity':'Z-Velocity (m/s)', # For hydrodynamic stations
     'pre_discharge_source':'source_sink_prescribed_discharge', 'pre_discharge_increment_source':'source_sink_prescribed_salinity_increment', # For sources
     'pre_temperature_increment_source':'source_sink_prescribed_temperature_increment', 'avg_discharge_source':'source_sink_discharge_average', # For sources
     'discharge_source':'source_sink_current_discharge', 'cumulative_volume_source':'source_sink_cumulative_volume',  # For sources
-    'velocity_crs':'cross_section_velocity', 'area_crs':'cross_section_area',  'discharge_crs':'cross_section_discharge', # For cross sections
-    'culdis_crs':'cross_section_cumulative_discharge', 'salt_crs':'cross_section_salt', 'cumsalt_crs': 'cross_section_cumulative_salt', # For cross sections
-    'temp_crs':'cross_section_temperature', 'cumtemp_crs':'cross_section_cumulative_temperature', # For cross sections
-    'cont_crs':'cross_section_Contaminant', 'cumcont_crs':'cross_section_cumulative_Contaminant', # For cross sections
+    'cross_section_velocity':'Velocity (m/s)', 'cross_section_area':'Area (m²)', 'cross_section_discharge':'Discharge (m³/s)', # For cross-sections
+    'cross_section_cumulative_discharge': 'Cumulative Discharge (m³)', 'cross_section_temperature':'Temperature (°C)', # For cross-sections
+    'cross_section_cumulative_temperature': 'Cumulative Temperature (°C)', 'cross_section_salt':'Salinity (PSU)', # For cross-sections
+    'cross_section_cumulative_salt': 'Cumulative Salinity (PSU)', 'cross_section_Contaminant':'Contaminant (mg/m³)', # For cross-sections
+    'cross_section_cumulative_Contaminant': 'Cumulative Contaminant (mg/m³)', # For cross-sections
     # For Static map
     'depth':'depth',
     # For Hydrodynamics options
@@ -500,9 +502,9 @@ def checkCoordinateReferenceSystem(name: str, geometry: gpd.GeoSeries, data_his:
         result = result.to_crs(epsg=4326)  # Convert to WGS84 if not already
     return result
 
-def stationCreator(data_his: xr.Dataset) -> gpd.GeoDataFrame:
+def hydCreator(data_his: xr.Dataset) -> tuple[gpd.GeoDataFrame, list]:
     """
-    Create a GeoDataFrame of stations.
+    Create a GeoDataFrame for hydrodynamic observations.
 
     Parameters:
     ----------
@@ -512,11 +514,20 @@ def stationCreator(data_his: xr.Dataset) -> gpd.GeoDataFrame:
     Returns:
     -------
     gpd.GeoDataFrame
-        The GeoDataFrame of stations.
+        The GeoDataFrame of hydrodynamic observations.
+    list_dict: list
+        The list of dictionaries of components for each observation station.
     """
-    names = [name.decode('utf-8').strip() for name in data_his['station_name'].values]
+    target_dims = ('time', 'stations', 'laydim')
+    names, listPoints = [name.decode('utf-8').strip() for name in data_his['station_name'].values], []
     geometry = gpd.points_from_xy(data_his['station_x_coordinate'].values, data_his['station_y_coordinate'].values)
-    return checkCoordinateReferenceSystem(names, geometry, data_his)
+    gdf = checkCoordinateReferenceSystem(names, geometry, data_his)
+    vars = [var for var in data_his.data_vars if data_his[var].dims == target_dims]
+    for i in range(len(names)):
+        station_dict = {}
+        station_dict[names[i]] = [{var: variablesNames[var] if var in variablesNames else var} for var in vars]
+        listPoints.append(station_dict)
+    return gdf, listPoints
 
 def obsCreator(points: list) -> gpd.GeoDataFrame:
     """
@@ -593,7 +604,7 @@ def linearCreator(x_coords: np.ndarray, y_coords: np.ndarray) -> gpd.GeoDataFram
     if len(candidates) == 1: candidates.append((x_coords[-1], y_coords[-1]))
     return candidates[0], candidates[1]
 
-def crosssectionCreator(data_his: xr.Dataset) -> gpd.GeoDataFrame:
+def crosssectionCreator(data_his: xr.Dataset) -> tuple[gpd.GeoDataFrame, list]:
     """
     Create a GeoDataFrame of cross-section.
 
@@ -606,13 +617,20 @@ def crosssectionCreator(data_his: xr.Dataset) -> gpd.GeoDataFrame:
     -------
     gpd.GeoDataFrame
         The GeoDataFrame of cross-sections.
+    list
+        The list of dictionaries of cross-sections.
     """
-    names = [name.decode('utf-8').strip() for name in data_his['cross_section_name'].values]
+    names, listAttributes = [name.decode('utf-8').strip() for name in data_his['cross_section_name'].values], []
     x = data_his['cross_section_geom_node_coordx'].values
     y = data_his['cross_section_geom_node_coordy'].values
     p1, p2 = linearCreator(x, y)
     geometry = gpd.GeoSeries([shapely.geometry.LineString([p1, p2])])
-    return checkCoordinateReferenceSystem(names, geometry, data_his)
+    gdf = checkCoordinateReferenceSystem(names, geometry, data_his)
+    crsValues = ['cross_section_velocity', 'cross_section_area', 'cross_section_discharge', 'cross_section_cumulative_discharge',
+        'cross_section_temperature', 'cross_section_cumulative_temperature', 'cross_section_salt', 'cross_section_cumulative_salt',
+        'cross_section_Contaminant', 'cross_section_cumulative_Contaminant']
+    listAttributes = [{item: variablesNames[item] if item in variablesNames else item} for item in crsValues]
+    return gdf, listAttributes
 
 def selectInsitu(data_his: xr.Dataset, data_map: xr.Dataset, name: str, station: str, type: str) -> pd.DataFrame:
     """
@@ -643,7 +661,7 @@ def selectInsitu(data_his: xr.Dataset, data_map: xr.Dataset, name: str, station:
     if type == 'station_name':
         result = pd.DataFrame(index=index)
         z_layer = numberFormatter(data_map['mesh2d_layer_z'].values)
-        arr = data_his[variablesNames[name]].values[:, idx, :]
+        arr = data_his[name].values[:, idx, :]
         for i in range(arr.shape[1]):
             i_rev = -(i+1)
             arr_rev = numberFormatter(arr[:, i_rev])
@@ -651,7 +669,8 @@ def selectInsitu(data_his: xr.Dataset, data_map: xr.Dataset, name: str, station:
     else:
         temp = pd.DataFrame(data_his[variablesNames[name]].values, columns=names, index=index)
         result = temp[[station]]
-    result = result.reset_index()
+    # Remove columns with all NaN
+    result = result.dropna(axis=1, how='all').reset_index()
     return result
 
 def thermoclineComputer(data_map: xr.Dataset) -> pd.DataFrame:
@@ -699,10 +718,12 @@ def timeseriesCreator(data_his: xr.Dataset, key: str, timeColumn: str='time') ->
     """
     name = 'source_sink_name' if key.endswith('_source') else 'station_name'
     columns = [i.decode('utf-8').strip() for i in data_his[name].values]
+    temp = variablesNames[key] if key in variablesNames.keys() else key
     if key.startswith('wb_'): columns = ['Water balance'] # Used for water balance
-    elif key.endswith('_crs'): columns = ['Cross-section'] # Used for cross-section
+    elif key.endswith('_crs'): 
+        columns = ['Cross-section'] # Used for cross-section
+        temp = key.replace('_crs', '')
     if name in data_his.variables.keys():
-        temp = variablesNames[key] if key in variablesNames.keys() else key
         index = [pd.to_datetime(i).strftime('%Y-%m-%d %H:%M:%S') for i in data_his[timeColumn].values]
         timeseries = pd.DataFrame(index=index, data=numberFormatter(data_his[temp].values), columns=columns).reset_index()
         return timeseries

@@ -12,7 +12,7 @@
         <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
         <!-- My styles -->
         <link rel="stylesheet" href="/static_frontend/css/temp_style.css?v=12">
-        <link rel="stylesheet" href="/static_frontend/css/temp_menu.css?v=1">
+        <link rel="stylesheet" href="/static_frontend/css/temp_menu.css?v=12">
         <!-- Favicon -->
         <link rel="icon" type="image/png" href="/static_backend/images/Logo.png">
     </head>
@@ -23,11 +23,10 @@
                 <ul class="nav-left">
                     <li><a class="menu" data-info="0|projectMenu.html" id="projectMenu">Project Management</a></li>
                     <li style="border-left:3px solid #d5d4dd; margin-left:5px; padding-left:5px;">
-                        <a class="menu" data-info="1|generalMenu.html" id="generalMenu">General Options</a>
+                        <a class="menu" data-info="1|generalObtions.html" id="generalMenu">General Options</a>
                     </li>
-                    <li><a class="menu" data-info="2|measuredPoints.html" id="locationMenu">Measured Locations</a></li>
-                    <li><a class="menu" data-info="3|dynamicMap.html" id="dynamicMenu">Dynamic Map</a></li>
-                    <li><a class="menu" data-info="4|staticMap.html" id="staticMenu">Static Map</a></li>
+                    <li><a class="menu" data-info="2|measuredPoints.html" id="locationMenu">Measured Observations</a></li>
+                    <li><a class="menu" data-info="3|spatialMap.html" id="spatialMenu">Spatial Map</a></li>
                 </ul>
                 <ul class="nav-middle">
                     <span id="projectTitle"></span>
@@ -159,7 +158,6 @@
                     <progress id="progressbar" value="0" max="100" style="width:100%; height:10px;"></progress>
                     <span id="progress-text" style="align-items:center; margin-top: 10px;"></span>
                 </div>
-                <button type="button" id="stop-waq-button">Stop Simulation</button>
             </div>
         </div>
         <!-- Add a floating window for drawing a profile -->
@@ -203,7 +201,11 @@
         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
         <!-- Load the newest version of the script -->
-        <script src="/static_frontend/js/tooltipManager.js"></script>
+        <script>
+            const script_tooltip = document.createElement('script');
+            script_tooltip.src=`/static_frontend/js/tooltipManager.js?v=${Date.now()}`;
+            document.body.appendChild(script_tooltip);
+        </script>
         <script type="module">
             const script = document.createElement('script');
             script.type = 'module';

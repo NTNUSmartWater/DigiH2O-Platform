@@ -2,10 +2,11 @@
 import { initializeMap, baseMapButtonFunctionality } from './mapManager.js';
 import { startLoading, showLeafletMap, map } from './mapManager.js';
 import { plotChart, plotEvents, drawChart, plotWindow } from './chartManager.js';
-import { plot2DMapStatic, timeControl, colorbar_container } from "./map2DManager.js";
-import { deactivePointQuery, deactivePathQuery } from "./queryManager.js";
+import { timeControl, colorbar_container } from "./map2DManager.js";
+// import { deactivePointQuery, deactivePathQuery } from "./queryManager.js";
 import { generalOptionsManager } from './generalOptionManager.js';
-import { dynamicMapManager } from './dynamicMapManager.js';
+// import { dynamicMapManager } from './dynamicMapManager.js';
+import { spatialMapManager } from './spatialMapManager.js';
 import { sendQuery } from './tableManager.js';
 import { resetState } from './constants.js';
 
@@ -47,15 +48,11 @@ const profileWindowHeader = () => document.getElementById('profileWindowHeader')
 const profileCloseBtn = () => document.getElementById('closeProfileWindow');
 const waqProgressbar = () => document.getElementById('progressbar');
 const waqProgressText = () => document.getElementById('progress-text');
-const waqStopBtn = () => document.getElementById('stop-waq-button');
 const mapContainer = () => map.getContainer();
 
-initializeMap();
-baseMapButtonFunctionality();
-projectChecker();
-initializeMenu();
-updateEvents();
-plotEvents();
+initializeMap(); baseMapButtonFunctionality();
+projectChecker(); initializeMenu();
+updateEvents(); plotEvents();
 
 // ============================ Functions ============================
 
@@ -71,9 +68,8 @@ async function showPopupMenu(id, htmlFile) {
         }
         popupContent().innerHTML = html;
         if (id === '1') generalOptionsManager(); // Events on general options submenu
-        if (id === '2') measuredPointManager(); // Events on measured points submenu
-        if (id === '3') dynamicMapManager(); // Events on dynamic map submenu
-        if (id === '4') staticMapManager(); // Events on static map submenu
+        if (id === '2') measuredObservationsManager(); // Events on measured points submenu
+        if (id === '3') spatialMapManager(); // Events on spatial map submenu
     } catch (error) {alert(error + ': ' + htmlFile);}
 }
 
@@ -145,11 +141,8 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
     objWindow.style.display = 'flex';
 }
 
-iframeInit("new_WQ_project", projectSetting(), projectSettingHeader(), 
-                    projectSettingContent(), "Set up and Run Water Quality Simulation");
-
-// iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
-//                     projectOpenWindowContent(), "Select Project with Simulation Result(s)");
+iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
+                    projectOpenWindowContent(), "Select Project with Simulation Result(s)");
 
 function updateEvents() {
     // Search locations
@@ -230,24 +223,27 @@ function updateEvents() {
             sugesstionSearcher().style.display = 'none';
         }
     });
-    // Select project
+    
     popupContent().addEventListener('click', (e) => {
         const project = e.target.closest('.project');
         if (project) {
             const name = project.dataset.info;
             if (name === 'visualization') {
+                // Open project for visualization
                 iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
                     projectOpenWindowContent(), "Select Project with Simulation Result(s)");
             } else if (name === 'new-hyd-project') { 
+                // Create new hyd project
                 projectChecker();
                 iframeInit("new_HYD_project", projectSetting(), projectSettingHeader(), 
                     projectSettingContent(), "Set up a new Hydrodynamic project");
             } else if (name === 'run-hyd-simulation') {
+                // Run hyd simulation
                 projectChecker();
-                // Run Simulation
                 iframeInit("run_hyd_simulation", simulationWindow(), simulationHeader(), 
                     simulationContent(), "Run Hydrodynamic Simulation");
             } else if (name === 'new-wq-project') { 
+                // Create and run a new wq project
                 projectChecker();
                 iframeInit("new_WQ_project", projectSetting(), projectSettingHeader(), 
                     projectSettingContent(), "Set up and Run Water Quality Simulation");
@@ -406,7 +402,7 @@ function updateEvents() {
             if (statusRes.status === "running") {
                 alert("Simulation is already running for this project."); return;
             }
-            waqWindow().style.display = 'flex'; waqStopBtn().style.display = 'block';
+            waqWindow().style.display = 'flex';
             currentProject = params.projectName;
             ws = new WebSocket(`ws://${window.location.host}/sim_progress_waq/${currentProject}`);
             waqProgressText().innerText = 'Start running water quality simulation...';
@@ -417,10 +413,7 @@ function updateEvents() {
             ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 if (data.error) { waqProgressText().innerText = data.error; return; }
-                if (data.status !== undefined) {
-                    waqProgressText().innerText = data.status;
-                    if (data.status.includes('Simulation completed successfully')) waqStopBtn().style.display = 'none';
-                }
+                if (data.status !== undefined) waqProgressText().innerText = data.status;
                 if (data.logs !== undefined) waqProgressText().innerText = data.logs;
                 if (data.progress !== undefined) {
                     waqProgressText().innerText = 'Completed: ' + data.progress + '%';
@@ -429,13 +422,6 @@ function updateEvents() {
             };
         }
     });
-    // Stop water quality simulation
-    waqStopBtn().addEventListener('click', async () => {
-        if (ws) { ws.close(); ws = null; }
-        if (!currentProject) return;
-        const res = await sendQuery('stop_sim_waq', {projectName: currentProject});
-        waqProgressText().innerText = res.message;
-    })
     // Move window
     moveWindow(contactInfo, contactInfoHeader); moveWindow(projectOpenWindow, projectOpenWindowHeader);
     moveWindow(projectSetting, projectSettingHeader); moveWindow(simulationWindow, simulationHeader);
@@ -560,12 +546,12 @@ function hidePicker(key, data, type){
     projectSetting().style.display = 'flex';
 }
 
-function measuredPointManager() {
+function measuredObservationsManager() {
     // Set function for plot using Plotly
     document.querySelectorAll('.function').forEach(plot => {
         plot.addEventListener('click', () => {
             const [key, titleY, chartTitle] = plot.dataset.info.split('|');
-            plotChart('', key, chartTitle, 'Time', titleY, false);
+            plotChart('', key, chartTitle, 'Time', titleY);
         });
     });
     // Process water quality selector
@@ -589,16 +575,6 @@ function measuredPointManager() {
             const value = e.target.value;
             plotChart(value, 'substance', `Substance: ${value}`, 'Time', value, false);
         }
-    });
-}
-
-function staticMapManager() {
-    deactivePathQuery(); deactivePointQuery(); 
-    document.querySelectorAll('.map2D_static').forEach(plot => {
-        plot.addEventListener('click', () => {
-            const [key, colorbarTitle, colorbarKey] = plot.dataset.info.split('|');
-            plot2DMapStatic(key, colorbarTitle, colorbarKey);
-        });
     });
 }
 
