@@ -1,126 +1,95 @@
-<!-- Hydrodynamics Observation Points -->
-<div class="menu {% if not configuration.hyd_obs %}hidden{% endif %}">
-    <a class="menu-link">Hydrodynamics<span class="arrow">&#x25B8;</span></a>
+<!-- Water Level -->
+<div class="menu {% if not configuration.hyd_waterlevel %}hidden{% endif %}">
+    <a class="function" data-info="wl|Water Level (m)|Water Level">Water Level</a>
+</div>
+<!-- Water Depth -->
+<div class="menu {% if not configuration.hyd_waterdepth %}hidden{% endif %}">
+    <a class="function" data-info="wd|Water Depth (m)|Water Depth">Water Depth</a>
+</div>
+<!-- Meteorology -->
+<div class="menu {% if not configuration.hyd_meteorology %}hidden{% endif %}">
+    <a class="menu-link">Meteorology<span class="arrow">&#x25B8;</span></a>
     <div class="submenu">
-        <div class="menu-1">
-            <!-- Water Level -->
-            <a class="menu-link-1 function {% if not configuration.hyd_waterlevel %}hidden{% endif %}" data-info="wl|Water Level (m)|Water Level">• Water Level</a>
-            <!-- Water Depth -->
-            <a class="menu-link-1 function {% if not configuration.hyd_waterdepth %}hidden{% endif %}" data-info="wd|Water Depth (m)|Water Depth">• Water Depth</a>
-        </div>
-        <!-- Meteorology -->
-        <div class="menu-1 {% if not configuration.hyd_meteorology %}hidden{% endif %}">
-            <a class="menu-link-1">• Meteorology<span class="arrow-1">&#x25B8;</span></a>
-            <div class="submenu-1">
-                <a class="function {% if not configuration.hyd_total_heat_flux %}hidden{% endif %}" 
-                    data-info="thf|THF (W/m<sup>2</sup>)|Total Heat Flux">- Total Heat Flux</a>
-                <a class="function {% if not configuration.hyd_precipitation_rate %}hidden{% endif %}" 
-                    data-info="pr|Precipitation rate (mm/day)|Precipitation Rate">- Precipitation Rate</a>
-                <a class="function {% if not configuration.hyd_wind_speed %}hidden{% endif %}" 
-                    data-info="ws|Wind speed (m/s)|Wind Speed">- Wind Speed</a>
-                <a class="function {% if not configuration.hyd_air_temperature %}hidden{% endif %}" 
-                    data-info="at|Air Temperature (°C)|Air Temperature">- Air Temperature</a>
-                <a class="function {% if not configuration.hyd_relative_humidity %}hidden{% endif %}" 
-                    data-info="rh|Relative Humidity (%)|Relative Humidity">- Relative Humidity</a>
-                <a class="function {% if not configuration.hyd_solar_influx %}hidden{% endif %}" 
-                    data-info="si|Solar Influx (W/m<sup>2</sup>)|Solar Influx">- Solar Influx</a>
-                <a class="function {% if not configuration.evaporative_heat_flux %}hidden{% endif %}" 
-                    data-info="ehf|EHF (W/m<sup>2</sup>)|Evaporative Heat Flux">- Evaporative Heat Flux</a>
-                <a class="function {% if not configuration.hyd_free_convection_evaporative_heat_flux %}hidden{% endif %}" 
-                    data-info="fcehf|FCEHF (W/m<sup>2</sup>)|Free Convection Evaporative Heat Flux">- Free Convection Evaporative Heat Flux</a>
-                <a class="function {% if not configuration.hyd_sensible_heat_flux %}hidden{% endif %}" 
-                    data-info="shf|Sensible Heat Flux (W/m<sup>2</sup>)|Sensible Heat Flux">- Sensible Heat Flux</a>
-                <a class="function {% if not configuration.hyd_free_convection_sensible_heat_flux %}hidden{% endif %}" 
-                    data-info="fcshf|FCSHF (W/m<sup>2</sup>)|Free Convection Sensible Heat Flux">- Free Convection Sensible Heat Flux</a>
-                <a class="function {% if not configuration.hyd_long_wave_back_radiation %}hidden{% endif %}" 
-                    data-info="lwbr|LWBR (W/m<sup>2</sup>)|Long Wave Back Radiation">- Long Wave Back Radiation</a>
-                <a class="function {% if not configuration.hyd_cloudiness %}hidden{% endif %}" 
-                    data-info="cloudiness|Cloudiness (%)|Cloudiness">- Cloudiness</a>
-            </div>
-        </div>
-        <!-- Sources/Sinks Points -->
-        <div class="menu-1 {% if not configuration.sources %}hidden{% endif %}">
-            <hr style="border-top: 1px solid #0414f5; margin: 5px 30px 5px 30px;">
-            <a class="menu-link-1">• Sources/Sinks<span class="arrow-1">&#x25B8;</span></a>
-            <div class="submenu-1">
-                <a class="function {% if not configuration.source_current_discharge %}hidden{% endif %}"
-                    data-info="discharge_source|Current Discharge (m<sup>3</sup>/s)|Current Discharge">- Current Discharge</a>
-                <a class="function {% if not configuration.source_average_discharge %}hidden{% endif %}"
-                    data-info="avg_discharge_source|Average Discharge (m<sup>3</sup>/s)|Average Discharge">- Average Discharge</a>
-                <a class="function {% if not configuration.source_prescribed_discharge %}hidden{% endif %}"
-                    data-info="pre_discharge_source|Prescriped Discharge (m<sup>3</sup>/s)|Prescriped Discharge">- Prescriped Discharge</a>
-                <a class="function {% if not configuration.source_prescribed_salinity %}hidden{% endif %}"
-                    data-info="pre_discharge_increment_source|Prescriped Salinity Increment (%)|Prescriped Salinity Increment">- Prescriped Salinity Increment</a>
-                <a class="function {% if not configuration.source_prescribed_temperature %}hidden{% endif %}"
-                    data-info="pre_temperature_increment_source|Prescriped Temperature Increment (°C)|Prescriped Temperature Increment">- Prescriped Temperature Increment</a>
-                <a class="function {% if not configuration.source_cumulative_volume %}hidden{% endif %}"
-                    data-info="cumulative_volume_source|Cumulative Volume (m<sup>3</sup>)|Cumulative Volume">- Cumulative Volume</a>
-            </div>
-        </div>
-        <!-- Cross Sections -->
-        <div class="menu-1 {% if not configuration.cross_sections %}hidden{% endif %}">
-            <hr style="border-top: 1px solid #0414f5; margin: 5px 30px 5px 30px;">
-            <a class="menu-link-1">• Cross-Sections<span class="arrow-1">&#x25B8;</span></a>
-            <div class="submenu-1">
-                <a class="function {% if not configuration.cross_sections_velocity %}hidden{% endif %}"
-                    data-info="velocity_crs|Velocity (m/s)|Velocity">- Velocity</a>
-                <a class="function {% if not configuration.cross_sections_area %}hidden{% endif %}"
-                    data-info="area_crs|Area (m<sup>2</sup>)|Area">- Area</a>
-                <a class="function {% if not configuration.cross_sections_discharge %}hidden{% endif %}"
-                    data-info="discharge_crs|Discharge (m<sup>3</sup>/s)|Discharge">- Discharge</a>
-                <a class="function {% if not configuration.cross_sections_cumulative_discharge %}hidden{% endif %}"
-                    data-info="culdis_crs|Cumulative Discharge (m<sup>3</sup>)|Cumulative Discharge">- Cumulative Discharge</a>
-                <a class="function {% if not configuration.cross_section_salt %}hidden{% endif %}"
-                    data-info="salt_crs|Salinity (%)|Salinity">- Salinity</a>
-                <a class="function {% if not configuration.cross_sections_cumulative_salt %}hidden{% endif %}"
-                    data-info="cumsalt_crs|Cumulative Salinity (%)|Cumulative Salinity">- Cumulative Salinity</a>
-                <a class="function {% if not configuration.cross_section_temperature %}hidden{% endif %}"
-                    data-info="temp_crs|Temperature (°C)|Temperature">- Temperature</a>
-                <a class="function {% if not configuration.cross_section_cumulative_temperature %}hidden{% endif %}"
-                    data-info="cumtemp_crs|Cumulative Temperature (°C)|Cumulative Temperature">- Cumulative Temperature</a>
-                <a class="function {% if not configuration.cross_section_contaminant %}hidden{% endif %}"
-                    data-info="cont_crs|Contaminant (mg/L)|Contaminant">- Contaminant</a>
-                <a class="function {% if not configuration.cross_section_cumulative_contaminant %}hidden{% endif %}"
-                    data-info="cumcont_crs|Cumulative Contaminant (mg/L)|Cumulative Contaminant">- Cumulative Contaminant</a>
-            </div>
-        </div>
-        <!-- Water Balance -->
-        <div class="menu-1 {% if not configuration.hyd_water_balance %}hidden{% endif %}">
-            <a class="menu-link-1">• Water Balance<span class="arrow-1">&#x25B8;</span></a>
-            <div class="submenu-1">
-                <a class="function {% if not configuration.hyd_wb_total_volume %}hidden{% endif %}"
-                    data-info="wb_tv|Volume (m<sup>3</sup>)|Total Volume">- Total Volume</a>
-                <a class="function {% if not configuration.hyd_wb_storage %}hidden{% endif %}"
-                    data-info="wb_s|Volume (m<sup>3</sup>)|Storage">- Storage</a>
-                <a class="function {% if not configuration.hyd_wb_inflow_boundaries %}hidden{% endif %}"
-                    data-info="wb_bi|Volume (m<sup>3</sup>)|Inflow from Boundaries">- Inflow from Boundaries</a>
-                <a class="function {% if not configuration.hyd_wb_outflow_boundaries %}hidden{% endif %}"
-                    data-info="wb_bo|Volume (m<sup>3</sup>)|Outflow from Boundaries">- Outflow from Boundaries</a>
-                <a class="function {% if not configuration.hyd_wb_total_boundaries %}hidden{% endif %}"
-                    data-info="wb_bt|Volume (m<sup>3</sup>)|Total from Boundaries">- Total from Boundaries</a>
-                <a class="function {% if not configuration.hyd_wb_total_precipitation %}hidden{% endif %}"
-                    data-info="wb_pt|Volume (m<sup>3</sup>)|Total from Precipitation">- Total from Precipitation</a>
-                <a class="function {% if not configuration.hyd_wb_total_evaporation %}hidden{% endif %}"
-                    data-info="wb_e|Volume (m<sup>3</sup>)|Total from Evaporation">- Total from Evaporation</a>
-                <a class="function {% if not configuration.hyd_wb_source_sink %}hidden{% endif %}"
-                    data-info="wb_ss|Volume (m<sup>3</sup>)|Source/Sink">- Source/Sink</a>
-                <a class="function {% if not configuration.hyd_wb_inflow_groundwater %}hidden{% endif %}"
-                    data-info="wb_gi|Volume (m<sup>3</sup>)|Inflow from Groundwater">- Inflow from Groundwater</a>
-                <a class="function {% if not configuration.hyd_wb_outflow_groundwater %}hidden{% endif %}"
-                    data-info="wb_go|Volume (m<sup>3</sup>)|Outflow from Groundwater">- Outflow from Groundwater</a>
-                <a class="function {% if not configuration.hyd_wb_total_groundwater %}hidden{% endif %}"
-                    data-info="wb_gt|Volume (m<sup>3</sup>)|Total from Groundwater">- Total from Groundwater</a>
-                <a class="function {% if not configuration.hyd_wb_ground_precipitation %}hidden{% endif %}"
-                    data-info="wb_pg|Volume (m<sup>3</sup>)|Precipitation on Ground">- Precipitation on Ground</a>
-                <a class="function {% if not configuration.hyd_wb_volume_error %}hidden{% endif %}"
-                    data-info="wb_ve|Volume Error (%)|Volume Error">- Volume Error</a>
-            </div>
-        </div>
+        <a class="function {% if not configuration.hyd_total_heat_flux %}hidden{% endif %}" 
+            data-info="thf|THF (W/m<sup>2</sup>)|Total Heat Flux">• Total Heat Flux</a>
+        <a class="function {% if not configuration.hyd_precipitation_rate %}hidden{% endif %}" 
+            data-info="pr|Precipitation rate (mm/day)|Precipitation Rate">• Precipitation Rate</a>
+        <a class="function {% if not configuration.hyd_wind_speed %}hidden{% endif %}" 
+            data-info="ws|Wind speed (m/s)|Wind Speed">• Wind Speed</a>
+        <a class="function {% if not configuration.hyd_air_temperature %}hidden{% endif %}" 
+            data-info="at|Air Temperature (°C)|Air Temperature">• Air Temperature</a>
+        <a class="function {% if not configuration.hyd_relative_humidity %}hidden{% endif %}" 
+            data-info="rh|Relative Humidity (%)|Relative Humidity">• Relative Humidity</a>
+        <a class="function {% if not configuration.hyd_solar_influx %}hidden{% endif %}" 
+            data-info="si|Solar Influx (W/m<sup>2</sup>)|Solar Influx">• Solar Influx</a>
+        <a class="function {% if not configuration.evaporative_heat_flux %}hidden{% endif %}" 
+            data-info="ehf|EHF (W/m<sup>2</sup>)|Evaporative Heat Flux">• Evaporative Heat Flux</a>
+        <a class="function {% if not configuration.hyd_free_convection_evaporative_heat_flux %}hidden{% endif %}" 
+            data-info="fcehf|FCEHF (W/m<sup>2</sup>)|Free Convection Evaporative Heat Flux">• Free Convection Evaporative Heat Flux</a>
+        <a class="function {% if not configuration.hyd_sensible_heat_flux %}hidden{% endif %}" 
+            data-info="shf|Sensible Heat Flux (W/m<sup>2</sup>)|Sensible Heat Flux">• Sensible Heat Flux</a>
+        <a class="function {% if not configuration.hyd_free_convection_sensible_heat_flux %}hidden{% endif %}" 
+            data-info="fcshf|FCSHF (W/m<sup>2</sup>)|Free Convection Sensible Heat Flux">• Free Convection Sensible Heat Flux</a>
+        <a class="function {% if not configuration.hyd_long_wave_back_radiation %}hidden{% endif %}" 
+            data-info="lwbr|LWBR (W/m<sup>2</sup>)|Long Wave Back Radiation">• Long Wave Back Radiation</a>
+        <a class="function {% if not configuration.hyd_cloudiness %}hidden{% endif %}" 
+            data-info="cloudiness|Cloudiness (%)|Cloudiness">• Cloudiness</a>
+    </div>
+</div>
+<!-- Sources/Sinks Points -->
+<div class="menu {% if not configuration.sources %}hidden{% endif %}">
+    <a class="menu-link">Sources/Sinks<span class="arrow">&#x25B8;</span></a>
+    <div class="submenu">
+        <a class="function {% if not configuration.source_current_discharge %}hidden{% endif %}"
+            data-info="discharge_source|Current Discharge (m<sup>3</sup>/s)|Current Discharge">• Current Discharge</a>
+        <a class="function {% if not configuration.source_average_discharge %}hidden{% endif %}"
+            data-info="avg_discharge_source|Average Discharge (m<sup>3</sup>/s)|Average Discharge">• Average Discharge</a>
+        <a class="function {% if not configuration.source_prescribed_discharge %}hidden{% endif %}"
+            data-info="pre_discharge_source|Prescriped Discharge (m<sup>3</sup>/s)|Prescriped Discharge">• Prescriped Discharge</a>
+        <a class="function {% if not configuration.source_prescribed_salinity %}hidden{% endif %}"
+            data-info="pre_discharge_increment_source|Prescriped Salinity Increment (%)|Prescriped Salinity Increment">• Prescriped Salinity Increment</a>
+        <a class="function {% if not configuration.source_prescribed_temperature %}hidden{% endif %}"
+            data-info="pre_temperature_increment_source|Prescriped Temperature Increment (°C)|Prescriped Temperature Increment">• Prescriped Temperature Increment</a>
+        <a class="function {% if not configuration.source_cumulative_volume %}hidden{% endif %}"
+            data-info="cumulative_volume_source|Cumulative Volume (m<sup>3</sup>)|Cumulative Volume">• Cumulative Volume</a>
+    </div>
+</div>
+<!-- Water Balance -->
+<div class="menu {% if not configuration.hyd_water_balance %}hidden{% endif %}">
+    <a class="menu-link">Water Balance<span class="arrow">&#x25B8;</span></a>
+    <div class="submenu">
+        <a class="function {% if not configuration.hyd_wb_total_volume %}hidden{% endif %}"
+            data-info="wb_tv|Volume (m<sup>3</sup>)|Total Volume">• Total Volume</a>
+        <a class="function {% if not configuration.hyd_wb_storage %}hidden{% endif %}"
+            data-info="wb_s|Volume (m<sup>3</sup>)|Storage">• Storage</a>
+        <a class="function {% if not configuration.hyd_wb_inflow_boundaries %}hidden{% endif %}"
+            data-info="wb_bi|Volume (m<sup>3</sup>)|Inflow from Boundaries">• Inflow from Boundaries</a>
+        <a class="function {% if not configuration.hyd_wb_outflow_boundaries %}hidden{% endif %}"
+            data-info="wb_bo|Volume (m<sup>3</sup>)|Outflow from Boundaries">• Outflow from Boundaries</a>
+        <a class="function {% if not configuration.hyd_wb_total_boundaries %}hidden{% endif %}"
+            data-info="wb_bt|Volume (m<sup>3</sup>)|Total from Boundaries">• Total from Boundaries</a>
+        <a class="function {% if not configuration.hyd_wb_total_precipitation %}hidden{% endif %}"
+            data-info="wb_pt|Volume (m<sup>3</sup>)|Total from Precipitation">• Total from Precipitation</a>
+        <a class="function {% if not configuration.hyd_wb_total_evaporation %}hidden{% endif %}"
+            data-info="wb_e|Volume (m<sup>3</sup>)|Total from Evaporation">• Total from Evaporation</a>
+        <a class="function {% if not configuration.hyd_wb_source_sink %}hidden{% endif %}"
+            data-info="wb_ss|Volume (m<sup>3</sup>)|Source/Sink">• Source/Sink</a>
+        <a class="function {% if not configuration.hyd_wb_inflow_groundwater %}hidden{% endif %}"
+            data-info="wb_gi|Volume (m<sup>3</sup>)|Inflow from Groundwater">• Inflow from Groundwater</a>
+        <a class="function {% if not configuration.hyd_wb_outflow_groundwater %}hidden{% endif %}"
+            data-info="wb_go|Volume (m<sup>3</sup>)|Outflow from Groundwater">• Outflow from Groundwater</a>
+        <a class="function {% if not configuration.hyd_wb_total_groundwater %}hidden{% endif %}"
+            data-info="wb_gt|Volume (m<sup>3</sup>)|Total from Groundwater">• Total from Groundwater</a>
+        <a class="function {% if not configuration.hyd_wb_ground_precipitation %}hidden{% endif %}"
+            data-info="wb_pg|Volume (m<sup>3</sup>)|Precipitation on Ground">• Precipitation on Ground</a>
+        <a class="function {% if not configuration.hyd_wb_volume_error %}hidden{% endif %}"
+            data-info="wb_ve|Volume Error (%)|Volume Error">• Volume Error</a>
     </div>
 </div>
 
 <!-- Water Quality Observation Points -->
 <div class="menu {% if not configuration.wq_his %}hidden{% endif %}">
+    <hr style="border-top: 1px solid #0516f8; margin: 5px 0 5px 0;">
     <a class="menu-link">Water Quality<span class="arrow">&#x25B8;</span></a>
     <div class="submenu">
         <div class="menu-1">

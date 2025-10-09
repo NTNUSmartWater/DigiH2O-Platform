@@ -15,18 +15,21 @@ async def process_data(request: Request):
     query, key = body.get('query'), body.get('key')
     # Get project state
     try:
+        status, message = 'ok', ''
         if key == 'summary':
             dia_path = os.path.join(request.app.state.PROJECT_DIR, "output", "FlowFM.dia")
             data_his = [request.app.state.hyd_his, request.app.state.waq_his]
             data = functions.getSummary(dia_path, data_his)
         elif key == 'hyd_station':
-            data = json.loads(functions.stationCreator(request.app.state.hyd_his).to_json())
+            temp, message = functions.hydCreator(request.app.state.hyd_his)
+            data = json.loads(temp.to_json())
         elif key == 'wq_obs' or key == 'wq_loads':
             data = json.loads(functions.obsCreator(request.app.state.obs[key]).to_json())
         elif key == 'sources':
             data = json.loads(functions.sourceCreator(request.app.state.hyd_his).to_json())
         elif key == 'crosssections':
-            data = json.loads(functions.crosssectionCreator(request.app.state.hyd_his).to_json())
+            temp, message = functions.crosssectionCreator(request.app.state.hyd_his)
+            data = json.loads(temp.to_json())
         elif key == '_in-situ':
             temp = query.split('*')
             name, stationId, type = temp[0], temp[1], temp[2]
@@ -67,7 +70,6 @@ async def process_data(request: Request):
             # Create time series data
             temp = functions.timeseriesCreator(request.app.state.hyd_his, key)
             data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
-        status, message = 'ok', ''
     except Exception as e:
         data, status, message = None, 'error', f"Error: {e}"
     return JSONResponse({'content': data, 'status': status, 'message': message})

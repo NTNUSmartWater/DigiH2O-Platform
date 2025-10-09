@@ -33,7 +33,6 @@ def load_contact(request: Request):
 @router.get("/load_popupMenu", response_class=HTMLResponse)
 async def load_popupMenu(request: Request, htmlFile: str):
     if htmlFile == 'projectMenu.html':
-        # templates = Jinja2Templates(directory="static/templates")
         return templates.TemplateResponse(htmlFile, {"request": request})
     if not request.app.state.templates:
         return HTMLResponse("<p>No project selected</p>", status_code=400)
@@ -46,7 +45,7 @@ async def load_popupMenu(request: Request, htmlFile: str):
         NCfiles = [request.app.state.hyd_his, request.app.state.hyd_map, 
             request.app.state.waq_his, request.app.state.waq_map]
         request.app.state.config = functions.getVariablesNames(NCfiles, request.app.state.waq_model)
-    return request.app.state.templates.TemplateResponse(htmlFile, {"request": request, 'configuration': request.app.state.config})
+    return templates.TemplateResponse(htmlFile, {"request": request, 'configuration': request.app.state.config})
 
 # Load open project
 @router.get("/open_project")

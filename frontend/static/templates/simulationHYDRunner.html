@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="/static_frontend/css/simulationHYDRunner.css?v=123">
+  <link rel="stylesheet" href="/static_frontend/css/simulationHYDRunner.css?v=000">
 </head>
 <body>
   <div class="form-container">
@@ -14,14 +14,17 @@
           <select id="options"></select>
           <button type="button" id="run-button">Run Simulation</button>
           <div class="progress-container">
-            <progress id="progressbar" value="0" max="100" style="width:100%; height:15px;"></progress>
-            <span id="progress-text" style="align-items:center;"></span>
+            <progress id="progressbar" value="0" max="100" style="width:100%; height:10px;"></progress>
+            <span id="progress-text" style="align-items:center; margin-top: 5px;"></span>
           </div>
-          <button type="button" id="stop-button">Stop Simulation</button>
         </div>
       </form>
     </div>
   </div>
-  <script src="/static_frontend/js/simulationHYDRunner.js"></script>
+  <script>
+    const script = document.createElement('script');
+    script.src = `/static_frontend/js/simulationHYDRunner.js?v=${Date.now()}`;
+    document.body.appendChild(script);
+  </script>
 </body>
 </html>

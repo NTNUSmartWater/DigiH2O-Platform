@@ -13,5 +13,6 @@
   "Query for USEFORS data can be adjusted here.":["wq-usefors-chemical", "wq-usefors-physical", "wq-usefors-microbial"],
   "Maximum number of iterations.":["max-iterations-chemical", "max-iterations-physical", "max-iterations-microbial"],
   "Iterations convergence criterion.":["tolerance-chemical", "tolerance-physical", "tolerance-microbial"],
+  "- Turn on/off location of hydrodynamic observations.\n- Click on point to see detailed information in each layer.":["hyd-obs-checkbox"],
   "Back to home page.":["homeMenu"]
 }

@@ -101,7 +101,7 @@ html, body {
 
 #summaryWindow {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); border-radius: 10px;
-  width: 900px; height: 500px; background-color: #fff; border: 1px solid #999;
+  width: 700px; height: 400px; background-color: #fff; border: 1px solid #999;
   box-shadow: 2px 2px 12px rgba(0,0,0,0.3); min-width: 200px; min-height: 100px;
   display: none; z-index: 2000; resize: both; overflow: hidden; flex-direction: column;
   -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none;
@@ -144,7 +144,7 @@ html, body {
 #simulationWindow {
   position: fixed; top: 50%; left: 50%; z-index: 2000; display: none; width: 1000px;
   flex-direction: column; transform: translate(-50%, -50%); border-radius: 10px; 
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5); background-color: #2c3e50; height: 150px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5); background-color: #2c3e50; height: 110px;
 }
 
 #waqWindow {
@@ -315,6 +315,7 @@ progress::-webkit-progress-value {
 }
 
 /* Firefox */
-progress::-moz-progress-bar {
-  background-color: #07ece1; border-radius: 6px;
-}
+progress::-moz-progress-bar { background-color: #07ece1; border-radius: 6px; }
+
+input[type="checkbox"] { accent-color: #0331af; cursor: pointer; }
+input[type="checkbox"]:checked { background-color: #0331af; border-color: #0331af; }
