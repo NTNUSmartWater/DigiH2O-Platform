@@ -124,8 +124,8 @@ html, body {
   box-shadow: 0 8px 24px rgba(0,0,0,0.5); 
   display: none; flex-direction: column; overflow: hidden;
 }
-#informationContactContent, #projectWindowContent, #waqWindowContent, #profileWindowContent,
-#simulationWindowContent, #project-open-window-content, #profileWindowContent {
+#informationContactContent, #projectWindowContent, #waqWindowContent,
+#simulationWindowContent, #project-open-window-content {
   padding: 0; flex: 1 1 auto; background-color: #2c2a2a; overflow: hidden;
 }
 #informationContactContent iframe, #projectWindowContent iframe,
@@ -133,13 +133,31 @@ html, body {
   width: 100%; height: 100%; border: none; overflow: auto;
 }
 
-#projectWindow, #profileWindow {
+#projectWindow {
   position: fixed; top: 50%; left: 50%; width: 1200px; height: 700px;
   transform: translate(-50%, -50%); min-width: 1000px; min-height: 600px; 
   z-index: 2000; background-color: #2c3e50; border-radius: 10px; 
   box-shadow: 0 8px 24px rgba(0,0,0,0.5); resize: both; 
   flex-direction: column; overflow: auto; display: none;
 }
+
+#profileWindow {
+  position: fixed; top: 50%; left: 50%; width: 1000px; height: 600px;
+  transform: translate(-50%, -50%); min-width: 900px; min-height: 500px;
+  z-index: 2001; background-color:#a39e9eff; border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5); display: none;
+  resize: both; flex-direction: column; overflow: hidden;
+}
+#profileControls{
+  display: flex; justify-content: center; align-items: center; gap: 20px; 
+  padding: 20px; background-color: #a39e9eff; border-top: 1px solid #ccc;
+}
+#profileControls button{
+  padding: 8px 16px; border: none; background-color: #27ae60; width: 100px;
+  color: white; border-radius: 6px; cursor: pointer; font-size: 14px;
+}
+#profileControls label{ margin-left: 30px; }
+#profileControls input{ width: 80px; align-items: center; margin-left: 5px;}
 
 #simulationWindow {
   position: fixed; top: 50%; left: 50%; z-index: 2000; display: none; width: 1000px;
@@ -172,7 +190,7 @@ html, body {
 }
 
 #substance-window {
-  position: fixed; top: 80px; left: 10px; width: auto; height: auto; margin: 10px;
+  position: fixed; top: 60px; right: 100px; width: auto; height: auto; margin: 10px;
   z-index: 2000; background-color: #b9bbbd; border-radius: 10px; resize: both;
   display: none; flex-direction: column; overflow: auto; max-height: 300px;
 }
@@ -185,26 +203,7 @@ html, body {
 #summaryWindow th, #summaryWindow td { border: 1px solid #ccc; padding: 6px; text-align: left; }
 #closeSummaryOption, #closeInformationContact, #closeProjectWindow , #closeWAQWindow,
 #closeSimulationWindow, #project-open-window-close, #substance-window-close, #closeProfileWindow {
-  cursor: pointer; font-size: 20px; margin-left: auto;
-  font-weight: bold; color: #ffffff; 
-}
-
-#infoDetails {
-  position: fixed; bottom: 0; right: 0; width: 300px; height: 80px;
-  border-top-left-radius: 12px; border-top-right-radius: 12px; flex-direction: column;
-  z-index: 2000; display: block; box-shadow: 2px 2px 12px rgba(0,0,0,0.3);
-  background-color: #192e19; border: 2px solid #999; display: none;
-  -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none;
-}
-#infoDetailsHeader {
-  font-weight: bold;  font-size: 15px; text-align: left; padding: 10px 0 10px 10px;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #3498db;
-  border-top-left-radius: 10px; border-top-right-radius: 10px;
-}
-#infoDetailsContent {
-  overflow-y: auto; padding-bottom: 15px; font-size: 15px; flex: 1;
-  background-color: #192e19; padding-top: 15px; color: white;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  cursor: pointer; font-size: 20px; margin-left: auto; font-weight: bold; color: #ffffff; 
 }
 
 #plotWindow {
@@ -317,5 +316,5 @@ progress::-webkit-progress-value {
 /* Firefox */
 progress::-moz-progress-bar { background-color: #07ece1; border-radius: 6px; }
 
-input[type="checkbox"] { accent-color: #0331af; cursor: pointer; }
-input[type="checkbox"]:checked { background-color: #0331af; border-color: #0331af; }
+input[type="checkbox"], input[type="radio"] { accent-color: #0331af; cursor: pointer; }
+input[type="checkbox"]:checked, input[type="radio"]:checked { background-color: #0331af; border-color: #0331af; }

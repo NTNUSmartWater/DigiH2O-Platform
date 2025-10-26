@@ -11,8 +11,8 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
         <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
         <!-- My styles -->
-        <link rel="stylesheet" href="/static_frontend/css/temp_style.css?v=12">
-        <link rel="stylesheet" href="/static_frontend/css/temp_menu.css?v=12">
+        <link rel="stylesheet" href="/static_frontend/css/temp_style.css?v=011">
+        <link rel="stylesheet" href="/static_frontend/css/temp_menu.css?v=001">
         <!-- Favicon -->
         <link rel="icon" type="image/png" href="/static_backend/images/Logo.png">
     </head>
@@ -23,9 +23,9 @@
                 <ul class="nav-left">
                     <li><a class="menu" data-info="0|projectMenu.html" id="projectMenu">Project Management</a></li>
                     <li style="border-left:3px solid #d5d4dd; margin-left:5px; padding-left:5px;">
-                        <a class="menu" data-info="1|generalObtions.html" id="generalMenu">General Options</a>
+                        <a class="menu" data-info="1|generalOptions.html" id="generalMenu">General Options</a>
                     </li>
-                    <li><a class="menu" data-info="2|measuredPoints.html" id="locationMenu">Measured Observations</a></li>
+                    <li><a class="menu" data-info="2|timeSeries.html" id="timeSeriesMenu">Time-series Measurements</a></li>
                     <li><a class="menu" data-info="3|spatialMap.html" id="spatialMenu">Spatial Map</a></li>
                 </ul>
                 <ul class="nav-middle">
@@ -115,11 +115,6 @@
                 <div class="spinner"></div>
             </div>
         </div>
-        <!-- Add the right side-bar menu -->  
-        <div id="infoDetails">
-            <div id="infoDetailsHeader">Point Info</div>
-            <div id="infoDetailsContent"></div>
-        </div>
         <!-- Add a floating window for project summary -->
         <div id="summaryWindow">
             <div id="summaryHeader">Project Summary<span id="closeSummaryOption">×</span></div>
@@ -163,11 +158,27 @@
         <!-- Add a floating window for drawing a profile -->
         <div id="profileWindow">
             <div id="profileWindowHeader">Dynamic Profile<span id="closeProfileWindow">×</span></div>
-            <div id="profileWindowContent">
-
-
-
-
+            <div id="profileWindowContent" style="display: flex; flex-direction: column; height: 95%; background-color: #fff;">
+                <div id="chartDiv" style="flex: 1; min-height: 300px; height: 100%;"></div>
+                <div id="profileControls">
+                    <label style="margin-left: 5px;">Duration:</label>
+                    <select id="chartDurationValue" style="width: 80px;">
+                        <option value="0.1" selected>0.1 s</option>
+                        <option value="0.2">0.2 s</option>
+                        <option value="0.5">0.5 s</option>
+                        <option value="1.0">1.0 s</option>
+                    </select>
+                    <label>Min:</label><input type="text" id="chartMinValue" style="text-align: center;" readonly>
+                    <label>Max:</label><input type="text" id="chartMaxValue" style="text-align: center;" readonly>
+                    <label for="chartColorCombo" style="margin-left: 30px;">Colors:</label>
+                    <select id="chartColorCombo" style="width: 100px;">
+                        <option value="5">5 colors</option>
+                        <option value="10" selected>10 colors</option>
+                        <option value="15">15 colors</option>
+                        <option value="20">20 colors</option>
+                    </select>
+                    <button id="chartPlayPauseBtn">▶ Play</button>
+                </div>
             </div>
         </div>
         <!-- Add a floating plot window -->

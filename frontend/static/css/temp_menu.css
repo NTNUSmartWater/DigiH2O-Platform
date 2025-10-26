@@ -42,62 +42,16 @@
   font-size: 15px; padding: 5px 0 5px 20px; display: flex; gap: 8px;
   font-family: 'Segoe UI', Tahoma, sans-serif; cursor: pointer;
 }
-.submenu-label:hover { color: #0004fa; font-size: 16px; }
-.submenu { display: none; }
-.submenu.open, .submenu a { display: block; }
-.arrow {display: inline-block; transition: transform 0.3s ease; }
-.menu-link.active .arrow { transform: rotate(90deg); transition: transform 0.3s ease; }
-
-
-
-
-/* .menu-1 a {
-  display: block; font-size: 16px; padding: 3px 0 3px 25px; 
-  font-family: 'Segoe UI', Tahoma, sans-serif;
-}
-.menu-1 a:hover {
-  color: #0004fa; font-size: 17px; 
-}
-
-.menu-link, .menu-link-1 {
-  cursor: pointer; display: block; margin: 2px 0;
-}
-
-.custom-menu-1, .custom-selector-sub {
-  display: flex; align-items: center; gap: 10px;
-}
-.custom-menu-1 a {
-  display: block; font-size: 15px; padding: 3px 0 3px 25px;
-  font-family: 'Segoe UI', Tahoma, sans-serif;
-}
-.custom-menu-1 a:hover {
-  color: #0004fa; font-size: 16px; 
-}
-.custom-menu-1 select.wq-function {
-  width: 120px;  margin-left: auto;
-}
-.custom-selector-sub select.wq-function {
-  width: 120px;  margin-left: auto;
-}
-
-
-
-.submenu, .submenu-1 { display: none; }
+.submenu-label:hover { color: #0004fa; font-size: 15px; }
+.submenu { display: none; margin-left: 5px; font-size: 14px;}
 .submenu.open, .submenu-1.open { display: block; }
-.submenu-1 a {
-  display: block; font-size: 13px; padding: 3px 0 3px 35px; 
-  font-family: 'Segoe UI', Tahoma, sans-serif;
-}
-.submenu-1 a:hover, .custom-selector-sub a:hover {
-  color: #0004fa; font-size: 15px;
-}
+.arrow, .arrow-1 {display: inline-block; transition: transform 0.3s ease; }
 .menu-link.active .arrow, .menu-link-1.active .arrow-1 {
-  transform: rotate(90deg); transition: transform 0.3s ease;
+  transform: rotate(90deg); transition: transform 0.3s ease; 
 }
-.arrow, .arrow-1 {
-  display: inline-block; transition: transform 0.3s ease;
-}
+.submenu a { font-size: 17px; transition: 0.3s; display: block;}
+.submenu a:hover { color: #0004fa; font-size: 18px; }
 
-.hidden {
-  display: none !important;
-} */
+.submenu-1 { display: none; margin-left: 10px; font-size: 14px;}
+.submenu-1 a { font-size: 16px; transition: 0.3s; }
+.submenu-1 a:hover { color: #0004fa; font-size: 17px; }

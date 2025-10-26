@@ -1,7 +1,6 @@
 import { fillTable, getDataFromTable, removeRowFromTable } from "./tableManager.js";
 import { renderProjects, sendQuery, deleteTable, copyPaste } from "./tableManager.js";
 import { toUTC } from "./projectSaver.js";
-import { map } from "./mapManager.js";
 
 const projectName = () => document.getElementById('project-name');
 const projects = () => document.getElementById("project-list");

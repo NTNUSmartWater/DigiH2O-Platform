@@ -1,12 +1,20 @@
 import { startLoading, showLeafletMap } from "./mapManager.js";
 import { n_decimals, superscriptMap, getState, setState} from "./constants.js";
 
-export const colorbar_container = () => document.getElementById("custom-colorbar");
-export const colorbar_vector_container = () => document.getElementById("custom-colorbar-vector");
-export let colorbar_title = () => document.getElementById("colorbar-title");
-
 function toSuperscript(num) {
     return String(num).split('').map(ch => superscriptMap[ch] || ch).join('');
+}
+
+export function getColors(nColors){
+    if (nColors === 5) return ['#0416FF', '#03FFF8', '#02FF07', '#EDFF01', '#FF1E00'];
+    else if (nColors === 10) return ['#0416FF', '#0094FF', '#03DAFF', '#00A305',
+        '#71E507', '#DBF400', '#FFD602', '#FF9B0F', '#FF6301', '#FF1E00'];
+    else if (nColors === 15) return ['#0416FF', '#035AFF', '#039EFF', '#03E3FF', 
+        '#03FFD6', '#02FF91', '#02FF4C', '#02FF07', '#41FF02', '#86FF02',
+        '#CBFF01', '#FFED01', '#FFA801', '#FF6301', '#FF1E00']
+    return ['#0416FF', '#0348FF', '#037AFF', '#03ADFF', '#03DFFF', '#03FFEC',
+        '#03FFB9', '#02FF86', '#02FF54', '#02FF21', '#16FF02', '#49FF02', '#7BFF02',
+        '#AEFF01', '#E1FF01', '#FFEA01', '#FFB701', '#FF8401', '#FF5101', '#FF1E00']
 }
 
 function valueFormatter(value, minDiff) {
@@ -78,25 +86,23 @@ export function getColorFromValue(value, vmin, vmax, colorbarKey) {
     } else {
         t = (Math.log(value + epsilon) - Math.log(vmin + epsilon)) / (Math.log(vmax + epsilon) - Math.log(vmin + epsilon));
     }
-    t = Math.max(0, Math.min(1, t));
+    t = 1 - Math.max(0, Math.min(1, t));
     let colors;
     if (colorbarKey === "depth") { // used for depth
         colors = [
-            { r: 0,   g: 51,  b: 102 }, // dark blue
-            { r: 0,   g: 119, b: 190 }, // light blue
-            { r: 160, g: 216, b: 239 }  // very light blue
+            { r: 160, g: 216, b: 239 },  // very light blue
+            { r: 80,  g: 180, b: 220 },  // light blue
+            { r: 0,   g: 119, b: 190 },  // medium blue
+            { r: 0,   g: 70,  b: 130 },  // dark blue
+            { r: 0,   g: 25,  b: 51  },  // very dark blue
         ];
-    } else if (colorbarKey === "velocity") { // used for velocity
+    } else { // used for velocity, temperature, salinity, contaminant, ...
         colors = [
-            { r: 255, g: 255, b: 255 },  // White
-            { r: 255, g: 255, b: 85  },  // Yellow
-            { r: 255, g: 4,   b: 0   }   // Red
-        ];
-    } else { // used for temperature, salinity, contaminant, ...
-        colors = [
-            { r: 0,   g: 0,   b: 255 }, // blue
-            { r: 255, g: 165, b: 0   }, // orange
-            { r: 255, g: 0,   b: 0   }  // red
+            { r: 255, g: 0,   b: 0   },    // red
+            { r: 255, g: 165, b: 0   },   // orange
+            { r: 255, g: 255, b: 0   },   // yellow
+            { r: 100, g: 150, b: 255 },   // light blue 
+            { r: 0,   g: 0,   b: 255 },   // blue
         ];
     }
     const binCount = colors.length - 1;
@@ -114,34 +120,37 @@ export function getColorFromValue(value, vmin, vmax, colorbarKey) {
 // Update color for colorbar
 export function updateColorbar(min, max, title, colorbarKey, bar_color, bar_title, bar_label) {
     bar_title.textContent = title;
+    // Generate 5 color stops
+    const colorStops = [], numStops = 5;
     // Minimum difference
     const minDiff = 1e-2, epsilon = 1e-6;
     if (max - min < minDiff) max = min + minDiff;
     // Update 5 labels
     const labels = bar_label.children;
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < numStops; i++) {
         const percent = i / 4; // 0,0.25,0.5,0.75,1
         let value;
         if (min + epsilon > 0 && max + epsilon > 0) {
             const logMin = Math.log(min + epsilon);
             const logMax = Math.log(max + epsilon);
-            value = Math.exp(logMax - percent * (logMax - logMin));
-        } else {
-            value = max - percent * (max - min);
-        }
-        labels[i].textContent = valueFormatter(value, minDiff);
+            value = Math.exp(logMin + percent * (logMax - logMin));
+        } else { value = min + percent * (max - min);}
+        labels[numStops - i - 1].textContent = valueFormatter(value, minDiff);
     }
     // Generate color for colorbar
-    const minColor = getColorFromValue(min, min, max, colorbarKey);
-    const midColor = getColorFromValue((min + max) / 2, min, max, colorbarKey);
-    const maxColor = getColorFromValue(max, min, max, colorbarKey);
+    for (let i = 0; i < numStops; i++) {
+        const t = i / (numStops - 1);
+        let value;
+        if (min + epsilon > 0 && max + epsilon > 0) {
+            const logMin = Math.log(min + epsilon);
+            const logMax = Math.log(max + epsilon);
+            value = Math.exp(logMin + t * (logMax - logMin));
+        } else { value = min + t * (max - min); }
+        const color = getColorFromValue(value, min, max, colorbarKey);
+        colorStops.push(`rgb(${color.r}, ${color.g}, ${color.b}) ${(t * 100).toFixed(1)}%`);
+    }
     // Update gradient
-    const gradient = `linear-gradient(to top,
-        rgb(${minColor.r}, ${minColor.g}, ${minColor.b}) 0%,
-        rgb(${midColor.r}, ${midColor.g}, ${midColor.b}) 50%,
-        rgb(${maxColor.r}, ${maxColor.g}, ${maxColor.b}) 100%
-    )`;
-    bar_color.style.background = gradient;
+    bar_color.style.background = `linear-gradient(to top, ${colorStops.join(", ")})`;
 }
 
 export function updateMapByTime(layerMap, timestamp, currentIndex, vmin, vmax, colorbarKey) {
@@ -187,6 +196,20 @@ export function getMinMaxFromGeoJSON(data, columns) {
     if (!isFinite(globalMin)) globalMin = null;
     if (!isFinite(globalMax)) globalMax = null;
     return { min: globalMin, max: globalMax };
+}
+
+export function getMinMaxFromDict(data) {
+    let minVal = Infinity, maxVal = -Infinity;
+    for (const row of data) {
+        if (!Array.isArray(row)) continue;
+        for (const val of row) {
+            if (val == null || isNaN(val)) continue;
+            if (val < minVal) minVal = val;
+            if (val > maxVal) maxVal = val;
+        }
+    }
+    if (minVal === Infinity || maxVal === -Infinity) { minVal = maxVal = null; }
+    return { minVal, maxVal };
 }
 
 // Load data (including JSON and GeoJSON)

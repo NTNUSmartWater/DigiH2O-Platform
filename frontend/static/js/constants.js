@@ -5,10 +5,11 @@ export const superscriptMap = {
 };
 
 const defaultState = {
-    hydLayer: null, waqLayer: null, sourceLayer: null, crosssectionLayer: null, isHYDQuery: false, isPathQuery: false,
-    lastFeatureColors: {}, featureMap: {}, mapLayer: null, storedLayer: null, polygonCentroids: [], wqObsLayer: null, 
-    globalChartData: {data: null, chartTitle: "", titleX: "", titleY: "", validColumns: []}, wqLoadsLayer: null,
-    isPlaying: null, isMultiLayer: false, isClickedInsideLayer: false, vectorMain: '', vectorSelected: '', scalerValue: null
+    hydLayer: null, waqLayer: null, sourceLayer: null, crosssectionLayer: null, scalerValue: null, 
+    mapLayer: null, isPathQuery: false, isMultiLayer: false, isClickedInsideLayer: false, storedLayer: null,
+    lastFeatureColors: {}, featureMap: {}, polygonCentroids: [], wqObsLayer: null, wqLoadsLayer: null, 
+    globalChartData: {data: null, chartTitle: "", titleX: "", titleY: "", validColumns: []},
+    isPlaying: null, vectorMain: '', vectorSelected: '', isHYD: false, showedQuery: ''
 }
 let state = structuredClone(defaultState);
 export const getState = () => state;
