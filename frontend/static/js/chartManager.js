@@ -1,5 +1,5 @@
 import { startLoading, showLeafletMap} from "./mapManager.js";
-import { loadData, interpolateJet, interpolateValue } from "./utils.js";
+import { loadData, interpolateJet, interpolateValue, getMinMaxFromDict, getColors } from "./utils.js";
 import { getState, setState } from "./constants.js";
 
 let Dragging = false;
@@ -107,6 +107,7 @@ export function drawChart(data, chartTitle, titleX, titleY, selectedColumns=null
     const cols = data.columns, rows = data.data;
     const obj = '#select-object .checkbox-list input[type="checkbox"]';
     let checkboxInputs = document.querySelectorAll(obj);
+    const x = rows.map(r => r[0]);
     if (selectedColumns === null) checkboxInputs = [];
     // Populate checkbox list
     if (checkboxInputs.length === 0) {
@@ -117,7 +118,7 @@ export function drawChart(data, chartTitle, titleX, titleY, selectedColumns=null
             if (hasValid) validColumns.push(i);
         }
         // Update global variable
-        setState({ globalChartData: { data, chartTitle, titleX, titleY, validColumns } });
+        setState({ globalChartData: { data, chartTitle, titleX, titleY, validColumns }});
         populateCheckboxList(validColumns.map(i => data.columns[i]));
         checkboxInputs = document.querySelectorAll(obj);
     }
@@ -131,10 +132,8 @@ export function drawChart(data, chartTitle, titleX, titleY, selectedColumns=null
     if (allCheckbox && allCheckbox.checked) drawColumns = cols.slice(1);
     else drawColumns = selectedColumns;
     if (drawColumns.length === 0) {
-        Plotly.purge(chartDiv());
-        return;
+        Plotly.purge(chartDiv()); return;
     }
-    const x = rows.map(r => r[0]);
     const traces = [];
     let traceIndex = 0;
     const n = drawColumns.length;  
@@ -151,8 +150,7 @@ export function drawChart(data, chartTitle, titleX, titleY, selectedColumns=null
         traceIndex++;
     }
     if (traces.length === 0) {
-        Plotly.purge(chartDiv());
-        return;
+        Plotly.purge(chartDiv()); return;
     }
     const layout = {
         margin: {l: 60, r: 0, t: 5, b: 40},
@@ -168,8 +166,7 @@ export function drawChart(data, chartTitle, titleX, titleY, selectedColumns=null
     Plotly.purge(chartDiv()); // Clear the chart
     Plotly.newPlot('myChart', traces, layout, {responsive: true});
     Plotly.Plots.resize(chartDiv()); // Resize the chart
-    // Update the header and maintain the close button
-    plotTitle().innerHTML = chartTitle;
+    plotTitle().innerHTML = chartTitle; // Update the header and maintain the close button
     plotWindow().style.display = "flex"; // Show the chart
 }
 
@@ -262,7 +259,7 @@ export function saveToExcel() {
     XLSX.writeFile(workbook, `${titleY.split(' (')[0]}.xlsx`);
 }
 
-export function plotProfile(pointContainer, polygonCentroids, titleY, titleX='Distance (m)', n_decimals) {
+export function plotProfileSingleLayer(pointContainer, polygonCentroids, title, titleY, titleX='Distance (m)', n_decimals) {
     const subset_dis = 20, interpolatedPoints = [];
     // Convert Lat, Long to x, y
     for (let i = 0; i < pointContainer.length - 1; i++) {
@@ -300,5 +297,128 @@ export function plotProfile(pointContainer, polygonCentroids, titleY, titleX='Di
     const input = {
         columns: [titleX, titleY], data: interpolatedPoints
     };
-    drawChart(input, 'Profile', titleX, titleY, false);
+    drawChart(input, title, titleX, titleY, false);
+}
+
+export function plotProfileMultiLayer(windowContainer, data, title, unit, decimals) { 
+    const chartDiv = windowContainer().querySelector('#chartDiv'); 
+    const playPauseBtn = windowContainer().querySelector('#chartPlayPauseBtn'); 
+    const colorCombo = windowContainer().querySelector('#chartColorCombo'); 
+    const minValue = windowContainer().querySelector('#chartMinValue'); 
+    const maxValue = windowContainer().querySelector('#chartMaxValue'); 
+    const durationValue = windowContainer().querySelector('#chartDurationValue'); 
+    chartDiv.style.border = "1px solid #aaa"; 
+    chartDiv.style.borderRadius = "10px"; 
+    chartDiv.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)"; 
+    if (windowContainer()._resizeObserver) windowContainer()._resizeObserver.disconnect(); 
+    const { timestamps, ids, depths, values, minmax } = data; 
+    minValue.value = minmax[0].toFixed(decimals); maxValue.value = minmax[1].toFixed(decimals); 
+    let animating = false, frameIndex = 0, duration = parseFloat(durationValue.value)*1000; 
+    const nColors = parseInt(colorCombo.value); 
+    windowContainer()._resizeObserver = renderPlot(chartDiv, timestamps, ids, depths, 
+                                                values, nColors, title, unit, decimals); 
+    // === Play / Pause control === 
+    async function playAnimation() { 
+        while (animating && frameIndex < timestamps.length) { 
+            Plotly.animate(chartDiv, [timestamps[frameIndex]], { 
+                mode: 'next', transition: { duration: 0 },
+                frame: { duration: duration, redraw: true }, 
+            }); 
+            Plotly.relayout(chartDiv, { 'sliders[0].active': frameIndex }); 
+            frameIndex++; 
+            await new Promise(r => setTimeout(r, duration)); } 
+            if (frameIndex >= timestamps.length) { 
+                animating = false; playPauseBtn.textContent = '▶ Play'; 
+                frameIndex = 0; // Reset index
+            } 
+        } 
+    playPauseBtn.onclick = () => { 
+        duration = parseFloat(durationValue.value)*1000;
+        if (!animating){ 
+            animating = true; playPauseBtn.textContent = '⏸ Pause'; 
+            playAnimation(); 
+        } else { 
+            if (!animating) return; 
+            animating = false; playPauseBtn.textContent = '▶ Play'; 
+        } 
+    };
+    // === Slider control === 
+    chartDiv.on('plotly_sliderchange', (e) => { 
+        const currentLabel = e.step.label || e.value; 
+        frameIndex = timestamps.indexOf(currentLabel);
+    }); 
+    // === Color control === 
+    colorCombo.addEventListener('change', () => { 
+        animating = false; playPauseBtn.textContent = '▶ Play'; 
+        windowContainer()._resizeObserver = renderPlot(chartDiv, timestamps, ids, depths, 
+            values, parseInt(colorCombo.value), title, unit, decimals); 
+        frameIndex = 0; 
+    }) 
+    windowContainer().style.display = "flex";
+}
+
+function renderPlot(plotDiv, timestamps, ids, depths, values, nColors, title, unit, decimals){
+    const discreteColors = getColors(nColors);
+    const xLabels = ids.map(String), reversedDepths = [...depths];
+    const reverseDepth = reversedDepths.every(d => d >= 0);
+    // Generate animation frames
+    const frames = timestamps.map(time => {
+        const val = values[time];
+        // Find min and max
+        const { minVal: vmin, maxVal: vmax } = getMinMaxFromDict(val);
+        const range = vmax - vmin;
+        const boundaries = range === 0
+            ? Array.from({ length: nColors + 1 }, () => vmin)
+            : Array.from({ length: nColors + 1 }, (_, i) => vmin + (i * range) / nColors);
+        // Build colorScale for Plotly (discrete)
+        const colorScale = [], step = 1 / nColors;
+        for (let i = 0; i < nColors; i++) {
+            colorScale.push([i * step, discreteColors[i]]);
+            colorScale.push([(i + 1) * step, discreteColors[i]]);
+        }
+        return { name: time,
+            data: [{ z: val, x: xLabels, y: reversedDepths, type: 'heatmap', zsmooth: 'best',
+                colorscale: colorScale, zmin: vmin, zmax: vmax, showscale: true,
+                colorbar: {
+                    title: { text: unit, font: { color: 'black' }}, tickfont: { color: 'black' },
+                    tickvals: boundaries.slice(0, nColors + 1),
+                    ticktext: boundaries.slice(0, nColors + 1).map(v => v.toFixed(decimals))
+                }
+            }]
+        };
+    });
+    // === Layout ===
+    const layout = { title: { text: title, font: { color: 'black', weight: 'bold', size: 20 } },
+        paper_bgcolor: '#c2bdbdff', plot_bgcolor: '#c2bdbdff',
+        xaxis: {
+            title: {text: `Slice index (Selected slices: ${ids.length})`, font: { color: 'black' }},
+            type: 'category', automargin: true, mirror: true, showgrid: false,
+            showline: true, linewidth: 1, linecolor: 'black', tickfont: { color: 'black' }
+        },
+        yaxis: {
+            title: {text: 'Depth (m)', font: { color: 'black' }}, autorange: reverseDepth ? 'reversed' : true,
+            mirror: true, showline: true, linewidth: 1, linecolor: 'black', showgrid: false, tickfont: { color: 'black' }
+        },
+        margin: { l: 70, r: true ? 60 : 20, t: 50, b: 50 },
+        sliders: [{
+            active: 0, y: -0.1, len: 1.0, pad: { t: 50 },
+            currentvalue: { prefix: 'Time: ', font: { size: 14, color: 'black' } },
+            steps: timestamps.map(t => ({
+                label: t, method: 'animate',
+                args: [[t], { mode: 'immediate', frame: { duration: 0, redraw: true } }]
+            }))
+        }]
+    };
+    const config = {
+        responsive: true, displaylogo: false, displayModeBar: true,
+        modeBarButtonsToRemove: ['lasso2d', 'select2d']
+    };
+    // === Plot ===
+    const firstFrame = frames[0]?.data || [];
+    Plotly.newPlot(plotDiv, firstFrame, layout, config).then(() => {
+        Plotly.addFrames(plotDiv, frames);
+        const resizeObserver = new ResizeObserver(() => Plotly.Plots.resize(plotDiv));
+        resizeObserver.observe(plotDiv);
+        return resizeObserver;
+    });
 }

@@ -1,4 +1,4 @@
-import shapely, os, re, shutil, stat
+import shapely, os, re, shutil, stat, math
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
@@ -11,19 +11,17 @@ def remove_readonly(func, path, excinfo):
 
 variablesNames = {
     # For In-situ options
-    'temperature':'Temperature (°C)', 'salinity':'Salinity (PSU)', 'contaminant':'Contaminant (mg/m³)', # For hydrodynamic stations
+    'temperature':'Temperature (°C)', 'salinity':'Salinity (ppt)', 'contaminant':'Contaminant (mg/m³)', # For hydrodynamic stations
     'velocity_magnitude':'Velocity (m/s)', 'discharge_magnitude':'Discharge (m³/s)', # For hydrodynamic stations
-    'x_velocity':'X-Velocity (m/s)', 'y_velocity':'X-Velocity (m/s)','z_velocity':'Z-Velocity (m/s)', # For hydrodynamic stations
+    'x_velocity':'X-Velocity (m/s)', 'y_velocity':'Y-Velocity (m/s)','z_velocity':'Z-Velocity (m/s)', # For hydrodynamic stations
     'pre_discharge_source':'source_sink_prescribed_discharge', 'pre_discharge_increment_source':'source_sink_prescribed_salinity_increment', # For sources
     'pre_temperature_increment_source':'source_sink_prescribed_temperature_increment', 'avg_discharge_source':'source_sink_discharge_average', # For sources
     'discharge_source':'source_sink_current_discharge', 'cumulative_volume_source':'source_sink_cumulative_volume',  # For sources
     'cross_section_velocity':'Velocity (m/s)', 'cross_section_area':'Area (m²)', 'cross_section_discharge':'Discharge (m³/s)', # For cross-sections
     'cross_section_cumulative_discharge': 'Cumulative Discharge (m³)', 'cross_section_temperature':'Temperature (°C)', # For cross-sections
-    'cross_section_cumulative_temperature': 'Cumulative Temperature (°C)', 'cross_section_salt':'Salinity (PSU)', # For cross-sections
-    'cross_section_cumulative_salt': 'Cumulative Salinity (PSU)', 'cross_section_Contaminant':'Contaminant (mg/m³)', # For cross-sections
+    'cross_section_cumulative_temperature': 'Cumulative Temperature (°C)', 'cross_section_salt':'Salinity (ppt)', # For cross-sections
+    'cross_section_cumulative_salt': 'Cumulative Salinity (ppt)', 'cross_section_Contaminant':'Contaminant (mg/m³)', # For cross-sections
     'cross_section_cumulative_Contaminant': 'Cumulative Contaminant (mg/m³)', # For cross-sections
-    # For Static map
-    'depth':'depth',
     # For Hydrodynamics options
     'wl':'waterlevel', 'wd':'waterdepth',
     # For Water Balance options
@@ -39,6 +37,7 @@ variablesNames = {
     'wl_dynamic':'mesh2d_s1', 'wd_dynamic':'mesh2d_waterdepth',
     # For Dynamic map: Physical options
     'temp_multi_dynamic':'mesh2d_tem1', 'sal_multi_dynamic':'mesh2d_sa1', 'cont_multi_dynamic':'mesh2d_Contaminant',
+    #
 }
 
 units = {
@@ -52,7 +51,7 @@ units = {
     'DO': 'Dissolved Oxygen Concentration (g/m³)', 'SaturOXY': 'Saturation Concentration (g/m³)', 'SatPercOXY': 'Actual Saturation Percentage O2 (%)',
     'BOD5': 'BOD5 (g/m³)', 'Cd': 'Cadmium (g/m³)', 'CdS1': 'Cadmium in layer S1 (g/m²)', 'NO3': 'Nitrate (g/m³)', 'As': 'Arsenic (g/m³)',
     # Microbial
-    'Salinity': 'Salinity (g/kg)', 'EColi': 'E.Coli bacteria (MPN/m³)', 'volume': 'Volume (m³)'
+    'Salinity': 'Salinity (ppt)', 'EColi': 'E.Coli bacteria (MPN/m³)', 'volume': 'Volume (m³)'
 }
 
 def numberFormatter(arr: np.array, decimals: int=2) -> np.array:
@@ -241,7 +240,7 @@ def getVariablesNames(NC_files: list, model_type: str=None) -> dict:
         elif ('nTimesDlwq' in data.sizes and not ('mesh2d_nNodes' or 'mesh2d_nEdges') in data.sizes):
             print(f"- Checking Water Quality Simulation ...")
             variables = set(data.variables.keys()) - set(['nTimesDlwqBnd', 'station_name', 'station_x', 'station_y', 'station_z', 'nTimesDlwq'])
-            result['wq_his'] = False
+            result['waq_his'] = False
             # Prepare data for Physical option
             # 1. Conservative and Decaying Tracers
             if model_type == 'conservative-tracers':
@@ -249,14 +248,14 @@ def getVariablesNames(NC_files: list, model_type: str=None) -> dict:
                 for item in variables:
                     if checkVariables(data, item): result['waq_his_conservative_selector'].append(units[item] if item in units.keys() else item)
                 result['waq_his_conservative_decay'] = True if len(result['waq_his_conservative_selector']) > 0 else False
-                result['wq_his'] = result['waq_his_conservative_decay']
+                result['waq_his'] = result['waq_his_conservative_decay']
             # 2. Suspended Sediment
             elif model_type == 'suspend-sediment':
                 result['waq_his_suspended_sediment_selector'] = []
                 for item in variables:
                     if checkVariables(data, item): result['waq_his_suspended_sediment_selector'].append(units[item] if item in units.keys() else item)
                 result['waq_his_suspended_sediment'] = True if len(result['waq_his_suspended_sediment_selector']) > 0 else False
-                result['wq_his'] = result['waq_his_suspended_sediment']
+                result['waq_his'] = result['waq_his_suspended_sediment']
             # Prepare data for Chemical option
             # 1. Simple Oxygen
             elif model_type == 'simple-oxygen':
@@ -264,35 +263,35 @@ def getVariablesNames(NC_files: list, model_type: str=None) -> dict:
                 for item in variables:
                     if checkVariables(data, item): result['waq_his_simple_oxygen_selector'].append(units[item] if item in units.keys() else item)
                 result['waq_his_simple_oxygen'] = True if len(result['waq_his_simple_oxygen_selector']) > 0 else False
-                result['wq_his'] = result['waq_his_simple_oxygen']
+                result['waq_his'] = result['waq_his_simple_oxygen']
             # 2. Oxygen and BOD (water phase only)
             elif model_type == 'oxygen-bod-water':
                 result['waq_his_oxygen_bod_selector'] = []
                 for item in variables:
                     if checkVariables(data, item): result['waq_his_oxygen_bod_selector'].append(units[item] if item in units.keys() else item)            
                 result['waq_his_oxygen_bod'] = True if (len(result['waq_his_oxygen_bod_selector'])) else False
-                result['wq_his'] = result['waq_his_oxygen_bod']
+                result['waq_his'] = result['waq_his_oxygen_bod']
             # 3. Cadmium
             elif model_type == 'cadmium':
                 result['waq_his_cadmium_selector'] = []
                 for item in variables:
                     if checkVariables(data, item): result['waq_his_cadmium_selector'].append(units[item] if item in units.keys() else item)
                 result['waq_his_cadmium'] = True if len(result['waq_his_cadmium_selector']) > 0 else False
-                result['wq_his'] = result['waq_his_cadmium']
+                result['waq_his'] = result['waq_his_cadmium']
             # 4. Eutrophication
             elif model_type == 'eutrophication':
                 result['waq_his_eutrophication_selector'] = []
                 for item in variables:
                     if checkVariables(data, item): result['waq_his_eutrophication_selector'].append(units[item] if item in units.keys() else item)
                 result['waq_his_eutrophication'] = True if len(result['waq_his_eutrophication_selector']) > 0 else False
-                result['wq_his'] = result['waq_his_eutrophication']
+                result['waq_his'] = result['waq_his_eutrophication']
             # 5. Trace Metals
             elif model_type == 'tracer-metals':
                 result['waq_his_trace_metals_selector'] = []
                 for item in variables:
                     if checkVariables(data, item): result['waq_his_trace_metals_selector'].append(units[item] if item in units.keys() else item)
                 result['waq_his_trace_metals'] = True if len(result['waq_his_trace_metals_selector']) > 0 else False
-                result['wq_his'] = result['waq_his_trace_metals']
+                result['waq_his'] = result['waq_his_trace_metals']
             # Prepare data for Microbial option
             elif model_type == 'coliform':
                 result['waq_his_coliform_selector'] = []
@@ -397,6 +396,30 @@ def getVariablesNames(NC_files: list, model_type: str=None) -> dict:
                             result['waq_map_coliform_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
                 if len(result['waq_map_coliform_selector']) > 0:
                     result['wq_map'], result['waq_map_coliform'] = True, True
+    return result
+
+def valueToKeyConverter(values: list, dict: dict=units) -> list:
+    """
+    Convert a list of values to a list of keys.
+
+    Parameters:
+    ----------
+    values: list
+        The list of values.
+    dict: dict
+        The dictionary containing the keys and values.
+
+    Returns:
+    -------
+    list
+        The list of keys.
+    """
+    result = []
+    for value in values:
+        for key, val in dict.items():
+            if value == val:
+                result.append(key)
+                break
     return result
 
 def dialogReader(dialog_file: str) -> dict:
@@ -696,6 +719,7 @@ def thermoclineComputer(data_map: xr.Dataset) -> pd.DataFrame:
         columns.append(col_name)
         data_list.append(numberFormatter(value))
     df = pd.DataFrame(np.column_stack(data_list), index=index_, columns=columns).reset_index()
+    print(df)
     return df
 
 def timeseriesCreator(data_his: xr.Dataset, key: str, timeColumn: str='time') -> pd.DataFrame:
@@ -821,10 +845,8 @@ def assignValuesToMeshes(grid: gpd.GeoDataFrame, data_map: xr.Dataset, key: str,
     gpd.GeoDataFrame
         The GeoDataFrame with interpolated z values.
     """
+    name = key
     if time_column == 'time': name = variablesNames[key] if key in variablesNames.keys() else key
-    else: name = key
-
-
     result, temp_grid = {}, grid.copy()
     time_stamps = [pd.to_datetime(id).strftime('%Y-%m-%d %H:%M:%S') for id in data_map[time_column].values]
     values = data_map[name].values
@@ -838,49 +860,6 @@ def assignValuesToMeshes(grid: gpd.GeoDataFrame, data_map: xr.Dataset, key: str,
     # Convert to dataframe
     result = pd.DataFrame(arr, index=result.index, columns=result.columns)
     result = temp_grid.join(result)    
-    return result.reset_index()
-
-def selectPolygon(data_map: xr.Dataset, idx: int, key:str, time_column: str, column_layer: str) -> dict:
-    """
-    Get attributes of a selected polygon during the simulation.
-
-    Parameters:
-    ----------
-    data_map: xr.Dataset
-        The dataset received from _map.nc file.
-    arr: np.ndarray (3D)
-        The array containing the attributes of the selected polygons.
-    idx: int
-        The index of the selected polygon.
-    key: str
-        The key of the array received from _map.nc file.
-    time_column: str
-        The name of the time column.
-    column_layer: str
-        The name of the layer column.
-
-    Returns:
-    -------
-    dict
-        A dictionary containing the attributes of the selected polygon.
-    """
-    name = variablesNames[key] if key in variablesNames.keys() else key
-    index = [pd.to_datetime(id).strftime('%Y-%m-%d %H:%M:%S') for id in data_map[time_column].values]
-    z_layer = data_map[column_layer].values
-    result = pd.DataFrame(index=index)
-    if column_layer == 'mesh2d_layer_z':
-        arr, kt = data_map[name].values[:, idx, :], 'm'
-    elif column_layer == 'mesh2d_layer_dlwq':
-        arr, kt = data_map[name].values[:, :, idx], ''
-    for i in range(arr.shape[1]):
-        i_rev = -(i+1)
-        arr_rev = arr[:, i_rev]
-        result[f'Layer: {z_layer[i_rev]:.2f} {kt}'] = arr_rev
-    result = result.replace(-999.0, np.nan)
-    # Convert to numpy array
-    arr = numberFormatter(result.to_numpy())
-    # Convert to dataframe
-    result = pd.DataFrame(arr, index=result.index, columns=result.columns)
     return result.reset_index()
 
 def velocityChecker(data_map: xr.Dataset) -> dict:
@@ -1094,3 +1073,27 @@ def postProcess(directory: str) -> dict:
         shutil.rmtree(DFM_OUTPUT_folder, onexc=remove_readonly)
     except Exception as e: return {'status': 'error', 'message': {str(e)}}
     return {'status': 'ok', 'message': 'Data is saved successfully.'}
+
+def clean_nans(obj) -> dict:
+    """
+    Clean nans in dictionary
+
+    Parameters
+    ----------
+    obj: dict
+        The dictionary to clean
+
+    Returns
+    -------
+    dict
+        The cleaned dictionary
+    """
+    if isinstance(obj, dict):
+        return {k: clean_nans(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [clean_nans(v) for v in obj]
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        else: return obj
+    else: return obj

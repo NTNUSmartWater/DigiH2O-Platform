@@ -1,6 +1,7 @@
 import { loadData } from './utils.js';
-import { plotChart } from "./chartManager.js";
-import { getState, setState } from "./constants.js";
+import { colorbar_title } from './map2DManager.js';
+import { plotChart, plotProfileSingleLayer, plotProfileMultiLayer } from "./chartManager.js";
+import { n_decimals, getState, setState } from "./constants.js";
 import { startLoading, showLeafletMap, map, L, ZOOM } from "./mapManager.js";
 
 const summaryWindow = () => document.getElementById("summaryWindow");
@@ -12,11 +13,14 @@ const hydStation = () => document.getElementById("hyd-obs-checkbox");
 const sourceStation = () => document.getElementById("source-checkbox");
 const crossSection = () => document.getElementById("cross-section-checkbox");
 const waqObsStation = () => document.getElementById("waq-obs-checkbox");
+const waqLoadsStation = () => document.getElementById("waq-loads-checkbox");
+const pathQuery = () => document.getElementById("path-query-checkbox");
+const mapContainer = () => map.getContainer();
+const profileWindow = () => document.getElementById('profileWindow');
+const profileWindowHeader = () => document.getElementById('profileWindowHeader');
+const profileCloseBtn = () => document.getElementById('closeProfileWindow');
 
-
-
-
-let Dragging = false;
+let Dragging = false, pathLine = null, selectedMarkers = [], pointContainer = [], marker = null;
 
 function checkUpdater(setLayer, objCheckbox, checkFunction){
     objCheckbox.checked = getState()[setLayer] !== null;
@@ -31,19 +35,9 @@ function checkUpdater(setLayer, objCheckbox, checkFunction){
     });
 }
 
-
-
 export function generalOptionsManager(){
     projectSummaryEvents(); thermoclinePlot();
-    updateHYDManager(); updateWAQManager();
-    
-    
-    
-    
-    // updatePointManager(); updatePathManager();
-    // queryUpdate();
-
-    
+    updateHYDManager(); updateWAQManager(); updatePathManager();
 }
 
 // ============================ Project Summary ============================
@@ -93,8 +87,7 @@ async function openProjectSummary() {
     } else { summaryWindow().style.display = "none";}
 }
 
-// ============================ Observation Points ============================
-
+// ============================ Points Manager ============================
 function updateHYDManager(){
     // 1. Hydrodynamic Observations
     checkUpdater("hydLayer", hydStation(), loadHYDStations);
@@ -226,11 +219,8 @@ async function loadCrossSection() {
 function updateWAQManager() {
     // 1. Update Water Quality Observation Points
     checkUpdater("wqObsLayer", waqObsStation(), loadWAQStations);
-
-
-
-
-
+    // 2. Update water quality observation points
+    checkUpdater("wqLoadsLayer", waqLoadsStation(), loadWAQLoads);
 }
 
 async function loadWAQStations() {
@@ -262,9 +252,141 @@ async function loadWAQStations() {
     showLeafletMap();
     return layer;
 }
+async function loadWAQLoads() {
+    startLoading('Loading Loads of Water Quality Observation Points from Database. Please wait...');
+    const data = await loadData('', 'wq_loads');
+    if (data.status === "error") { alert(data.message); return; }
+    if (getState().wqLoadsLayer) { map.removeLayer(getState().wqLoadsLayer); }
+    const layer = L.geoJSON(data.content, {
+        // Custom marker icon
+        pointToLayer: function (feature, latlng) {
+            const customIcon = L.icon({
+                iconUrl: `static_backend/images/waq_loads.png?v=${Date.now()}`,
+                iconSize: [20, 20], popupAnchor: [1, -34],
+            });
+            const marker = L.marker(latlng, {icon: customIcon});
+            const stationId = feature.properties.name || 'Unknown';
+            // Add tooltip
+            const value = `<div style="text-align: center; weight: bold;">
+                    <b>${stationId}</b>
+                </div>`;
+            marker.bindTooltip(value, {
+                permanent: false, direction: 'top', offset: [0, 0]
+            });
+            return marker;
+        }
+    });
+    map.addLayer(layer);
+    map.setView(layer.getBounds().getCenter(), ZOOM);
+    showLeafletMap();
+    return layer;
+}
 
+// ============================ Path Manager ============================
+function moveWindow(window, header){
+    let dragging = false, offsetX = 0, offsetY = 0;
+    header().addEventListener("mousedown", function(e) {
+        dragging = true;
+        offsetX = e.clientX - window().offsetLeft;
+        offsetY = e.clientY - window().offsetTop;
+        e.preventDefault();
+    });
+    header().addEventListener("mouseup", function() { dragging = false; });
+    document.addEventListener("mousemove", function(e) {
+        if (dragging) {
+            window().style.left = (e.clientX - offsetX) + "px";
+            window().style.top = (e.clientY - offsetY) + "px";
+        }
+    });
+}
 
+export function updatePathManager() {
+    pathQuery().checked = getState().isPathQuery;
+    if (getState().isPathQuery === false) deActivePathQuery();
+    pathQuery().addEventListener('change', () => { 
+        if (pathQuery().checked) { 
+            if (getState().mapLayer === null){
+                alert("No map layer available"); deActivePathQuery();
+            } else {
+                mapContainer().style.cursor = "crosshair";
+                map.on("click", mapPath); map.on("contextmenu", mapPath);
+            }
+        } else deActivePathQuery();
+        setState({isPathQuery: pathQuery().checked});
+    });
+    profileCloseBtn().addEventListener('click', () => { profileWindow().style.display = 'none'; });
+    moveWindow(profileWindow, profileWindowHeader); 
+}
 
+function deActivePathQuery() {
+    pathQuery().checked = false; setState({isPathQuery: false});
+    if (pathLine) { map.removeLayer(pathLine); pathLine = null;}
+    selectedMarkers.forEach(m => map.removeLayer(m));
+    selectedMarkers = []; pointContainer = [];
+    mapContainer().style.cursor = "default";
+}
+
+async function mapPath(e) {
+    if (!getState().isPathQuery) return;
+    // Right-click
+    if (e.type === "contextmenu") {
+        e.originalEvent.preventDefault(); // Suppress context menu
+        if (pointContainer.length < 2) { alert("Please select at least two points"); return; }
+        if (!getState().isMultiLayer){
+            const titleY = colorbar_title().textContent;
+            const title = 'Profile - Single Layer';
+            plotProfileSingleLayer(pointContainer, getState().polygonCentroids, title, titleY, undefined, n_decimals);
+        } else {
+            const lineGeoJSON = pathLine.toGeoJSON(), intersectedIds = [];
+            const featureMap = getState().featureMap;
+            Object.values(featureMap).forEach(f => {
+                if (!f.geometry) return;
+                try {
+                    const intersection = turf.booleanIntersects(lineGeoJSON, f);
+                    if (intersection) intersectedIds.push(f.properties.index);
+                } catch (error) { alert(error); }
+            });
+            if (intersectedIds.length === 0) { alert("No intersected mesh found"); return; }
+            startLoading('Acquiring selected meshes from Database. Please wait...');
+            const key = !getState().isHYD ? 'hyd' : 'waq';
+            const unit = colorbar_title().textContent.split('(')[1].trim().replace(')', '');
+            const title = `Profile - ${colorbar_title().textContent.split('(')[0].trim()}`;
+            const response = await fetch('/select_meshes', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({key: key, query: getState().showedQuery, ids: intersectedIds})});
+            const data = await response.json();
+            if (data.status === "error") { alert(data.message); return; }
+            plotProfileMultiLayer(profileWindow, data.content, title, unit, 4);
+            showLeafletMap();
+        }
+    }
+    // Left-click
+    if (e.type === "click" && e.originalEvent.button === 0) {
+        // Check if clicked inside layer
+        if (getState().isClickedInsideLayer) {
+            // Add marker
+            marker = L.circleMarker(e.latlng, {
+                radius: 5, color: 'blue', fillColor: 'cyan', fillOpacity: 0.9
+            }).addTo(map);
+            selectedMarkers.push(marker);
+            // Get selected value
+            const value = e.layerProps?.[getState().storedLayer?.getColumnName()] ?? null;
+            // Add point
+            pointContainer.push({
+                lat: e.latlng.lat, lng: e.latlng.lng, value: value
+            });
+            // Plot line
+            const latlngs = pointContainer.map(p => [p.lat, p.lng]);
+            if (pathLine) { pathLine.setLatLngs(latlngs);
+            } else {
+                pathLine = L.polyline(latlngs, {
+                    color: 'orange', weight: 2, dashArray: '5,5'
+                }).addTo(map);
+            }
+        }
+        setState({isClickedInsideLayer: false}); // Reset clicked inside layer
+    }
+}
 
 // ============================ Thermocline Plot ============================
 function thermoclinePlot(){

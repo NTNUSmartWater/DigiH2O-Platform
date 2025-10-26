@@ -1,28 +1,24 @@
 import { loadData, getColorFromValue, updateColorbar, getMinMaxFromGeoJSON, updateMapByTime } from "./utils.js";
 import { startLoading, showLeafletMap, L, map } from "./mapManager.js";
 import { arrowShape, getState, setState } from "./constants.js";
-import { drawChart } from "./chartManager.js";
-import { mapPoint } from "./queryManager.js";
-// import { scaler_value } from "./dynamicMapManager.js";
-
 
 export const timeControl = () => document.getElementById('time-controls');
 export const colorbar_container = () => document.getElementById("custom-colorbar");
-const colorbar_vector_container = () => document.getElementById("custom-colorbar-vector");
+export const colorbar_vector_container = () => document.getElementById("custom-colorbar-vector");
+export const colorbar_title = () => document.getElementById("colorbar-title");
+const scaler_value = () => document.getElementById("scaler-value");
 const slider = () => document.getElementById("time-slider");
 const playBtn = () => document.getElementById("play-btn");
-const colorbar_title = () => document.getElementById("colorbar-title");
 const colorbar_color = () => document.getElementById("colorbar-gradient");
 const colorbar_label = () => document.getElementById("colorbar-labels");
 const colorbar_vector_title = () => document.getElementById("colorbar-title-vector");
 const colorbar_vector_color = () => document.getElementById("colorbar-gradient-vector");
 const colorbar_vector_label = () => document.getElementById("colorbar-labels-vector");
 const colorbar_vector_scaler = () => document.getElementById("custom-colorbar-scaler");
-const scaler_value = () => document.getElementById("scaler-value");
+
 
 export let layerAbove = null;
-let layerMap = null,  currentIndex = 0, playHandlerAttached = false;
-let prevPolygon = null, prevColor = null, parsedDataAllFrames = '', txt = '';
+let layerMap = null,  currentIndex = 0, playHandlerAttached = false, parsedDataAllFrames = '';
 
 // Define CanvasLayer
 L.CanvasLayer = L.Layer.extend({
@@ -59,19 +55,6 @@ L.CanvasLayer = L.Layer.extend({
         }
     }
 });
-
-async function plotMultilayer(id, key, titleY) {
-    startLoading();
-    try {
-        const response = await fetch('/select_polygon', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({key: key, id: id})});
-        const data = await response.json();
-        if (data.status === "error") {alert(data.message); return; }
-        drawChart(data.content, 'Simulated Values at Layers', 'Time', titleY, false);
-    } catch (error) {alert(error);}
-    showLeafletMap();
-}
 
 // Create map layer
 function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarKey) {
@@ -114,13 +97,9 @@ function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarK
             return f.properties.index;
         }
     });
-    if (key.includes('multi')) {
-        txt = `<br>Select object to see values in each layer`;
-        setState({isMultiLayer: true}); setState({isPathQuery: false});
-        setState({isPointQuery: false});
+    if (key.includes('multi')) { setState({isMultiLayer: true});
     } else {
         setState({isMultiLayer: false});
-        txt = ''; 
         const polygonCentroids = [];
         filteredData.features.forEach(f => {
             const value = f.properties[getColumnName()];
@@ -140,7 +119,7 @@ function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarK
         const value = props[getColumnName()];
         // Show tooltip
         const html = `<div style="text-align: center;">
-                <b>${colorbarTitle}:</b> ${value ?? 'N/A'}${txt}
+                <b>${colorbarTitle}:</b> ${value ?? 'N/A'}
             </div>`;
         hoverTooltip.setContent(html).setLatLng(e.latlng)
         map.openTooltip(hoverTooltip);
@@ -149,31 +128,7 @@ function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarK
         layerMap.resetFeatureStyle(e.layer._id);
     });
     // Add click event to the layer
-    layerMap.on('click', function(e) {
-        setState({isClickedInsideLayer: true});
-        const props = e.layer.properties;
-        mapPoint({ ...e, layerProps: props });
-        if (key.includes('multi')) {
-            // Reset previous polygon if exists
-            if (prevPolygon){
-                prevPolygon.setStyle({
-                    fillColor: prevColor,
-                    fillOpacity: prevPolygon.options.fillOpacity,
-                    color: prevPolygon.options.color
-                });
-            }
-            // Store current polygon
-            prevPolygon = e.layer;
-            prevColor = e.layer.options.fillColor;
-            // Get index of the feature
-            const selectedFeatureId = props.index;
-            // Highlight feature 
-            layerMap.resetFeatureStyle(e.layer._id);
-            e.layer.setStyle({ fillColor: 'red', color: 'yellow', fillOpacity: 1 });
-            // Load data to plot
-            plotMultilayer(selectedFeatureId, key, colorbarTitle);
-        }
-    });
+    layerMap.on('click', () => { setState({isClickedInsideLayer: true}); });
     // Adjust Colorbar Control
     updateColorbar(vmin, vmax, colorbarTitle, colorbarKey, colorbar_color(), colorbar_title(), colorbar_label());
     // Assign values to use later
@@ -182,7 +137,7 @@ function layerCreator(data, key, timestamp, vmin, vmax, colorbarTitle, colorbarK
     return layerMap;
 }
 
-export async function plot2DMapStatic(key, colorbarTitle, colorbarKey, colorbarScaler='normal') {
+export async function plot2DMapStatic(key, colorbarTitle, colorbarKey) {
     startLoading();
     const data = await loadData('', key);
     if (data.status === 'error') { showLeafletMap(); alert(data.message); return; }
@@ -193,8 +148,7 @@ export async function plot2DMapStatic(key, colorbarTitle, colorbarKey, colorbarS
     const values = data.content.features.map(f => f.properties.value)
                     .filter(v => typeof v === 'number' && !isNaN(v));
     const vmin = Math.min(...values), vmax = Math.max(...values);
-    layerMap = layerCreator(data.content, key, "value", vmin, vmax,
-        colorbarTitle,colorbarKey, colorbarScaler);
+    layerMap = layerCreator(data.content, key, "value", vmin, vmax, colorbarTitle, colorbarKey);
     map.addLayer(layerMap);
     showLeafletMap();
 }
@@ -219,8 +173,7 @@ function buildFrameData(data, i) {
     return result;
 }
 
-function vectorCreator(parsedData, vmin, vmax, title, colorbarKey) {
-    const scale = parseFloat(getState().scalerValue);
+function vectorCreator(parsedData, vmin, vmax, title, colorbarKey, scale) {
     const layer = new L.CanvasLayer({ data: parsedData,
         drawLayer: function () {
             const ctx = this._ctx, map = this._map;
@@ -244,13 +197,13 @@ function vectorCreator(parsedData, vmin, vmax, title, colorbarKey) {
         }
     });
     // Adjust Colorbar Control
-    colorbar_vector_scaler().innerHTML = `Scaler: ${getState().scalerValue}`;
+    colorbar_vector_scaler().innerHTML = `Scaler: ${scale}`;
     updateColorbar(vmin, vmax, title, colorbarKey, colorbar_vector_color(), colorbar_vector_title(), colorbar_vector_label());
     return layer;
 }
 
 function initDynamicMap(key, data_below, data_above, colorbarTitleBelow, colorbarTitleAbove,
-                        colorbarKeyBelow, colorbarKeyAbove) {
+                        colorbarKeyBelow, colorbarKeyAbove, scale) {
     timeControl().style.display = "flex"; // Show time slider
     // Hide colorbar control
     colorbar_container().style.display = "none";
@@ -287,7 +240,7 @@ function initDynamicMap(key, data_below, data_above, colorbarTitleBelow, colorba
         parsedDataAllFrames = timestamp.map((_, i) => buildFrameData(data_above, i));
         if (layerAbove) map.removeLayer(layerAbove);  // Remove previous layer
         layerAbove = vectorCreator(parsedDataAllFrames[currentIndex], vminAbove, vmaxAbove, 
-                                    colorbarTitleAbove, colorbarKeyAbove);
+                                    colorbarTitleAbove, colorbarKeyAbove, scale);
         map.addLayer(layerAbove);
         colorbar_vector_container().style.display = "block";
     }
@@ -333,8 +286,17 @@ function initDynamicMap(key, data_below, data_above, colorbarTitleBelow, colorba
 export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, colorbarKey) {
     startLoading('Preparing Dynamic Map. Please wait...');
     let data_below = null, data_above = null, colorbarTitleAbove = null, colorbarKeyAbove = null;
+    setState({showedQuery: `${key}`}); setState({isHYD: waterQuality});  // Set HYD flag
     // Process below layer
-    const dataBelow = await loadData(query, key);
+    const dataBelow = await loadData(query, key); 
+    // Initialize vector scale
+    if ((getState().vectorMain !== '' && getState().vectorSelected !== '')) {
+        if ((!scaler_value().value)||(parseFloat(scaler_value().value) <= 0)) {
+            alert('Wrong scaler value. Please check the scaler value.'); return;
+        }
+        setState({scalerValue: scaler_value().value}); // Store scaler value
+    }
+    const scale = parseFloat(getState().scalerValue);
     if (dataBelow.status === 'error') { showLeafletMap(); alert(dataBelow.message); return; }
     data_below = dataBelow.content;
     // If data is water depth, reverse values in below layer    
@@ -349,7 +311,7 @@ export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, 
     // If data is not water quality
     if (!waterQuality && getState().vectorMain) {
         let vectorName = getState().vectorMain, vectorKey = getState().vectorSelected;
-        colorbarTitleAbove = vectorName;
+        colorbarTitleAbove = vectorName + ' (m/s)';
         // Process above data
         if (vectorName === 'Velocity' && vectorKey) {
             vectorName = `${vectorKey}_velocity`;
@@ -359,7 +321,7 @@ export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, 
         if (dataAbove.status === 'error') { showLeafletMap(); alert(dataAbove.message); return; }
         data_above = dataAbove.content; colorbarKeyAbove = vectorKey;
     }
-    initDynamicMap(key, data_below, data_above, colorbarTitle, colorbarTitleAbove, colorbarKey, colorbarKeyAbove);
+    initDynamicMap(key, data_below, data_above, colorbarTitle, colorbarTitleAbove, colorbarKey, colorbarKeyAbove, scale);
     showLeafletMap();
 }
 
@@ -371,10 +333,11 @@ export async function plot2DVectorMap(query, key, colorbarTitleAbove, colorbarKe
     }
     // Store scaler value
     setState({scalerValue: scaler_value().value});
+    const scale = parseFloat(getState().scalerValue);    
     startLoading('Preparing Dynamic Map. Please wait...');
     if (layerMap) map.removeLayer(layerMap);
     const data = await loadData(query, key);
     if (data.status === 'error') { showLeafletMap(); alert(data.message); return; }
-    initDynamicMap(key, null, data.content, null, colorbarTitleAbove, null, colorbarKey);
+    initDynamicMap(key, null, data.content, null, colorbarTitleAbove, null, colorbarKey, scale);
     showLeafletMap();
 }

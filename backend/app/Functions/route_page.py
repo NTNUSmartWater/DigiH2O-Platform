@@ -75,5 +75,4 @@ def grid_generation(request: Request):
 # Load favicon
 @router.get("/favicon.ico")
 def favicon():
-    # return FileResponse("static/images/Logo.png")
     return FileResponse(os.path.join(STATIC_DIR_BACKEND, "images", "Logo.png"))

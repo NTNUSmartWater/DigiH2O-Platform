@@ -2,9 +2,7 @@ import { getState } from "./constants.js";
 
 export let map;
 let currentTileLayer = null, timerCounter;
-
 const CENTER = [62.476969, 6.471598];
-const isPathQuery = getState().isPathQuery;
 export const ZOOM = 13;
 export const L = window.L;
 export const loading = () => document.getElementById('loadingOverlay');
@@ -71,16 +69,14 @@ export function setupMap() {
 export function setupMapEventListeners() {
     const hoverTooltip = L.tooltip({
         permanent: false, direction: 'bottom',
-        sticky: true, offset: [0, 10],
-        className: 'custom-tooltip'
+        sticky: true, offset: [0, 10], className: 'custom-tooltip'
         });
     // Add tooltip
     map.on('mousemove', function (e) {
-        if (!isPathQuery) {
-            map.closeTooltip(hoverTooltip);
-            return;
+        if (!getState().isPathQuery) {
+            map.closeTooltip(hoverTooltip); return;
         }
-        const html = `- Click the left mouse button to select a point.<br>- Right-click to finish the selection.`;
+        const html = `- Click the left mouse button (on mesh) to select a point.<br>- Right-click to finish the selection.`;
         hoverTooltip.setLatLng(e.latlng).setContent(html);
         map.openTooltip(hoverTooltip);
     });

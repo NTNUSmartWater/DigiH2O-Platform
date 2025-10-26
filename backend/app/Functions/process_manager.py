@@ -1,9 +1,10 @@
-import os, json, re, subprocess
+import os, json, re, subprocess, math
 from fastapi import APIRouter, Request, File, UploadFile, Form
 from Functions import functions
+from scipy.interpolate import griddata
 from fastapi.responses import JSONResponse
 from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND
-import xarray as xr
+import xarray as xr, pandas as pd, numpy as np
 
 router = APIRouter()
 
@@ -59,7 +60,9 @@ async def process_data(request: Request):
             data = functions.velocityComputer(request.app.state.hyd_map, value_type, layer_reverse)
         elif key == 'substance_check':
             substance = request.app.state.config[query]
-            if len(substance) > 0: data, status, message = sorted(substance), 'ok', ''
+            if len(substance) > 0:
+                data, status = sorted(substance), 'ok'
+                message = functions.valueToKeyConverter(substance)
             else: data, status, message = None, 'error', f"No substance defined."
             return JSONResponse({'content': data, 'status': status, 'message': message})
         elif key == 'substance':
@@ -73,6 +76,78 @@ async def process_data(request: Request):
     except Exception as e:
         data, status, message = None, 'error', f"Error: {e}"
     return JSONResponse({'content': data, 'status': status, 'message': message})
+
+# Select meshes based on ids
+@router.post("/select_meshes")
+async def select_meshes(request: Request):    
+    body = await request.json()
+    key, query, ids = body.get('key'), body.get('query'), body.get('ids')
+    try:
+        if request.app.state.n_layers is None:
+            return JSONResponse({'message': 'Cannot find water depth in hydrodynamic simulation result.',
+                'content': None, 'status': 'error'}, headers={'Access-Control-Allow-Origin': '*'})
+        data_, time_column = request.app.state.hyd_map.copy(), 'time'
+        if not key == 'hyd':
+            data_, time_column = request.app.state.waq_map.copy(), 'nTimesDlwq' # For water quality
+            if '_waq_multi_dynamic' in query: query = f'mesh2d_{query.replace('_waq_multi_dynamic', '')}'
+        name = functions.variablesNames[query] if query in functions.variablesNames.keys() else query
+        time_stamps = [pd.to_datetime(id).strftime('%Y-%m-%d %H:%M:%S') for id in data_[time_column].values]
+        temp_grid = request.app.state.grid.copy().reset_index()
+        status, message, values, vmin, vmax = 'ok', '', {}, 1e20, -1e-20
+        n_layers = [float(v.split(' ')[1]) for k, v in request.app.state.n_layers.items() if k >= 0]
+        number, n_decimal = max(n_layers, key=abs), 4
+        n_rows, n_cols = len(ids), math.ceil(number/10)*10 if number > 0 else math.floor(number/10)*10
+        for i in range(len(time_stamps)):
+            temp, temp_val = temp_grid.drop(columns=['geometry']).copy(), []
+            for j in range(len(n_layers)):
+                if key == 'hyd': temp_data = data_[name].values[i, :, len(n_layers) - (j + 1)]
+                else: temp_data = data_[name].values[i, len(n_layers) - (j + 1), :]
+                temp['value'] = functions.numberFormatter(temp_data, n_decimal)
+                filtered = temp[temp['index'].isin(ids)]  # Filter by ids
+                filtered = filtered.set_index('index').loc[ids]
+                temp_val.append(filtered.values.flatten())
+            arr = np.full((abs(n_cols), n_rows), None, dtype=object)
+            depth_indices = [int(abs(round(d))) for d in n_layers]
+            temp_val = np.array(temp_val)
+            for k, idx in enumerate(depth_indices):
+                for j in range(temp_val.shape[1]):
+                    if temp_val[k, j] is not None: arr[idx, j] = float(temp_val[k, j])
+            # Convert None values to nan
+            arr = np.array([[np.nan if v is None else v for v in row] for row in arr], dtype=float)
+            # Fill missing top values
+            for k in range(arr.shape[1]):
+                if np.isnan(arr[0, k]): arr[0, k] = temp_val[0, k]
+            # Create grid
+            x, y = np.indices(arr.shape)
+            # Get real value points
+            x_known, y_known = x[~np.isnan(arr)], y[~np.isnan(arr)]
+            values_known = arr[~np.isnan(arr)]
+            # Create grid
+            xi, yi = np.indices(arr.shape)
+            # Create linear interpolation
+            filled = griddata(points=(x_known, y_known), values=values_known, xi=(xi, yi), method='cubic')
+            vmin = float(np.nanmin(filled)) if float(np.nanmin(filled)) < vmin else vmin
+            vmax = float(np.nanmax(filled)) if float(np.nanmax(filled)) > vmax else vmax
+            filled = np.round(filled, n_decimal)
+            values[time_stamps[i]] = filled.tolist()
+        # Restructure data to send to frontend
+        heights = np.arange(0, n_cols) if n_cols > 0 else np.arange(0, n_cols-1, -1)
+
+        # # Example
+        # status, message, values = 'ok', '', {}
+        # time_stamps = ['']
+        # ids = np.arange(0, 54).tolist()
+        # heights = np.arange(1, 104)
+        # val = np.array(pd.read_csv('ok.csv', index_col=0))
+        # vmin = float(np.nanmin(val)) if float(np.nanmin(val)) < vmin else vmin
+        # vmax = float(np.nanmax(val)) if float(np.nanmax(val)) > vmax else vmax
+        # values[time_stamps[0]] = val.tolist()
+
+        data = { "timestamps": time_stamps, "ids": ids, "depths": heights.tolist(), "values": values, "minmax": [vmin, vmax] }
+        data = functions.clean_nans(data)
+    except Exception as e:
+        data, status, message = None, 'error', f"Error: {e}"
+    return JSONResponse({'content': data, 'status': status, 'message': message}, headers={'Access-Control-Allow-Origin': '*'})
 
 # Read grid
 @router.post("/open_grid")
@@ -89,23 +164,6 @@ async def open_grid(request: Request):
     except Exception as e:
         status, message, data = 'error', f"Error: {str(e)}", None
     return JSONResponse({"status": status, "message": message, "content": data})
-
-@router.post("/select_polygon")
-async def select_polygon(request: Request):
-    body = await request.json()
-    key, idx = body.get('key'), int(body.get('id'))
-    try:
-        data_, time_column, column_layer = request.app.state.hyd_map, 'time', 'mesh2d_layer_z'
-        if '_waq_multi_dynamic' in key:
-            key = f"mesh2d_{key.replace('_waq_multi_dynamic', '')}"
-            data_, time_column, column_layer = request.app.state.waq_map, 'nTimesDlwq', 'mesh2d_layer_dlwq'
-        temp = functions.selectPolygon(data_, idx, key, time_column, column_layer)
-        data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
-        status, message = 'ok', 'Data loaded successfully.'
-    except:
-        data, status, message = None, 'error', 'File not found.'
-    result = {'content': data, 'status': status, 'message': message}
-    return JSONResponse(content=result)
 
 @router.post("/initiate_options")
 async def initiate_options(request: Request):

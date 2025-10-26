@@ -3,9 +3,7 @@ import { initializeMap, baseMapButtonFunctionality } from './mapManager.js';
 import { startLoading, showLeafletMap, map } from './mapManager.js';
 import { plotChart, plotEvents, drawChart, plotWindow } from './chartManager.js';
 import { timeControl, colorbar_container } from "./map2DManager.js";
-// import { deactivePointQuery, deactivePathQuery } from "./queryManager.js";
 import { generalOptionsManager } from './generalOptionManager.js';
-// import { dynamicMapManager } from './dynamicMapManager.js';
 import { spatialMapManager } from './spatialMapManager.js';
 import { sendQuery } from './tableManager.js';
 import { resetState } from './constants.js';
@@ -43,9 +41,6 @@ const simulationCloseBtn = () => document.getElementById('closeSimulationWindow'
 const waqWindow = () => document.getElementById('waqWindow');
 const waqWindowHeader = () => document.getElementById('waqWindowHeader');
 const waqCloseBtn = () => document.getElementById('closeWAQWindow');
-const profileWindow = () => document.getElementById('profileWindow');
-const profileWindowHeader = () => document.getElementById('profileWindowHeader');
-const profileCloseBtn = () => document.getElementById('closeProfileWindow');
 const waqProgressbar = () => document.getElementById('progressbar');
 const waqProgressText = () => document.getElementById('progress-text');
 const mapContainer = () => map.getContainer();
@@ -68,7 +63,7 @@ async function showPopupMenu(id, htmlFile) {
         }
         popupContent().innerHTML = html;
         if (id === '1') generalOptionsManager(); // Events on general options submenu
-        if (id === '2') measuredObservationsManager(); // Events on measured points submenu
+        if (id === '2') timeSeriesManager(); // Events on time series measurement submenu
         if (id === '3') spatialMapManager(); // Events on spatial map submenu
     } catch (error) {alert(error + ': ' + htmlFile);}
 }
@@ -144,6 +139,7 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
 iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
                     projectOpenWindowContent(), "Select Project with Simulation Result(s)");
 
+
 function updateEvents() {
     // Search locations
     locationSearcher().addEventListener('input', (e) => {
@@ -174,10 +170,7 @@ function updateEvents() {
     if (window.__menuEventsBound) return;
     window.__menuEventsBound = true;
     const pm = popupMenu();
-    if (pm){
-        pm.addEventListener('mouseenter', () => pm.classList.add('show'));
-        pm.addEventListener('mouseleave', () => pm.classList.remove('show'));
-    }
+    if (pm) pm.addEventListener('mouseenter', () => pm.classList.add('show')); 
     document.addEventListener('click', (e) => {
         // Close the popup menu if clicked outside
         if (pm && !pm.contains(e.target)) pm.classList.remove('show');
@@ -223,7 +216,6 @@ function updateEvents() {
             sugesstionSearcher().style.display = 'none';
         }
     });
-    
     popupContent().addEventListener('click', (e) => {
         const project = e.target.closest('.project');
         if (project) {
@@ -341,6 +333,7 @@ function updateEvents() {
                 const marker = L.marker([parseFloat(lat), parseFloat(lon)], { icon: customIcon }).addTo(map);
                 marker.bindPopup(name); markersPoints.push(marker);
             })
+            alert('Observation points updated. See the map for details.');
         }
         if (event.data?.type === 'pickCrossSection' || event.data?.type === 'clearCrossSection') { 
             if (event.data?.type === 'pickCrossSection') {
@@ -426,17 +419,14 @@ function updateEvents() {
     moveWindow(contactInfo, contactInfoHeader); moveWindow(projectOpenWindow, projectOpenWindowHeader);
     moveWindow(projectSetting, projectSettingHeader); moveWindow(simulationWindow, simulationHeader);
     moveWindow(substanceWindow, substanceWindowHeader); moveWindow(waqWindow, waqWindowHeader);
-    moveWindow(profileWindow, profileWindowHeader);
     // Close windows
     substanceWindowCloseBtn().addEventListener('click', () => { 
         substanceWindow().style.display = 'none'; plotWindow().style.display = 'none';
         map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
-        if (timeControl().style.display === 'flex') timeControl().style.display = 'none';
-        if (colorbar_container().style.display === 'block') colorbar_container().style.display = 'none';
+        timeControl().style.display = 'none'; colorbar_container().style.display = 'none';
     });
     contactInfoCloseBtn().addEventListener('click', () => { contactInfo().style.display = 'none'; });
     projectOpenCloseBtn().addEventListener('click', () => { projectOpenWindow().style.display = 'none'; });
-    profileCloseBtn().addEventListener('click', () => { profileWindow().style.display = 'none'; });
     projectSettingCloseBtn().addEventListener('click', () => { 
         // Clear map
         map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
@@ -444,7 +434,6 @@ function updateEvents() {
     });
     simulationCloseBtn().addEventListener('click', () => { simulationWindow().style.display = 'none'; });
     waqCloseBtn().addEventListener('click', () => { waqWindow().style.display = 'none'; });
-    profileCloseBtn().addEventListener('click', () => { profileWindow().style.display = 'none'; });
     map.on('mousemove', function (e) {
         if (!pickerState.location && !pickerState.point && !pickerState.source && !pickerState.crosssection && 
             !pickerState.boundary) {
@@ -546,7 +535,7 @@ function hidePicker(key, data, type){
     projectSetting().style.display = 'flex';
 }
 
-function measuredObservationsManager() {
+function timeSeriesManager() {
     // Set function for plot using Plotly
     document.querySelectorAll('.function').forEach(plot => {
         plot.addEventListener('click', () => {
@@ -562,18 +551,18 @@ function measuredObservationsManager() {
             if (data.status === "error") {alert(data.message); substanceWindow().style.display = 'none'; return;}
             substanceWindowContent().innerHTML = '';
             // Add content
-            substanceWindowContent().innerHTML = data.content.map((substance, i) => 
+            substanceWindowContent().innerHTML = data.message.map((substance, i) => 
                 `<label for="${substance}"><input type="radio" name="waq-substance" id="${substance}"
-                    value="${substance}" ${i === 0 ? 'checked' : ''}>${substance}</label>`).join('');
+                    value="${data.content[i]}" ${i === 0 ? 'checked' : ''}>${data.content[i]}</label>`).join('');
             substanceWindow().style.display = 'flex';
-            plotChart(data.content[0], 'substance', `Substance: ${data.content[0]}`, 'Time', data.content[0], false);
+            plotChart(data.message[0], 'substance', `Substance: ${data.content[0]}`, 'Time', data.content[0]);
         });
     });
     // Listen to substance selection
     substanceWindowContent().addEventListener('change', (e) => {
         if (e.target && e.target.name === "waq-substance") {
-            const value = e.target.value;
-            plotChart(value, 'substance', `Substance: ${value}`, 'Time', value, false);
+            const id = e.target.id, value = e.target.value;
+            plotChart(id, 'substance', `Substance: ${value}`, 'Time', value);
         }
     });
 }
