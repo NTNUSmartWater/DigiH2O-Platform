@@ -89,8 +89,7 @@ async def wq_time(request: Request):
                 subset = group[group['substance'] == item].copy()
                 subset.index = pd.to_datetime(subset.index)
                 temp_df[item] = pd.to_numeric(subset.value, errors="coerce")
-            temp_df = temp_df.sort_index(ascending=True)
-            temp_df = temp_df.fillna(-999)
+            temp_df = temp_df.sort_index(ascending=True).fillna(-999)
             temp_df.index = [x.strftime('%Y/%m/%d-%H:%M:%S') for x in temp_df.index]
             temp_df.reset_index(inplace=True)
             lst = temp_df.astype(str).values.tolist() # Convert to string
@@ -110,10 +109,8 @@ async def check_sim_status_waq(request: Request):
     if project_name in processes:
         info = processes[project_name]
         status = "stopped" if info.get("stopped") else info.get("status", "none")
-        return JSONResponse({
-            "status": status,
-            "progress": info.get("progress", 0),
-            "logs": info.get("logs", [])
+        return JSONResponse({ "status": status,
+            "progress": info.get("progress", 0), "logs": info.get("logs", [])
         })
     return JSONResponse({"status": "none", "progress": 0, "logs": []})
 
@@ -273,6 +270,7 @@ async def subprocessRunner(cmd, cwd, websocket, project_name, progress_regex=Non
     finally:
         process.stdout.close()
         process.stderr.close()
-        process.wait(timeout=3)
+        try: process.wait(timeout=3)
+        except subprocess.TimeoutExpired: kill_process(process)
         if process.poll() is None: kill_process(process)
     return success

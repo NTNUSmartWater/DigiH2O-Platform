@@ -11,9 +11,9 @@ processes = {}
 @router.post("/check_folder")
 async def check_folder(request: Request):
     body = await request.json()
-    project_name, folder = body.get('projectName'), list(body.get('folder'))
-    folders = [PROJECT_STATIC_ROOT, project_name] + folder
-    path = os.path.join(*folders)
+    project_name, folder = body.get('projectName'), body.get('folder', [])
+    if isinstance(folder, str): folder = [folder]
+    path = os.path.join(PROJECT_STATIC_ROOT, project_name, *folder)
     status = 'ok' if os.path.exists(path) else 'error'
     return JSONResponse({"status": status})
 
@@ -22,20 +22,18 @@ async def check_folder(request: Request):
 async def check_sim_status_hyd(request: Request):
     body = await request.json()
     project_name = body.get("projectName")
-    if project_name in processes:
-        info = processes[project_name]
-        return JSONResponse({
-            "status": "running" if info["status"] == "running" else "finished",
-            "progress": info["progress"],
-            "logs": info["logs"]
-        })
+    info = processes.get(project_name)
+    if info:
+        return JSONResponse({ "status": "running" if info["status"] == "running" else "finished",
+            "progress": info["progress"], "logs": info["logs"] })
     return JSONResponse({"status": "none", "progress": 0, "logs": []})
 
 # Start a hydrodynamic simulation
 @router.post("/start_sim_hyd")
 async def start_sim_hyd(request: Request):
     body = await request.json()
-    project_name = body["projectName"]
+    project_name = body.get("projectName")
+    # Check if simulation already running
     if project_name in processes and processes[project_name]["status"] == "running":
         return JSONResponse({"status": "error", "message": "Simulation is already running."})
     path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
@@ -47,41 +45,44 @@ async def start_sim_hyd(request: Request):
     # Run the process
     process = subprocess.Popen(
         command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8",
-        errors="replace", text=True, shell=False, bufsize=1, cwd=path
+        errors="replace", text=True, shell=True, bufsize=1, cwd=path
     )
     processes[project_name] = {"process": process, "progress": 0, "logs": [], "status": "running"}
     def stream_logs():
         progress_pattern = re.compile(r"(\d+(?:\.\d+)?)%")
-        for line in process.stdout:
-            line = line.strip()
-            if not line: continue
-            processes[project_name]["logs"].append(line)
-            # Catch error messages
-            if "forrtl:" in line.lower():
-                processes[project_name]["logs"].append(f"[ERROR] {line}")
-                if process.poll() is None: 
-                    try:
-                        subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    except Exception as e: processes[project_name]["status"] = "error"
+        try:
+            for line in process.stdout:
+                line = line.strip()
+                if not line: continue
+                logs = processes[project_name]["logs"]
+                logs.append(line)
+                # Limit log size
+                if len(logs) > 4000: processes[project_name]["logs"] = logs[-4000:]
+                # Catch error messages
+                if "forrtl:" in line.lower():
+                    processes[project_name]["logs"].append(f"[ERROR] {line}")
+                    processes[project_name]["status"] = "error"
+                    process.kill()
+                    break
+                # Check for progress
+                match = progress_pattern.search(line)
+                if match:
+                    processes[project_name]["progress"] = float(match.group(1))
+        finally:
+            process.wait()
+            status = processes[project_name]["status"]
+            if status != "error":
                 processes[project_name]["status"] = "finished"
-                break
-            # Check for progress
-            match = progress_pattern.search(line)
-            if match:
-                processes[project_name]["progress"] = float(match.group(1))
-        process.wait()
-        # Post process
-        if processes[project_name]["status"] != "error":
-            processes[project_name]["status"] = "finished"
-            try:
-                post_result = functions.postProcess(path)
-                if post_result["status"] == "error": msg = f"[ERROR] {post_result['message']}"
-                else: msg = f"[FINISHED] {post_result['message']}"
-                processes[project_name]["logs"].append(msg)
-            except Exception as e: processes[project_name]["logs"].append(f"[POSTPROCESS FAILED] {str(e)}")
+                try:
+                    post_result = functions.postProcess(path)
+                    msg = f"[FINISHED] {post_result['message']}" if post_result["status"] == "ok" else f"[ERROR] {post_result['message']}"
+                    processes[project_name]["logs"].append(msg)
+                except Exception as e: processes[project_name]["logs"].append(f"[POSTPROCESS FAILED] {str(e)}")
+            # Clean up
+            processes[project_name]["progress"] = 100
+            processes[project_name]["logs"].append("[CLEANUP] Done.")
     threading.Thread(target=stream_logs, daemon=True).start()
-    return JSONResponse({"status": "ok", "message": "Simulation started."})
+    return JSONResponse({"status": "ok", "message":  f"Simulation {project_name} started."})
 
 @router.websocket("/sim_progress_hyd/{project_name}")
 async def sim_progress_hyd(websocket: WebSocket, project_name: str):
@@ -89,21 +90,27 @@ async def sim_progress_hyd(websocket: WebSocket, project_name: str):
     try:
         last_log, last_progress = 0, None
         while True:
-            if project_name not in processes:
+            info = processes.get(project_name)
+            if not info:
                 await websocket.send_text("[ERROR] No such simulation.")
                 break
-            info = processes[project_name]
             logs = info["logs"]
             # Send new logs to the client
             while last_log < len(logs):
-                await websocket.send_text(logs[last_log])
+                msg = logs[last_log]
+                await websocket.send_text(msg[:4000])  # Limit message size
                 last_log += 1
             # Send progress to the client if it has changed
             if info["progress"] != last_progress:
                 last_progress = info["progress"]
-                await websocket.send_text(f"[PROGRESS] {last_progress}")
+                await websocket.send_text(f"[PROGRESS] {last_progress:.2f}")
             if info["status"] != "running":
                 await websocket.send_text(f"[FINISHED] Simulation {info['status']}.")
                 break
             await asyncio.sleep(1)
     except WebSocketDisconnect: pass
+    finally:
+        # Clean up if the simulation is finished
+        if project_name in processes and processes[project_name]["status"] != "running":
+            del processes[project_name]
+            

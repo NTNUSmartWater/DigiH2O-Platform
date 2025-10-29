@@ -1,5 +1,5 @@
 
-import os, shutil, subprocess, re, json
+import os, shutil, subprocess, re, json, asyncio
 import numpy as np
 from fastapi.templating import Jinja2Templates
 from fastapi import APIRouter, Request
@@ -33,32 +33,28 @@ async def setup_database(request: Request):
     body = await request.json()
     project_name, params = body.get('projectName'), body.get('params')
     request.app.state.templates = None
+    loop = asyncio.get_event_loop()
+    dm = request.app.state.dataset_manager
     try:
         # Set PROJECT_DIR
         project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
-        request.app.state.PROJECT_DIR = project_folder
-        # Templates
-        request.app.state.templates = Jinja2Templates(directory="static/templates")
         output_dir = os.path.join(project_folder, "output")
+        request.app.state.PROJECT_DIR = project_folder
+        request.app.state.templates = Jinja2Templates(directory="static/templates")
         # Reset app state
-        dm = request.app.state.dataset_manager
-        request.app.state.waq_model, request.app.state.config = None, None
-        request.app.state.hyd_his, request.app.state.hyd_map = None, None
-        request.app.state.waq_his, request.app.state.waq_map = None, None
-        request.app.state.grid, request.app.state.n_layers = None, None
+        request.app.state.waq_model = request.app.state.config = None
+        request.app.state.hyd_his = request.app.state.hyd_map = None
+        request.app.state.waq_his = request.app.state.waq_map = None
+        request.app.state.grid = request.app.state.n_layers = None
+        # Load datasets asynchronously
+        async def load_dataset(path):
+            if os.path.exists(path): return await loop.run_in_executor(None, lambda: dm.get(path))
+            return None
         # Assign datasets
-        if params[0]:
-            path = os.path.join(output_dir, 'HYD', params[0])
-            if os.path.exists(path): request.app.state.hyd_his = dm.get(path)
-        if params[1]:
-            path = os.path.join(output_dir, 'HYD', params[1])
-            if os.path.exists(path): request.app.state.hyd_map = dm.get(path)
-        if params[2]:
-            path = os.path.join(output_dir, 'WAQ', params[2])
-            if os.path.exists(path): request.app.state.waq_his = dm.get(path)
-        if params[3]:
-            path = os.path.join(output_dir, 'WAQ', params[3])
-            if os.path.exists(path): request.app.state.waq_map = dm.get(path)
+        if params[0]: request.app.state.hyd_his = await load_dataset(os.path.join(output_dir, 'HYD', params[0]))
+        if params[1]: request.app.state.hyd_map = await load_dataset(os.path.join(output_dir, 'HYD', params[1]))
+        if params[2]: request.app.state.waq_his = await load_dataset(os.path.join(output_dir, 'WAQ', params[2]))
+        if params[3]: request.app.state.waq_map = await load_dataset(os.path.join(output_dir, 'WAQ', params[3]))
         # Get WAQ model
         temp = params[2].replace('_his.nc', '') if params[2] != '' else params[3].replace('_his.nc', '')
         model_path = os.path.join(output_dir, 'WAQ', f'{temp}.json')
@@ -97,18 +93,20 @@ async def delete_project(request: Request):
     body = await request.json()
     project_name = body.get('projectName')
     project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
-    if not os.path.exists(project_folder): return JSONResponse({"status": 'error', "message": f"Project '{project_name}' does not exist."})
+    if not os.path.exists(project_folder): 
+        return JSONResponse({"status": 'error', "message": f"Project '{project_name}' does not exist."})
     try:
         shutil.rmtree(project_folder, onexc=functions.remove_readonly)
-        status, message = 'ok', f"Project '{project_name}' was deleted successfully."
-    except:
+        return JSONResponse({"status": "ok", "message": f"Project '{project_name}' was deleted successfully."})
+    except PermissionError as e:
         if os.name == 'nt':
             try:
                 subprocess.run(['rmdir', '/s', '/q', project_folder], shell=True, check=True)
                 return JSONResponse({"status": "ok", "message": f"Project '{project_name}' was deleted successfully."})
-            except Exception as e2:
+            except subprocess.CalledProcessError as e2:
                 return JSONResponse({"status": "error", "message": f"Error: {str(e2)}"})
-    return JSONResponse({"status": status, "message": message})
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": f"Error: {str(e)}"}) 
 
 # Open a project
 @router.post("/select_project")
@@ -119,9 +117,7 @@ async def select_project(request: Request):
         if key == 'getProjects': # List the projects that doesn't have a folder output
             project = [p.name for p in os.scandir(PROJECT_STATIC_ROOT) if p.is_dir()]
             # Check if folder ouput exists
-            for p in project:
-                if not os.path.exists(os.path.join(PROJECT_STATIC_ROOT, p, folder_check)):
-                    project.remove(p)
+            project = [p for p in project if not os.path.exists(os.path.join(PROJECT_STATIC_ROOT, p, folder_check))]
             data = sorted(project)
         elif key == 'getFiles': # List the files
             project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
@@ -129,8 +125,8 @@ async def select_project(request: Request):
             waq_folder = os.path.join(project_folder, "output", 'WAQ')
             hyd_files, waq_files = [], []
             if os.path.exists(hyd_folder):
-                hyd_files = [f for f in os.listdir(hyd_folder) if f.endswith(".nc")]
-                hyd_files = set([f.replace('_his.nc', '').replace('_map.nc', '') for f in hyd_files])
+                hyd_files = [f for f in os.listdir(hyd_folder) if f.endswith(".zarr")]
+                hyd_files = set([f.replace('_his.zarr', '').replace('_map.zarr', '') for f in hyd_files])
             if os.path.exists(waq_folder):
                 waq_files = [f for f in os.listdir(waq_folder) if f.endswith(".json")]
                 waq_files = set([f.replace('.json', '') for f in waq_files])
@@ -176,9 +172,10 @@ async def save_obs(request: Request):
     body = await request.json()
     project_name, file_name = body.get('projectName'), body.get('fileName')
     data, key = body.get('data'), body.get('key')
-    try:
-        path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
-        with open(os.path.join(path, file_name), 'w') as f:
+    path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
+    file_path = os.path.join(path, file_name)
+    def write_file():
+        with open(file_path, 'w', encoding="utf-8") as f:
             if key == 'obs':
                 for line in data:
                     f.write(f"{line[2]}  {line[1]}  '{line[0]}'\n")
@@ -189,6 +186,9 @@ async def save_obs(request: Request):
                 f.write(f"    {data.shape[0]}    2\n")
                 for line in data:
                     f.write(f"{line[2]}  {line[1]}  {line[0]}\n")
+    try:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, write_file)
         status, message = 'ok', 'Observations saved successfully.'
     except Exception as e:
         status, message = 'error', f"Error: {str(e)}"
@@ -199,43 +199,48 @@ async def save_obs(request: Request):
 async def save_source(request: Request):
     body = await request.json()
     project_name, source_name = body.get('projectName'), body.get('nameSource')
-    lat, lon, data, key = body.get('lat'), body.get('lon'), body.get('data'), body.get('key')
+    lat, lon, data = body.get('lat'), body.get('lon'), body.get('data')
     try:
         path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
-        if key == 'saveSource':
-            update_content = 'QUANTITY=discharge_salinity_temperature_sorsin\n' + \
-                f'FILENAME={source_name}.pli\n' + 'FILETYPE=9\n' + 'METHOD=1\n' + 'OPERAND=O\n' + 'AREA=1'
+        os.makedirs(path, exist_ok=True)
+        update_content = 'QUANTITY=discharge_salinity_temperature_sorsin\n' + \
+            f'FILENAME={source_name}.pli\n' + 'FILETYPE=9\n' + 'METHOD=1\n' + 'OPERAND=O\n' + 'AREA=1'
         # Write old format boundary file (*.ext)
         ext_path = os.path.join(path, "FlowFM.ext")
         if os.path.exists(ext_path):
             with open(ext_path, encoding="utf-8") as f:
                 content = f.read()
-            parts = re.split(r'\n\s*\n', content)
-            parts = [p.strip() for p in parts if p.strip()]
-            if (any(source_name in part for part in parts)): 
-                index = parts.index([part for part in parts if source_name in part][0])
-                parts[index] = update_content
-            else: parts.append(update_content)
-            with open(ext_path, 'w') as file:
-                file.write(f"\n{'\n\n'.join(parts)}\n")
-        else:
-            with open(ext_path, 'w') as f:
-                f.write(f"\n{update_content}\n")
+            blocks = re.split(r'\n\s*\n', content)
+            blocks = [p.strip() for p in blocks if p.strip()]
+            updated = False
+            for i, block in enumerate(blocks):
+                if f'FILENAME={source_name}.pli' in block:
+                    blocks[i] = update_content
+                    updated = True
+                    break
+            if not updated:
+                blocks.append(update_content)
+            new_content = '\n\n'.join(blocks)
+        else: new_content = f"\n{update_content}\n"
+        with open(ext_path, 'w', encoding="utf-8") as f:
+            f.write(new_content.strip() + "\n")
         # Write .pli file
-        with open(os.path.join(path, f"{source_name}.pli"), 'w') as f:
+        pli_path = os.path.join(path, f"{source_name}.pli")
+        with open(pli_path, 'w', encoding="utf-8") as f:
             f.write(f'{source_name}\n')
             f.write('    1    2\n')
             f.write(f"{lon}  {lat}")
         # Write .tim file
-        with open(os.path.join(path, f"{source_name}.tim"), 'w') as f:
+        tim_path = os.path.join(path, f"{source_name}.tim")
+        with open(tim_path, 'w', encoding="utf-8") as f:
             for row in data:
-                row[0] = int(row[0]/(1000.0*60.0))
-                temp = '  '.join([str(r) for r in row])
-                f.write(f"{temp}\n")
-        status, message = 'ok', f"Source '{source_name}' saved successfully."
+                try: t = float(row[0])/(1000.0*60.0)
+                except Exception: t = 0
+                values = [str(t)] + [str(r) for r in row[1:]]
+                f.write('  '.join(values) + '\n')
+        return JSONResponse({"status": 'ok', "message": f"Source '{source_name}' saved successfully."})
     except Exception as e:
-        status, message = 'error', f"Error: {str(e)}"
-    return JSONResponse({"status": status, "message": message})
+        return JSONResponse({"status": 'error', "message": f"Error: {str(e)}"})
 
 # Get list of source from .ext file
 @router.post("/init_source")
@@ -266,7 +271,7 @@ async def init_source(request: Request):
                         tim_path = os.path.join(temp_path, f"{item_remove}.tim")
                         if os.path.exists(pli_path): os.remove(pli_path)
                         if os.path.exists(tim_path): os.remove(tim_path)
-            with open(path, 'w') as file:
+            with open(path, 'w', encoding="utf-8") as file:
                 file.write(f"\n{'\n\n'.join(parts)}\n")
         status, data, type = 'ok', [], []
         for part in parts:
