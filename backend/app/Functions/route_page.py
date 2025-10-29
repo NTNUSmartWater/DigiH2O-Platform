@@ -42,9 +42,9 @@ async def load_popupMenu(request: Request, htmlFile: str):
     if not request.app.state.config:
         if (request.app.state.waq_his or request.app.state.waq_map) and not request.app.state.waq_model:
             return JSONResponse({"status": 'error', "message": "Some WAQ-related parameters are missing.\nConsider running the model again."})
-        NCfiles = [request.app.state.hyd_his, request.app.state.hyd_map, 
+        files = [request.app.state.hyd_his, request.app.state.hyd_map, 
             request.app.state.waq_his, request.app.state.waq_map]
-        request.app.state.config = functions.getVariablesNames(NCfiles, request.app.state.waq_model)
+        request.app.state.config = functions.getVariablesNames(files, request.app.state.waq_model)
     return templates.TemplateResponse(htmlFile, {"request": request, 'configuration': request.app.state.config})
 
 # Load open project

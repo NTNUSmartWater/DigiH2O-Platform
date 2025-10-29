@@ -131,9 +131,7 @@ export function drawChart(data, chartTitle, titleX, titleY, selectedColumns=null
     let drawColumns;
     if (allCheckbox && allCheckbox.checked) drawColumns = cols.slice(1);
     else drawColumns = selectedColumns;
-    if (drawColumns.length === 0) {
-        Plotly.purge(chartDiv()); return;
-    }
+    if (drawColumns.length === 0) { Plotly.purge(chartDiv()); return; }
     const traces = [];
     let traceIndex = 0;
     const n = drawColumns.length;  
@@ -143,24 +141,23 @@ export function drawChart(data, chartTitle, titleX, titleY, selectedColumns=null
         const y = rows.map(r => r[i]);
         const t = n <= 1 ? 0 : traceIndex / (n - 1);
         const color = interpolateJet(1-t);
-        traces.push({
-            x: x, y: y, name: cols[i],
+        traces.push({ x: x, y: y, name: cols[i],
             type: 'scatter', mode: 'lines', line: { color: color }
         });
         traceIndex++;
     }
-    if (traces.length === 0) {
-        Plotly.purge(chartDiv()); return;
-    }
+    if (traces.length === 0) { Plotly.purge(chartDiv()); return; }
     const layout = {
-        margin: {l: 60, r: 0, t: 5, b: 40},
+        margin: {l: 60, r: 0, t: 5, b: 70}, paper_bgcolor: '#c2bdbdff', plot_bgcolor: '#c2bdbdff',
         xaxis: {
-            title:{text: titleX, font: { size: 16, weight: 'bold' }},
-            showgrid: true, gridcolor: '#ccc' 
+            title:{text: titleX, font: { size: 16, weight: 'bold', color: 'black' }},
+            showgrid: false, linecolor: 'black', tickfont: { color: 'black' },
+            automargin: true, ticks: 'outside', linewidth: 1, tickmode: 'auto'
         },
         yaxis: {
-            title:{text: titleY, font: { size: 13, weight: 'bold' }}, 
-            showgrid: true, gridcolor: '#ccc'
+            title:{text: titleY, font: { size: 16, weight: 'bold', color: 'black' }}, 
+            showgrid: false, linecolor: 'black', tickfont: { color: 'black' },
+            automargin: true, ticks: 'outside', linewidth: 1, tickmode: 'auto'
         },
     };
     Plotly.purge(chartDiv()); // Clear the chart
@@ -183,8 +180,7 @@ function numberFormatter(num, decimals) {
 function viewData() {
     const data = chartDiv().data?.[0];
     if (!data) {
-        alert("No data to view.");
-        return;
+        alert("No data to view."); return;
     }
     // Get the y values
     const numTraces = chartDiv().data.length;
@@ -258,7 +254,6 @@ export function saveToExcel() {
     // Download the Excel file
     XLSX.writeFile(workbook, `${titleY.split(' (')[0]}.xlsx`);
 }
-
 export function plotProfileSingleLayer(pointContainer, polygonCentroids, title, titleY, titleX='Distance (m)', n_decimals) {
     const subset_dis = 20, interpolatedPoints = [];
     // Convert Lat, Long to x, y
@@ -391,13 +386,14 @@ function renderPlot(plotDiv, timestamps, ids, depths, values, nColors, title, un
     const layout = { title: { text: title, font: { color: 'black', weight: 'bold', size: 20 } },
         paper_bgcolor: '#c2bdbdff', plot_bgcolor: '#c2bdbdff',
         xaxis: {
-            title: {text: `Slice index (Selected slices: ${ids.length})`, font: { color: 'black' }},
-            type: 'category', automargin: true, mirror: true, showgrid: false,
+            title: {text: `Slice indexes (Selected slices: ${ids.length})`, font: { color: 'black' }},
+            type: 'category', automargin: true, mirror: true, showgrid: false, tickmode: 'auto',
             showline: true, linewidth: 1, linecolor: 'black', tickfont: { color: 'black' }
         },
         yaxis: {
             title: {text: 'Depth (m)', font: { color: 'black' }}, autorange: reverseDepth ? 'reversed' : true,
-            mirror: true, showline: true, linewidth: 1, linecolor: 'black', showgrid: false, tickfont: { color: 'black' }
+            mirror: true, showline: true, linewidth: 1, linecolor: 'black', 
+            showgrid: false, tickfont: { color: 'black' }, tickmode: 'auto'
         },
         margin: { l: 70, r: true ? 60 : 20, t: 50, b: 50 },
         sliders: [{

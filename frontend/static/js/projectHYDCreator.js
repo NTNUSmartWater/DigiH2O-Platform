@@ -443,8 +443,7 @@ function updateOption(){
         const lon = sourceLongitude().value;
         if (table.rows.length === 0) { alert('No data to save. Please check the table.'); return; }
         if (lat === '' || lon === '' || name === ''){ alert('Please check Name/Latitude/Longitude.'); return; }
-        const content = {projectName: nameProject, nameSource: name, key: 'saveSource',
-            lat: lat, lon: lon, data: table.rows}
+        const content = {projectName: nameProject, nameSource: name, lat: lat, lon: lon, data: table.rows}
         const data = await sendQuery('save_source', content);
         updateTable(sourceRemoveTable(), sourceSelectorRemove(), nameProject);
         alert(data.message);
