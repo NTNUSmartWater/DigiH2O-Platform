@@ -4,7 +4,7 @@ import { plotChart, plotProfileSingleLayer, plotProfileMultiLayer } from "./char
 import { n_decimals, getState, setState } from "./constants.js";
 import { startLoading, showLeafletMap, map, L, ZOOM } from "./mapManager.js";
 
-const summaryWindow = () => document.getElementById("summaryWindow");
+export const summaryWindow = () => document.getElementById("summaryWindow");
 const summaryHeader = () => document.getElementById("summaryHeader");
 const summaryContent = () => document.getElementById("summaryContent");
 const projectSummaryOption = () => document.getElementById('projectSummaryOption');

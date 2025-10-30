@@ -56,7 +56,14 @@ async def start_sim_hyd(request: Request):
             if len(logs) > 4000:
                 processes[project]["logs"] = logs[-4000:]
     def stream_logs():
-        progress_pattern = re.compile(r"(\d+(?:\.\d+)?)%")
+        progress_pattern = re.compile(
+            r"(?P<sim_time_done>\d+d\s+\d+:\d+:\d+)\s+"
+            r"(?P<sim_time_left>\d+d\s+\d+:\d+:\d+)\s+"
+            r"(?P<real_time_used>\d+d\s+\d+:\d+:\d+)\s+"
+            r"(?P<real_time_left>\d+d\s+\d+:\d+:\d+)\s+"
+            r"\d+\s+"
+            r"(?P<percent>\d+(?:\.\d+)?)%"
+        )
         try:
             for line in process.stdout:
                 line = line.strip()
@@ -73,7 +80,9 @@ async def start_sim_hyd(request: Request):
                 # Check for progress
                 match = progress_pattern.search(line)
                 if match and project_name in processes:
-                    processes[project_name]["progress"] = float(match.group(1))
+                    processes[project_name]["progress"] = float(match.group("complete"))
+                    processes[project_name]["real_time_used"] = match.group("real_time_used")
+                    processes[project_name]["real_time_left"] = match.group("real_time_left")
         finally:
             process.wait()
             if project_name not in processes:
@@ -112,7 +121,9 @@ async def sim_progress_hyd(websocket: WebSocket, project_name: str):
             # Send progress to the client if it has changed
             if info["progress"] != last_progress:
                 last_progress = info["progress"]
-                await websocket.send_text(f"[PROGRESS] {last_progress:.2f}")
+                real_used = info.get("real_time_used", "N/A")
+                real_left = info.get("real_time_left", "N/A")
+                await websocket.send_text(f"[PROGRESS] {last_progress:.2f}|{real_used}|{real_left}")
             if info["status"] != "running":
                 await websocket.send_text(f"[FINISHED] Simulation {info['status']}.")
                 break

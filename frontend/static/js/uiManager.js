@@ -3,7 +3,7 @@ import { initializeMap, baseMapButtonFunctionality } from './mapManager.js';
 import { startLoading, showLeafletMap, map } from './mapManager.js';
 import { plotChart, plotEvents, drawChart, plotWindow } from './chartManager.js';
 import { timeControl, colorbar_container } from "./map2DManager.js";
-import { generalOptionsManager } from './generalOptionManager.js';
+import { generalOptionsManager, summaryWindow } from './generalOptionManager.js';
 import { spatialMapManager } from './spatialMapManager.js';
 import { sendQuery } from './tableManager.js';
 import { resetState } from './constants.js';
@@ -78,8 +78,9 @@ async function projectChecker(name=null, params=null) {
     map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
     resetState();  // Reset variables
     if (name === null) return;
+    if (summaryWindow().style.display !== 'flex') summaryWindow().style.display = 'none';  // Close summary window if open
     projectTitle().textContent = `Project: ${name}`;
-    startLoading('Reading Simulation Outputs and Setting up Database.\nThis takes for a while. Please wait...');
+    startLoading('Reading Simulation Outputs and Setting up Database.\nThis takes time for the first time. Please wait...');
     const data = await sendQuery('setup_database', {projectName: name, params: params});
     if (data.status === "error") {alert(data.message); location.reload(); }
     showLeafletMap();
@@ -249,7 +250,7 @@ function updateEvents() {
     });
     // Listent events from open project iframe
     window.addEventListener('message', async (event) => {
-        if (event.data?.type === 'projectConfirmed') {          
+        if (event.data?.type === 'projectConfirmed') {
             projectChecker(event.data.project, event.data.values);
             projectOpenWindow().style.display = 'none';
         }

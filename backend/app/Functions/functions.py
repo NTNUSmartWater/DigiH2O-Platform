@@ -129,7 +129,7 @@ def checkVariables(data: xr.Dataset, variablesNames: str) -> bool:
         return bool(vmin != vmax)
     except Exception: return False
 
-def getVariablesNames(Out_files: list, model_type: str=None) -> dict:
+def getVariablesNames(Out_files: list, model_type: str='') -> dict:
     """
     Get the names of the variables in the dataset received from *.nc file.
 
@@ -150,7 +150,7 @@ def getVariablesNames(Out_files: list, model_type: str=None) -> dict:
         if data is None: continue
         # This is a hydrodynamic his file
         if 'time' in data.sizes and any(k in data.sizes for k in ['stations', 'cross_section', 'source_sink']):
-            print(f"- Checking Hydrodynamic Simulation ...")
+            print(f"- Checking Hydrodynamics Simulation: His file ...")
             # Prepare data for hydrodynamic options
             result['hyd_obs'] = data.sizes['stations'] > 0 if ('stations' in data.sizes) else False
             result['cross_sections'] = False
@@ -227,7 +227,7 @@ def getVariablesNames(Out_files: list, model_type: str=None) -> dict:
                 result['hyd_wb_storage'] or result['hyd_wb_volume_error']) else False
         # This is a hydrodynamic map file
         elif ('time' in data.sizes and any(k in data.sizes for k in ['mesh2d_nNodes', 'mesh2d_nEdges'])):
-            print(f"- Checking Hydrodynamics Simulation ...")
+            print(f"- Checking Hydrodynamics Simulation: Map file ...")
             # Prepare data for thermocline parameters
             # 1. Thermocline
             result['thermocline_temp'] = checkVariables(data, 'mesh2d_tem1')
@@ -246,7 +246,7 @@ def getVariablesNames(Out_files: list, model_type: str=None) -> dict:
             result['spatial_static'] = True if (result['waterdepth_static']) else False
         # This is a water quality his file
         elif ('nTimesDlwq' in data.sizes and not any(k in data.sizes for k in ['mesh2d_nNodes', 'mesh2d_nEdges'])):
-            print(f"- Checking Water Quality Simulation ...")
+            print(f"- Checking Water Quality Simulation: His file ...")
             variables = set(data.variables.keys()) - set(['nTimesDlwqBnd', 'station_name', 'station_x', 'station_y', 'station_z', 'nTimesDlwq'])
             result['waq_his'] = False
             # Prepare data for Physical option
@@ -309,7 +309,7 @@ def getVariablesNames(Out_files: list, model_type: str=None) -> dict:
                 result['wq_his'] = result['waq_his_coliform']
         # This is a water quality map file      
         elif ('nTimesDlwq' in data.sizes and any(k in data.sizes for k in ['mesh2d_nNodes', 'mesh2d_nEdges'])):
-            print(f'- Checking Water Quality Simulation ...')
+            print(f'- Checking Water Quality Simulation: Map file ...')
             result['wq_map'] = False
             variables = set(data.variables.keys()) - set(['mesh2d', 'mesh2d_node_x', 'mesh2d_node_y', 'mesh2d_edge_x',
                 'mesh2d_edge_y', 'mesh2d_face_x_bnd', 'mesh2d_face_y_bnd', 'mesh2d_edge_nodes', 'mesh2d_edge_faces',
@@ -495,8 +495,8 @@ def getSummary(dialog_path: str, Out_files: list) -> list:
         # --- Hydrodynamic ---
         if 'time' in data_his.sizes:
             time_var = data_his['time']
-            start_hyd = pd.to_datetime(time_var.isels(time=0).compute().values.strftime('%Y-%m-%d %H:%M:%S'))
-            end_hyd = pd.to_datetime(time_var.isels(time=0).compute().values.strftime('%Y-%m-%d %H:%M:%S'))
+            start_hyd = pd.to_datetime(time_var.isel(time=0).compute().values).strftime('%Y-%m-%d %H:%M:%S')
+            end_hyd = pd.to_datetime(time_var.isel(time=0).compute().values).strftime('%Y-%m-%d %H:%M:%S')
             result.append({'parameter': 'Start Date (Hydrodynamic Simulation)', 'value': start_hyd})
             result.append({'parameter': 'Stop Date (Hydrodynamic Simulation)', 'value': end_hyd})
             result.append({'parameter': 'Number of Time Steps', 'value': sizes['time']})
@@ -507,8 +507,8 @@ def getSummary(dialog_path: str, Out_files: list) -> list:
         # --- Water Quality ---
         if ('nTimesDlwq' in sizes):
             waq_time = data_his['nTimesDlwq']
-            start_waq = pd.to_datetime(waq_time.isels(time=0).compute().values.strftime('%Y-%m-%d %H:%M:%S'))
-            end_waq = pd.to_datetime(waq_time.isels(time=0).compute().values.strftime('%Y-%m-%d %H:%M:%S'))
+            start_waq = pd.to_datetime(waq_time.isel(time=0).compute().values).strftime('%Y-%m-%d %H:%M:%S')
+            end_waq = pd.to_datetime(waq_time.isel(time=0).compute().values).strftime('%Y-%m-%d %H:%M:%S')
             result.append({'parameter': f'Start Date (Water Quality Simulation)', 'value': start_waq})
             result.append({'parameter': f'Stop Date (Water Quality Simulation)', 'value': end_waq})
             result.append({'parameter': f'Number of Time Steps (Water Quality Simulation)', 'value': sizes['nTimesDlwq']})
@@ -564,7 +564,7 @@ def hydCreator(data_his: xr.Dataset) -> tuple[gpd.GeoDataFrame, list]:
     x, y = data_his['station_x_coordinate'].data.compute(), data_his['station_y_coordinate'].data.compute()
     gdf = checkCoordinateReferenceSystem(names, gpd.points_from_xy(x, y), data_his)
     vars = [var for var in data_his.data_vars if data_his[var].dims == target_dims]
-    for i, name in enumerate(names):
+    for name in names:
         station_dict = {name: [{var: variablesNames.get(var, var)} for var in vars]}
         listPoints.append(station_dict)
     return gdf, listPoints
@@ -601,8 +601,10 @@ def sourceCreator(data_his: xr.Dataset) -> gpd.GeoDataFrame:
     gpd.GeoDataFrame
         The GeoDataFrame of sources/sinks.
     """
+    print('OK')
     names = [name.decode('utf-8').strip() for name in data_his['source_sink_name'].data.compute()]
-    x, y = data_his['source_sink_x_coordinate'].data.compute(), data_his['source_sink_y_coordinate'].data.compute()
+    print(names)
+    x, y = data_his['source_sink_x_coordinate'].data.compute()[0], data_his['source_sink_y_coordinate'].data.compute()[0]
     geometry = gpd.points_from_xy(x, y)
     return checkCoordinateReferenceSystem(names, geometry, data_his)
 
@@ -660,6 +662,7 @@ def crosssectionCreator(data_his: xr.Dataset) -> tuple[gpd.GeoDataFrame, list]:
     list
         The list of dictionaries of cross-sections.
     """
+    print('OK')
     names, listAttributes = [name.decode('utf-8').strip() for name in data_his['cross_section_name'].data.compute()], []
     x = data_his['cross_section_geom_node_coordx'].data.compute()
     y = data_his['cross_section_geom_node_coordy'].data.compute()
@@ -674,7 +677,7 @@ def crosssectionCreator(data_his: xr.Dataset) -> tuple[gpd.GeoDataFrame, list]:
     listAttributes = [{item: variablesNames[item] if item in variablesNames else item} for item in crsValues]
     return gdf, listAttributes
 
-def selectInsitu(data_his: xr.Dataset, data_map: xr.Dataset, name: str, station: str, type: str) -> pd.DataFrame:
+def selectInsitu(data_his: xr.Dataset, data_map: xr.Dataset, name: str, stationId: str, type: str) -> pd.DataFrame:
     """
     Get insitu data.
 
@@ -686,7 +689,7 @@ def selectInsitu(data_his: xr.Dataset, data_map: xr.Dataset, name: str, station:
         The dataset received from _map file.
     name: str
         The name of defined variable in _his file.
-    station: str
+    stationId: str
         The name of the station.
     type: str
         The type of data, accepted values are: 'station_name' or 'source_sink_name'.
@@ -697,9 +700,9 @@ def selectInsitu(data_his: xr.Dataset, data_map: xr.Dataset, name: str, station:
         A DataFrame containing the insitu data.
     """
     names = [x.decode('utf-8').strip() for x in data_his[type].data.compute()]
-    if station not in names: return pd.DataFrame()
-    idx = names.index(station)
-    index = [pd.to_datetime(id).strftime('%Y-%m-%d %H:%M:%S') for id in data_his['time'].data.compute()]
+    if stationId not in names: return pd.DataFrame()
+    idx = names.index(stationId)
+    index = [pd.to_datetime(id).strftime('%Y-%m-%d %H:%M:%S') for id in data_his['time'].data]
     if type == 'station_name':
         result = pd.DataFrame(index=index)
         z_layer = numberFormatter(data_map['mesh2d_layer_z'].data.compute())
@@ -709,7 +712,7 @@ def selectInsitu(data_his: xr.Dataset, data_map: xr.Dataset, name: str, station:
             result[f'Depth: {z_layer[i_rev]} m'] = numberFormatter(arr[:, i_rev])
     else:
         temp = pd.DataFrame(data_his[variablesNames[name]].values, columns=names, index=index)
-        result = temp[[station]]
+        result = temp[[stationId]]
     return result.dropna(axis=1, how='all').reset_index()
 
 def thermoclineComputer(data_map: xr.Dataset) -> pd.DataFrame:
@@ -768,7 +771,7 @@ def timeseriesCreator(data_his: xr.Dataset, key: str, timeColumn: str='time') ->
         columns = ['Cross-section'] # Used for cross-section
         temp = key.replace('_crs', '')
     if name not in data_his.variables.keys(): return pd.DataFrame()
-    index = [pd.to_datetime(i).strftime('%Y-%m-%d %H:%M:%S') for i in data_his[timeColumn].data.compute()]
+    index = [pd.to_datetime(i).strftime('%Y-%m-%d %H:%M:%S') for i in data_his[timeColumn].data]
     df = pd.DataFrame(index=index, data=numberFormatter(data_his[temp].data.compute()), columns=columns)
     return df.reset_index()
 
@@ -871,9 +874,9 @@ def assignValuesToMeshes(grid: gpd.GeoDataFrame, data_map: xr.Dataset, key: str,
     df = pd.DataFrame(arr, index=result.index, columns=result.columns)
     return temp_grid.join(df).reset_index()
 
-def velocityChecker(data_map: xr.Dataset) -> dict:
+def layerCounter(data_map: xr.Dataset) -> dict:
     """
-    Check how many velocity layers are available.
+    Check how many layers are available.
 
     Parameters:
     ----------
@@ -887,7 +890,7 @@ def velocityChecker(data_map: xr.Dataset) -> dict:
     """
     layers, z_layer = {}, np.round(data_map['mesh2d_layer_z'].data.compute(), 2)
     # Add depth-average if available
-    if {'mesh2d_ucxa', 'mesh2d_ucya'}.isubset(data_map.variables.keys()): layers[-1] = 'Average'
+    if {'mesh2d_ucxa', 'mesh2d_ucya'}.issubset(data_map.variables.keys()): layers[-1] = 'Average'
     # Iterate from bottom to surface
     ucx = data_map['mesh2d_ucx'].data
     ucy = data_map['mesh2d_ucy'].data
@@ -1064,7 +1067,7 @@ def postProcess(directory: str) -> dict:
     try:
         parent_path = os.path.dirname(directory)
         output_folder = os.path.join(parent_path, 'output')
-        if not os.path.exists(output_folder): os.makedirs(output_folder)
+        os.makedirs(output_folder, exist_ok=True) if not os.path.exists(output_folder) else shutil.rmtree(output_folder, onexc=remove_readonly)
         output_HYD_path = os.path.join(output_folder, 'HYD')
         # Create the directory output_HYD_path
         if os.path.exists(output_HYD_path): shutil.rmtree(output_HYD_path, onexc=remove_readonly)

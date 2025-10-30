@@ -39,8 +39,11 @@ async def setup_database(request: Request):
         # Set PROJECT_DIR
         project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
         output_dir = os.path.join(project_folder, "output")
+        config_dir = os.path.join(output_dir, "config")
+        if not os.path.exists(config_dir): os.makedirs(config_dir)
         request.app.state.PROJECT_DIR = project_folder
         request.app.state.templates = Jinja2Templates(directory="static/templates")
+        hyd_dir, waq_dir = os.path.join(output_dir, 'HYD'), os.path.join(output_dir, 'WAQ')
         # Reset app state
         request.app.state.waq_model = request.app.state.config = None
         request.app.state.hyd_his = request.app.state.hyd_map = None
@@ -51,19 +54,19 @@ async def setup_database(request: Request):
             if os.path.exists(path): return await loop.run_in_executor(None, lambda: dm.get(path))
             return None
         # Assign datasets
-        if params[0]: request.app.state.hyd_his = await load_dataset(os.path.join(output_dir, 'HYD', params[0]))
-        if params[1]: request.app.state.hyd_map = await load_dataset(os.path.join(output_dir, 'HYD', params[1]))
-        if params[2]: request.app.state.waq_his = await load_dataset(os.path.join(output_dir, 'WAQ', params[2]))
-        if params[3]: request.app.state.waq_map = await load_dataset(os.path.join(output_dir, 'WAQ', params[3]))
+        if params[0]: request.app.state.hyd_his = await load_dataset(os.path.join(hyd_dir, params[0]))
+        if params[1]: request.app.state.hyd_map = await load_dataset(os.path.join(hyd_dir, params[1]))
+        if params[2]: request.app.state.waq_his = await load_dataset(os.path.join(waq_dir, params[2]))
+        if params[3]: request.app.state.waq_map = await load_dataset(os.path.join(waq_dir, params[3]))
         # Get WAQ model
-        temp = params[2].replace('_his.nc', '') if params[2] != '' else params[3].replace('_his.nc', '')
-        model_path = os.path.join(output_dir, 'WAQ', f'{temp}.json')
+        temp = params[2].replace('_his.zarr', '') if params[2] != '' else params[3].replace('_his.zarr', '')
+        model_path = os.path.join(waq_dir, f'{temp}.json')
         if os.path.exists(model_path):
             with open(model_path, 'r') as f:
                 temp_data = json.load(f)
             request.app.state.waq_model = temp_data['model_type']
             request.app.state.config, request.app.state.obs = {}, {}
-            if 'wq_obs'in temp_data: 
+            if 'wq_obs' in temp_data: 
                 request.app.state.config['wq_obs'] = True
                 request.app.state.obs['wq_obs'] = temp_data['wq_obs']
             if 'wq_loads' in temp_data:
@@ -73,15 +76,29 @@ async def setup_database(request: Request):
         if request.app.state.hyd_map is not None:
             # Grid/layers generation
             request.app.state.grid = functions.unstructuredGridCreator(request.app.state.hyd_map)
-            request.app.state.n_layers = functions.velocityChecker(request.app.state.hyd_map)
+            # Get number of layers
+            layer_path = os.path.join(config_dir, 'layers.json')
+            if os.path.exists(layer_path):
+                with open(layer_path, 'r') as f:
+                    request.app.state.n_layers = json.load(f)
+            else:
+                request.app.state.n_layers = functions.layerCounter(request.app.state.hyd_map)
+                with open(layer_path, 'w') as f:
+                    json.dump(request.app.state.n_layers, f)
         if (request.app.state.waq_his or request.app.state.waq_map) and not request.app.state.waq_model:
             return JSONResponse({"status": 'error', "message": "Some WAQ-related parameters are missing.\nConsider running the model again."})
         # Get configurations
-        NCfiles = [request.app.state.hyd_his, request.app.state.hyd_map, 
+        config_path = os.path.join(config_dir, 'config.json')
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                temp_config = json.load(f)
+        else:
+            files = [request.app.state.hyd_his, request.app.state.hyd_map, 
             request.app.state.waq_his, request.app.state.waq_map]
-        temp_config = functions.getVariablesNames(NCfiles, request.app.state.waq_model)
-        if request.app.state.config: temp_config.update(request.app.state.config)
-        request.app.state.config = temp_config
+            temp_config = functions.getVariablesNames(files, request.app.state.waq_model)
+            with open(config_path, 'w') as f:
+                json.dump(temp_config, f)
+        request.app.state.config = request.app.state.config.update(temp_config) if request.app.state.config else temp_config
         status, message = 'ok', ''
     except Exception as e:
         status, message = 'error', f"Error: {str(e)}"
@@ -172,9 +189,8 @@ async def save_obs(request: Request):
     project_name, file_name = body.get('projectName'), body.get('fileName')
     data, key = body.get('data'), body.get('key')
     path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
-    file_path = os.path.join(path, file_name)
-    def write_file():
-        with open(file_path, 'w', encoding="utf-8") as f:
+    def write_file(path, file_name, data, key):
+        with open(os.path.join(path, file_name), 'w', encoding="utf-8") as f:
             if key == 'obs':
                 for line in data:
                     f.write(f"{line[2]}  {line[1]}  '{line[0]}'\n")
@@ -187,7 +203,7 @@ async def save_obs(request: Request):
                     f.write(f"{line[2]}  {line[1]}  {line[0]}\n")
     try:
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, write_file)
+        await loop.run_in_executor(None, lambda: write_file(path, file_name, data, key))
         status, message = 'ok', 'Observations saved successfully.'
     except Exception as e:
         status, message = 'error', f"Error: {str(e)}"
