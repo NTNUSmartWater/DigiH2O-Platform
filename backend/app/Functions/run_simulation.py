@@ -56,14 +56,8 @@ async def start_sim_hyd(request: Request):
             if len(logs) > 4000:
                 processes[project]["logs"] = logs[-4000:]
     def stream_logs():
-        progress_pattern = re.compile(
-            r"(?P<sim_time_done>\d+d\s+\d+:\d+:\d+)\s+"
-            r"(?P<sim_time_left>\d+d\s+\d+:\d+:\d+)\s+"
-            r"(?P<real_time_used>\d+d\s+\d+:\d+:\d+)\s+"
-            r"(?P<real_time_left>\d+d\s+\d+:\d+:\d+)\s+"
-            r"\d+\s+"
-            r"(?P<percent>\d+(?:\.\d+)?)%"
-        )
+        percent_re = re.compile(r'(?P<percent>\d{1,3}(?:\.\d+)?)\s*%')
+        time_re = re.compile(r'(?P<tt>\d+d\s+\d{1,2}:\d{2}:\d{2})')
         try:
             for line in process.stdout:
                 line = line.strip()
@@ -75,14 +69,19 @@ async def start_sim_hyd(request: Request):
                 if "forrtl:" in line.lower():
                     safe_append(project_name, f"[ERROR] {line}")
                     processes[project_name]["status"] = "error"
-                    process.kill()
+                    try: process.kill()
+                    except: pass
                     break
                 # Check for progress
-                match = progress_pattern.search(line)
-                if match and project_name in processes:
-                    processes[project_name]["progress"] = float(match.group("complete"))
-                    processes[project_name]["real_time_used"] = match.group("real_time_used")
-                    processes[project_name]["real_time_left"] = match.group("real_time_left")
+                match_pct = percent_re.search(line)
+                if match_pct: processes[project_name]["progress"] = float(match_pct.group("percent"))
+                times = time_re.findall(line)
+                if len(times) >= 4:
+                    processes[project_name]["real_time_used"] = times[2]
+                    processes[project_name]["real_time_left"] = times[3]
+                elif len(times) == 3:
+                    processes[project_name]["real_time_used"] = times[1]
+                    processes[project_name]["real_time_left"] = times[2]
         finally:
             process.wait()
             if project_name not in processes:
