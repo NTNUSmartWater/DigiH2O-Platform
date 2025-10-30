@@ -1,10 +1,11 @@
 # Folders
 /__pycache__
-/Delft_Projects
 backend/Delft_Projects
 
 # Files
 *.txt
+*.jpg
+*.csv
 
 # Additional files
 *.ipynb
