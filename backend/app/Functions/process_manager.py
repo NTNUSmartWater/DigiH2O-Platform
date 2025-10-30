@@ -37,6 +37,7 @@ def process_internal(request: Request, query: str, key: str):
     elif '_dynamic' in key:
         if query == '': data_, time_column = request.app.state.hyd_map, 'time' # For hydrodynamic data
         else: data_, time_column, key = request.app.state.waq_map, 'nTimesDlwq', query
+        
         temp_mesh = functions.assignValuesToMeshes(request.app.state.grid, data_, key, time_column)
         data = json.loads(temp_mesh.to_json())
     elif '_static' in key:

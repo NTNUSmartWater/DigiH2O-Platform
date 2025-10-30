@@ -119,15 +119,10 @@ def checkVariables(data: xr.Dataset, variablesNames: str) -> bool:
     var = data[variablesNames]
     if var.size == 0: return False # Empty variable
     # Check if all values are NaN in a sample slice
-    try:
-        sample = var.isel({dim: 0 for dim in var.dims if var.sizes[dim] > 0}).load()
-        if np.isnan(sample.values).all(): return False
-    except Exception: pass
-    # Check if min and max are the same value but avoid loading entire data
-    try:
-        vmin, vmax = var.min(skipna=True).compute(), var.max(skipna=True).compute()
-        return bool(vmin != vmax)
-    except Exception: return False
+    if np.isnan(var.data.compute()).all(): return False
+    # Check if min and max are the same value
+    vmin, vmax = var.min(skipna=True).compute(), var.max(skipna=True).compute()
+    return bool(float(vmin) != float(vmax))
 
 def getVariablesNames(Out_files: list, model_type: str='') -> dict:
     """
@@ -601,9 +596,7 @@ def sourceCreator(data_his: xr.Dataset) -> gpd.GeoDataFrame:
     gpd.GeoDataFrame
         The GeoDataFrame of sources/sinks.
     """
-    print('OK')
     names = [name.decode('utf-8').strip() for name in data_his['source_sink_name'].data.compute()]
-    print(names)
     x, y = data_his['source_sink_x_coordinate'].data.compute()[0], data_his['source_sink_y_coordinate'].data.compute()[0]
     geometry = gpd.points_from_xy(x, y)
     return checkCoordinateReferenceSystem(names, geometry, data_his)
@@ -662,7 +655,6 @@ def crosssectionCreator(data_his: xr.Dataset) -> tuple[gpd.GeoDataFrame, list]:
     list
         The list of dictionaries of cross-sections.
     """
-    print('OK')
     names, listAttributes = [name.decode('utf-8').strip() for name in data_his['cross_section_name'].data.compute()], []
     x = data_his['cross_section_geom_node_coordx'].data.compute()
     y = data_his['cross_section_geom_node_coordy'].data.compute()
