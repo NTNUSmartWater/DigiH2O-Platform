@@ -28,8 +28,10 @@ function statusUpdate(info, barObject, textObject) {
         return false;
     }
     if (info.startsWith("[PROGRESS]")) {
-        const percent = parseFloat(info.replace('[PROGRESS]', '').trim());
-        textObject().innerText = 'Completed: ' + percent + '%';
+        // Update progress
+        const values = info.replace('[PROGRESS] ', '').trim().split('|');
+        const percent = parseFloat(values[0]), time_used = values[1], time_left = values[2];
+        textObject().innerText = 'Completed: ' + percent + '%' + '[Time used: ' + time_used + ' -->  Time left: ' + time_left + ']';
         barObject().value = percent;
     }
     if (info.startsWith("[FINISHED]")) textObject().innerText = info.replace('[FINISHED]','');

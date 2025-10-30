@@ -13,7 +13,7 @@ def process_internal(request: Request, query: str, key: str):
     # Internal function to process data
     message = ''
     if key == 'summary':
-        dia_path = os.path.join(request.app.state.PROJECT_DIR, "output", "FlowFM.dia")
+        dia_path = os.path.join(request.app.state.PROJECT_DIR, "output", "HYD", "FlowFM.dia")
         data_his = [request.app.state.hyd_his, request.app.state.waq_his]
         data = functions.getSummary(dia_path, data_his)
     elif key == 'hyd_station':
@@ -67,7 +67,7 @@ def process_internal(request: Request, query: str, key: str):
         # Create time series data
         temp = functions.timeseriesCreator(request.app.state.hyd_his, key)
         data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
-    return data, message
+    return message, data
 
 
 @router.post("/process_data")
@@ -77,9 +77,10 @@ async def process_data(request: Request):
     query, key = body.get('query'), body.get('key')
     loop = asyncio.get_event_loop()
     try:
-        status, data, message = 'ok', await loop.run_in_executor(None, lambda: process_internal(request, query, key))
+        result = await loop.run_in_executor(None, lambda: process_internal(request, query, key))
+        status, message, data = 'ok', result[0], result[1]
     except Exception as e:
-        data, status, message = None, 'error', f"Error: {e}"
+        status, message, data = 'error', f"Error: {e}", None
     return JSONResponse({'content': data, 'status': status, 'message': message})
 
 # Select meshes based on ids
