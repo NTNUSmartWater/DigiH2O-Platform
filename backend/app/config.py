@@ -3,7 +3,6 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from Functions import dataset_manager
 from dotenv import load_dotenv
-from dask.distributed import Client, LocalCluster
 
 # ============== Root directory ================
 load_dotenv()
@@ -22,15 +21,10 @@ async def lifespan(app):
     app.state.PROJECT_DIR = None
     # WAQ model type
     app.state.waq_model = None
-    # Generate Dassh cluster
-    cluster = LocalCluster(n_workers=2, threads_per_worker=2, memory_limit='4GB')
-    client = Client(cluster)
-    print(f"🚀 Dask cluster started with dashboard link: {cluster.dashboard_link}")
-    app.state.dask_client = client
     # Dataset
     app.state.dataset_manager = dataset_manager.DatasetManager()
     yield
-    # Close datasets and clear memory
-    client.close()
-    app.state.dataset_manager.close()
-    print("🛑 Dask cluster closed")
+    try:
+        app.state.dataset_manager.close()
+    except Exception as e:
+        print(f"⚠️ Dataset manager close error: {e}")

@@ -116,8 +116,7 @@ async def select_project(request: Request):
     try:
         if key == 'getProjects': # List the projects that doesn't have a folder output
             project = [p.name for p in os.scandir(PROJECT_STATIC_ROOT) if p.is_dir()]
-            # Check if folder ouput exists
-            project = [p for p in project if not os.path.exists(os.path.join(PROJECT_STATIC_ROOT, p, folder_check))]
+            project = [p for p in project if os.path.exists(os.path.join(PROJECT_STATIC_ROOT, p, folder_check))]
             data = sorted(project)
         elif key == 'getFiles': # List the files
             project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)

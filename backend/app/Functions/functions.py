@@ -1090,7 +1090,7 @@ def postProcess(directory: str) -> dict:
         for f in found_files:
             if f.endswith('.nc'):
                 ds = xr.open_dataset(os.path.join(DFM_OUTPUT_folder, f), chunks={'time': 1})
-                zarr_path = os.path.join(output_HYD_path, f.replace('.nc', '_his.zarr') if 'his' in f else f.replace('.nc', '_map.zarr'))
+                zarr_path = os.path.join(output_HYD_path, f.replace('.nc', '.zarr'))
                 ds.to_zarr(zarr_path, mode='w', consolidated=True)
                 ds.close()
             else: shutil.copy(os.path.join(DFM_OUTPUT_folder, f), output_HYD_path)
