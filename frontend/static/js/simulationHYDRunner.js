@@ -15,7 +15,7 @@ async function sendQuery(functionName, content){
 
 async function getProjectList(target){
     // Update project
-    const data = await sendQuery('select_project', {filename: '', key: 'getProjects', folder_check: ''});
+    const data = await sendQuery('select_project', {filename: '', key: 'getProjects', folder_check: 'input'});
     const options = data.content.map(row => `<option value="${row}">${row}</option>`).join(' ');
     const defaultOption = `<option value="" selected>--- No selected ---</option>`;
     target.innerHTML = defaultOption + options;

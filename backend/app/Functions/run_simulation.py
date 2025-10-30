@@ -48,39 +48,48 @@ async def start_sim_hyd(request: Request):
         errors="replace", text=True, shell=True, bufsize=1, cwd=path
     )
     processes[project_name] = {"process": process, "progress": 0, "logs": [], "status": "running"}
+    def safe_append(project, text):
+        """Helper function to safely append logs."""
+        if project in processes:
+            logs = processes[project]["logs"]
+            logs.append(text)
+            if len(logs) > 4000:
+                processes[project]["logs"] = logs[-4000:]
     def stream_logs():
         progress_pattern = re.compile(r"(\d+(?:\.\d+)?)%")
         try:
             for line in process.stdout:
                 line = line.strip()
                 if not line: continue
-                logs = processes[project_name]["logs"]
-                logs.append(line)
-                # Limit log size
-                if len(logs) > 4000: processes[project_name]["logs"] = logs[-4000:]
+                if project_name not in processes:
+                    break  # Project was removed externally
+                safe_append(project_name, line)
                 # Catch error messages
                 if "forrtl:" in line.lower():
-                    processes[project_name]["logs"].append(f"[ERROR] {line}")
+                    safe_append(project_name, f"[ERROR] {line}")
                     processes[project_name]["status"] = "error"
                     process.kill()
                     break
                 # Check for progress
                 match = progress_pattern.search(line)
-                if match:
+                if match and project_name in processes:
                     processes[project_name]["progress"] = float(match.group(1))
         finally:
             process.wait()
+            if project_name not in processes:
+                return  # Project removed during execution
             status = processes[project_name]["status"]
             if status != "error":
                 processes[project_name]["status"] = "finished"
                 try:
                     post_result = functions.postProcess(path)
                     msg = f"[FINISHED] {post_result['message']}" if post_result["status"] == "ok" else f"[ERROR] {post_result['message']}"
-                    processes[project_name]["logs"].append(msg)
-                except Exception as e: processes[project_name]["logs"].append(f"[POSTPROCESS FAILED] {str(e)}")
-            # Clean up
-            processes[project_name]["progress"] = 100
-            processes[project_name]["logs"].append("[CLEANUP] Done.")
+                    safe_append(project_name, msg)
+                except Exception as e: safe_append(project_name, f"[POSTPROCESS FAILED] {str(e)}")
+             # Clean up safely
+            if project_name in processes:
+                processes[project_name]["progress"] = 100
+                safe_append(project_name, "[CLEANUP] Done.")
     threading.Thread(target=stream_logs, daemon=True).start()
     return JSONResponse({"status": "ok", "message":  f"Simulation {project_name} started."})
 
