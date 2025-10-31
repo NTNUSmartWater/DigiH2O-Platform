@@ -2,20 +2,20 @@
 <div class="menu">
     <a class="menu-link">Dynamic Maps<span class="arrow">&#x25B8;</span></a>
     <div class="submenu">
-        <div style="padding: 0 5px 0 10px; font-size: 17px;">
-            <div style="display: flex; gap: 8px; align-items: center;">
-                <span style="margin-right: 5px;">Vector:</span>
-                <select id="vector-object-main" style="flex: 1;">
+        <div style="padding-left: 10px; font-size: 17px;">
+            <div style="display: flex; align-items: center; margin-left: 5px;">
+                <span style="margin: 10px 10px 5px 0;">Vector:</span>
+                <select id="vector-object-main" style="flex: 1; margin: 10px 10px 5px 0;">
                     <option value="" disabled selected hidden>- No Selection -</option>
                 </select>
                 <div id="vector-container" style="display: none;">
-                    <span style="margin-right: 5px;">Layer:</span>
-                    <select id="vector-object-submain" style="flex: 1;">
+                    <span style="margin: 10px 10px 5px 0;">Layer:</span>
+                    <select id="vector-object-submain" style="flex: 1; margin: 10px 10px 5px 0;">
                         <option value="" disabled selected hidden>- No Selection -</option>
                     </select>
                 </div>
             </div>
-            <div class="scaler-group">
+            <div class="scaler-group" style="margin: 0 0 10px 0;">
                 <label>Scale:</label>
                 <input type="text" id="scaler-value" value="1000">
                 <button type="button" id="plotVectorBtn">Plot Vector</button>

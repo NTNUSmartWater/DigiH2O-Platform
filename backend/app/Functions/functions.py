@@ -897,7 +897,7 @@ def layerCounter(data_map: xr.Dataset) -> dict:
         layers[len(z_layer)-i-1] = f'Depth: {z_layer[i]} m'
     return layers
 
-def velocityComputer(data_map: xr.Dataset, value_type: str, layer_reverse: dict) -> gpd.GeoDataFrame:
+def velocityComputer(data_map: xr.Dataset, value_type: str, layer_reverse: dict, step: int=-1) -> gpd.GeoDataFrame:
     """
     Compute velocity in each layer and average value (if possible)
 
@@ -906,51 +906,49 @@ def velocityComputer(data_map: xr.Dataset, value_type: str, layer_reverse: dict)
     data_map: xr.Dataset
         The dataset received from _map file.
     value_type: str
-        The type of velocity to compute: 'Depth-average' or one specific layer.
+        The type of velocity to compute: 'Average' or one specific layer.
     layer_reverse: dict
         The dictionary containing the index and value of reversed velocity layers.
+    step: int
+        The index of the interested time step.
 
     Returns:
     -------
     gpd.GeoDataFrame
         The GeoDataFrame containing the vector map of the mesh.
     """
-    result, z_layers = {}, data_map['mesh2d_layer_z'].data.compute()
+    if step < 0: step = len(data_map['time']) - 1
     if value_type == 'Average':
         # Average velocity in each layer
-        ucx = data_map['mesh2d_ucxa'].data.compute()
-        ucy = data_map['mesh2d_ucya'].data.compute()
-        ucm = data_map['mesh2d_ucmaga'].data.compute()
+        row_idx = 0
+        ucx = data_map['mesh2d_ucxa'].isel(time=step).values
+        ucy = data_map['mesh2d_ucya'].isel(time=step).values
+        ucm = data_map['mesh2d_ucmaga'].isel(time=step).values
+        # # Get global vmin and vmax
+        # vmin = float(np.nanmin(data_map['mesh2d_ucmaga']))
+        # vmax = float(np.nanmax(data_map['mesh2d_ucmaga']))
     else:
         # Velocity for specific layer (in reverse order)
-        idx = len(z_layers) - int(layer_reverse[value_type]) - 1
-        ucx = data_map['mesh2d_ucx'].data[:, :, idx].compute()
-        ucy = data_map['mesh2d_ucy'].data[:, :, idx].compute()
-        ucm = data_map['mesh2d_ucmag'].data[:, :, idx].compute()
+        row_idx = len(layer_reverse) - int(layer_reverse[value_type]) - 1
+        ucx = data_map['mesh2d_ucx'].isel(time=step).values[row_idx - 1]
+        ucy = data_map['mesh2d_ucy'].isel(time=step).values[row_idx - 1]
+        ucm = data_map['mesh2d_ucmag'].isel(time=step).values[row_idx - 1]
+        # vmin = float(np.nanmin(data_map['mesh2d_ucmag']))
+        # vmax = float(np.nanmax(data_map['mesh2d_ucmag']))
     # Get indices of non-nan values
-    row_idx, col_idx = np.where(~np.isnan(ucx) & ~np.isnan(ucy) & ~np.isnan(ucm))
-    # Get unique indices and prepare result
-    times = pd.to_datetime(data_map['time'].data.compute())
-    result["time"] = [t.strftime('%Y-%m-%d %H:%M:%S') for t in np.unique(times[row_idx])]
-    x_coords = data_map['mesh2d_face_x'].data.compute()[np.unique(col_idx)]
-    y_coords = data_map['mesh2d_face_y'].data.compute()[np.unique(col_idx)]
-    result["coordinates"] = np.column_stack((x_coords, y_coords)).tolist()
+    col_idx = np.where(~np.isnan(ucx) & ~np.isnan(ucy) & ~np.isnan(ucm))
+    x_coords = data_map['mesh2d_face_x'].values[col_idx]
+    y_coords = data_map['mesh2d_face_y'].values[col_idx]
     # Prepare values
-    ucx = np.round(ucx.astype(np.float64), 5)
-    ucy = np.round(ucy.astype(np.float64), 5)
-    ucm = np.round(ucm.astype(np.float64), 2)
-    # Get values
-    ucx_flat = ucx[row_idx, col_idx]
-    ucy_flat = ucy[row_idx, col_idx]
-    ucm_flat = ucm[row_idx, col_idx]
-    big_array = np.stack([ucx_flat, ucy_flat, ucm_flat], axis=1)
-    # Get group starts
-    _, group_starts = np.unique(row_idx, return_index=True)
-    start_indices = list(group_starts) + [len(big_array)]
-    result["values"] = [big_array[start_indices[i]:start_indices[i+1]].tolist() 
-                      for i in range(len(group_starts))]
-    result['min_max'] = [float(np.nanmin(ucm_flat)), float(np.nanmax(ucm_flat))]
-    return result
+    ucx_flat = np.round(ucx.astype(np.float64), 5) 
+    ucy_flat = np.round(ucy.astype(np.float64), 5) 
+    ucm_flat = np.round(ucm.astype(np.float64), 2)
+    result = {"time": pd.to_datetime(data_map['time'].values[step]).strftime('%Y-%m-%d %H:%M:%S'),
+        "coordinates": np.column_stack((x_coords, y_coords)).tolist(),
+        "values": np.vstack([ucx_flat, ucy_flat, ucm_flat]).T.tolist(),
+        # 'min_max': [vmin, vmax]
+    }
+    return clean_nans(result)
 
 def fileWriter(template_path: str, params: dict) -> str:
     """

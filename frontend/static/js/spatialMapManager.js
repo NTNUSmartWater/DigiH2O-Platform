@@ -37,9 +37,9 @@ export async function spatialMapManager() {
     // Plot vector map
     vectorPlotBtn().addEventListener('click', () => {
         if (!getState().vectorSelected) { alert('Please select a layer.'); return; }
-        const query = `${getState().vectorSelected}_velocity`, key = 'velocity';
+        const query = `${getState().vectorSelected}_velocity`;
         const colorbarTitle = 'Velocity (m/s)', colorbarKey = 'velocity';
-        plot2DVectorMap(query, key, colorbarTitle, colorbarKey);
+        plot2DVectorMap(query, 'velocity', colorbarTitle, colorbarKey);
     });
     // Set function for 2D dynamic map plot
     document.querySelectorAll('.map2D_dynamic').forEach(plot => {
