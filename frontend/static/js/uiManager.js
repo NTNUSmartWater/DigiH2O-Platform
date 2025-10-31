@@ -80,7 +80,7 @@ async function projectChecker(name=null, params=null) {
     if (name === null) return;
     if (summaryWindow().style.display !== 'flex') summaryWindow().style.display = 'none';  // Close summary window if open
     projectTitle().textContent = `Project: ${name}`;
-    startLoading('Reading Simulation Outputs and Setting up Database.\nThis takes time (for the first time). Please wait...');
+    startLoading('Reading Simulation Outputs and Setting up Database.\nThis takes for a while (for the first time). Please wait...');
     const data = await sendQuery('setup_database', {projectName: name, params: params});
     if (data.status === "error") {alert(data.message); location.reload(); }
     showLeafletMap();

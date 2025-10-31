@@ -18,7 +18,7 @@ const colorbar_vector_scaler = () => document.getElementById("custom-colorbar-sc
 
 
 export let layerAbove = null;
-let layerMap = null,  currentIndex = 0, playHandlerAttached = false, parsedDataAllFrames = '';
+let layerMap = null,  currentIndex = 0, playHandlerAttached = false, parsedFrame = '';
 
 // Define CanvasLayer
 L.CanvasLayer = L.Layer.extend({
@@ -153,9 +153,8 @@ export async function plot2DMapStatic(key, colorbarTitle, colorbarKey) {
     showLeafletMap();
 }
 
-function buildFrameData(data, i) {
-    const coordsArray = data.coordinates, values = data.values[i];
-    const result = [];    
+function buildFrameData(data) {
+    const coordsArray = data.coordinates, values = data.values, result = [];    
     for (let i = 0; i < coordsArray.length; i++) {
         const coords = coordsArray[i];
         const val = values[i];
@@ -208,7 +207,7 @@ function initDynamicMap(key, data_below, data_above, colorbarTitleBelow, colorba
     // Hide colorbar control
     colorbar_container().style.display = "none";
     colorbar_vector_container().style.display = "none";
-    let timestamp, currentIndex, vminBelow, vmaxBelow, vminAbove, vmaxAbove;
+    let timestamp, currentIndex = 0, vminBelow, vmaxBelow, vminAbove, vmaxAbove;
     // Destroy slider if it exists
     if (slider().noUiSlider) { 
         slider().noUiSlider.destroy();
@@ -221,8 +220,9 @@ function initDynamicMap(key, data_below, data_above, colorbarTitleBelow, colorba
         const allColumns = Object.keys(data_below.features[0].properties);
         timestamp = allColumns.filter(k => !k.includes("index"));
         // Get min and max values
-        const minmax = getMinMaxFromGeoJSON(data_below, timestamp);
-        vminBelow = minmax.min; vmaxBelow = minmax.max;
+        console.log(data_below);
+        // const minmax = getMinMaxFromGeoJSON(data_below, timestamp);
+        // vminBelow = minmax.min; vmaxBelow = minmax.max;
         currentIndex = timestamp.length - 1;
         if (layerMap) map.removeLayer(layerMap);  // Remove previous layer
         layerMap = layerCreator(data_below, key, timestamp, vminBelow, vmaxBelow, 
@@ -232,15 +232,12 @@ function initDynamicMap(key, data_below, data_above, colorbarTitleBelow, colorba
     }
     // Process above layer
     if (data_above !== null) {
-        // Plot above layer directly
-        timestamp = data_above.time;
         // Get min and max values
         vminAbove = data_above.min_max[0], vmaxAbove = data_above.min_max[1];
-        currentIndex = timestamp.length - 1;
-        parsedDataAllFrames = timestamp.map((_, i) => buildFrameData(data_above, i));
         if (layerAbove) map.removeLayer(layerAbove);  // Remove previous layer
-        layerAbove = vectorCreator(parsedDataAllFrames[currentIndex], vminAbove, vmaxAbove, 
-                                    colorbarTitleAbove, colorbarKeyAbove, scale);
+        parsedFrame = buildFrameData(data_above);
+        layerAbove = vectorCreator(parsedFrame, vminAbove, vmaxAbove,
+            colorbarTitleAbove, colorbarKeyAbove, scale);
         map.addLayer(layerAbove);
         colorbar_vector_container().style.display = "block";
     }
@@ -259,7 +256,7 @@ function initDynamicMap(key, data_below, data_above, colorbarTitleBelow, colorba
         if (data_below && layerMap) updateMapByTime(layerMap, timestamp, currentIndex, 
                                         vminBelow, vmaxBelow, colorbarKeyBelow);
         if (data_above && layerAbove) {
-            layerAbove.options.data = parsedDataAllFrames[currentIndex];
+            layerAbove.options.data = parsedFrame;
             layerAbove._redraw();
         }
     });
