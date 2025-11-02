@@ -153,13 +153,10 @@ export function updateColorbar(min, max, title, colorbarKey, bar_color, bar_titl
     bar_color.style.background = `linear-gradient(to top, ${colorStops.join(", ")})`;
 }
 
-export function updateMapByTime(layerMap, timestamp, currentIndex, vmin, vmax, colorbarKey) {
-    const getColumnName = () => timestamp[currentIndex];
+export function updateMapByTime(layerMap, values, vmin, vmax, colorbarKey) {
     for (let i = 0; i < getState().mapLayer.length; i++) {
         const id = getState().mapLayer[i];
-        const feature = getState().featureMap[id];
-        if (!feature) continue;
-        const value = feature.properties[getColumnName()];
+        const value = values[id];
         if (value === null || value === undefined) continue;
         const { r, g, b, a } = getColorFromValue(value, vmin, vmax, colorbarKey);
         const colorKey = `${r},${g},${b},${a}`;
@@ -171,31 +168,6 @@ export function updateMapByTime(layerMap, timestamp, currentIndex, vmin, vmax, c
         });
     }
     setState({ lastFeatureColors: getState().lastFeatureColors });
-}
-
-// Get min and max values from GeoJSON
-export function getMinMaxFromGeoJSON(data, columns) {
-    let globalMin = Infinity, globalMax = -Infinity;
-    data.features.forEach(feature => {
-        columns.forEach(field => {
-            const value = feature.properties[field];
-            if (typeof value === "number" && !isNaN(value)) {
-                if (value < globalMin) globalMin = value;
-                if (value > globalMax) globalMax = value;
-            } else if (typeof value === 'string') {
-                const temp = value.replace(/[()]/g, '');
-                const parts = temp.split(',').map(s => parseFloat(s.trim()));
-                const c = parts[2];
-                if (typeof c === 'number') {
-                    if (c < globalMin) globalMin = c;
-                    if (c > globalMax) globalMax = c;
-                }
-            }
-        });
-    });
-    if (!isFinite(globalMin)) globalMin = null;
-    if (!isFinite(globalMax)) globalMax = null;
-    return { min: globalMin, max: globalMax };
 }
 
 export function getMinMaxFromDict(data) {
@@ -222,26 +194,30 @@ export async function loadData(query, key){
 }
 
 export async function initOptions(comboBox, key) {
-    startLoading(); 
+    startLoading('Loading Options. Please wait...'); 
     try {
         const response = await fetch('/initiate_options', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({key: key})});
         const data = await response.json();
         if (data.status === "ok") {
-            // Add options to the object
-            comboBox().innerHTML = '';
-            // Add hint to the velocity object
-            const hint = document.createElement('option');
-            hint.value = ''; hint.selected = true;
-            hint.text = '- No Selection -'; 
-            comboBox().add(hint);
+            // Add none option in case of vector
+            if (key === 'vector'){
+                comboBox().innerHTML = '';
+                // Add hint to the velocity object
+                const hint = document.createElement('option');
+                hint.value = ''; hint.selected = true;
+                hint.text = '- No Selection -'; 
+                comboBox().add(hint);
+            }
             // Add options
             data.content.forEach(item => {
                 const option = document.createElement('option');
                 option.value = item; option.text = item;
                 comboBox().add(option);
             });
+            // Select the first option
+            if (key !== 'vector') comboBox().value = data.content[0];
         } else if (data.status === "error") {alert(data.message);}
     } catch (error) {alert(error);}
     showLeafletMap();

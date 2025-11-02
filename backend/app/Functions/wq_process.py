@@ -1,5 +1,5 @@
 import os, subprocess, asyncio, re, shutil
-import pandas as pd, numpy as np
+import pandas as pd, numpy as np, xarray as xr
 from fastapi import APIRouter, Request, WebSocket
 from config import PROJECT_STATIC_ROOT, DELFT_PATH
 from fastapi.responses import JSONResponse
@@ -207,17 +207,26 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
             return
         print('=== Finished ===')
         # Move WAQ output files to output folder
-        await websocket.send_json({'status': "Reorganizing NC output files..."})
-        output_folder = os.path.join(PROJECT_STATIC_ROOT, project_name, "output")
-        if not os.path.exists(output_folder): os.makedirs(output_folder)
-        output_WAQ_folder = os.path.join(output_folder, 'WAQ')
-        if not os.path.exists(output_WAQ_folder): os.makedirs(output_WAQ_folder)
-        for suffix in ["_his.nc", "_map.nc", ".json"]:
-            src = os.path.join(output_folder, f"{file_name}{suffix}")
-            if os.path.exists(src):
-                shutil.copy(src, os.path.join(output_WAQ_folder, f"{file_name}{suffix}"))
-        # Delete folder
-        try: shutil.rmtree(wq_folder, ignore_errors=True)
+        await websocket.send_json({'status': "Reorganizing output files ..."})
+        try:
+            output_dir = os.path.join(PROJECT_STATIC_ROOT, project_name, "output")
+            if not os.path.exists(output_dir): os.makedirs(output_dir)
+            # config_dir = os.path.join(output_dir, "config")
+            # if os.path.exists(config_dir): shutil.rmtree(config_dir, ignore_errors=True)
+            output_WAQ_dir = os.path.join(output_dir, 'WAQ')
+            if not os.path.exists(output_WAQ_dir): os.makedirs(output_WAQ_dir)
+            for suffix in ["_his.nc", "_map.nc", ".json"]:
+                filename = f"{file_name}{suffix}"
+                src = os.path.join(output_folder, filename)
+                if os.path.exists(src):
+                    if suffix == ".json": shutil.copy(src, os.path.join(output_WAQ_dir, filename))
+                    else: # Convert .nc files to .zarr
+                        ds = xr.open_dataset(src, chunks={'nTimesDlwq': 1})
+                        zarr_path = os.path.join(output_WAQ_dir, filename.replace('.nc', '.zarr'))
+                        ds.to_zarr(zarr_path, mode='w', consolidated=True)
+                        ds.close()
+            # Delete folder
+            shutil.rmtree(wq_folder, ignore_errors=True)
         except Exception as e: await websocket.send_json({'status': str(e)})
         processes[project_name]["status"] = "finished"
         await websocket.send_json({'status': "Simulation completed successfully."})

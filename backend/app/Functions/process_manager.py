@@ -1,6 +1,7 @@
 import os, json, re, subprocess, math, asyncio
 from fastapi import APIRouter, Request, File, UploadFile, Form
 from Functions import functions
+from shapely import wkt
 from scipy.interpolate import griddata
 from fastapi.responses import JSONResponse
 from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND, GRID_PATH
@@ -34,26 +35,86 @@ def process_internal(request: Request, query: str, key: str):
     elif key == 'thermocline':
         temp = functions.thermoclineComputer(request.app.state.hyd_map)
         data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
-    elif '_dynamic' in key:
-        if query == '': data_, time_column = request.app.state.hyd_map, 'time' # For hydrodynamic data
-        else: data_, time_column, key = request.app.state.waq_map, 'nTimesDlwq', query
+    elif 'dynamic' in key:
+        temp = query.split('|')
+        if temp[0] == '': data_, time_column = request.app.state.hyd_map, 'time' # For hydrodynamic data
+        else: data_, time_column, key = request.app.state.waq_map, 'nTimesDlwq', temp[0] # For water quality
+        name = functions.variablesNames.get(key, key) if time_column == 'time' else key
+        if temp[1] == 'load': # Initiate skeleton polygon for the first load
+            grid = request.app.state.grid.copy()
+            # Get values at the last timestamp
+            if not 'multi' in key: values = data_[name].isel(time=-1).values
+            else: values = data_[name].isel(time=-1).values[:, -1]
+            features = [
+                {"type": "Feature", "id": idx,
+                    "properties": {"index": idx},
+                    "geometry": {
+                        "type": wkt.loads(row['geometry'].wkt).geom_type,
+                        "coordinates": [list(row['geometry'].exterior.coords)]
+                    }
+                } for idx, row in grid.iterrows()
+            ]
+            data = {
+                'meshes': { 'type': 'FeatureCollection', 'features': features },
+                'values': list(functions.numberFormatter(values)),
+                'timestamps': [pd.to_datetime(t).strftime('%Y-%m-%d %H:%M:%S') for t in data_[time_column].data],
+            }
+            data['min_max'] = [float(np.nanmin(data_[name].data.compute())), float(np.nanmax(data_[name].data.compute()))]
+        else: # Update value of polygons
+            if not 'multi' in key: values = data_[name].isel(time=int(temp[1])).values
+            else: values = data_[name].isel(time=int(temp[1])).values[:, -1]
+            data = {'values': list(functions.numberFormatter(values))}
         
-        temp_mesh = functions.assignValuesToMeshes(request.app.state.grid, data_, key, time_column)
-        data = json.loads(temp_mesh.to_json())
-    elif '_static' in key:
+        
+        
+        
+        data = functions.clean_nans(data)
+    elif key == 'static':
         # Create static data for map
-        temp = request.app.state.grid.copy()
-        if 'depth' in key:
-            x = request.app.state.hyd_map['mesh2d_node_x'].data.compute()
-            y = request.app.state.hyd_map['mesh2d_node_y'].data.compute()
-            z = request.app.state.hyd_map['mesh2d_node_z'].data.compute()
-            values = functions.interpolation_Z(temp, x, y, z)
-        temp['value'] = values
-        data = json.loads(temp.to_json())
-    elif key == 'velocity':
-        value_type = query.replace('_velocity', '')
-        layer_reverse = {v: k for k, v in request.app.state.n_layers.items()}
-        data = functions.velocityComputer(request.app.state.hyd_map, value_type, layer_reverse)
+        grid = request.app.state.grid.copy()
+        x = request.app.state.hyd_map['mesh2d_node_x'].data.compute()
+        y = request.app.state.hyd_map['mesh2d_node_y'].data.compute()
+        z = request.app.state.hyd_map['mesh2d_node_z'].data.compute()
+        if 'depth' in query:
+            values = functions.interpolation_Z(grid, x, y, z)
+        # Convert GeoDataFrame to expected format
+        features = [
+            {"type": "Feature", "id": idx,
+                "properties": {"index": idx},   # index để tra values
+                "geometry": {
+                    "type": wkt.loads(row['geometry'].wkt).geom_type,
+                    "coordinates": [list(row['geometry'].exterior.coords)]
+                }
+            }
+            for idx, row in grid.iterrows()
+        ]
+        data = {
+            'meshes': {
+                'type': 'FeatureCollection',
+                'features': features
+            }
+        }
+        data['values'], data['min_max'] = values, [float(np.nanmin(values)), float(np.nanmax(values))]
+        data = functions.clean_nans(data)
+    elif key == 'vector':
+        temp = query.split('|')
+        if temp[1] == 'load': # Initiate skeleton polygon for the first load
+            data = functions.vectorComputer(request.app.state.hyd_map, temp[0], 
+                    request.app.state.layer_reverse)
+            # Get global vmin and vmax
+            if query == 'Average':
+                vmin = float(np.nanmin(request.app.state.hyd_map['mesh2d_ucmaga']))
+                vmax = float(np.nanmax(request.app.state.hyd_map['mesh2d_ucmaga']))
+            else:
+                vmin = float(np.nanmin(request.app.state.hyd_map['mesh2d_ucmag']))
+                vmax = float(np.nanmax(request.app.state.hyd_map['mesh2d_ucmag']))
+            data['timestamps'] = [pd.to_datetime(t).strftime('%Y-%m-%d %H:%M:%S')
+                                  for t in request.app.state.hyd_map['time'].values]
+            data['min_max'] = [vmin, vmax]
+        else:
+            data = functions.vectorComputer(request.app.state.hyd_map, temp[0], 
+                    request.app.state.layer_reverse, int(temp[1]))
+        data = functions.clean_nans(data)
     elif key == 'substance_check':
         substance = request.app.state.config[query]
         if len(substance) > 0:
@@ -251,7 +312,7 @@ async def initiate_options(request: Request):
     key = body.get('key')
     try:
         if key == 'vector': data = functions.getVectorNames()
-        elif key == 'velocity': data = [value for _, value in request.app.state.n_layers.items()]
+        elif key == 'layer': data = [value for _, value in request.app.state.n_layers.items()]
         status, message = 'ok', ''
     except Exception as e:
         data, status, message = None, 'error', f"Error: {e}"

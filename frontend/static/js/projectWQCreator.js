@@ -223,13 +223,13 @@ function updateOption(){
             if (pointSelected === 'obsPoint') {
                 nPoints++;
                 // Add to table
-                const data_arr = [[`Point_${nPoints}`, lat, lon]];
+                const data_arr = [[`Obs_${nPoints}`, lat, lon]];
                 fillTable(data_arr, obsPointTable(), false);
             }
             else if (pointSelected === 'loadsPoint') {
                 let name = ''; nLoads++;
                 if (loadsPointName().value.trim() !== '') name = loadsPointName().value.trim();
-                else name = `Point_${nLoads}`; 
+                else name = `Load_${nLoads}`; 
                 const data_arr = [[name, lat, lon]];
                 fillTable(data_arr, loadsPointTable(), false);
             }

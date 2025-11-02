@@ -33,9 +33,9 @@ variablesNames = {
     # For Meteorological options
     'thf':'Qtot', 'at':'Tair', 'rh':'rhum', 'pr':'rain', 'si':'Qsun', 'shf':'Qcon', 'ws':'wind', 'fcshf':'Qfrcon',
     'lwbr':'Qlong', 'cloudiness':'clou', 'ehf':'Qeva', 'fcehf':'Qfreva',
-    # For Dynamic map: Hydrodynamics
-    'wl_dynamic':'mesh2d_s1', 'wd_dynamic':'mesh2d_waterdepth',
-    # For Dynamic map: Physical options
+    # For Single Layer Dynamic map: Hydrodynamics
+    'wl_single_dynamic':'mesh2d_s1', 'wd_single_dynamic':'mesh2d_waterdepth',
+    # For Multi Layer Dynamic map: Physical options
     'temp_multi_dynamic':'mesh2d_tem1', 'sal_multi_dynamic':'mesh2d_sa1', 'cont_multi_dynamic':'mesh2d_Contaminant',
     #
 }
@@ -143,6 +143,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
     result = {}
     for data in Out_files:
         if data is None: continue
+        result['single_layer'] = result['multi_layer'] = False
         # This is a hydrodynamic his file
         if 'time' in data.sizes and any(k in data.sizes for k in ['stations', 'cross_section', 'source_sink']):
             print(f"- Checking Hydrodynamics Simulation: His file ...")
@@ -223,19 +224,19 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
         # This is a hydrodynamic map file
         elif ('time' in data.sizes and any(k in data.sizes for k in ['mesh2d_nNodes', 'mesh2d_nEdges'])):
             print(f"- Checking Hydrodynamics Simulation: Map file ...")
+            result['z_layers'] = checkVariables(data, 'mesh2d_layer_z')
             # Prepare data for thermocline parameters
             # 1. Thermocline
             result['thermocline_temp'] = checkVariables(data, 'mesh2d_tem1')
-            # 2. Spatial dynamic maps
+            # 2. Spatial single layer hydrodynamic maps
             result['hyd_wl_dynamic'] = checkVariables(data, 'mesh2d_s1')
             result['hyd_wd_dynamic'] = checkVariables(data, 'mesh2d_waterdepth')
             result['single_layer'] = True if (result['hyd_wl_dynamic'] or result['hyd_wd_dynamic']) else False
-            # 3. Spatial physical maps
+            # 3. Spatial multi layer hydrodynamic maps
             result['spatial_salinity'] = checkVariables(data, 'mesh2d_sa1')
             result['spatial_contaminant'] = checkVariables(data, 'mesh2d_Contaminant')
             result['multi_layer'] = True if (result['thermocline_temp'] or
                 result['spatial_salinity'] or result['spatial_contaminant']) else False
-            result['hyd_spatial'] = True if (result['single_layer'] or result['multi_layer']) else False
             # 4. Spatial static maps
             result['waterdepth_static'] = checkVariables(data, 'mesh2d_waterdepth')
             result['spatial_static'] = True if (result['waterdepth_static']) else False
@@ -399,6 +400,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                             result['waq_map_coliform_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
                 if len(result['waq_map_coliform_selector']) > 0:
                     result['wq_map'], result['waq_map_coliform'] = True, True
+        result['hide_map'] = result['spatial_map'] = True if (result['single_layer'] or result['multi_layer']) else False
     return result
 
 def valueToKeyConverter(values: list, dict: dict=units) -> list:
@@ -488,10 +490,10 @@ def getSummary(dialog_path: str, Out_files: list) -> list:
         if data_his is None: continue
         sizes = data_his.sizes
         # --- Hydrodynamic ---
-        if 'time' in data_his.sizes:
+        if 'time' in sizes:
             time_var = data_his['time']
-            start_hyd = pd.to_datetime(time_var.isel(time=0).compute().values).strftime('%Y-%m-%d %H:%M:%S')
-            end_hyd = pd.to_datetime(time_var.isel(time=0).compute().values).strftime('%Y-%m-%d %H:%M:%S')
+            start_hyd = pd.to_datetime(time_var.isel(time=0).values).strftime('%Y-%m-%d %H:%M:%S')
+            end_hyd = pd.to_datetime(time_var.isel(time=-1).values).strftime('%Y-%m-%d %H:%M:%S')
             result.append({'parameter': 'Start Date (Hydrodynamic Simulation)', 'value': start_hyd})
             result.append({'parameter': 'Stop Date (Hydrodynamic Simulation)', 'value': end_hyd})
             result.append({'parameter': 'Number of Time Steps', 'value': sizes['time']})
@@ -500,10 +502,10 @@ def getSummary(dialog_path: str, Out_files: list) -> list:
         if ('cross_section' in sizes and sizes['cross_section'] > 0): result.append({'parameter': 'Number of Cross Sections', 'value': sizes['cross_section']})
         if ('source_sink' in sizes and sizes['source_sink'] > 0): result.append({'parameter': 'Number of Sources/Sinks', 'value': sizes['source_sink']})
         # --- Water Quality ---
-        if ('nTimesDlwq' in sizes):
+        if 'nTimesDlwq' in sizes:
             waq_time = data_his['nTimesDlwq']
-            start_waq = pd.to_datetime(waq_time.isel(time=0).compute().values).strftime('%Y-%m-%d %H:%M:%S')
-            end_waq = pd.to_datetime(waq_time.isel(time=0).compute().values).strftime('%Y-%m-%d %H:%M:%S')
+            start_waq = pd.to_datetime(waq_time.isel(nTimesDlwq=0).values).strftime('%Y-%m-%d %H:%M:%S')
+            end_waq = pd.to_datetime(waq_time.isel(nTimesDlwq=-1).values).strftime('%Y-%m-%d %H:%M:%S')
             result.append({'parameter': f'Start Date (Water Quality Simulation)', 'value': start_waq})
             result.append({'parameter': f'Stop Date (Water Quality Simulation)', 'value': end_waq})
             result.append({'parameter': f'Number of Time Steps (Water Quality Simulation)', 'value': sizes['nTimesDlwq']})
@@ -833,39 +835,6 @@ def interpolation_Z(grid_net: gpd.GeoDataFrame, x_coords: np.ndarray, y_coords: 
     value = np.sum(weight * z_values[idx], axis=1)/np.sum(weight, axis=1)
     return numberFormatter(value)
 
-def assignValuesToMeshes(grid: gpd.GeoDataFrame, data_map: xr.Dataset, key: str, time_column: str) -> gpd.GeoDataFrame:
-    """
-    Interpolate or extrapolate z values for grid from known points
-    using Inverse Distance Weighting (IDW) method.
-
-    Parameters:
-    ----------
-    grid: gpd.GeoDataFrame
-        The GeoDataFrame containing the meshes/unstructured grid.
-    data_map: xr.Dataset
-        The dataset received from _map file.
-    key: str
-        The key of the array received from _map file.
-    time_column: str
-        The name of the time column.
-
-    Returns:
-    -------
-    gpd.GeoDataFrame
-        The GeoDataFrame with interpolated z values.
-    """
-    name = variablesNames.get(key, key) if time_column == 'time' else key
-    temp_grid = grid.copy()
-    time_stamps = [pd.to_datetime(t).strftime('%Y-%m-%d %H:%M:%S') for t in data_map[time_column].data.compute()]
-    values = data_map[name].data
-    if len(values.shape) == 3: values = values[:,:,-1]
-    result = pd.DataFrame({t: values[i,:].compute() for i, t in enumerate(time_stamps)}).replace(-999.0, np.nan)
-    # Convert to numpy array
-    arr = numberFormatter(result.to_numpy())
-    # Convert to dataframe
-    df = pd.DataFrame(arr, index=result.index, columns=result.columns)
-    return temp_grid.join(df).reset_index()
-
 def layerCounter(data_map: xr.Dataset) -> dict:
     """
     Check how many layers are available.
@@ -897,18 +866,18 @@ def layerCounter(data_map: xr.Dataset) -> dict:
         layers[len(z_layer)-i-1] = f'Depth: {z_layer[i]} m'
     return layers
 
-def velocityComputer(data_map: xr.Dataset, value_type: str, layer_reverse: dict, step: int=-1) -> gpd.GeoDataFrame:
+def vectorComputer(data_map: xr.Dataset, value_type: str, layer_reverse: dict, step: int=-1) -> gpd.GeoDataFrame:
     """
-    Compute velocity in each layer and average value (if possible)
+    Compute vector in each layer and average value (if possible)
 
     Parameters:  
     ----------
     data_map: xr.Dataset
         The dataset received from _map file.
     value_type: str
-        The type of velocity to compute: 'Average' or one specific layer.
+        The type of vector to compute: 'Average' or one specific layer.
     layer_reverse: dict
-        The dictionary containing the index and value of reversed velocity layers.
+        The dictionary containing the index and value of reversed vector layers.
     step: int
         The index of the interested time step.
 
@@ -920,21 +889,15 @@ def velocityComputer(data_map: xr.Dataset, value_type: str, layer_reverse: dict,
     if step < 0: step = len(data_map['time']) - 1
     if value_type == 'Average':
         # Average velocity in each layer
-        row_idx = 0
         ucx = data_map['mesh2d_ucxa'].isel(time=step).values
         ucy = data_map['mesh2d_ucya'].isel(time=step).values
         ucm = data_map['mesh2d_ucmaga'].isel(time=step).values
-        # # Get global vmin and vmax
-        # vmin = float(np.nanmin(data_map['mesh2d_ucmaga']))
-        # vmax = float(np.nanmax(data_map['mesh2d_ucmaga']))
     else:
         # Velocity for specific layer (in reverse order)
         row_idx = len(layer_reverse) - int(layer_reverse[value_type]) - 1
-        ucx = data_map['mesh2d_ucx'].isel(time=step).values[row_idx - 1]
-        ucy = data_map['mesh2d_ucy'].isel(time=step).values[row_idx - 1]
-        ucm = data_map['mesh2d_ucmag'].isel(time=step).values[row_idx - 1]
-        # vmin = float(np.nanmin(data_map['mesh2d_ucmag']))
-        # vmax = float(np.nanmax(data_map['mesh2d_ucmag']))
+        ucx = data_map['mesh2d_ucx'].isel(time=step).values[:, row_idx-1]
+        ucy = data_map['mesh2d_ucy'].isel(time=step).values[:, row_idx-1]
+        ucm = data_map['mesh2d_ucmag'].isel(time=step).values[:, row_idx-1]
     # Get indices of non-nan values
     col_idx = np.where(~np.isnan(ucx) & ~np.isnan(ucy) & ~np.isnan(ucm))
     x_coords = data_map['mesh2d_face_x'].values[col_idx]
@@ -946,9 +909,8 @@ def velocityComputer(data_map: xr.Dataset, value_type: str, layer_reverse: dict,
     result = {"time": pd.to_datetime(data_map['time'].values[step]).strftime('%Y-%m-%d %H:%M:%S'),
         "coordinates": np.column_stack((x_coords, y_coords)).tolist(),
         "values": np.vstack([ucx_flat, ucy_flat, ucm_flat]).T.tolist(),
-        # 'min_max': [vmin, vmax]
     }
-    return clean_nans(result)
+    return result
 
 def fileWriter(template_path: str, params: dict) -> str:
     """
