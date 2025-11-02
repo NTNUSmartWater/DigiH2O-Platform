@@ -1,37 +1,16 @@
 <!-- Dynamic Maps -->
-<div class="menu">
+<div class="menu {% if not configuration.spatial_map %}hidden{% endif %}">
     <a class="menu-link">Dynamic Maps<span class="arrow">&#x25B8;</span></a>
     <div class="submenu">
-        <div style="padding-left: 10px; font-size: 17px;">
-            <div style="display: flex; align-items: center; margin-left: 5px;">
-                <span style="margin: 10px 10px 5px 0;">Vector:</span>
-                <select id="vector-object-main" style="flex: 1; margin: 10px 10px 5px 0;">
-                    <option value="" disabled selected hidden>- No Selection -</option>
-                </select>
-                <div id="vector-container" style="display: none;">
-                    <span style="margin: 10px 10px 5px 0;">Layer:</span>
-                    <select id="vector-object-submain" style="flex: 1; margin: 10px 10px 5px 0;">
-                        <option value="" disabled selected hidden>- No Selection -</option>
-                    </select>
-                </div>
-            </div>
-            <div class="scaler-group" style="margin: 0 0 10px 0;">
-                <label>Scale:</label>
-                <input type="text" id="scaler-value" value="1000">
-                <button type="button" id="plotVectorBtn">Plot Vector</button>
-            </div>
-        </div>
-        <!-- Single Layer -->
+        <!-- Single Layer Hydrodynamics -->
         <div class="menu-1 {% if not configuration.single_layer %}hidden{% endif %}">
-            <hr style="border-top: 1px solid #000000; margin: 5px 30px 5px 30px;">
             <a class="menu-link-1">• Single Layer<span class="arrow">&#x25B8;</span></a>
             <div class="submenu-1">
-                <!-- Single Layer Hydrodynamics -->
                 <a class="map2D_dynamic {% if not configuration.hyd_wl_dynamic %}hidden{% endif %}" 
-                    data-info="wl_dynamic|Water Level (m)|depth">- Water Level</a>
+                    data-info="wl_single_dynamic|Water Level (m)|depth">- Water Level</a>
                 <a class="map2D_dynamic {% if not configuration.hyd_wd_dynamic %}hidden{% endif %}" 
-                    data-info="wd_dynamic|Water Depth (m)|depth">- Water Depth</a>
-                <a class="waq-function {% if not configuration.waq_map_conservative_decay %}hidden{% endif %}"
+                    data-info="wd_single_dynamic|Water Depth (m)|depth">- Water Depth</a>
+                <!-- <a class="waq-function {% if not configuration.waq_map_conservative_decay %}hidden{% endif %}"
                     data-info="waq_map_conservative_selector|single">- Conservative and decaying tracers</a>
                 <a class="waq-function {% if not configuration.waq_map_suspended_sediment %}hidden{% endif %}"
                     data-info="waq_map_suspended_sediment_selector|single">- Suspended sediment (three fractions)</a>
@@ -46,21 +25,43 @@
                 <a class="waq-function {% if not configuration.waq_map_trace_metals %}hidden{% endif %}"
                     data-info="waq_map_trace_metals_selector|single">- Trace metals</a>
                 <a class="waq-function {% if not configuration.waq_map_coliform %}hidden{% endif %}"
-                    data-info="waq_map_coliform_selector|single">- Coliform bacteria</a>
+                    data-info="waq_map_coliform_selector|single">- Coliform bacteria</a> -->
             </div>
         </div>
         <!-- Multiple Layer -->
         <div class="menu-1 {% if not configuration.multi_layer %}hidden{% endif %}">
             <a class="menu-link-1">• Multiple Layer<span class="arrow">&#x25B8;</span></a>
             <div class="submenu-1">
-                <div class="menu-1 {% if not configuration.hyd_spatial %}hidden{% endif %}">
+                <div class="layer {% if not configuration.z_layers %}hidden{% endif %}">
+                    <div style="display: flex; font-size: 15px; flex: 1; padding-left: 17px;">
+                        <span style="margin: 10px 10px 5px 0; color: #0616f3;">Layer:</span>
+                        <select id="layer-selector" style="flex: 1; margin: 10px 10px 5px 0;">
+                            <option value="" disabled selected hidden>- No Selection -</option>
+                        </select>
+                    </div>
+                    <hr style="border-top: 1px solid #0616f3; margin: 5px 10px 15px 15px;">
+                </div>
+                <div class="menu-1 {% if not configuration.z_layers %}hidden{% endif %}">
+                    <div style="display: flex; font-size: 15px; flex: 1;">
+                        <span style="margin: 0 10px 0 20px; font-size: 15px;">- Vector:</span>
+                        <select id="vector-selector" style="flex: 1; margin-right: 10px;">
+                            <option value="" disabled selected hidden>- No Selection -</option>
+                        </select>
+                    </div>
+                    <div class="scaler-group" style="margin: 5px 0 0 25px;">
+                        <label>Scale:</label>
+                        <input type="text" id="scaler-value" value="1000" style="width: 80px;">
+                        <button type="button" id="plotVectorBtn" style="margin-right: 5px;">Plot Vector</button>
+                    </div>
+                </div>
+                <div class="menu-1 {% if not configuration.multi_layer %}hidden{% endif %}">
                     <a class="map2D_dynamic {% if not configuration.thermocline_temp %}hidden{% endif %}" 
                         data-info="temp_multi_dynamic|Temperature (°C)|temperature">- Temperature</a>
                     <a class="map2D_dynamic {% if not configuration.spatial_salinity %}hidden{% endif %}" 
                         data-info="sal_multi_dynamic|Salinity (ppt)|salinity">- Salinity</a>
                     <a class="map2D_dynamic {% if not configuration.spatial_contaminant %}hidden{% endif %}" 
                         data-info="cont_multi_dynamic|Contaminant (g/L)|contaminant">- Contaminant</a>
-                    <a class="wq-function {% if not configuration.waq_map_conservative_decay %}hidden{% endif %}"
+                    <!-- <a class="wq-function {% if not configuration.waq_map_conservative_decay %}hidden{% endif %}"
                         data-info="waq_map_conservative_selector|multi">- Conservative and decaying tracers</a>
                     <a class="waq-function {% if not configuration.waq_map_suspended_sediment %}hidden{% endif %}"
                         data-info="waq_map_suspended_sediment_selector|multi">- Suspended sediment (three fractions)</a>
@@ -75,7 +76,7 @@
                     <a class="waq-function {% if not configuration.waq_map_trace_metals %}hidden{% endif %}"
                         data-info="waq_map_trace_metals_selector|multi">- Trace metals</a>
                     <a class="waq-function {% if not configuration.waq_map_coliform %}hidden{% endif %}"
-                        data-info="waq_map_coliform_selector|multi">- Coliform bacteria</a>
+                        data-info="waq_map_coliform_selector|multi">- Coliform bacteria</a> -->
                 </div>
             </div>
         </div>
@@ -88,12 +89,12 @@
     <div class="submenu">
         <!-- Water Depth Static -->
         <a class="map2D_static {% if not configuration.waterdepth_static %}hidden{% endif %}" 
-            data-info="depth_static|Depth (m)|depth">Bed Depth</a>
+            data-info="depth_static|Depth (m)|depth">• Bed Depth</a>
     </div>
 </div>
 
 <!-- Hide Maps -->
-<div class="menu">
+<div class="menu {% if not configuration.hide_map %}hidden{% endif %}">
     <hr style="border-top: 1px solid #0516f8; margin: 5px 0 5px 0;">
     <a class="menu-link hide-maps">Hide Maps</a>
 </div>

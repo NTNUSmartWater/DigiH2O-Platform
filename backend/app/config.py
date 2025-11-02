@@ -17,10 +17,6 @@ GRID_PATH = os.getenv('GRID_PATH')
 # ============== Lifespan ================
 @asynccontextmanager
 async def lifespan(app):
-    # PROJECT_DIR of current directory
-    app.state.PROJECT_DIR = None
-    # WAQ model type
-    app.state.waq_model = None
     # Dataset
     app.state.dataset_manager = dataset_manager.DatasetManager()
     yield

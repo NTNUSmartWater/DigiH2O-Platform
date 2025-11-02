@@ -32,7 +32,6 @@ async def setup_new_project(request: Request):
 async def setup_database(request: Request):
     body = await request.json()
     project_name, params = body.get('projectName'), body.get('params')
-    request.app.state.templates = None
     loop = asyncio.get_event_loop()
     dm = request.app.state.dataset_manager
     try:
@@ -58,20 +57,6 @@ async def setup_database(request: Request):
         if params[1]: request.app.state.hyd_map = await load_dataset(os.path.join(hyd_dir, params[1]))
         if params[2]: request.app.state.waq_his = await load_dataset(os.path.join(waq_dir, params[2]))
         if params[3]: request.app.state.waq_map = await load_dataset(os.path.join(waq_dir, params[3]))
-        # Get WAQ model
-        temp = params[2].replace('_his.zarr', '') if params[2] != '' else params[3].replace('_his.zarr', '')
-        model_path = os.path.join(waq_dir, f'{temp}.json')
-        if os.path.exists(model_path):
-            with open(model_path, 'r') as f:
-                temp_data = json.load(f)
-            request.app.state.waq_model = temp_data['model_type']
-            request.app.state.config, request.app.state.obs = {}, {}
-            if 'wq_obs' in temp_data: 
-                request.app.state.config['wq_obs'] = True
-                request.app.state.obs['wq_obs'] = temp_data['wq_obs']
-            if 'wq_loads' in temp_data:
-                request.app.state.config['wq_loads'] = True
-                request.app.state.obs['wq_loads'] = temp_data['wq_loads']
         # Transfer data to app state
         if request.app.state.hyd_map is not None:
             # Grid/layers generation
@@ -85,20 +70,37 @@ async def setup_database(request: Request):
                 request.app.state.n_layers = functions.layerCounter(request.app.state.hyd_map)
                 with open(layer_path, 'w') as f:
                     json.dump(request.app.state.n_layers, f)
-        if (request.app.state.waq_his or request.app.state.waq_map) and not request.app.state.waq_model:
-            return JSONResponse({"status": 'error', "message": "Some WAQ-related parameters are missing.\nConsider running the model again."})
+            request.app.state.layer_reverse = {v: k for k, v in request.app.state.n_layers.items()}
         # Get configurations
         config_path = os.path.join(config_dir, 'config.json')
         if os.path.exists(config_path):
             with open(config_path, 'r') as f:
-                temp_config = json.load(f)
+                config = json.load(f)
         else:
             files = [request.app.state.hyd_his, request.app.state.hyd_map, 
             request.app.state.waq_his, request.app.state.waq_map]
-            temp_config = functions.getVariablesNames(files, request.app.state.waq_model)
-            with open(config_path, 'w') as f:
-                json.dump(temp_config, f)
-        request.app.state.config = request.app.state.config.update(temp_config) if request.app.state.config else temp_config
+            config = functions.getVariablesNames(files, request.app.state.waq_model)
+        # Get WAQ model
+        temp = params[2].replace('_his.zarr', '') if params[2] != '' else params[3].replace('_map.zarr', '')
+        model_path = os.path.join(waq_dir, f'{temp}.json')
+        if os.path.exists(model_path):
+            with open(model_path, 'r') as f:
+                temp_data = json.load(f)
+            request.app.state.waq_model = temp_data['model_type']
+            temp_config, request.app.state.obs = {}, {}
+            if 'wq_obs' in temp_data: 
+                temp_config['wq_obs'] = True
+                request.app.state.obs['wq_obs'] = temp_data['wq_obs']
+            if 'wq_loads' in temp_data:
+                temp_config['wq_loads'] = True
+                request.app.state.obs['wq_loads'] = temp_data['wq_loads']
+            config.update(temp_config)
+        if (request.app.state.waq_his or request.app.state.waq_map) and not request.app.state.waq_model:
+            return JSONResponse({"status": 'error', "message": "Some WAQ-related parameters are missing.\nConsider running the model again."})
+        request.app.state.config = config
+        # Save config
+        with open(config_path, 'w') as f:
+            json.dump(request.app.state.config, f)
         status, message = 'ok', ''
     except Exception as e:
         status, message = 'error', f"Error: {str(e)}"

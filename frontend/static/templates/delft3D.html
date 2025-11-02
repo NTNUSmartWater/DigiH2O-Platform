@@ -102,6 +102,13 @@
             <div id="leaflet_map"></div>
             <!-- Add time slider -->
             <div id="time-controls">
+                <label for="time-slider-speed">Speed:</label>
+                <select id="time-slider-speed" style="width: 70px; padding: 3px;">
+                    <option value="-2">-2x</option>
+                    <option value="1" selected>1x</option>
+                    <option value="2">+2x</option>
+                    <option value="5">+5x</option>
+                </select>
                 <button id="play-btn">▶ Play</button>
                 <div id="time-slider"></div>
                 <!-- <button id="export-video-btn">💾 Export Video</button>

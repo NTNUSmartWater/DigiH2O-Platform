@@ -41,7 +41,8 @@ async def load_popupMenu(request: Request, htmlFile: str):
         return HTMLResponse(f"<p>Popup menu template not found</p>", status_code=404)
     if not request.app.state.config:
         if (request.app.state.waq_his or request.app.state.waq_map) and not request.app.state.waq_model:
-            return JSONResponse({"status": 'error', "message": "Some WAQ-related parameters are missing.\nConsider running the model again."})
+            return JSONResponse({"status": 'error', "message":
+                "Some WAQ-related parameters are missing.\nConsider running the model again."})
         files = [request.app.state.hyd_his, request.app.state.hyd_map, 
             request.app.state.waq_his, request.app.state.waq_map]
         request.app.state.config = functions.getVariablesNames(files, request.app.state.waq_model)
