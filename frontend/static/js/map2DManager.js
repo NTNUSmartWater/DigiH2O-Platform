@@ -80,7 +80,7 @@ function layerCreator(meshes, values, key, vmin, vmax, colorbarTitle, colorbarKe
         featureIds.push(f.properties.index);
     });
     // Create map layer
-    if (layerMap) map.removeLayer(layerMap);  // Remove previous layer
+    if (layerMap) map.removeLayer(layerMap); layerMap = null;
     layerMap = L.vectorGrid.slicer(filteredData, {
         rendererFactory: L.canvas.tile, vectorTileLayerStyles: {
             sliced: function(properties) {
@@ -219,6 +219,7 @@ function initDynamicMap(query, key, data_below, data_above, colorbarTitleBelow, 
         vminBelow = data_below.min_max[0]; vmaxBelow = data_below.min_max[1];
         timestamp = data_below.timestamps; currentIndex = timestamp.length - 1;
         const meshes = data_below.meshes, values = data_below.values;
+        if (layerMap) map.removeLayer(layerMap); layerMap = null;
         layerMap = layerCreator(meshes, values, key, vminBelow, vmaxBelow, 
                                 colorbarTitleBelow, colorbarKeyBelow);
         map.addLayer(layerMap);
@@ -229,7 +230,7 @@ function initDynamicMap(query, key, data_below, data_above, colorbarTitleBelow, 
         // Get min and max values
         vminAbove = data_above.min_max[0], vmaxAbove = data_above.min_max[1];
         timestamp = data_above.timestamps; currentIndex = timestamp.length - 1;
-        if (layerAbove) map.removeLayer(layerAbove);  // Remove previous layer
+        if (layerAbove) map.removeLayer(layerAbove); layerAbove = null; // Remove previous layer
         parsedFrame = buildFrameData(data_above);
         layerAbove = vectorCreator(parsedFrame, vminAbove, vmaxAbove,
             colorbarTitleAbove, colorbarKeyAbove, scale);
@@ -256,7 +257,7 @@ function initDynamicMap(query, key, data_below, data_above, colorbarTitleBelow, 
             updateMapByTime(layerMap, values, vminBelow, vmaxBelow, colorbarKeyBelow);
         }
         if (data_above && layerAbove) {
-            const frame = await loadData(`${query}|${currentIndex}`, 'vector');
+            const frame = await loadData(`${query.replace('|', '')}|${currentIndex}`, 'vector');
             if (frame.status === 'error') { alert(frame.message); return; }
             parsedFrame = buildFrameData(frame.content);
             layerAbove.options.data = parsedFrame; layerAbove._redraw();
@@ -308,19 +309,17 @@ export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, 
     }
     const scale = initScaler();
     // If data is not water quality
-    console.log(getState().vectorSelected, getState().layerSelected);
-    if (!waterQuality && getState().vectorSelected) {
-        let vectorName = getState().vectorSelected, vectorKey = getState().layerSelected;
-        colorbarTitleAbove = vectorName + ' (m/s)';
-        // Process above data for velocity
-        if (vectorName === 'Velocity' && vectorKey) {
-            vectorName = vectorKey; vectorKey = 'velocity';
+    if (!waterQuality && getState().vectorSelected !== '' && key.includes('multi')) {
+        let vectorSelected = getState().vectorSelected, layerSelected = getState().layerSelected;
+        if (vectorSelected === 'Velocity') { // Process above data for velocity
+            colorbarTitleAbove = vectorSelected + ' (m/s)'; colorbarKeyAbove = 'vector';
         }
-        const dataAbove = await loadData(`${vectorName}|load`, vectorKey);
+        const dataAbove = await loadData(`${layerSelected}|load`, 'vector');
         if (dataAbove.status === 'error') { showLeafletMap(); alert(dataAbove.message); return; }
-        data_above = dataAbove.content; colorbarKeyAbove = vectorKey;
+        data_above = dataAbove.content;
     }
-    initDynamicMap(query, key, data_below, data_above, colorbarTitle, colorbarTitleAbove, colorbarKey, colorbarKeyAbove, scale);
+    initDynamicMap(query, key, data_below, data_above, colorbarTitle, colorbarTitleAbove,
+                colorbarKey, colorbarKeyAbove, scale);
     showLeafletMap();
 }
 
@@ -330,6 +329,8 @@ export async function plot2DVectorMap(query, key, colorbarTitleAbove, colorbarKe
     const data = await loadData(query, key);
     if (data.status === 'error') { showLeafletMap(); alert(data.message); return; }
     const layerName = query.split('|')[0];
+    if (layerMap) map.removeLayer(layerMap); layerMap = null;
+    if (layerAbove) map.removeLayer(layerAbove); layerAbove = null;
     initDynamicMap(layerName, key, null, data.content, null, colorbarTitleAbove, null, colorbarKey, scale);
     showLeafletMap();
 }

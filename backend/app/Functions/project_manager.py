@@ -71,23 +71,16 @@ async def setup_database(request: Request):
                 with open(layer_path, 'w') as f:
                     json.dump(request.app.state.n_layers, f)
             request.app.state.layer_reverse = {v: k for k, v in request.app.state.n_layers.items()}
-        # Get configurations
-        config_path = os.path.join(config_dir, 'config.json')
-        if os.path.exists(config_path):
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-        else:
-            files = [request.app.state.hyd_his, request.app.state.hyd_map, 
-            request.app.state.waq_his, request.app.state.waq_map]
-            config = functions.getVariablesNames(files, request.app.state.waq_model)
+        if (request.app.state.waq_his or request.app.state.waq_map) and not request.app.state.waq_model:
+            return JSONResponse({"status": 'error', "message": "Some WAQ-related parameters are missing.\nConsider running the model again."})        
         # Get WAQ model
         temp = params[2].replace('_his.zarr', '') if params[2] != '' else params[3].replace('_map.zarr', '')
-        model_path = os.path.join(waq_dir, f'{temp}.json')
+        model_path, temp_config = os.path.join(waq_dir, f'{temp}.json'), {}
         if os.path.exists(model_path):
             with open(model_path, 'r') as f:
                 temp_data = json.load(f)
             request.app.state.waq_model = temp_data['model_type']
-            temp_config, request.app.state.obs = {}, {}
+            request.app.state.obs = {}
             if 'wq_obs' in temp_data: 
                 temp_config['wq_obs'] = True
                 request.app.state.obs['wq_obs'] = temp_data['wq_obs']
@@ -95,8 +88,38 @@ async def setup_database(request: Request):
                 temp_config['wq_loads'] = True
                 request.app.state.obs['wq_loads'] = temp_data['wq_loads']
             config.update(temp_config)
-        if (request.app.state.waq_his or request.app.state.waq_map) and not request.app.state.waq_model:
-            return JSONResponse({"status": 'error', "message": "Some WAQ-related parameters are missing.\nConsider running the model again."})
+        
+        # Get configurations
+
+
+
+
+        config_path = os.path.join(config_dir, 'config.json')
+
+
+
+
+
+
+
+
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+        else:
+            files = [request.app.state.hyd_his, request.app.state.hyd_map, 
+            request.app.state.waq_his, request.app.state.waq_map]
+            config = functions.getVariablesNames(files, request.app.state.waq_model)
+        
+
+        # Check if config for hydrodynamics and/or WAQ already exists
+        if not config['hyd'] == True:
+            config.update(functions.getVariablesNames([request.app.state.hyd_his, request.app.state.hyd_map], None))
+        if not config['waq'] == True and request.app.state.waq_model:
+            config.update(functions.getVariablesNames([request.app.state.waq_his, request.app.state.waq_map], request.app.state.waq_model))
+        
+        
+        print(config)
         request.app.state.config = config
         # Save config
         with open(config_path, 'w') as f:

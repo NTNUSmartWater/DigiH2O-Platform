@@ -96,7 +96,15 @@ export function getColorFromValue(value, vmin, vmax, colorbarKey) {
             { r: 0,   g: 70,  b: 130 },  // dark blue
             { r: 0,   g: 25,  b: 51  },  // very dark blue
         ];
-    } else { // used for velocity, temperature, salinity, contaminant, ...
+    } else if (colorbarKey === "vector") { // used for vector
+        colors = [
+            { r: 220, g: 50,  b: 50  },  // red
+            { r: 255, g: 140, b: 0   },  // orange
+            { r: 255, g: 215, b: 0   },  // yellow
+            { r: 255, g: 0,   b: 255 },  // magenta
+            { r: 255, g: 255, b: 255 }   // white
+        ];
+    } else { // used for temperature, salinity, contaminant, ...
         colors = [
             { r: 255, g: 0,   b: 0   },    // red
             { r: 255, g: 165, b: 0   },   // orange
