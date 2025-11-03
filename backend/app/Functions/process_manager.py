@@ -40,14 +40,28 @@ def process_internal(request: Request, query: str, key: str):
         if temp[0] == '': data_, time_column = request.app.state.hyd_map, 'time' # For hydrodynamic data
         else: data_, time_column, key = request.app.state.waq_map, 'nTimesDlwq', temp[0] # For water quality
         name = functions.variablesNames.get(key, key) if time_column == 'time' else key
-        if temp[1] == 'load': # Initiate skeleton polygon for the first load
+        # Initiate cache for the first load
+        if not hasattr(request.app.state, 'layer_cache'): request.app.state.layer_cache = {}
+        if not hasattr(request.app.state, 'average_cache'): request.app.state.average_cache = {}
+        # Detech layer and get values at the last timestamp
+        if 'single' in key: arr = data_[name].values
+        elif 'multi' in key:
+            layer_reverse = request.app.state.layer_reverse    
+            if temp[1] == 'Average':
+                if name not in request.app.state.average_cache:
+                    request.app.state.average_cache[name] = np.nanmean(data_[name].values, axis=2)
+                arr = request.app.state.average_cache[name]
+            else:
+                row_idx = len(layer_reverse) - int(layer_reverse[temp[1]]) - 1
+                key_cache = f'{name}_{row_idx-1}'
+                if key_cache not in request.app.state.layer_cache:
+                    request.app.state.layer_cache[key_cache] = data_[name].values[:, :, row_idx-1]
+                arr = request.app.state.layer_cache[key_cache]
+        if temp[2] == 'load': # Initiate skeleton polygon for the first load
             grid = request.app.state.grid.copy()
             # Get values at the last timestamp
-            if not 'multi' in key: values = data_[name].isel(time=-1).values
-            else: values = data_[name].isel(time=-1).values[:, -1]
             features = [
-                {"type": "Feature", "id": idx,
-                    "properties": {"index": idx},
+                {"type": "Feature", "id": idx, "properties": {"index": idx},
                     "geometry": {
                         "type": wkt.loads(row['geometry'].wkt).geom_type,
                         "coordinates": [list(row['geometry'].exterior.coords)]
@@ -56,18 +70,12 @@ def process_internal(request: Request, query: str, key: str):
             ]
             data = {
                 'meshes': { 'type': 'FeatureCollection', 'features': features },
-                'values': list(functions.numberFormatter(values)),
+                'values': list(functions.numberFormatter(arr[-1,:])),
                 'timestamps': [pd.to_datetime(t).strftime('%Y-%m-%d %H:%M:%S') for t in data_[time_column].data],
             }
             data['min_max'] = [float(np.nanmin(data_[name].data.compute())), float(np.nanmax(data_[name].data.compute()))]
         else: # Update value of polygons
-            if not 'multi' in key: values = data_[name].isel(time=int(temp[1])).values
-            else: values = data_[name].isel(time=int(temp[1])).values[:, -1]
-            data = {'values': list(functions.numberFormatter(values))}
-        
-        
-        
-        
+            data = {'values': list(functions.numberFormatter(arr[int(temp[2]),:]))}
         data = functions.clean_nans(data)
     elif key == 'static':
         # Create static data for map
