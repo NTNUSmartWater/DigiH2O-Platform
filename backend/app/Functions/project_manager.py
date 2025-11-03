@@ -32,31 +32,46 @@ async def setup_new_project(request: Request):
 async def setup_database(request: Request):
     body = await request.json()
     project_name, params = body.get('projectName'), body.get('params')
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     dm = request.app.state.dataset_manager
+    # Set PROJECT_DIR
+    project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
+    output_dir = os.path.join(project_folder, "output")
+    config_dir = os.path.join(output_dir, "config")
+    hyd_dir, waq_dir = os.path.join(output_dir, 'HYD'), os.path.join(output_dir, 'WAQ')
+    request.app.state.PROJECT_DIR = project_folder
+    request.app.state.templates = Jinja2Templates(directory="static/templates")
     try:
-        # Set PROJECT_DIR
-        project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
-        output_dir = os.path.join(project_folder, "output")
-        config_dir = os.path.join(output_dir, "config")
-        if not os.path.exists(config_dir): os.makedirs(config_dir)
-        request.app.state.PROJECT_DIR = project_folder
-        request.app.state.templates = Jinja2Templates(directory="static/templates")
-        hyd_dir, waq_dir = os.path.join(output_dir, 'HYD'), os.path.join(output_dir, 'WAQ')
+        os.makedirs(config_dir, exist_ok=True)
         # Reset app state
-        request.app.state.waq_model = request.app.state.config = None
         request.app.state.hyd_his = request.app.state.hyd_map = None
         request.app.state.waq_his = request.app.state.waq_map = None
-        request.app.state.grid = request.app.state.n_layers = None
         # Load datasets asynchronously
-        async def load_dataset(path):
+        async def load_dataset(dir: str, filename: str):
+            path = os.path.join(dir, filename)
             if os.path.exists(path): return await loop.run_in_executor(None, lambda: dm.get(path))
             return None
-        # Assign datasets
-        if params[0]: request.app.state.hyd_his = await load_dataset(os.path.join(hyd_dir, params[0]))
-        if params[1]: request.app.state.hyd_map = await load_dataset(os.path.join(hyd_dir, params[1]))
-        if params[2]: request.app.state.waq_his = await load_dataset(os.path.join(waq_dir, params[2]))
-        if params[3]: request.app.state.waq_map = await load_dataset(os.path.join(waq_dir, params[3]))
+        # Assign datasets (only load if file path exists)
+        mapping = [
+            ('hyd_his', hyd_dir, params[0]), ('hyd_map', hyd_dir, params[1]),
+            ('waq_his', waq_dir, params[2]), ('waq_map', waq_dir, params[3])
+        ]
+        for key, dir, filename in mapping:
+            if filename: setattr(request.app.state, key, await load_dataset(dir, filename))
+        # Load or init config
+        config_path = os.path.join(config_dir, 'config.json')
+        if os.path.exists(config_path) and os.path.getsize(config_path) > 0:
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+        else:
+            config = {"hyd": {}, "waq": {}, "meta": {"hyd_scanned": False, "waq_scanned": False}}
+            with open(config_path, "w") as f:
+                json.dump(config, f)
+        # Delete waq option if no waq files
+        if request.app.state.waq_his is None and request.app.state.waq_map is None:
+            config['waq'], config['meta']['waq_scanned'] = {}, False
+            if "wq_obs" in config: del config["wq_obs"]
+            if "wq_loads" in config: del config["wq_loads"]
         # Transfer data to app state
         if request.app.state.hyd_map is not None:
             # Grid/layers generation
@@ -71,60 +86,38 @@ async def setup_database(request: Request):
                 with open(layer_path, 'w') as f:
                     json.dump(request.app.state.n_layers, f)
             request.app.state.layer_reverse = {v: k for k, v in request.app.state.n_layers.items()}
-        if (request.app.state.waq_his or request.app.state.waq_map) and not request.app.state.waq_model:
-            return JSONResponse({"status": 'error', "message": "Some WAQ-related parameters are missing.\nConsider running the model again."})        
+        # Lazy scan HYD variables only once
+        if (request.app.state.hyd_map or request.app.state.hyd_his) and not config['meta']['hyd_scanned']:
+            hyd_files = [request.app.state.hyd_his, request.app.state.hyd_map]
+            hyd_vars = functions.getVariablesNames(hyd_files)
+            config["hyd"], config["meta"]["hyd_scanned"] = hyd_vars, True
         # Get WAQ model
         temp = params[2].replace('_his.zarr', '') if params[2] != '' else params[3].replace('_map.zarr', '')
-        model_path, temp_config = os.path.join(waq_dir, f'{temp}.json'), {}
+        model_path, waq_model = os.path.join(waq_dir, f'{temp}.json'), ''
         if os.path.exists(model_path):
             with open(model_path, 'r') as f:
                 temp_data = json.load(f)
-            request.app.state.waq_model = temp_data['model_type']
-            request.app.state.obs = {}
+            waq_model, request.app.state.obs = temp_data['model_type'], {}
             if 'wq_obs' in temp_data: 
-                temp_config['wq_obs'] = True
-                request.app.state.obs['wq_obs'] = temp_data['wq_obs']
+                config['wq_obs'], request.app.state.obs['wq_obs'] = True, temp_data['wq_obs']
             if 'wq_loads' in temp_data:
-                temp_config['wq_loads'] = True
-                request.app.state.obs['wq_loads'] = temp_data['wq_loads']
-            config.update(temp_config)
-        
-        # Get configurations
-
-
-
-
-        config_path = os.path.join(config_dir, 'config.json')
-
-
-
-
-
-
-
-
-        if os.path.exists(config_path):
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-        else:
-            files = [request.app.state.hyd_his, request.app.state.hyd_map, 
-            request.app.state.waq_his, request.app.state.waq_map]
-            config = functions.getVariablesNames(files, request.app.state.waq_model)
-        
-
-        # Check if config for hydrodynamics and/or WAQ already exists
-        if not config['hyd'] == True:
-            config.update(functions.getVariablesNames([request.app.state.hyd_his, request.app.state.hyd_map], None))
-        if not config['waq'] == True and request.app.state.waq_model:
-            config.update(functions.getVariablesNames([request.app.state.waq_his, request.app.state.waq_map], request.app.state.waq_model))
-        
-        
-        print(config)
-        request.app.state.config = config
+                config['wq_loads'], request.app.state.obs['wq_loads'] = True, temp_data['wq_loads']
+        if (request.app.state.waq_his or request.app.state.waq_map) and waq_model == '':
+            return JSONResponse({"status": 'error', "message": "Some WAQ-related parameters are missing.\nConsider running the model again."})  
+        # Lazy scan WAQ
+        if (request.app.state.waq_map or request.app.state.waq_his) and not config['meta']['waq_scanned']:
+            waq_files = [request.app.state.waq_his, request.app.state.waq_map]
+            waq_vars = functions.getVariablesNames(waq_files, waq_model)
+            config["waq"], config["meta"]["waq_scanned"] = waq_vars, True
         # Save config
         with open(config_path, 'w') as f:
-            json.dump(request.app.state.config, f)
-        status, message = 'ok', ''
+            json.dump(config, f)
+        # Restructure configuration
+        result = {**config.get("hyd", {}), **config.get("waq", {})}
+        for k, v in config.items():
+            if k not in ("hyd", "waq", "meta"):
+                result[k] = v
+        request.app.state.config, status, message = result, 'ok', ''
     except Exception as e:
         status, message = 'error', f"Error: {str(e)}"
     return JSONResponse({"status": status, "message": message})
@@ -227,8 +220,7 @@ async def save_obs(request: Request):
                 for line in data:
                     f.write(f"{line[2]}  {line[1]}  {line[0]}\n")
     try:
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, lambda: write_file(path, file_name, data, key))
+        await asyncio.to_thread(write_file, path, file_name, data, key)
         status, message = 'ok', 'Observations saved successfully.'
     except Exception as e:
         status, message = 'error', f"Error: {str(e)}"

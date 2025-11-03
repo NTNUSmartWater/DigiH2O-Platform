@@ -123,7 +123,7 @@ def checkVariables(data: xr.Dataset, variablesNames: str) -> bool:
     vmin, vmax = var.min(skipna=True).compute(), var.max(skipna=True).compute()
     return bool(float(vmin) != float(vmax))
 
-def getVariablesNames(Out_files: list, model_type: None) -> dict:
+def getVariablesNames(Out_files: list, model_type: str='') -> dict:
     """
     Get the names of the variables in the dataset received from *.nc file.
 
@@ -139,7 +139,7 @@ def getVariablesNames(Out_files: list, model_type: None) -> dict:
     dict
         The dictionary containing the names of the variables.
     """
-    result = {'hyd': False, 'waq': False}
+    result = {}
     for data in Out_files:
         if data is None: continue
         result['single_layer'] = result['multi_layer'] = False
@@ -148,7 +148,7 @@ def getVariablesNames(Out_files: list, model_type: None) -> dict:
             print(f"- Checking Hydrodynamics Simulation: His file ...")
             # Prepare data for hydrodynamic options
             result['hyd_obs'] = data.sizes['stations'] > 0 if ('stations' in data.sizes) else False
-            result['cross_sections'], result['hyd'] = False, True
+            result['cross_sections'] = False
             if 'cross_section' in data.sizes and data.sizes['cross_section'] > 0:
                 x = da.unique(data['cross_section_geom_node_coordx'].data).compute()
                 y = da.unique(data['cross_section_geom_node_coordy'].data).compute()
@@ -222,7 +222,6 @@ def getVariablesNames(Out_files: list, model_type: None) -> dict:
                 result['hyd_wb_storage'] or result['hyd_wb_volume_error']) else False
         # This is a hydrodynamic map file
         elif ('time' in data.sizes and any(k in data.sizes for k in ['mesh2d_nNodes', 'mesh2d_nEdges'])):
-            result['hyd'] = True
             print(f"- Checking Hydrodynamics Simulation: Map file ...")
             result['z_layers'] = checkVariables(data, 'mesh2d_layer_z')
             # Prepare data for thermocline parameters
@@ -244,7 +243,7 @@ def getVariablesNames(Out_files: list, model_type: None) -> dict:
         elif ('nTimesDlwq' in data.sizes and not any(k in data.sizes for k in ['mesh2d_nNodes', 'mesh2d_nEdges'])):
             print(f"- Checking Water Quality Simulation: His file ...")
             variables = set(data.variables.keys()) - set(['nTimesDlwqBnd', 'station_name', 'station_x', 'station_y', 'station_z', 'nTimesDlwq'])
-            result['waq_his'], result['waq'] = False, True
+            result['waq_his'] = False
             # Prepare data for Physical option
             # 1. Conservative and Decaying Tracers
             if model_type == 'conservative-tracers':
@@ -306,7 +305,7 @@ def getVariablesNames(Out_files: list, model_type: None) -> dict:
         # This is a water quality map file      
         elif ('nTimesDlwq' in data.sizes and any(k in data.sizes for k in ['mesh2d_nNodes', 'mesh2d_nEdges'])):
             print(f'- Checking Water Quality Simulation: Map file ...')
-            result['wq_map'], result['waq'] = False, True
+            result['wq_map'] = False
             variables = set(data.variables.keys()) - set(['mesh2d', 'mesh2d_node_x', 'mesh2d_node_y', 'mesh2d_edge_x',
                 'mesh2d_edge_y', 'mesh2d_face_x_bnd', 'mesh2d_face_y_bnd', 'mesh2d_edge_nodes', 'mesh2d_edge_faces',
                 'mesh2d_face_nodes', 'mesh2d_layer_dlwq', 'nTimesDlwqBnd', 'mesh2d_face_x', 'mesh2d_face_y', 'nTimesDlwq'])
