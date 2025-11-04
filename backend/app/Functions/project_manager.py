@@ -64,12 +64,13 @@ async def setup_database(request: Request):
             with open(config_path, 'r') as f:
                 config = json.load(f)
         else:
-            config = {"hyd": {}, "waq": {}, "meta": {"hyd_scanned": False, "waq_scanned": False}}
+            config = {"hyd": {}, "waq": {}, "meta": {"hyd_scanned": False, "waq_scanned": False}, "model_type": ''}
+            if os.path.exists(config_path): os.remove(config_path)
             with open(config_path, "w") as f:
                 json.dump(config, f)
         # Delete waq option if no waq files
         if request.app.state.waq_his is None and request.app.state.waq_map is None:
-            config['waq'], config['meta']['waq_scanned'] = {}, False
+            config['waq'], config['meta']['waq_scanned'], config['model_type'] = {}, False, ''
             if "wq_obs" in config: del config["wq_obs"]
             if "wq_loads" in config: del config["wq_loads"]
         # Transfer data to app state
@@ -105,10 +106,10 @@ async def setup_database(request: Request):
         if (request.app.state.waq_his or request.app.state.waq_map) and waq_model == '':
             return JSONResponse({"status": 'error', "message": "Some WAQ-related parameters are missing.\nConsider running the model again."})  
         # Lazy scan WAQ
-        if (request.app.state.waq_map or request.app.state.waq_his) and not config['meta']['waq_scanned']:
+        if (request.app.state.waq_map or request.app.state.waq_his) and config['model_type'] != waq_model:
             waq_files = [request.app.state.waq_his, request.app.state.waq_map]
             waq_vars = functions.getVariablesNames(waq_files, waq_model)
-            config["waq"], config["meta"]["waq_scanned"] = waq_vars, True
+            config["waq"], config["meta"]["waq_scanned"], config['model_type'] = waq_vars, True, waq_model
         # Save config
         with open(config_path, 'w') as f:
             json.dump(config, f)

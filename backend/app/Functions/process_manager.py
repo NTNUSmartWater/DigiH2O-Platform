@@ -37,6 +37,7 @@ def process_internal(request: Request, query: str, key: str):
         data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
     elif 'dynamic' in key:
         temp = query.split('|')
+        print(temp, key)
         if temp[0] == '': data_, time_column = request.app.state.hyd_map, 'time' # For hydrodynamic data
         else: data_, time_column, key = request.app.state.waq_map, 'nTimesDlwq', temp[0] # For water quality
         name = functions.variablesNames.get(key, key) if time_column == 'time' else key
@@ -44,6 +45,8 @@ def process_internal(request: Request, query: str, key: str):
         if not hasattr(request.app.state, 'layer_cache'): request.app.state.layer_cache = {}
         if not hasattr(request.app.state, 'average_cache'): request.app.state.average_cache = {}
         # Detech layer and get values at the last timestamp
+        print(data_[name].values.shape)
+        print('single' in key, 'multi' in key)
         if 'single' in key: arr = data_[name].values
         elif 'multi' in key:
             layer_reverse = request.app.state.layer_reverse    
@@ -57,6 +60,7 @@ def process_internal(request: Request, query: str, key: str):
                 if key_cache not in request.app.state.layer_cache:
                     request.app.state.layer_cache[key_cache] = data_[name].values[:, :, row_idx-1]
                 arr = request.app.state.layer_cache[key_cache]
+        print(arr)
         if temp[2] == 'load': # Initiate skeleton polygon for the first load
             grid = request.app.state.grid.copy()
             # Get values at the last timestamp
@@ -126,10 +130,8 @@ def process_internal(request: Request, query: str, key: str):
     elif key == 'substance_check':
         substance = request.app.state.config[query]
         if len(substance) > 0:
-            data, status = sorted(substance), 'ok'
-            message = functions.valueToKeyConverter(substance)
-        else: data, status, message = None, 'error', f"No substance defined."
-        return JSONResponse({'content': data, 'status': status, 'message': message})
+            data, message = sorted(substance), functions.valueToKeyConverter(substance)
+        else: data, message = None, f"No substance defined."
     elif key == 'substance':
         temp = functions.timeseriesCreator(request.app.state.waq_his, query.split(' ')[0], timeColumn='nTimesDlwq')
         data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
@@ -148,6 +150,7 @@ async def process_data(request: Request):
     loop = asyncio.get_event_loop()
     try:
         result = await loop.run_in_executor(None, lambda: process_internal(request, query, key))
+        if result[1] is None: return JSONResponse({'status': 'error', 'message': result[0]})
         status, message, data = 'ok', result[0], result[1]
     except Exception as e:
         status, message, data = 'error', f"Error: {e}", None

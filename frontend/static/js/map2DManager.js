@@ -295,6 +295,7 @@ function initScaler() {
 }
 
 export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, colorbarKey) {
+    console.log(waterQuality, query, key);
     startLoading('Preparing Dynamic Map. Please wait...');
     let data_below = null, data_above = null, colorbarTitleAbove = null, colorbarKeyAbove = null;
     setState({showedQuery: key}); setState({isHYD: waterQuality});  // Set HYD flag
@@ -308,8 +309,10 @@ export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, 
         data_below.min_max = [-data_below.min_max[1], -data_below.min_max[0]];
     }
     const scale = initScaler();
+    
     // If data is not water quality
     if (!waterQuality && getState().vectorSelected !== '' && key.includes('multi')) {
+        
         let vectorSelected = getState().vectorSelected, layerSelected = getState().layerSelected;
         if (vectorSelected === 'Velocity') { // Process above data for velocity
             colorbarTitleAbove = vectorSelected + ' (m/s)'; colorbarKeyAbove = 'vector';
