@@ -142,7 +142,6 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
     result = {}
     for data in Out_files:
         if data is None: continue
-        result['single_layer'] = result['multi_layer'] = False
         # This is a hydrodynamic his file
         if 'time' in data.sizes and any(k in data.sizes for k in ['stations', 'cross_section', 'source_sink']):
             print(f"- Checking Hydrodynamics Simulation: His file ...")
@@ -239,6 +238,8 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
             # 4. Spatial static maps
             result['waterdepth_static'] = checkVariables(data, 'mesh2d_waterdepth')
             result['spatial_static'] = True if (result['waterdepth_static']) else False
+            result['spatial_map'] = True if (result['single_layer'] or result['multi_layer']) else False
+            result['hide_map'] = result['spatial_map']
         # This is a water quality his file
         elif ('nTimesDlwq' in data.sizes and not any(k in data.sizes for k in ['mesh2d_nNodes', 'mesh2d_nEdges'])):
             print(f"- Checking Water Quality Simulation: His file ...")
@@ -399,7 +400,8 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                             result['waq_map_coliform_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
                 if len(result['waq_map_coliform_selector']) > 0:
                     result['wq_map'], result['waq_map_coliform'] = True, True
-        result['hide_map'] = result['spatial_map'] = True if (result['single_layer'] or result['multi_layer']) else False
+            result['spatial_map'], result['single_layer'], result['multi_layer'] = result['wq_map'], result['wq_map'], result['wq_map']
+            result['hide_map'] = result['spatial_map']
     return result
 
 def valueToKeyConverter(values: list, dict: dict=units) -> list:

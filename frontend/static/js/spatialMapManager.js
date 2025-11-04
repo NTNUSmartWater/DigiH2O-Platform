@@ -12,7 +12,6 @@ const vectorPlotBtn = () => document.getElementById("plotVectorBtn");
 const substanceWindow = () => document.getElementById('substance-window');
 const substanceWindowContent = () => document.getElementById('substance-window-content');
 
-let newKey = '', queryKey = '';
 
 async function checkVectorComponents() {
     // Initiate objects for vector object
@@ -54,26 +53,30 @@ export async function spatialMapManager() {
         });
     });
     
-    // // Set function for water quality
-    // document.querySelectorAll('.waq-function').forEach(obj => {
-    //     obj.addEventListener('click', async() => {
-    //         const [query, type] = obj.dataset.info.split('|');
-    //         const data = await sendQuery('process_data', {query: query, key: 'substance_check'});
-    //         if (data.status === "error") { alert(data.message); substanceWindow().style.display = 'none'; return; }
-    //         substanceWindowContent().innerHTML = '';
-    //         // Add content
-    //         substanceWindowContent().innerHTML = data.content.map((substance, i) => {
-    //             return `<label for="${substance[0]}"><input type="radio" name="waq-substance" id="${substance[0]}"
-    //                 value="${substance[0]}|${type}" ${i === 0 ? 'checked' : ''}>${substance[1]}</label>`;
-    //         }).join('');
-    //         substanceWindow().style.display = 'flex';
-    //         const name = data.content[0][0];
-    //         if (type === 'single') {newKey = `${name}_waq_dynamic`; queryKey = `mesh2d_${name}`;}
-    //         else {newKey = `${name}_waq_multi_dynamic`; queryKey = `mesh2d_2d_${name}`;}
-    //         const colorbarTitle = data.content[0][1];
-    //         plot2DMapDynamic(true, queryKey, newKey, colorbarTitle, '');
-    //     });
-    // });
+    // Set function for water quality
+    document.querySelectorAll('.waq-function').forEach(obj => {
+        obj.addEventListener('click', async() => {
+            const [query, type] = obj.dataset.info.split('|');
+            const data = await sendQuery('process_data', {query: query, key: 'substance_check'});
+            if (data.status === "error") { alert(data.message); substanceWindow().style.display = 'none'; return; }
+            substanceWindowContent().innerHTML = '';
+            // Add content
+            substanceWindowContent().innerHTML = data.content.map((substance, i) => {
+                return `<label for="${substance[0]}"><input type="radio" name="waq-substance" id="${substance[0]}"
+                    value="${substance[0]}|${type}" ${i === 0 ? 'checked' : ''}>${substance[1]}</label>`;
+            }).join('');
+            substanceWindow().style.display = 'flex';
+            let newKey = '', newQuery = '';
+            const name = data.content[0][0];
+            if (type === 'single') {
+                newKey = `${name}_waq_single_dynamic`; newQuery = `mesh2d_2d_${name}|${layerSelector().value}`;
+            } else {
+                newKey = `${name}_waq_multi_dynamic`; newQuery = `mesh2d_${name}|${layerSelector().value}`;
+            }
+            const colorbarTitle = data.content[0][1];
+            plot2DMapDynamic(true, newQuery, newKey, colorbarTitle, '');
+        });
+    });
 
 
 
