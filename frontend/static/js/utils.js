@@ -127,7 +127,7 @@ export function getColorFromValue(value, vmin, vmax, colorbarKey) {
 
 // Update color for colorbar
 export function updateColorbar(min, max, title, colorbarKey, bar_color, bar_title, bar_label) {
-    bar_title.textContent = title;
+    bar_title.innerHTML = title.replace(/\n/g, '<br>');
     // Generate 5 color stops
     const colorStops = [], numStops = 5;
     // Minimum difference
@@ -221,11 +221,11 @@ export async function initOptions(comboBox, key) {
             // Add options
             data.content.forEach(item => {
                 const option = document.createElement('option');
-                option.value = item; option.text = item;
+                option.value = parseFloat(item[0]); option.text = item[1];
                 comboBox().add(option);
             });
             // Select the first option
-            if (key !== 'vector') comboBox().value = data.content[0];
+            if (key !== 'vector') comboBox().value = -1;
         } else if (data.status === "error") {alert(data.message);}
     } catch (error) {alert(error);}
     showLeafletMap();

@@ -1,4 +1,4 @@
-import { plot2DMapStatic, plot2DVectorMap, plot2DMapDynamic, layerAbove } from "./map2DManager.js";
+import { plot2DMapStatic, plot2DVectorMap, plot2DMapDynamic } from "./map2DManager.js";
 import { timeControl, colorbar_container } from "./map2DManager.js";
 import { colorbar_vector_container } from "./map2DManager.js";
 import { map } from './mapManager.js';
@@ -12,6 +12,7 @@ const vectorPlotBtn = () => document.getElementById("plotVectorBtn");
 const substanceWindow = () => document.getElementById('substance-window');
 const substanceWindowContent = () => document.getElementById('substance-window-content');
 
+let newKey = '', newQuery = '', titleColorbar = ''; 
 
 async function checkVectorComponents() {
     // Initiate objects for vector object
@@ -41,15 +42,21 @@ export async function spatialMapManager() {
             document.querySelector('.hide-maps').click(); return; }
         const vectorName = vectorSelector().value, layerName = layerSelector().value;
         let colorbarTitle = '', colorbarKey = '';
-        if (vectorName === 'Velocity') {colorbarTitle = 'Velocity (m/s)'; colorbarKey = 'vector';}
+        if (vectorName === '0') {colorbarTitle = 'Velocity (m/s)'; colorbarKey = 'vector';}
         plot2DVectorMap(`${layerName}|load`, 'vector', colorbarTitle, colorbarKey);
     });    
     // Set function for 2D dynamic map plot
     document.querySelectorAll('.map2D_dynamic').forEach(plot => {
         plot.addEventListener('click', () => {
+            if (substanceWindow().style.display === 'flex') {substanceWindow().style.display = 'none';}
             const [key, colorbarTitle, colorbarKey] = plot.dataset.info.split('|');
+            if (key.includes('single')) {titleColorbar = colorbarTitle;}
+            else {
+                titleColorbar = layerSelector().value==='Average' ? `${colorbarTitle}\nLayer: ${layerSelector().value}`
+                        : `${colorbarTitle}\n${layerSelector().value}`;
+            }
             const query = `|${layerSelector().value}`;
-            plot2DMapDynamic(false, query, key, colorbarTitle, colorbarKey);
+            plot2DMapDynamic(false, query, key, titleColorbar, colorbarKey);
         });
     });
     
@@ -65,9 +72,7 @@ export async function spatialMapManager() {
                 return `<label for="${substance[0]}"><input type="radio" name="waq-substance" id="${substance[0]}"
                     value="${substance[0]}|${type}" ${i === 0 ? 'checked' : ''}>${substance[1]}</label>`;
             }).join('');
-            substanceWindow().style.display = 'flex';
-            let newKey = '', newQuery = '';
-            const name = data.content[0][0];
+            substanceWindow().style.display = 'flex'; const name = data.content[0][0];
             if (type === 'single') {
                 newKey = `${name}_waq_single_dynamic`; newQuery = `mesh2d_2d_${name}|${layerSelector().value}`;
             } else {
@@ -78,20 +83,20 @@ export async function spatialMapManager() {
         });
     });
 
-
-
-
-    // // Listen to substance selection
-    // substanceWindowContent().addEventListener('change', (e) => {
-    //     if (e.target && e.target.name === "waq-substance") {
-    //         const [value, type] = e.target.value.split('|');
-    //         if (type === 'single') {newKey = `${value}_waq_dynamic`; queryKey = `mesh2d_${value}`;}
-    //         else {newKey = `${value}_waq_multi_dynamic`; queryKey = `mesh2d_2d_${value}`;}
-    //         const label = e.target.closest('label');
-    //         const colorbarTitle = label ? label.textContent.trim() : value;
-    //         plot2DMapDynamic(true, queryKey, newKey, colorbarTitle, '');
-    //     }
-    // });
+    // Listen to substance selection
+    substanceWindowContent().addEventListener('change', (e) => {
+        if (e.target && e.target.name === "waq-substance") {
+            const [value, type] = e.target.value.split('|');
+            if (type === 'single') {
+                newKey = `${value}_waq_single_dynamic`; newQuery = `mesh2d_2d_${value}|${layerSelector().value}`;
+            } else {
+                newKey = `${value}_waq_multi_dynamic`; newQuery = `mesh2d_${value}|${layerSelector().value}`;
+            }
+            const label = e.target.closest('label');
+            const colorbarTitle = label ? label.textContent.trim() : value;
+            plot2DMapDynamic(true, newQuery, newKey, colorbarTitle, '');
+        }
+    });
     // Select static map
     document.querySelectorAll('.map2D_static').forEach(plot => {
         plot.addEventListener('click', () => {

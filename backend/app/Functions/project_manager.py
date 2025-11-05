@@ -81,12 +81,11 @@ async def setup_database(request: Request):
             layer_path = os.path.join(config_dir, 'layers.json')
             if os.path.exists(layer_path):
                 with open(layer_path, 'r') as f:
-                    request.app.state.n_layers = json.load(f)
+                    request.app.state.layer_reverse = json.load(f)
             else:
-                request.app.state.n_layers = functions.layerCounter(request.app.state.hyd_map)
+                request.app.state.layer_reverse = functions.layerCounter(request.app.state.hyd_map)
                 with open(layer_path, 'w') as f:
-                    json.dump(request.app.state.n_layers, f)
-            request.app.state.layer_reverse = {v: k for k, v in request.app.state.n_layers.items()}
+                    json.dump(request.app.state.layer_reverse, f)
         # Lazy scan HYD variables only once
         if (request.app.state.hyd_map or request.app.state.hyd_his) and not config['meta']['hyd_scanned']:
             hyd_files = [request.app.state.hyd_his, request.app.state.hyd_map]

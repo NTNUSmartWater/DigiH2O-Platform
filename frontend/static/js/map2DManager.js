@@ -18,8 +18,7 @@ const colorbar_vector_label = () => document.getElementById("colorbar-labels-vec
 const colorbar_vector_scaler = () => document.getElementById("custom-colorbar-scaler");
 
 
-export let layerAbove = null;
-let layerMap = null, playHandlerAttached = false, parsedFrame = '';
+let layerAbove = null, layerMap = null, playHandlerAttached = false, parsedFrame = '';
 
 // Define CanvasLayer
 L.CanvasLayer = L.Layer.extend({
@@ -74,10 +73,15 @@ function layerCreator(meshes, values, key, vmin, vmax, colorbarTitle, colorbarKe
         return values[idx] !== null && values[idx] !== undefined;
     });
     const filteredData = { ...meshes, features: filteredFeatures};
+    // Reset variables
+    setState({lastFeatureColors: {}}); setState({featureMap: {}});
     const featureIds = [];
-    setState({lastFeatureColors: {}});
     filteredData.features.forEach(f => {
-        featureIds.push(f.properties.index);
+        const idx = f.properties.index;
+        const fmap = getState().featureMap;
+        fmap[idx] = f;
+        setState({featureMap: fmap});
+        featureIds.push(idx);
     });
     // Create map layer
     if (layerMap) map.removeLayer(layerMap); layerMap = null;
@@ -106,7 +110,7 @@ function layerCreator(meshes, values, key, vmin, vmax, colorbarTitle, colorbarKe
         const value = values[id];
         // Show tooltip
         const html = `<div style="text-align: center;">
-                <b>${colorbarTitle}:</b> ${value ?? 'N/A'}
+                <b>${colorbarTitle.split('\n')[0]}:</b> ${value ?? 'N/A'}
             </div>`;
         hoverTooltip.setContent(html).setLatLng(e.latlng)
         map.openTooltip(hoverTooltip);
@@ -295,7 +299,6 @@ function initScaler() {
 }
 
 export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, colorbarKey) {
-    console.log(waterQuality, query, key);
     startLoading('Preparing Dynamic Map. Please wait...');
     let data_below = null, data_above = null, colorbarTitleAbove = null, colorbarKeyAbove = null;
     setState({showedQuery: key}); setState({isHYD: waterQuality});  // Set HYD flag
@@ -309,7 +312,6 @@ export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, 
         data_below.min_max = [-data_below.min_max[1], -data_below.min_max[0]];
     }
     const scale = initScaler();
-    
     // If data is not water quality
     if (!waterQuality && getState().vectorSelected !== '' && key.includes('multi')) {
         
@@ -329,6 +331,7 @@ export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, 
 export async function plot2DVectorMap(query, key, colorbarTitleAbove, colorbarKey) {
     const scale = initScaler(); 
     startLoading('Preparing Dynamic Vector Map. Please wait...');
+    console.log(query);
     const data = await loadData(query, key);
     if (data.status === 'error') { showLeafletMap(); alert(data.message); return; }
     const layerName = query.split('|')[0];
