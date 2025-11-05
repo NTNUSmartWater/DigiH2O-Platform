@@ -9,7 +9,6 @@ backend/Delft_Projects
 *.csv
 
 # Additional files
-*.ipynb
 *.pyc
 
 # Environment

@@ -37,30 +37,26 @@ def process_internal(request: Request, query: str, key: str):
         data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
     elif 'dynamic' in key:
         temp = query.split('|')
-        print(temp, key)
         if temp[0] == '': data_, time_column = request.app.state.hyd_map, 'time' # For hydrodynamic data
-        else: data_, time_column, key = request.app.state.waq_map, 'nTimesDlwq', temp[0] # For water quality
-        name = functions.variablesNames.get(key, key) if time_column == 'time' else key
+        else: data_, time_column = request.app.state.waq_map, 'nTimesDlwq' # For water quality
+        name = functions.variablesNames.get(key, key) if time_column == 'time' else temp[0]
         # Initiate cache for the first load
-        if not hasattr(request.app.state, 'layer_cache'): request.app.state.layer_cache = {}
+        if not hasattr(request.app.state, 'layer_cache'): request.app.state.layer_reverse_cache = {}
         if not hasattr(request.app.state, 'average_cache'): request.app.state.average_cache = {}
         # Detech layer and get values at the last timestamp
-        print(data_[name].values.shape)
-        print('single' in key, 'multi' in key)
         if 'single' in key: arr = data_[name].values
         elif 'multi' in key:
-            layer_reverse = request.app.state.layer_reverse    
-            if temp[1] == 'Average':
+            value_type = request.app.state.layer_reverse[temp[1]]
+            if value_type == 'Average':
                 if name not in request.app.state.average_cache:
                     request.app.state.average_cache[name] = np.nanmean(data_[name].values, axis=2)
                 arr = request.app.state.average_cache[name]
             else:
-                row_idx = len(layer_reverse) - int(layer_reverse[temp[1]]) - 1
+                row_idx = len(request.app.state.layer_reverse) - int(temp[1]) - 2
                 key_cache = f'{name}_{row_idx-1}'
-                if key_cache not in request.app.state.layer_cache:
-                    request.app.state.layer_cache[key_cache] = data_[name].values[:, :, row_idx-1]
-                arr = request.app.state.layer_cache[key_cache]
-        print(arr)
+                if key_cache not in request.app.state.layer_reverse_cache:
+                    request.app.state.layer_reverse_cache[key_cache] = data_[name].values[:, :, row_idx-1]
+                arr = request.app.state.layer_reverse_cache[key_cache]
         if temp[2] == 'load': # Initiate skeleton polygon for the first load
             grid = request.app.state.grid.copy()
             # Get values at the last timestamp
@@ -110,11 +106,12 @@ def process_internal(request: Request, query: str, key: str):
         data = functions.clean_nans(data)
     elif key == 'vector':
         temp = query.split('|')
+        value_type = request.app.state.layer_reverse[temp[0]]
+        row_idx = len(request.app.state.layer_reverse) - int(temp[0]) - 2
         if temp[1] == 'load': # Initiate skeleton polygon for the first load
-            data = functions.vectorComputer(request.app.state.hyd_map, temp[0], 
-                    request.app.state.layer_reverse)
+            data = functions.vectorComputer(request.app.state.hyd_map, value_type, row_idx)
             # Get global vmin and vmax
-            if query == 'Average':
+            if value_type == 'Average':
                 vmin = float(np.nanmin(request.app.state.hyd_map['mesh2d_ucmaga']))
                 vmax = float(np.nanmax(request.app.state.hyd_map['mesh2d_ucmaga']))
             else:
@@ -124,8 +121,7 @@ def process_internal(request: Request, query: str, key: str):
                                   for t in request.app.state.hyd_map['time'].values]
             data['min_max'] = [vmin, vmax]
         else:
-            data = functions.vectorComputer(request.app.state.hyd_map, temp[0], 
-                    request.app.state.layer_reverse, int(temp[1]))
+            data = functions.vectorComputer(request.app.state.hyd_map, value_type, row_idx, int(temp[1]))
         data = functions.clean_nans(data)
     elif key == 'substance_check':
         substance = request.app.state.config[query]
@@ -162,9 +158,9 @@ async def select_meshes(request: Request):
     body = await request.json()
     key, query, ids = body.get('key'), body.get('query'), body.get('ids')
     # ids = [125, 128, 774, 775, 1441, 1445, 2124, 2125, 2795, 2798, 3247, 2635, 2632, 1975, 1974, 1976, 1334, 1331, 687]
-    print(ids)
+    print(key, query, ids)
     try:
-        if request.app.state.n_layers is None:
+        if request.app.state.layer_reverse is None:
             return JSONResponse({'message': 'Cannot find water depth in hydrodynamic simulation result.',
                 'content': None, 'status': 'error'}, headers={'Access-Control-Allow-Origin': '*'})
         if key == 'hyd': data_, time_column = request.app.state.hyd_map.copy(), 'time'
@@ -180,18 +176,20 @@ async def select_meshes(request: Request):
                     request.app.state.hyd_map['mesh2d_node_y'].values,
                     request.app.state.hyd_map['mesh2d_node_z'].values
         )
-        n_layers_values = [float(v.split(' ')[1]) for k, v in request.app.state.n_layers.items() if k >= 0]
+        n_layers_values = [float(v.split(' ')[1]) for k, v in request.app.state.layer_reverse.items() if int(k) >= 0]
         max_layer, n_decimal = max(n_layers_values, key=abs), 4
         n_rows, n_cols = len(ids), math.ceil(max_layer/10)*10 if max_layer > 0 else math.floor(max_layer/10)*10
         status, message, values, vmin, vmax, max_row = 'ok', '', {}, 1e20, -1e-20, 0
         filtered = temp_grid.loc[ids].copy()  # Filter by ids
+        print('OK2')
         for idx, time in enumerate(time_stamps):
             temp_val = []
             for i in range(len(n_layers_values)):
-                if key == 'hyd': layer_data = data_[name].values[idx, :, i]
-                else: layer_data = data_[name].values[idx, i, :]
+                layer_idx = len(request.app.state.layer_reverse) - i - 2
+                if key == 'hyd': layer_data = data_[name].values[idx, :, layer_idx]
+                else: layer_data = data_[name].values[idx, layer_idx, :]
                 temp_val.append(functions.numberFormatter(layer_data, n_decimal))
-            temp_val, depth_indices = np.array(temp_val), [int(abs(round(d))) for d in n_layers_values]
+            temp_val, depth_indices = np.array(temp_val, dtype=float), [int(abs(round(d))) for d in n_layers_values]
             arr = np.full((abs(n_cols), n_rows), None, dtype=object)
             # Fill array with interpolated profile
             for i, depth in enumerate(filtered['depth'].values):
@@ -206,9 +204,9 @@ async def select_meshes(request: Request):
                 mask_result = valid_positions[valid_positions<=valid_positions_arr[-1]]
                 for j, position in enumerate(mask_result):
                     if np.isnan(arr[int(position)-1, i]): arr[int(position)-1, i] = series[j]
-                # Fill missing top values
-                mask = ~np.isnan(arr[:, i])
-                if np.isnan(arr[0, i]) and mask.any(): arr[0, i] = arr[np.where(mask)[0][0]]
+                # # Fill missing top values
+                # mask = ~np.isnan(arr[:, i])
+                # if np.isnan(arr[0, i]) and mask.any(): arr[0, i] = arr[np.where(mask)[0][0]]
             # Track max row
             valid_rows = np.where(~np.isnan(arr).all(axis=1))[0]
             if len(valid_rows) > max_row: max_row = max(max_row, valid_rows.max())
@@ -285,12 +283,14 @@ async def select_meshes(request: Request):
             # vmax = float(np.nanmax(filled)) if float(np.nanmax(filled)) > vmax else vmax
             # filled = np.round(filled, n_decimal)
             # values[time_stamps[i]] = filled.tolist()
+        print('OK3')
         # Trim values to max_row
         for key in values.keys():
             values[key] = np.array(values[key])[:max_row+2, :].tolist()
         # Restructure data to send to frontend
         heights = np.arange(0, max_row+2) if n_cols > 0 else np.arange(0, -(max_row+2), -1)
         data = { "timestamps": time_stamps, "ids": filtered.index.tolist(), "depths": heights.tolist(), "values": values, "minmax": [vmin, vmax] }
+        print('OK4')
         data = functions.clean_nans(data)
     except Exception as e:
         data, status, message = None, 'error', f"Error: {e}"
@@ -323,7 +323,7 @@ async def initiate_options(request: Request):
     key = body.get('key')
     try:
         if key == 'vector': data = functions.getVectorNames()
-        elif key == 'layer': data = [value for _, value in request.app.state.n_layers.items()]
+        elif key == 'layer': data = [(idx, value) for idx, value in request.app.state.layer_reverse.items()]
         status, message = 'ok', ''
     except Exception as e:
         data, status, message = None, 'error', f"Error: {e}"

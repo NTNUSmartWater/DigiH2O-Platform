@@ -102,7 +102,7 @@ def getVectorNames() -> list:
     list
         The list containing the names of the vector variables.
     """
-    result = ['Velocity']
+    result = [(0,'Velocity')]
     return result
 
 def checkVariables(data: xr.Dataset, variablesNames: str) -> bool:
@@ -848,7 +848,7 @@ def layerCounter(data_map: xr.Dataset) -> dict:
     Returns:
     -------
     dict
-        A dictionary containing the index and value of velocity layers.
+        A dictionary containing the index and value of velocity layers in reversed order.
     """
     layers, z_layer = {}, np.round(data_map['mesh2d_layer_z'].data.compute(), 2)
     # Add depth-average if available
@@ -867,7 +867,7 @@ def layerCounter(data_map: xr.Dataset) -> dict:
         layers[len(z_layer)-i-1] = f'Depth: {z_layer[i]} m'
     return layers
 
-def vectorComputer(data_map: xr.Dataset, value_type: str, layer_reverse: dict, step: int=-1) -> gpd.GeoDataFrame:
+def vectorComputer(data_map: xr.Dataset, value_type: str, row_idx: int, step: int=-1) -> gpd.GeoDataFrame:
     """
     Compute vector in each layer and average value (if possible)
 
@@ -877,8 +877,8 @@ def vectorComputer(data_map: xr.Dataset, value_type: str, layer_reverse: dict, s
         The dataset received from _map file.
     value_type: str
         The type of vector to compute: 'Average' or one specific layer.
-    layer_reverse: dict
-        The dictionary containing the index and value of reversed vector layers.
+    row_idx: int
+        The index of the interested layer.
     step: int
         The index of the interested time step.
 
@@ -887,18 +887,17 @@ def vectorComputer(data_map: xr.Dataset, value_type: str, layer_reverse: dict, s
     gpd.GeoDataFrame
         The GeoDataFrame containing the vector map of the mesh.
     """
-    if step < 0: step = len(data_map['time']) - 1
+    # if step < 0: step = len(data_map['time']) - 1
     if value_type == 'Average':
         # Average velocity in each layer
         ucx = data_map['mesh2d_ucxa'].isel(time=step).values
         ucy = data_map['mesh2d_ucya'].isel(time=step).values
         ucm = data_map['mesh2d_ucmaga'].isel(time=step).values
     else:
-        # Velocity for specific layer (in reverse order)
-        row_idx = len(layer_reverse) - int(layer_reverse[value_type]) - 1
-        ucx = data_map['mesh2d_ucx'].isel(time=step).values[:, row_idx-1]
-        ucy = data_map['mesh2d_ucy'].isel(time=step).values[:, row_idx-1]
-        ucm = data_map['mesh2d_ucmag'].isel(time=step).values[:, row_idx-1]
+        # Velocity for specific layer
+        ucx = data_map['mesh2d_ucx'].isel(time=step).values[:, row_idx]
+        ucy = data_map['mesh2d_ucy'].isel(time=step).values[:, row_idx]
+        ucm = data_map['mesh2d_ucmag'].isel(time=step).values[:, row_idx]
     # Get indices of non-nan values
     col_idx = np.where(~np.isnan(ucx) & ~np.isnan(ucy) & ~np.isnan(ucm))
     x_coords = data_map['mesh2d_face_x'].values[col_idx]
