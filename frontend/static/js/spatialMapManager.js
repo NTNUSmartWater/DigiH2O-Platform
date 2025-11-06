@@ -6,7 +6,7 @@ import { initOptions } from './utils.js';
 import { setState, getState } from './constants.js';
 import { sendQuery } from './tableManager.js';
 
-const layerSelector = () => document.getElementById("layer-selector");
+export const layerSelector = () => document.getElementById("layer-selector");
 const vectorSelector = () => document.getElementById("vector-selector");
 const vectorPlotBtn = () => document.getElementById("plotVectorBtn");
 const substanceWindow = () => document.getElementById('substance-window');
@@ -52,8 +52,8 @@ export async function spatialMapManager() {
             const [key, colorbarTitle, colorbarKey] = plot.dataset.info.split('|');
             if (key.includes('single')) {titleColorbar = colorbarTitle;}
             else {
-                titleColorbar = layerSelector().value==='Average' ? `${colorbarTitle}\nLayer: ${layerSelector().value}`
-                        : `${colorbarTitle}\n${layerSelector().value}`;
+                titleColorbar = layerSelector().value==='-1' ? `${colorbarTitle}\nLayer: ${layerSelector().selectedOptions[0].text}`
+                        : `${colorbarTitle}\n${layerSelector().selectedOptions[0].text}`;
             }
             const query = `|${layerSelector().value}`;
             plot2DMapDynamic(false, query, key, titleColorbar, colorbarKey);

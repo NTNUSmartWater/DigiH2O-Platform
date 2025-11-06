@@ -1,6 +1,7 @@
 import { loadData, getColorFromValue, updateColorbar, updateMapByTime } from "./utils.js";
 import { startLoading, showLeafletMap, L, map } from "./mapManager.js";
 import { arrowShape, getState, setState } from "./constants.js";
+import { layerSelector } from "./spatialMapManager.js";
 
 export const timeControl = () => document.getElementById('time-controls');
 export const colorbar_container = () => document.getElementById("custom-colorbar");
@@ -314,10 +315,11 @@ export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, 
     const scale = initScaler();
     // If data is not water quality
     if (!waterQuality && getState().vectorSelected !== '' && key.includes('multi')) {
-        
         let vectorSelected = getState().vectorSelected, layerSelected = getState().layerSelected;
         if (vectorSelected === 'Velocity') { // Process above data for velocity
-            colorbarTitleAbove = vectorSelected + ' (m/s)'; colorbarKeyAbove = 'vector';
+            const title = layerSelector().value==='-1' ? `Layer: ${layerSelector().selectedOptions[0].text}` 
+                    : `${layerSelector().selectedOptions[0].text}`;
+            colorbarTitleAbove = `${vectorSelected} (m/s)\n${title}`; colorbarKeyAbove = 'vector';
         }
         const dataAbove = await loadData(`${layerSelected}|load`, 'vector');
         if (dataAbove.status === 'error') { showLeafletMap(); alert(dataAbove.message); return; }
@@ -331,12 +333,13 @@ export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, 
 export async function plot2DVectorMap(query, key, colorbarTitleAbove, colorbarKey) {
     const scale = initScaler(); 
     startLoading('Preparing Dynamic Vector Map. Please wait...');
-    console.log(query);
     const data = await loadData(query, key);
     if (data.status === 'error') { showLeafletMap(); alert(data.message); return; }
     const layerName = query.split('|')[0];
     if (layerMap) map.removeLayer(layerMap); layerMap = null;
     if (layerAbove) map.removeLayer(layerAbove); layerAbove = null;
-    initDynamicMap(layerName, key, null, data.content, null, colorbarTitleAbove, null, colorbarKey, scale);
+    const colorbarTitle = layerSelector().value==='-1' ? `${colorbarTitleAbove}\nLayer: ${layerSelector().selectedOptions[0].text}` 
+            : `${colorbarTitleAbove}\n${layerSelector().selectedOptions[0].text}`;
+    initDynamicMap(layerName, key, null, data.content, null, colorbarTitle, null, colorbarKey, scale);
     showLeafletMap();
 }

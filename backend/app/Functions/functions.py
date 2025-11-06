@@ -2,6 +2,7 @@ import shapely, os, re, shutil, stat, math
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
+from scipy.interpolate import griddata
 from config import PROJECT_STATIC_ROOT
 
 def remove_readonly(func, path, excinfo):
@@ -1076,7 +1077,7 @@ def clean_nans(obj) -> dict:
         return None if math.isnan(obj) or math.isinf(obj) else obj
     else: return obj
 
-def interpolate_Profile(array: np.ndarray, depths: list, x_new: float, col: int) -> float:
+def interpolateProfile(array: np.ndarray, depths: list, x_new: float, col: int) -> float:
     """
     Interpolate value from 2D array based on x_new and column index col for profile data.
 
@@ -1113,3 +1114,61 @@ def interpolate_Profile(array: np.ndarray, depths: list, x_new: float, col: int)
     b1, b2 = valid_depths[idx - 1], valid_depths[idx]
     v1, v2 = valid_values[idx - 1], valid_values[idx]
     return float(v1 + (v2 - v1) * (x_new - b1) / (b2 - b1))
+
+def meshProcess(key: str, data: xr.Dataset, name: str, idx: int, ids: list, cache: dict, n_decimal: int) -> tuple:
+    temp_val, max_indices, depths, max_row = [], [], cache["depths"], 0
+    for i in range(len(depths)):
+        layer_idx = len(depths) - i - 1
+        if key == 'hyd': layer_data = data[name].values[idx, :, layer_idx]
+        else: layer_data = data[name].values[idx, layer_idx, :]
+        temp_val.append(np.round(layer_data[ids], n_decimal))
+    temp_val = np.array(temp_val, dtype=float)
+    depth_indices = [int(abs(round(d))) for d in depths]
+    arr = np.full((abs(cache["n_cols"]), abs(cache["n_rows"])), np.nan)
+    # Fill array with interpolated profile
+    for i, depth in enumerate(cache['filled_grid']['depth'].values):
+        depth = int(abs(round(depth)))
+        arr[depth-1, i] = interpolateProfile(temp_val, depth_indices, depth, i)
+    # Fill other missing values at specific depths
+    for i in range(arr.shape[1]):
+        series, mask_arr = temp_val[:, i], ~np.isnan(arr[:, i])
+        valid_positions = np.array(depth_indices)[~np.isnan(series)]
+        valid_positions_arr = np.arange(arr.shape[0])[mask_arr]
+        if len(valid_positions_arr) == 0: continue
+        mask_result = valid_positions[valid_positions<=valid_positions_arr[-1]]
+        if len(mask_result) == 0: continue
+        for j, position in enumerate(mask_result):
+            if np.isnan(arr[int(position)-1, i]): arr[int(position)-1, i] = series[j]
+    # Fill missing top
+    for i in range(arr.shape[1]):
+        col_data = arr[:, i]
+        valid_idx = np.where(~np.isnan(col_data))[0]
+        if len(valid_idx) == 0: continue
+        elif len(valid_idx) == 1: arr[0, i] = col_data[valid_idx][0]
+        else:
+            p1, p2 = valid_idx[0], valid_idx[1]
+            v1, v2 = col_data[valid_idx][0], col_data[valid_idx][1]
+            arr[0, i] = v1 + (v2 - v1) / (p2 - p1) * (0 - p1)
+    # Get max index with non-nan value
+    for k in range(arr.shape[1]):
+        valid_positions = np.where(~np.isnan(arr[:, k]))[0]
+        temp = int(valid_positions[-1]) if len(valid_positions) > 0 else 0
+        max_indices.append(temp)
+    # Interpolate missing values
+    x, y = np.indices(arr.shape)
+    # Get real value points
+    x_known, y_known = x[~np.isnan(arr)], y[~np.isnan(arr)]
+    values_known = arr[~np.isnan(arr)]
+    xi, yi = np.indices(arr.shape)
+    filled = griddata((x_known, y_known), values_known, (xi, yi), method='cubic')
+    # Adjust filled values based on max indices
+    for i, value in enumerate(max_indices):
+        filled[value + 1:, i] = np.nan
+    # Define the largest row that contains at least one non-nan value
+    valid_rows = np.where(~np.isnan(filled).all(axis=1))[0]
+    max_row = max(max_row, valid_rows.max())
+    # Trim values to max_row
+    filled = np.array(filled)[:max_row+2, :]
+    heights = np.arange(0, max_row + 2) if cache["n_cols"] > 0 else np.arange(0, -(max_row + 2), -1)
+    filled = np.round(filled, n_decimal)
+    return heights, filled

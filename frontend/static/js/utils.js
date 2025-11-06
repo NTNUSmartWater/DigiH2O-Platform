@@ -178,21 +178,7 @@ export function updateMapByTime(layerMap, values, vmin, vmax, colorbarKey) {
     setState({ lastFeatureColors: getState().lastFeatureColors });
 }
 
-export function getMinMaxFromDict(data) {
-    let minVal = Infinity, maxVal = -Infinity;
-    for (const row of data) {
-        if (!Array.isArray(row)) continue;
-        for (const val of row) {
-            if (val == null || isNaN(val)) continue;
-            if (val < minVal) minVal = val;
-            if (val > maxVal) maxVal = val;
-        }
-    }
-    if (minVal === Infinity || maxVal === -Infinity) { minVal = maxVal = null; }
-    return { minVal, maxVal };
-}
-
-// Load data (including JSON and GeoJSON)
+// Load data
 export async function loadData(query, key){
     const response = await fetch('/process_data', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
