@@ -2,7 +2,7 @@ import os, json, re, subprocess, math, asyncio
 from fastapi import APIRouter, Request, File, UploadFile, Form
 from Functions import functions
 from shapely import wkt
-from scipy.interpolate import griddata
+from scipy.interpolate import griddata, interp1d
 from fastapi.responses import JSONResponse
 from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND, GRID_PATH
 import xarray as xr, pandas as pd, numpy as np
@@ -158,139 +158,47 @@ async def select_meshes(request: Request):
     body = await request.json()
     key, query, ids = body.get('key'), body.get('query'), body.get('ids')
     # ids = [125, 128, 774, 775, 1441, 1445, 2124, 2125, 2795, 2798, 3247, 2635, 2632, 1975, 1974, 1976, 1334, 1331, 687]
-    print(key, query, ids)
+    if key == 'hyd': data_, time_column = request.app.state.hyd_map, 'time'
+    else:
+        data_, time_column = request.app.state.waq_map, 'nTimesDlwq' # For water quality
+        if '_waq_multi_dynamic' in query: query = f'mesh2d_{query.replace('_waq_multi_dynamic', '')}'
+    temp = query.split('|')
+    name = functions.variablesNames.get(temp[0], temp[0])
+    print(key, query, ids, temp)
     try:
-        if request.app.state.layer_reverse is None:
-            return JSONResponse({'message': 'Cannot find water depth in hydrodynamic simulation result.',
-                'content': None, 'status': 'error'}, headers={'Access-Control-Allow-Origin': '*'})
-        if key == 'hyd': data_, time_column = request.app.state.hyd_map.copy(), 'time'
+        status, message, n_decimal = 'ok', '', 4
+        # Cache data
+        if not hasattr(request.app.state, 'mesh_cache'):
+            print("Initializing cache for mesh data...")
+            temp_grid = request.app.state.grid
+            temp_grid['depth'] = functions.interpolation_Z(temp_grid,
+                request.app.state.hyd_map['mesh2d_node_x'].values, 
+                request.app.state.hyd_map['mesh2d_node_y'].values,
+                request.app.state.hyd_map['mesh2d_node_z'].values
+            )
+            n_layers_values = [float(v.split(' ')[1]) for k, v in request.app.state.layer_reverse.items() if int(k) >= 0]
+            filtered = temp_grid.loc[ids]  # Filter by ids
+            max_layer = max(n_layers_values, key=abs)
+            n_rows, n_cols = len(ids), math.ceil(max_layer/10)*10 if max_layer > 0 else math.floor(max_layer/10)*10
+            request.app.state.mesh_cache = {
+                "depths": n_layers_values, "filled_grid": filtered.drop(columns=['geometry']), "n_rows": n_rows, "n_cols": n_cols
+            }
+        if temp[1] == 'load': # Initiate data for the first load
+            time_stamps = pd.to_datetime(data_[time_column]).strftime('%Y-%m-%d %H:%M:%S').tolist()
+            # Get the first frame
+            frame_data = functions.meshProcess(key, data_, name, 0, ids, request.app.state.mesh_cache, n_decimal)
+            data = {"timestamps": time_stamps, "ids": ids, "depths": frame_data[0].tolist(), "values": frame_data[1].tolist()}
+            global_arr, local_arr = data_[name].values[:, ids, :], frame_data[1]
+            global_vmin, global_vmax = round(float(np.nanmin(global_arr)), n_decimal), round(float(np.nanmax(global_arr)), n_decimal)
+            vmin, vmax = round(float(np.nanmin(local_arr)), n_decimal), round(float(np.nanmax(local_arr)), n_decimal)
+            data["global_minmax"], data["local_minmax"] = [global_vmin, global_vmax], [vmin, vmax]
         else:
-            data_, time_column = request.app.state.waq_map.copy(), 'nTimesDlwq' # For water quality
-            if '_waq_multi_dynamic' in query: query = f'mesh2d_{query.replace('_waq_multi_dynamic', '')}'
-        name = functions.variablesNames.get(query, query)
-        time_stamps = pd.to_datetime(data_[time_column]).strftime('%Y-%m-%d %H:%M:%S').tolist()
-        # Interpolation depth
-        temp_grid = request.app.state.grid.copy()
-        temp_grid['depth'] = functions.interpolation_Z(temp_grid,
-                    request.app.state.hyd_map['mesh2d_node_x'].values, 
-                    request.app.state.hyd_map['mesh2d_node_y'].values,
-                    request.app.state.hyd_map['mesh2d_node_z'].values
-        )
-        n_layers_values = [float(v.split(' ')[1]) for k, v in request.app.state.layer_reverse.items() if int(k) >= 0]
-        max_layer, n_decimal = max(n_layers_values, key=abs), 4
-        n_rows, n_cols = len(ids), math.ceil(max_layer/10)*10 if max_layer > 0 else math.floor(max_layer/10)*10
-        status, message, values, vmin, vmax, max_row = 'ok', '', {}, 1e20, -1e-20, 0
-        filtered = temp_grid.loc[ids].copy()  # Filter by ids
-        print('OK2')
-        for idx, time in enumerate(time_stamps):
-            temp_val = []
-            for i in range(len(n_layers_values)):
-                layer_idx = len(request.app.state.layer_reverse) - i - 2
-                if key == 'hyd': layer_data = data_[name].values[idx, :, layer_idx]
-                else: layer_data = data_[name].values[idx, layer_idx, :]
-                temp_val.append(functions.numberFormatter(layer_data, n_decimal))
-            temp_val, depth_indices = np.array(temp_val, dtype=float), [int(abs(round(d))) for d in n_layers_values]
-            arr = np.full((abs(n_cols), n_rows), None, dtype=object)
-            # Fill array with interpolated profile
-            for i, depth in enumerate(filtered['depth'].values):
-                depth = int(abs(round(depth)))
-                arr[depth-1, i] = functions.interpolate_Profile(temp_val, depth_indices, depth, i)
-            # Fill other missing values at specific depths
-            for i in range(arr.shape[1]):
-                series, mask_arr = temp_val[:, i], ~np.isnan(arr[:, i])
-                valid_positions = np.array(depth_indices)[~np.isnan(series)]
-                valid_positions_arr = np.arange(arr.shape[0])[mask_arr]
-                if len(valid_positions_arr) == 0: continue
-                mask_result = valid_positions[valid_positions<=valid_positions_arr[-1]]
-                for j, position in enumerate(mask_result):
-                    if np.isnan(arr[int(position)-1, i]): arr[int(position)-1, i] = series[j]
-                # # Fill missing top values
-                # mask = ~np.isnan(arr[:, i])
-                # if np.isnan(arr[0, i]) and mask.any(): arr[0, i] = arr[np.where(mask)[0][0]]
-            # Track max row
-            valid_rows = np.where(~np.isnan(arr).all(axis=1))[0]
-            if len(valid_rows) > max_row: max_row = max(max_row, valid_rows.max())
-            # Track min and max values
-            vmin, vmax = min(vmin, np.nanmin(arr)), max(vmax, np.nanmax(arr))
-
-
-
-            values[time] = np.round(arr, n_decimal).tolist()
-
-
-
-
-
-            # temp, temp_val, max_indices = temp_grid.drop(columns=['geometry']).copy(), [], []
-            # filtered = temp[temp.index.isin(ids)]  # Filter by ids
-            # filtered = filtered.loc[ids] # Ensure the order of ids
-            # for j in range(len(n_layers)):
-            #     if key == 'hyd': temp_data = data_[name].values[i, :, len(n_layers) - (j + 1)]
-            #     else: temp_data = data_[name].values[i, len(n_layers) - (j + 1), :]
-            #     df_temp = pd.DataFrame({'value': functions.numberFormatter(temp_data, n_decimal)})
-            #     filtered_join = filtered.join(df_temp)
-            #     temp_val.append(filtered_join['value'].values.flatten())
-            # arr = np.full((abs(n_cols), n_rows), None, dtype=object)
-            # depth_indices = [int(abs(round(d))) for d in n_layers]
-            # temp_val, init_depth = np.array(temp_val), filtered['depth'].values
-            # # Fill bottom values into array with interpolated depths
-            # for idx, depth in enumerate(init_depth):
-            #     depth = int(abs(round(depth)))
-            #     arr[depth-1, idx] = functions.interpolate_Profile(temp_val, depth_indices, depth, idx)
-            # # Convert None values to nan
-            # arr = np.array([[np.nan if v is None else v for v in row] for row in arr], dtype=float)
-            # # Fill other missing values at specific depths
-            # for k in range(arr.shape[1]):
-            #     series, idx_arr = temp_val[:, k], arr[:, k]
-            #     mask, mask_arr = ~np.isnan(series), ~np.isnan(idx_arr)
-            #     valid_positions = np.array(depth_indices)[mask]
-            #     valid_positions_arr = np.arange(arr.shape[0])[mask_arr]
-            #     if len(valid_positions_arr) == 0: continue
-            #     mask_result = valid_positions[valid_positions<=valid_positions_arr[-1]]
-            #     if len(mask_result) == 0: continue
-            #     for idx, position in enumerate(mask_result):
-            #         if np.isnan(arr[int(position)-1, k]): arr[int(position)-1, k] = series[idx]
-            # # Fill missing top values
-            # for k in range(arr.shape[1]):
-            #     mask = ~np.isnan(arr[:, k])
-            #     valid_positions = np.where(mask)[0]
-            #     if np.isnan(arr[0, k]) and len(valid_positions) > 0:
-            #         arr[0, k] = arr[valid_positions[0], k]
-            # # Get max index with non-nan value
-            # for k in range(arr.shape[1]):
-            #     valid_positions = np.where(~np.isnan(arr[:, k]))[0]
-            #     temp = int(valid_positions[-1]) if len(valid_positions) > 0 else 0
-            #     max_indices.append(temp)
-            # # Create grid
-            # x, y = np.indices(arr.shape)
-            # # Get real value points
-            # x_known, y_known = x[~np.isnan(arr)], y[~np.isnan(arr)]
-            # values_known = arr[~np.isnan(arr)]
-            # # Create grid
-            # xi, yi = np.indices(arr.shape)
-            # # Create linear interpolation
-            # filled = griddata(points=(x_known, y_known), values=values_known, xi=(xi, yi), method='cubic')
-            # # Adjust filled values based on max indices
-            # for k, value in enumerate(max_indices):
-            #     filled[value+1:, k] = np.nan
-            # # Define the largest row that contains at least one non-nan value
-            # valid_rows = np.where(~np.isnan(filled).all(axis=1))[0]
-            # if len(valid_rows) > 0:
-            #     max_valid_row = valid_rows.max()
-            #     if max_valid_row > max_row: max_row = max_valid_row
-            # # Set vmin and vmax
-            # vmin = float(np.nanmin(filled)) if float(np.nanmin(filled)) < vmin else vmin
-            # vmax = float(np.nanmax(filled)) if float(np.nanmax(filled)) > vmax else vmax
-            # filled = np.round(filled, n_decimal)
-            # values[time_stamps[i]] = filled.tolist()
-        print('OK3')
-        # Trim values to max_row
-        for key in values.keys():
-            values[key] = np.array(values[key])[:max_row+2, :].tolist()
-        # Restructure data to send to frontend
-        heights = np.arange(0, max_row+2) if n_cols > 0 else np.arange(0, -(max_row+2), -1)
-        data = { "timestamps": time_stamps, "ids": filtered.index.tolist(), "depths": heights.tolist(), "values": values, "minmax": [vmin, vmax] }
-        print('OK4')
+            idx = int(temp[1])
+            cache = getattr(request.app.state, "mesh_cache", None)
+            if cache is None: return JSONResponse({"status": 'error', "message": "Mesh cache is not initialized."})
+            frame_data = functions.meshProcess(key, data_, name, idx, ids, cache, n_decimal)
+            vmin, vmax = round(float(np.nanmin(frame_data[1])), n_decimal), round(float(np.nanmax(frame_data[1])), n_decimal)
+            data = {"values": frame_data[1].tolist(), "local_minmax": [vmin, vmax]}
         data = functions.clean_nans(data)
     except Exception as e:
         data, status, message = None, 'error', f"Error: {e}"

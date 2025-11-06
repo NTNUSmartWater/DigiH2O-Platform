@@ -3,6 +3,7 @@ import { colorbar_title } from './map2DManager.js';
 import { plotChart, plotProfileSingleLayer, plotProfileMultiLayer } from "./chartManager.js";
 import { n_decimals, getState, setState } from "./constants.js";
 import { startLoading, showLeafletMap, map, L, ZOOM } from "./mapManager.js";
+import { sendQuery } from './tableManager.js';
 
 export const summaryWindow = () => document.getElementById("summaryWindow");
 const summaryHeader = () => document.getElementById("summaryHeader");
@@ -391,12 +392,11 @@ async function mapPath(e) {
             const key = !getState().isHYD ? 'hyd' : 'waq';
             const unit = colorbar_title().textContent.split('(')[1].trim().replace(')', '');
             const title = `Profile - ${colorbar_title().textContent.split('(')[0].trim()}`;
-            const response = await fetch('/select_meshes', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({key: key, query: getState().showedQuery, ids: orderedPolygons})});
-            const data = await response.json();
+            const query = getState().showedQuery;
+            const queryContents = {key: key, query: `${query}|load`, ids: orderedPolygons};
+            const data = await sendQuery('select_meshes', queryContents);
             if (data.status === "error") { alert(data.message); return; }
-            plotProfileMultiLayer(profileWindow, data.content, title, unit, 4);
+            plotProfileMultiLayer(key, query, profileWindow, data.content, title, unit, 4);
             showLeafletMap();
         }
     }

@@ -1,6 +1,7 @@
 import { startLoading, showLeafletMap} from "./mapManager.js";
-import { loadData, interpolateJet, interpolateValue, getMinMaxFromDict, getColors } from "./utils.js";
+import { loadData, interpolateJet, interpolateValue, getColors } from "./utils.js";
 import { getState, setState } from "./constants.js";
+import { sendQuery } from "./tableManager.js";
 
 let Dragging = false;
 
@@ -295,7 +296,7 @@ export function plotProfileSingleLayer(pointContainer, polygonCentroids, title, 
     drawChart(input, title, titleX, titleY, false);
 }
 
-export function plotProfileMultiLayer(windowContainer, data, title, unit, decimals) { 
+export function plotProfileMultiLayer(key, query, windowContainer, data, title, unit, decimals) { 
     const chartDiv = windowContainer().querySelector('#chartDiv'); 
     const playPauseBtn = windowContainer().querySelector('#chartPlayPauseBtn'); 
     const colorCombo = windowContainer().querySelector('#chartColorCombo'); 
@@ -306,21 +307,39 @@ export function plotProfileMultiLayer(windowContainer, data, title, unit, decima
     chartDiv.style.borderRadius = "10px"; 
     chartDiv.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)"; 
     if (windowContainer()._resizeObserver) windowContainer()._resizeObserver.disconnect(); 
-    const { timestamps, ids, depths, values, minmax } = data; 
-    minValue.value = minmax[0].toFixed(decimals); maxValue.value = minmax[1].toFixed(decimals); 
-    let animating = false, frameIndex = 0, duration = parseFloat(durationValue.value)*1000; 
-    const nColors = parseInt(colorCombo.value); 
+    let animating = false, frameIndex = 0, duration, nColors;
+    const { timestamps, ids, depths, values, global_minmax, local_minmax } = data; 
+    minValue.value = global_minmax[0]; maxValue.value = global_minmax[1];
+    nColors = parseInt(colorCombo.value);
     windowContainer()._resizeObserver = renderPlot(chartDiv, timestamps, ids, depths, 
-                                                values, nColors, title, unit, decimals); 
+            values, local_minmax[0], local_minmax[1], nColors, title, unit, decimals); 
     // === Play / Pause control === 
     async function playAnimation() { 
         while (animating && frameIndex < timestamps.length) { 
-            Plotly.animate(chartDiv, [timestamps[frameIndex]], { 
-                mode: 'next', transition: { duration: 0 },
-                frame: { duration: duration, redraw: true }, 
-            }); 
+            const queryContents = { key: key, query: `${query}|${frameIndex}` };
+            const data = await sendQuery('select_meshes', queryContents);
+            if (data.status === "error") { 
+                alert(data.message); animating = false;
+                playPauseBtn.textContent = '▶ Play'; return;
+            }
+            const { values, local_minmax } = data.content;
+            nColors = parseInt(colorCombo.value);
+            const discreteColors = getColors(nColors);
+            const colorScale = [], step = 1 / nColors;
+            for (let i = 0; i < nColors; i++) {
+                colorScale.push([i * step, discreteColors[i]]);
+                colorScale.push([(i + 1) * step, discreteColors[i]]);
+            }
+            duration = parseFloat(durationValue.value)*1000
+            console.log(nColors, duration);
+            // Update the frame
+            await Plotly.react(chartDiv,[{
+                z: values, x: ids.map(String), y: [...depths], type: 'heatmap', zsmooth: 'best',
+                colorscale: colorScale, zmin: local_minmax[0], zmax: local_minmax[1], showscale: true,
+                colorbar: { title: unit }
+            }], chartDiv.layout);
             Plotly.relayout(chartDiv, { 'sliders[0].active': frameIndex }); 
-            frameIndex++; 
+            frameIndex++;
             await new Promise(r => setTimeout(r, duration)); } 
             if (frameIndex >= timestamps.length) { 
                 animating = false; playPauseBtn.textContent = '▶ Play'; 
@@ -343,45 +362,33 @@ export function plotProfileMultiLayer(windowContainer, data, title, unit, decima
         frameIndex = timestamps.indexOf(currentLabel);
     }); 
     // === Color control === 
-    colorCombo.addEventListener('change', () => { 
-        animating = false; playPauseBtn.textContent = '▶ Play'; 
-        windowContainer()._resizeObserver = renderPlot(chartDiv, timestamps, ids, depths, 
-            values, parseInt(colorCombo.value), title, unit, decimals); 
-        frameIndex = 0; 
-    }) 
+    colorCombo.addEventListener('change', async() => { 
+        animating = false; playPauseBtn.textContent = '▶ Play';
+        const queryContents = { key: key, query: `${query}|${frameIndex}` };
+        const refreshed = await sendQuery('select_meshes', queryContents);
+        if (refreshed.status === "error") { alert(data.message); return; }
+        const { values, local_minmax } = refreshed.content;
+        renderPlot(chartDiv, timestamps, ids, depths, values, local_minmax[0],
+            local_minmax[1], parseInt(colorCombo.value), title, unit, decimals); 
+    });
     windowContainer().style.display = "flex";
 }
 
-function renderPlot(plotDiv, timestamps, ids, depths, values, nColors, title, unit, decimals){
+function renderPlot(plotDiv, timestamps, ids, depths, values, vmin, vmax, nColors, title, unit, decimals){
     const discreteColors = getColors(nColors);
     const xLabels = ids.map(String), reversedDepths = [...depths];
     const reverseDepth = reversedDepths.every(d => d >= 0);
-    // Generate animation frames
-    const frames = timestamps.map(time => {
-        const val = values[time];
-        // Find min and max
-        const { minVal: vmin, maxVal: vmax } = getMinMaxFromDict(val);
-        const range = vmax - vmin;
-        const boundaries = range === 0
-            ? Array.from({ length: nColors + 1 }, () => vmin)
-            : Array.from({ length: nColors + 1 }, (_, i) => vmin + (i * range) / nColors);
-        // Build colorScale for Plotly (discrete)
-        const colorScale = [], step = 1 / nColors;
-        for (let i = 0; i < nColors; i++) {
-            colorScale.push([i * step, discreteColors[i]]);
-            colorScale.push([(i + 1) * step, discreteColors[i]]);
-        }
-        return { name: time,
-            data: [{ z: val, x: xLabels, y: reversedDepths, type: 'heatmap', zsmooth: 'best',
-                colorscale: colorScale, zmin: vmin, zmax: vmax, showscale: true,
-                colorbar: {
-                    title: { text: unit, font: { color: 'black' }}, tickfont: { color: 'black' },
-                    tickvals: boundaries.slice(0, nColors + 1),
-                    ticktext: boundaries.slice(0, nColors + 1).map(v => v.toFixed(decimals))
-                }
-            }]
-        };
-    });
+    // Generate animation frame
+    const range = vmax - vmin;
+    const boundaries = range === 0
+        ? Array.from({ length: nColors + 1 }, () => vmin)
+        : Array.from({ length: nColors + 1 }, (_, i) => vmin + (i * range) / nColors);
+    // Build colorScale for Plotly (discrete)
+    const colorScale = [], step = 1 / nColors;
+    for (let i = 0; i < nColors; i++) {
+        colorScale.push([i * step, discreteColors[i]]);
+        colorScale.push([(i + 1) * step, discreteColors[i]]);
+    }
     // === Layout ===
     const layout = { title: { text: title, font: { color: 'black', weight: 'bold', size: 20 } },
         paper_bgcolor: '#c2bdbdff', plot_bgcolor: '#c2bdbdff',
@@ -410,9 +417,15 @@ function renderPlot(plotDiv, timestamps, ids, depths, values, nColors, title, un
         modeBarButtonsToRemove: ['lasso2d', 'select2d']
     };
     // === Plot ===
-    const firstFrame = frames[0]?.data || [];
-    Plotly.newPlot(plotDiv, firstFrame, layout, config).then(() => {
-        Plotly.addFrames(plotDiv, frames);
+    Plotly.newPlot(plotDiv, [{
+        z: values, x: xLabels, y: reversedDepths, type: 'heatmap', zsmooth: 'best',
+        colorscale: colorScale, zmin: vmin, zmax: vmax, showscale: true,
+        colorbar: {
+            title: { text: unit, font: { color: 'black' }}, tickfont: { color: 'black' },
+            tickvals: boundaries.slice(0, nColors + 1),
+            ticktext: boundaries.slice(0, nColors + 1).map(v => v.toFixed(decimals))
+        }
+    }], layout, config).then(() => {
         const resizeObserver = new ResizeObserver(() => Plotly.Plots.resize(plotDiv));
         resizeObserver.observe(plotDiv);
         return resizeObserver;
