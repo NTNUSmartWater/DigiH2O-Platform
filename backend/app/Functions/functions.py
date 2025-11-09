@@ -45,16 +45,16 @@ units = {
     'cTR1': 'Conservative Tracer Source 1 (g/m³)', 'cTR2': 'Conservative Tracer Source 2 (g/m³)', 'IM2S1': 'IM2S1 (g/m³)',
     'cTR3': 'Conservative Tracer Source 3 (g/m³)', 'dTR1': 'Decayable Tracer Source 1 (g/m³)', 'IM3S1': 'IM3S1 (g/m³)',
     'dTR2': 'Decayable Tracer Source 2 (g/m³)', 'dTR3': 'Decayable Tracer Source 3 (g/m³)', 
-    'IM1': 'Inorganic Matter (g/m³)', 'IM2': 'IM2 (g/m³)', 'IM3': 'IM3 (g/m³)', 'IM1S1': 'Inorganic Matter in layer S1 (g/m²)',
+    'IM1': 'Inorganic Matter (g/m³)', 'IM2': 'IM2 (g/m³)', 'IM3': 'IM3 (g/m³)', 'IM1S1': 'IM in S1 (g/m²)',
     # Chemical
-    'NH4': 'Ammonium (g/m³)', 'CBOD5': 'Carbonaceous BOD (first pool) at 5 days (g/m³)', 'OXY': 'Dissolved Oxygen (g/m³)', 'SOD': 'Sediment Oxygen Demand (g/m²)',
+    'NH4': 'Ammonium (g/m³)', 'CBOD5': 'Carbonaceous BOD (g/m³)', 'OXY': 'Dissolved Oxygen (g/m³)', 'SOD': 'Sediment Oxygen Demand (g/m²)',
     'DO': 'Dissolved Oxygen Concentration (g/m³)', 'SaturOXY': 'Saturation Concentration (g/m³)', 'SatPercOXY': 'Actual Saturation Percentage O2 (%)',
-    'BOD5': 'BOD5 (g/m³)', 'Cd': 'Cadmium (g/m³)', 'CdS1': 'Cadmium in layer S1 (g/m²)', 'NO3': 'Nitrate (g/m³)', 'As': 'Arsenic (g/m³)',
+    'BOD5': 'BOD5 (g/m³)', 'Cd': 'Cadmium (g/m³)', 'CdS1': 'Cadmium in S1 (g/m²)', 'NO3': 'Nitrate (g/m³)', 'As': 'Arsenic (g/m³)',
     # Microbial
-    'Salinity': 'Salinity (ppt)', 'EColi': 'E.Coli bacteria (MPN/m³)', 'volume': 'Volume (m³)'
+    'Salinity': 'Salinity (ppt)', 'EColi': 'E.Coli Bacteria (MPN/m³)', 'volume': 'Volume (m³)'
 }
 
-def numberFormatter(arr: np.array, decimals: int=2) -> np.array:
+def numberFormatter(arr: np.array, decimals: int=2) -> list:
     """
     Format the numbers in the array to a specified number of decimal places.
 
@@ -67,8 +67,8 @@ def numberFormatter(arr: np.array, decimals: int=2) -> np.array:
 
     Returns:
     -------
-    np.array
-        The array with formatted numbers.
+    list
+        The list with formatted numbers.
     """
     try:
         arr = np.asarray(arr, dtype=float)
@@ -88,8 +88,7 @@ def numberFormatter(arr: np.array, decimals: int=2) -> np.array:
         # NaN -> None
         nan_mask = ~finite_mask
         result[nan_mask] = None
-        result = np.reshape(result, arr.shape).tolist()
-        return result
+        return np.reshape(result, arr.shape).tolist()
     except:
         print("Input array contains non-numeric values")
         return arr
@@ -711,36 +710,6 @@ def selectInsitu(data_his: xr.Dataset, data_map: xr.Dataset, name: str, stationI
         result = temp[[stationId]]
     return result.dropna(axis=1, how='all').reset_index()
 
-def thermoclineComputer(data_map: xr.Dataset) -> pd.DataFrame:
-    """
-    Compute thermocline in each time step.
-
-    Parameters:
-    ----------
-    data_map: xr.Dataset
-        The dataset received from _map file.
-
-    Returns:
-    -------
-    pd.DataFrame
-        The DataFrame containing the thermocline in each time step.
-    """
-    z_layers = numberFormatter(data_map['mesh2d_layer_z'].data.compute())
-    times, temp = data_map['time'].data.compute(), data_map['mesh2d_tem1'].data
-    mean = da.nanmean(temp, axis=1).compute()
-    columns = [pd.to_datetime(id).strftime('%Y-%m-%d %H:%M:%S') for id in times]
-    df = pd.DataFrame(mean.T, index=z_layers, columns=columns)
-
-
-    # columns, data_list = [], []
-    # for i in range(len(times)):
-    #     col_name = pd.to_datetime(times[i]).strftime('%Y-%m-%d %H:%M:%S')
-    #     value = np.nanmean(data_map['mesh2d_tem1'].values[i,:,:], axis=0)
-    #     columns.append(col_name)
-    #     data_list.append(numberFormatter(value))
-    # df = pd.DataFrame(np.column_stack(data_list), index=z_layers, columns=columns)
-    return df.reset_index()
-
 def timeseriesCreator(data_his: xr.Dataset, key: str, timeColumn: str='time') -> pd.DataFrame:
     """
     Create a GeoDataFrame of timeseries.
@@ -837,7 +806,7 @@ def interpolation_Z(grid_net: gpd.GeoDataFrame, x_coords: np.ndarray, y_coords: 
     value = np.sum(weight * z_values[idx], axis=1)/np.sum(weight, axis=1)
     return numberFormatter(value)
 
-def layerCounter(data_map: xr.Dataset) -> dict:
+def layerCounter(data_map: xr.Dataset, type: str='hyd') -> dict:
     """
     Check how many layers are available.
 
@@ -845,27 +814,36 @@ def layerCounter(data_map: xr.Dataset) -> dict:
     ----------
     data_map: xr.Dataset
         The dataset received from _map file.
+    type: str
+        The type of data, accepted values are: 'hyd' or 'waq'.
 
     Returns:
     -------
     dict
         A dictionary containing the index and value of velocity layers in reversed order.
     """
-    layers, z_layer = {}, np.round(data_map['mesh2d_layer_z'].data.compute(), 2)
-    # Add depth-average if available
-    if {'mesh2d_ucxa', 'mesh2d_ucya'}.issubset(data_map.variables.keys()): layers[-1] = 'Average'
-    # Iterate from bottom to surface
-    ucx = data_map['mesh2d_ucx'].data
-    ucy = data_map['mesh2d_ucy'].data
-    ucm = data_map['mesh2d_ucmag'].data
-    for i in reversed(range(len(z_layer))):
-        # Use dask to speed up, keep lazy-load
-        ucx_i = ucx[:, :, i].compute()
-        ucy_i = ucy[:, :, i].compute()
-        ucm_i = ucm[:, :, i].compute()
-        # Check if all values are nan
-        if (np.isnan(ucx_i).all() or np.isnan(ucy_i).all() or np.isnan(ucm_i).all()): continue
-        layers[len(z_layer)-i-1] = f'Depth: {z_layer[i]} m'
+    layers = {}
+    if type == 'hyd':
+        z_layer = numberFormatter(data_map['mesh2d_layer_z'].data.compute(), 1e-2)
+        # Add depth-average if available
+        if {'mesh2d_ucxa', 'mesh2d_ucya'}.issubset(data_map.variables.keys()): layers[-1] = 'Average'
+        # Iterate from bottom to surface
+        ucx = data_map['mesh2d_ucx'].data
+        ucy = data_map['mesh2d_ucy'].data
+        ucm = data_map['mesh2d_ucmag'].data
+        for i in reversed(range(len(z_layer))):
+            # Use dask to speed up, keep lazy-load
+            ucx_i = ucx[:, :, i].compute()
+            ucy_i = ucy[:, :, i].compute()
+            ucm_i = ucm[:, :, i].compute()
+            # Check if all values are nan
+            if (np.isnan(ucx_i).all() or np.isnan(ucy_i).all() or np.isnan(ucm_i).all()): continue
+            layers[len(z_layer)-i-1] = f'Depth: {z_layer[i]} m'
+    else:
+        z_layer = np.round([100*x for x in data_map['mesh2d_layer_dlwq'].data.compute()], 0)
+        layers[-1] = 'Average'
+        for i in reversed(range(len(z_layer))):
+            layers[len(z_layer)-i-1] = f'Sigma: {z_layer[i]} %'
     return layers
 
 def vectorComputer(data_map: xr.Dataset, value_type: str, row_idx: int, step: int=-1) -> gpd.GeoDataFrame:
@@ -1077,30 +1055,28 @@ def clean_nans(obj) -> dict:
         return None if math.isnan(obj) or math.isinf(obj) else obj
     else: return obj
 
-def interpolateProfile(array: np.ndarray, depths: list, x_new: float, col: int) -> float:
+def interpolateProfile(array: np.ndarray, depths: np.ndarray, x_new: float) -> float:
     """
-    Interpolate value from 2D array based on x_new and column index col for profile data.
+    Interpolate value from 1D array based on x_new and column index col for profile data.
 
     Parameters
     ----------
     array: np.ndarray
-        The 2D array of values containing values at specific layers.
-    depths: list
-        The list of depth values corresponding with index.
+        The 1D array of values containing values at specific layers.
+    depths: np.ndarray
+        The depth values corresponding with index.
     x_new: float
         The new x value to interpolate.
-    col: int
-        The column index to interpolate.
 
     Returns
     -------
     float
         The interpolated value.
     """
-    if array is None or col >= array.shape[1]: return np.nan
-    series = np.asarray(array[:, col], dtype=float)
+    if array is None: return np.nan
+    series = np.asarray(array, dtype=float)
     mask = ~np.isnan(series)
-    valid_depths, valid_values = np.array(depths)[mask], series[mask]
+    valid_depths, valid_values = depths[mask], series[mask]
     # If no valid values -> return nan
     if len(valid_depths) == 0: return np.nan
     # If only one valid value -> return that value
@@ -1115,60 +1091,88 @@ def interpolateProfile(array: np.ndarray, depths: list, x_new: float, col: int) 
     v1, v2 = valid_values[idx - 1], valid_values[idx]
     return float(v1 + (v2 - v1) * (x_new - b1) / (b2 - b1))
 
-def meshProcess(key: str, data: xr.Dataset, name: str, idx: int, ids: list, cache: dict, n_decimal: int) -> tuple:
-    temp_val, max_indices, depths, max_row = [], [], cache["depths"], 0
-    for i in range(len(depths)):
-        layer_idx = len(depths) - i - 1
-        if key == 'hyd': layer_data = data[name].values[idx, :, layer_idx]
-        else: layer_data = data[name].values[idx, layer_idx, :]
-        temp_val.append(np.round(layer_data[ids], n_decimal))
-    temp_val = np.array(temp_val, dtype=float)
-    depth_indices = [int(abs(round(d))) for d in depths]
-    arr = np.full((abs(cache["n_cols"]), abs(cache["n_rows"])), np.nan)
-    # Fill array with interpolated profile
+def meshProcess(key: str, data: xr.Dataset, name: str, idx: int, ids: list, cache: dict) -> tuple:
+    """
+    Optimized mesh processing using vectorization and interp1d interpolation.
+
+    Parameters
+    ----------
+    key: str
+        The key that defines the type of data, either 'hyd' or 'waq'.
+    data: xr.Dataset
+        The dataset received from _map file.
+    name: str
+        The key of variable.
+    idx: int
+        The index of the selected mesh.
+    ids: list
+        The ids of the selected meshes.
+    cache: dict
+        The cache store data.
+
+    Returns
+    -------
+    tuple
+        The processed mesh data.
+    """
+    depths = np.array([int(abs(round(d))) for d in cache["depths"]])
+    n_layers = len(depths)
+    n_rows, n_cols = abs(cache["n_rows"]), abs(cache["n_cols"])
+    temp_val = np.zeros((n_layers, len(ids)), dtype=float)
+    # Fill temp_val per layer
+    for i, layer_idx in enumerate(reversed(range(n_layers))):
+        if key == 'hyd': temp_val[i, :] = data[name].values[idx, ids, layer_idx].flatten()
+        else: temp_val[i, :] = data[name].values[idx, layer_idx, ids].flatten()
+    # Interpolate profiles along depth (vectorized)
+    arr = np.full((n_cols, n_rows), np.nan)
+    # Fill array using associated depth and layer
     for i, depth in enumerate(cache['filled_grid']['depth'].values):
         depth = int(abs(round(depth)))
-        arr[depth-1, i] = interpolateProfile(temp_val, depth_indices, depth, i)
+        arr[depth-1, i] = interpolateProfile(temp_val[:, i], depths, depth)
     # Fill other missing values at specific depths
     for i in range(arr.shape[1]):
-        series, mask_arr = temp_val[:, i], ~np.isnan(arr[:, i])
-        valid_positions = np.array(depth_indices)[~np.isnan(series)]
+        series = temp_val[:, i]
+        valid_positions = depths[~np.isnan(series)]
+        valid_values = series[~np.isnan(series)]
+        mask_arr = ~np.isnan(arr[:, i])
         valid_positions_arr = np.arange(arr.shape[0])[mask_arr]
         if len(valid_positions_arr) == 0: continue
-        mask_result = valid_positions[valid_positions<=valid_positions_arr[-1]]
+        mask_result = valid_positions[valid_positions <= valid_positions_arr[-1]]
         if len(mask_result) == 0: continue
-        for j, position in enumerate(mask_result):
-            if np.isnan(arr[int(position)-1, i]): arr[int(position)-1, i] = series[j]
-    # Fill missing top
+        # Vectorized fill: only fill NaN positions in arr at those depths
+        target_positions = (np.array(mask_result) - 1).astype(int)
+        target_positions = target_positions[(target_positions >= 0) & (target_positions < arr.shape[0])]
+        for pos, val in zip(target_positions, valid_values[:len(target_positions)]):
+            if np.isnan(arr[pos, i]): arr[pos, i] = val
+    # Fill missing top values
     for i in range(arr.shape[1]):
-        col_data = arr[:, i]
-        valid_idx = np.where(~np.isnan(col_data))[0]
+        valid_idx = np.where(~np.isnan(arr[:, i]))[0]
         if len(valid_idx) == 0: continue
-        elif len(valid_idx) == 1: arr[0, i] = col_data[valid_idx][0]
-        else:
+        elif len(valid_idx) == 1: arr[0, i] = arr[valid_idx[0], i]
+        else: 
             p1, p2 = valid_idx[0], valid_idx[1]
-            v1, v2 = col_data[valid_idx][0], col_data[valid_idx][1]
+            v1, v2 = arr[p1, i], arr[p2, i]
             arr[0, i] = v1 + (v2 - v1) / (p2 - p1) * (0 - p1)
-    # Get max index with non-nan value
-    for k in range(arr.shape[1]):
-        valid_positions = np.where(~np.isnan(arr[:, k]))[0]
-        temp = int(valid_positions[-1]) if len(valid_positions) > 0 else 0
-        max_indices.append(temp)
+    # Find maximum index
+    mask = ~np.isnan(arr) 
+    max_row = np.where(mask.any(axis=0), mask[::-1,:].argmax(axis=0), -1)
+    max_row = arr.shape[0] - 1 - max_row
+    # Define the largest row
+    row_idx = int(max(max_row))
+    # Trim values to max_row
+    arr = arr[:row_idx, :]
     # Interpolate missing values
     x, y = np.indices(arr.shape)
-    # Get real value points
-    x_known, y_known = x[~np.isnan(arr)], y[~np.isnan(arr)]
-    values_known = arr[~np.isnan(arr)]
+    known = ~np.isnan(arr)
+    points = np.column_stack((x[known], y[known]))
+    values = arr[known]
     xi, yi = np.indices(arr.shape)
-    filled = griddata((x_known, y_known), values_known, (xi, yi), method='cubic')
-    # Adjust filled values based on max indices
-    for i, value in enumerate(max_indices):
-        filled[value + 1:, i] = np.nan
-    # Define the largest row that contains at least one non-nan value
-    valid_rows = np.where(~np.isnan(filled).all(axis=1))[0]
-    max_row = max(max_row, valid_rows.max())
+    smoothed = griddata(points, values, (xi, yi), method='cubic')   
     # Trim values to max_row
-    filled = np.array(filled)[:max_row+2, :]
-    heights = np.arange(0, max_row + 2) if cache["n_cols"] > 0 else np.arange(0, -(max_row + 2), -1)
-    filled = np.round(filled, n_decimal)
-    return heights, filled
+    idx_trim = np.arange(smoothed.shape[0])[:, None]
+    mask = idx_trim > max_row[None, :]
+    smoothed[mask] = np.nan
+    # Add 1 extra rows at the bottom with NaN values
+    smoothed = np.pad(smoothed, ((0, 1), (0, 0)), mode='constant', constant_values=np.nan)
+    heights = np.arange(0, row_idx) if cache["n_cols"] > 0 else np.arange(0, -row_idx, -1)
+    return heights.tolist(), numberFormatter(smoothed)

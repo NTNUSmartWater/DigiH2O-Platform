@@ -167,6 +167,17 @@
             <div id="profileWindowHeader">Dynamic Profile<span id="closeProfileWindow">×</span></div>
             <div id="profileWindowContent" style="display: flex; flex-direction: column; height: 95%; background-color: #fff;">
                 <div id="chartDiv" style="flex: 1; min-height: 300px; height: 100%;"></div>
+                <div id="timeSliderContainer" style="display: flex; flex-direction: column; align-items: center; 
+                    padding: 5px 15px; background-color: #a39e9eff;">
+                    <!-- Slider -->
+                    <input id="timeSlider" type="range" min="0" max="100" step="1" value="0"
+                        style="width: 100%; cursor: pointer; margin-bottom: 4px;">
+                    <div id="timeLabelsRow" style="display: flex; justify-content: space-between; width: 100%; font-size: 13px; color: #000;">
+                        <span id="timeLabelStart" style="text-align: left;">Start: --</span>
+                        <span id="timeLabel" style="text-align: center; font-weight: bold; color: #000;">Time: --</span>
+                        <span id="timeLabelEnd" style="text-align: right;">End: --</span>
+                    </div>
+                </div>
                 <div id="profileControls">
                     <label style="margin-left: 5px;">Duration:</label>
                     <select id="chartDurationValue" style="width: 80px;">
@@ -175,9 +186,9 @@
                         <option value="0.5">0.5 s</option>
                         <option value="1.0">1.0 s</option>
                     </select>
-                    <label>Min:</label><input type="text" id="chartMinValue" style="text-align: center;" readonly>
-                    <label>Max:</label><input type="text" id="chartMaxValue" style="text-align: center;" readonly>
-                    <label for="chartColorCombo" style="margin-left: 30px;">Colors:</label>
+                    <label id="chart-min-label">Min:</label><input type="text" id="chartMinValue" style="text-align: center;" readonly>
+                    <label id="chart-max-label">Max:</label><input type="text" id="chartMaxValue" style="text-align: center;" readonly>
+                    <label for="chartColorCombo" id="chartColorComboLabel" style="margin-left: 30px;">Colors:</label>
                     <select id="chartColorCombo" style="width: 100px;">
                         <option value="5">5 colors</option>
                         <option value="10" selected>10 colors</option>

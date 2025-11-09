@@ -18,7 +18,6 @@ const colorbar_vector_color = () => document.getElementById("colorbar-gradient-v
 const colorbar_vector_label = () => document.getElementById("colorbar-labels-vector");
 const colorbar_vector_scaler = () => document.getElementById("custom-colorbar-scaler");
 
-
 let layerAbove = null, layerMap = null, playHandlerAttached = false, parsedFrame = '';
 
 // Define CanvasLayer
@@ -78,19 +77,16 @@ function layerCreator(meshes, values, key, vmin, vmax, colorbarTitle, colorbarKe
     setState({lastFeatureColors: {}}); setState({featureMap: {}});
     const featureIds = [];
     filteredData.features.forEach(f => {
-        const idx = f.properties.index;
-        const fmap = getState().featureMap;
-        fmap[idx] = f;
+        const idx = f.properties.index, fmap = getState().featureMap;
+        fmap[idx] = f; featureIds.push(idx);
         setState({featureMap: fmap});
-        featureIds.push(idx);
     });
     // Create map layer
     if (layerMap) map.removeLayer(layerMap); layerMap = null;
     layerMap = L.vectorGrid.slicer(filteredData, {
         rendererFactory: L.canvas.tile, vectorTileLayerStyles: {
             sliced: function(properties) {
-                const idx = properties.index;
-                const value = values[idx];
+                const idx = properties.index, value = values[idx];
                 // Ignore null values
                 if (value === null || value === undefined) return { fill: false, weight: 0, opacity: 0 };
                 const { r, g, b, a } = getColorFromValue(value, vmin, vmax, colorbarKey);
@@ -107,15 +103,14 @@ function layerCreator(meshes, values, key, vmin, vmax, colorbarTitle, colorbarKe
     const hoverTooltip = L.tooltip({ direction: 'top', sticky: true });
     layerMap.on('mouseover', function(e) {
         if (getState().isPlaying) return;
-        const id = e.layer.properties.index;
-        const value = values[id];
+        const idx = e.layer.properties.index;
         // Show tooltip
         const html = `<div style="text-align: center;">
-                <b>${colorbarTitle.split('\n')[0]}:</b> ${value ?? 'N/A'}
+                <b>${colorbarTitle.split('\n')[0]}:</b> ${values[idx] ?? 'N/A'}
             </div>`;
         hoverTooltip.setContent(html).setLatLng(e.latlng)
         map.openTooltip(hoverTooltip);
-    }).on('mouseout', function(e) {
+    }).on('mouseout', () => {
         map.closeTooltip(hoverTooltip);        
     });
     if (key.includes('multi')) { setState({isMultiLayer: true});
@@ -126,9 +121,7 @@ function layerCreator(meshes, values, key, vmin, vmax, colorbarTitle, colorbarKe
             const value = values[f.properties.index];
             if (value !== null && value !== undefined){ 
                 const center = turf.centroid(f).geometry.coordinates;
-                polygonCentroids.push({
-                    lat: center[1], lng: center[0], value: value
-                });
+                polygonCentroids.push({ lat: center[1], lng: center[0], value: value });
             }
         });
         setState({polygonCentroids: polygonCentroids});
@@ -207,6 +200,8 @@ function vectorCreator(parsedData, vmin, vmax, title, colorbarKey, scale) {
 
 function initDynamicMap(query, key, data_below, data_above, colorbarTitleBelow, colorbarTitleAbove,
                         colorbarKeyBelow, colorbarKeyAbove, scale) {
+    // Clear map
+    map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
     timeControl().style.display = "flex"; // Show time slider
     // Hide colorbar control
     colorbar_container().style.display = "none";

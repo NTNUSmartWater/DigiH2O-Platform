@@ -1,9 +1,9 @@
 import { startLoading, showLeafletMap} from "./mapManager.js";
-import { loadData, interpolateJet, interpolateValue, getColors } from "./utils.js";
+import { loadData, interpolateJet, interpolateValue, getColors, valueFormatter } from "./utils.js";
 import { getState, setState } from "./constants.js";
 import { sendQuery } from "./tableManager.js";
 
-let Dragging = false;
+let Dragging = false, colorTicks = [], colorTickLabels = [];
 
 export const plotWindow = () => document.getElementById('plotWindow');
 const plotHeader = () => document.getElementById('plotHeader');
@@ -15,6 +15,7 @@ const checkboxList = () => dropdown().querySelector('.checkbox-list');
 const chartDiv = () => document.getElementById('myChart');
 const viewDataBtn = () => document.getElementById('viewDataBtn');
 const downloadBtn = () => document.getElementById('downloadExcel');
+
 
 export async function plotChart(query, key, chartTitle, titleX, titleY) {
     startLoading('Preparing Data for Chart. Please wait...'); // Show spinner
@@ -296,93 +297,109 @@ export function plotProfileSingleLayer(pointContainer, polygonCentroids, title, 
     drawChart(input, title, titleX, titleY, false);
 }
 
-export function plotProfileMultiLayer(key, query, windowContainer, data, title, unit, decimals) { 
+export function plotProfileMultiLayer(key, query, windowContainer, data, title, unit) { 
     const chartDiv = windowContainer().querySelector('#chartDiv'); 
     const playPauseBtn = windowContainer().querySelector('#chartPlayPauseBtn'); 
     const colorCombo = windowContainer().querySelector('#chartColorCombo'); 
+    const colorComboLabel = windowContainer().querySelector('#chartColorComboLabel'); 
     const minValue = windowContainer().querySelector('#chartMinValue'); 
+    const minLabel = windowContainer().querySelector('#chart-min-label'); 
     const maxValue = windowContainer().querySelector('#chartMaxValue'); 
+    const maxLabel = windowContainer().querySelector('#chart-max-label'); 
     const durationValue = windowContainer().querySelector('#chartDurationValue'); 
+    const timeSlider = windowContainer().querySelector('#timeSlider');
+    const timeLabel = windowContainer().querySelector('#timeLabel');
+    const timeLabelStart = windowContainer().querySelector('#timeLabelStart');
+    const timeLabelEnd = windowContainer().querySelector('#timeLabelEnd');
     chartDiv.style.border = "1px solid #aaa"; 
     chartDiv.style.borderRadius = "10px"; 
     chartDiv.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)"; 
     if (windowContainer()._resizeObserver) windowContainer()._resizeObserver.disconnect(); 
+    colorCombo.style.display = "block"; minValue.style.display = "block"; maxValue.style.display = "block";
+    colorComboLabel.style.display = "block"; minLabel.style.display = "block"; maxLabel.style.display = "block";
     let animating = false, frameIndex = 0, duration, nColors;
     const { timestamps, ids, depths, values, global_minmax, local_minmax } = data; 
-    minValue.value = global_minmax[0]; maxValue.value = global_minmax[1];
+    minValue.value = valueFormatter(global_minmax[0], 1e-3); maxValue.value = valueFormatter(global_minmax[1], 1e-3);
     nColors = parseInt(colorCombo.value);
-    windowContainer()._resizeObserver = renderPlot(chartDiv, timestamps, ids, depths, 
-            values, local_minmax[0], local_minmax[1], nColors, title, unit, decimals); 
+    // Set up time slider
+    timeSlider.min = 0; timeSlider.max = timestamps.length - 1;
+    timeSlider.step = 1; timeSlider.value = 0;
+    timeLabelStart.textContent = `Start: ${timestamps[0]}`;
+    timeLabelEnd.textContent = `End: ${timestamps[timestamps.length - 1]}`;
+    timeLabel.textContent = `Time: ${timestamps[0]}`;
+    // Render plot
+    windowContainer()._resizeObserver = renderPlot(chartDiv, ids, depths, 
+            values, local_minmax[0], local_minmax[1], nColors, title, unit); 
+    // Update a single frame
+    async function updateFrame(index) {
+        const queryContents = { key: key, query: query, type: index };
+        const data = await sendQuery('select_meshes', queryContents);
+        if (data.status === "error") { 
+            alert(data.message); animating = false;
+            playPauseBtn.textContent = '▶ Play'; return;
+        }
+        const { values, local_minmax } = data.content;
+        nColors = parseInt(colorCombo.value);
+        const discreteColors = getColors(nColors);
+        const colorScale = [], step = 1 / nColors;
+        for (let i = 0; i < nColors; i++) {
+            colorScale.push([i * step, discreteColors[i]]);
+            colorScale.push([(i + 1) * step, discreteColors[i]]);
+        }
+        // Update the frame
+        colorTicks = colorbarTicks(local_minmax[0], local_minmax[1], nColors);
+        colorTickLabels = colorTicks.map(v => valueFormatter(v, 1e-3));
+        await Plotly.update(chartDiv, { z: [values], zmin: [local_minmax[0]], zmax: [local_minmax[1]],
+            colorscale: [colorScale], showscale: [true], 
+            colorbar: [{ title: { text: unit, font: { color: 'black' } }, tickvals: colorTicks, 
+                ticktext: colorTickLabels, tickfont: { color: 'black' } }]
+        }, {}, [0]);
+        // Update time slider
+        timeSlider.value = index; timeLabel.textContent = `Time: ${timestamps[index]}`;
+    }
     // === Play / Pause control === 
     async function playAnimation() { 
+        duration = parseFloat(durationValue.value)*1000
         while (animating && frameIndex < timestamps.length) { 
-            const queryContents = { key: key, query: `${query}|${frameIndex}` };
-            const data = await sendQuery('select_meshes', queryContents);
-            if (data.status === "error") { 
-                alert(data.message); animating = false;
-                playPauseBtn.textContent = '▶ Play'; return;
-            }
-            const { values, local_minmax } = data.content;
-            nColors = parseInt(colorCombo.value);
-            const discreteColors = getColors(nColors);
-            const colorScale = [], step = 1 / nColors;
-            for (let i = 0; i < nColors; i++) {
-                colorScale.push([i * step, discreteColors[i]]);
-                colorScale.push([(i + 1) * step, discreteColors[i]]);
-            }
-            duration = parseFloat(durationValue.value)*1000
-            console.log(nColors, duration);
-            // Update the frame
-            await Plotly.react(chartDiv,[{
-                z: values, x: ids.map(String), y: [...depths], type: 'heatmap', zsmooth: 'best',
-                colorscale: colorScale, zmin: local_minmax[0], zmax: local_minmax[1], showscale: true,
-                colorbar: { title: unit }
-            }], chartDiv.layout);
-            Plotly.relayout(chartDiv, { 'sliders[0].active': frameIndex }); 
+            await updateFrame(frameIndex);
             frameIndex++;
-            await new Promise(r => setTimeout(r, duration)); } 
-            if (frameIndex >= timestamps.length) { 
-                animating = false; playPauseBtn.textContent = '▶ Play'; 
-                frameIndex = 0; // Reset index
-            } 
+            await new Promise(r => setTimeout(r, duration)); 
         } 
+        if (frameIndex >= timestamps.length) { 
+            animating = false; playPauseBtn.textContent = '▶ Play'; 
+            frameIndex = 0; // Reset index
+        }
+    }
     playPauseBtn.onclick = () => { 
-        duration = parseFloat(durationValue.value)*1000;
         if (!animating){ 
             animating = true; playPauseBtn.textContent = '⏸ Pause'; 
             playAnimation(); 
         } else { 
-            if (!animating) return; 
             animating = false; playPauseBtn.textContent = '▶ Play'; 
         } 
     };
     // === Slider control === 
-    chartDiv.on('plotly_sliderchange', (e) => { 
-        const currentLabel = e.step.label || e.value; 
-        frameIndex = timestamps.indexOf(currentLabel);
-    }); 
+    timeSlider.addEventListener('input', async(e) => {
+        animating = false; playPauseBtn.textContent = '▶ Play';
+        frameIndex = parseInt(e.target.value);
+    })
     // === Color control === 
     colorCombo.addEventListener('change', async() => { 
         animating = false; playPauseBtn.textContent = '▶ Play';
-        const queryContents = { key: key, query: `${query}|${frameIndex}` };
+        const queryContents = { key: key, query: query, type: frameIndex };
         const refreshed = await sendQuery('select_meshes', queryContents);
         if (refreshed.status === "error") { alert(data.message); return; }
         const { values, local_minmax } = refreshed.content;
-        renderPlot(chartDiv, timestamps, ids, depths, values, local_minmax[0],
-            local_minmax[1], parseInt(colorCombo.value), title, unit, decimals); 
+        renderPlot(chartDiv, ids, depths, values, local_minmax[0],
+            local_minmax[1], parseInt(colorCombo.value), title, unit); 
     });
     windowContainer().style.display = "flex";
 }
 
-function renderPlot(plotDiv, timestamps, ids, depths, values, vmin, vmax, nColors, title, unit, decimals){
+function renderPlot(plotDiv, ids, depths, values, vmin, vmax, nColors, title, unit){
     const discreteColors = getColors(nColors);
     const xLabels = ids.map(String), reversedDepths = [...depths];
     const reverseDepth = reversedDepths.every(d => d >= 0);
-    // Generate animation frame
-    const range = vmax - vmin;
-    const boundaries = range === 0
-        ? Array.from({ length: nColors + 1 }, () => vmin)
-        : Array.from({ length: nColors + 1 }, (_, i) => vmin + (i * range) / nColors);
     // Build colorScale for Plotly (discrete)
     const colorScale = [], step = 1 / nColors;
     for (let i = 0; i < nColors; i++) {
@@ -402,30 +419,154 @@ function renderPlot(plotDiv, timestamps, ids, depths, values, vmin, vmax, nColor
             mirror: true, showline: true, linewidth: 1, linecolor: 'black', 
             showgrid: false, tickfont: { color: 'black' }, tickmode: 'auto'
         },
-        margin: { l: 70, r: true ? 60 : 20, t: 50, b: 50 },
-        sliders: [{
-            active: 0, y: -0.1, len: 1.0, pad: { t: 50 },
-            currentvalue: { prefix: 'Time: ', font: { size: 14, color: 'black' } },
-            steps: timestamps.map(t => ({
-                label: t, method: 'animate',
-                args: [[t], { mode: 'immediate', frame: { duration: 0, redraw: true } }]
-            }))
-        }]
+        margin: { l: 70, r: true ? 60 : 20, t: 50, b: 50 }
     };
     const config = {
         responsive: true, displaylogo: false, displayModeBar: true,
         modeBarButtonsToRemove: ['lasso2d', 'select2d']
     };
+    // Generate colorbar ticks
+    colorTicks = colorbarTicks(vmin, vmax, nColors);
+    colorTickLabels = colorTicks.map(v => valueFormatter(v, 1e-3));
     // === Plot ===
+    Plotly.purge(plotDiv);
     Plotly.newPlot(plotDiv, [{
         z: values, x: xLabels, y: reversedDepths, type: 'heatmap', zsmooth: 'best',
         colorscale: colorScale, zmin: vmin, zmax: vmax, showscale: true,
         colorbar: {
             title: { text: unit, font: { color: 'black' }}, tickfont: { color: 'black' },
-            tickvals: boundaries.slice(0, nColors + 1),
-            ticktext: boundaries.slice(0, nColors + 1).map(v => v.toFixed(decimals))
+            tickvals: colorTicks, ticktext: colorTickLabels
         }
     }], layout, config).then(() => {
+        const resizeObserver = new ResizeObserver(() => Plotly.Plots.resize(plotDiv));
+        resizeObserver.observe(plotDiv);
+        return resizeObserver;
+    });
+}
+
+function colorbarTicks(min, max, numStops){
+    const epsilon = 1e-6, minDiff = Math.abs(max - min);
+    if (Math.abs(max - min) < 1e-4) return [min];
+    const ticks = [];
+    if (minDiff < 1e-2) max = min + 1e-2;
+    for (let i = 0; i < numStops; i++) {
+        const t = i / (numStops - 1);
+        let value;
+        if (min + epsilon > 0 && max + epsilon > 0) {
+            const logMin = Math.log(min + epsilon);
+            const logMax = Math.log(max + epsilon);
+            value = Math.exp(logMin + t * (logMax - logMin));
+        } else {
+            value = min + t * (max - min);
+        }
+        ticks.push(value);
+    }
+    return ticks;
+}
+
+export function thermoclinePlotter(windowContainer, data, name, titleX, titleY, chartTitle) {
+    const chartDiv = windowContainer().querySelector('#chartDiv'); 
+    const playPauseBtn = windowContainer().querySelector('#chartPlayPauseBtn'); 
+    const colorCombo = windowContainer().querySelector('#chartColorCombo'); 
+    const colorComboLabel = windowContainer().querySelector('#chartColorComboLabel'); 
+    const minValue = windowContainer().querySelector('#chartMinValue'); 
+    const minLabel = windowContainer().querySelector('#chart-min-label'); 
+    const maxValue = windowContainer().querySelector('#chartMaxValue'); 
+    const maxLabel = windowContainer().querySelector('#chart-max-label'); 
+    const durationValue = windowContainer().querySelector('#chartDurationValue'); 
+    const timeSlider = windowContainer().querySelector('#timeSlider');
+    const timeLabel = windowContainer().querySelector('#timeLabel');
+    const timeLabelStart = windowContainer().querySelector('#timeLabelStart');
+    const timeLabelEnd = windowContainer().querySelector('#timeLabelEnd');
+    chartDiv.style.border = "1px solid #aaa"; 
+    chartDiv.style.borderRadius = "10px"; 
+    chartDiv.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)"; 
+    if (windowContainer()._resizeObserver) windowContainer()._resizeObserver.disconnect();
+    // Hide components
+    colorCombo.style.display = "none"; minValue.style.display = "none"; maxValue.style.display = "none";
+    colorComboLabel.style.display = "none"; minLabel.style.display = "none"; maxLabel.style.display = "none";
+    let animating = false, frameIndex = 0, duration; 
+    const { timestamps, depths, values } = data;
+    // Set up time slider
+    timeSlider.min = 0; timeSlider.max = timestamps.length - 1;
+    timeSlider.step = 1; timeSlider.value = 0;
+    timeLabelStart.textContent = `Start: ${timestamps[0]}`;
+    timeLabelEnd.textContent = `End: ${timestamps[timestamps.length - 1]}`;
+    timeLabel.textContent = `Time: ${timestamps[0]}`;
+    // Render plot
+    windowContainer()._resizeObserver = renderThermocline(chartDiv, depths, values, 
+        name, titleX, titleY, chartTitle); 
+    // Update a single frame
+    async function updateFrame(index) {
+        const queryContents = { idx: index, type: 'thermocline_update' };
+        const updateData = await sendQuery('select_thermocline', queryContents);
+        if (updateData.status === "error") { 
+            alert(updateData.message); animating = false;
+            playPauseBtn.textContent = '▶ Play'; return;
+        }
+        const values = updateData.content;
+        // Update the frame
+        await Plotly.update(chartDiv, { x: [values], y: [depths]}, {}, [0]);
+        // Update time slider
+        timeSlider.value = index; timeLabel.textContent = `Time: ${timestamps[index]}`;
+    }
+    // === Play / Pause control === 
+    async function playAnimation() { 
+        duration = parseFloat(durationValue.value)*1000
+        while (animating && frameIndex < timestamps.length) { 
+            await updateFrame(frameIndex);
+            frameIndex++;
+            await new Promise(r => setTimeout(r, duration)); 
+        } 
+        if (frameIndex >= timestamps.length) { 
+            animating = false; playPauseBtn.textContent = '▶ Play'; 
+            frameIndex = 0; // Reset index
+        }
+    }
+    playPauseBtn.onclick = () => { 
+        if (!animating){ 
+            animating = true; playPauseBtn.textContent = '⏸ Pause'; 
+            playAnimation(); 
+        } else { 
+            animating = false; playPauseBtn.textContent = '▶ Play'; 
+        } 
+    };
+    // === Slider control === 
+    timeSlider.addEventListener('input', async(e) => {
+        animating = false; playPauseBtn.textContent = '▶ Play';
+        frameIndex = parseInt(e.target.value);
+    });
+    windowContainer().style.display = "flex"; setState({isThemocline: false});
+}
+
+function renderThermocline(plotDiv, xValues, yValues, legend, xTitle, yTitle, title){
+    // === Layout ===
+    const layout = { title: { text: title, font: { color: 'black', weight: 'bold', size: 20 } },
+        paper_bgcolor: '#c2bdbdff', plot_bgcolor: '#c2bdbdff',
+        showlegend: true,
+        xaxis: {
+            title: {text: xTitle, font: { color: 'black' }}, type: 'category', //range: [min, max],
+            automargin: true, mirror: true, showgrid: false, tickmode: 'auto',
+            showline: true, linewidth: 1, linecolor: 'black', tickfont: { color: 'black' }
+        },
+        yaxis: {
+            title: {text: yTitle, font: { color: 'black' }}, automargin: true,
+            mirror: true, showline: true, linewidth: 1, linecolor: 'black', 
+            showgrid: false, tickfont: { color: 'black' }, tickmode: 'auto'
+        },
+        margin: { l: 70, r: true ? 60 : 20, t: 50, b: 50 }
+    };
+    const config = {
+        responsive: true, displaylogo: false, displayModeBar: true,
+        modeBarButtonsToRemove: ['lasso2d', 'select2d']
+    };
+    // === Trace ===
+    const trace = { x: yValues, y: xValues, mode: 'lines',
+        type: 'scatter', line: { color: 'blue', width: 2 }, name: legend
+    };
+    // === Plot ===
+    Plotly.purge(plotDiv);
+    Plotly.newPlot(plotDiv, [trace], layout, config).then(() => {
         const resizeObserver = new ResizeObserver(() => Plotly.Plots.resize(plotDiv));
         resizeObserver.observe(plotDiv);
         return resizeObserver;

@@ -32,16 +32,14 @@
 </div>
 <!-- Thermocline -->
 <hr style="border-top: 1px solid #0414f5; margin: 0 5px 0 5px;">
-<!-- <a class="thermocline {% if not configuration.thermocline %}hidden{% endif %}" 
-    data-info="Depth (m)|Thermocline">Thermocline Chart</a> -->
 <div class="menu">
     <a class="menu-link">Thermocline Chart<span class="arrow">&#x25B8;</span></a>
     <div class="submenu">
         <label class="submenu-label thermocline {% if not configuration.thermocline_temp %}hidden{% endif %}"
-            data-info="Depth (m)|Temperature (°C)|Thermocline"> Depth vs. Temperature
+            data-info="thermocline_hyd|temp_multi_dynamic|Thermocline for Hydrodynamic Simulation"> Depth vs. Temperature
         </label>
         <label class="submenu-label thermocline {% if not configuration.thermocline_temp %}hidden{% endif %}"
-            data-info="Depth (m)|waq|Thermocline"> Depth vs. Water Quality
+            data-info="thermocline_waq||Thermocline for Water Quality Simulation"> Depth vs. Water Quality
         </label>
     </div>
 </div>
