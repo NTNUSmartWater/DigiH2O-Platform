@@ -70,14 +70,18 @@ export function setupMapEventListeners() {
     const hoverTooltip = L.tooltip({
         permanent: false, direction: 'bottom',
         sticky: true, offset: [0, 10], className: 'custom-tooltip'
-        });
+    });
     // Add tooltip
     map.on('mousemove', function (e) {
-        if (!getState().isPathQuery) {
-            map.closeTooltip(hoverTooltip); return;
-        }
-        const html = `- Click the left mouse button (on mesh) to select a point.<br>- Right-click to finish the selection.`;
-        hoverTooltip.setLatLng(e.latlng).setContent(html);
-        map.openTooltip(hoverTooltip);
+        if (getState().isPathQuery) {
+            const html = `- Click the left mouse button to draw lines.<br>- Right-click to finish the selection.`;
+            hoverTooltip.setLatLng(e.latlng).setContent(html);
+            map.openTooltip(hoverTooltip);
+        } else if (getState().isThemocline) {
+            const html = `- Click the left mouse button to select a point.<br>- Then change the name (optional).`;
+            hoverTooltip.setLatLng(e.latlng).setContent(html);
+            map.openTooltip(hoverTooltip);
+        } 
+        if (!getState().isPathQuery && !getState().isThemocline) { map.closeTooltip(hoverTooltip); return; }
     });
 }

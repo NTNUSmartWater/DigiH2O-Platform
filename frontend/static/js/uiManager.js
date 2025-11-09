@@ -1,17 +1,17 @@
 // Import necessary functions
 import { initializeMap, baseMapButtonFunctionality } from './mapManager.js';
 import { startLoading, showLeafletMap, map } from './mapManager.js';
-import { plotChart, plotEvents, drawChart, plotWindow } from './chartManager.js';
+import { plotChart, plotEvents, drawChart, plotWindow, thermoclinePlotter } from './chartManager.js';
 import { timeControl, colorbar_container } from "./map2DManager.js";
-import { generalOptionsManager, summaryWindow } from './generalOptionManager.js';
+import { generalOptionsManager, summaryWindow, profileWindow } from './generalOptionManager.js';
 import { spatialMapManager } from './spatialMapManager.js';
 import { sendQuery } from './tableManager.js';
-import { resetState } from './constants.js';
+import { resetState, setState } from './constants.js';
 
 let pickerState = { location: false, point: false, crosssection: false, boundary: false, source: false },
     cachedMenus = {}, markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [],
-    pathLineBoundary = null, ws = null, currentProject = null, gridLayer = null, timeOut=null,
-    markersCrosssection = [], crosssectionContainer = [], pathLineCrosssection = null;
+    pathLineBoundary = null, ws = null, currentProject = null, gridLayer = null, timeOut = null,
+    markersCrosssection = [], crosssectionContainer = [], pathLineCrosssection = null, hideTimeout = null;
 
 const popupMenu = () => document.getElementById('popup-menu');
 const popupContent = () => document.getElementById('popup-content');
@@ -171,10 +171,22 @@ function updateEvents() {
     if (window.__menuEventsBound) return;
     window.__menuEventsBound = true;
     const pm = popupMenu();
-    if (pm) pm.addEventListener('mouseenter', () => pm.classList.add('show')); 
+    // Show popup menu on click or leave
+    if (pm) {
+        pm.addEventListener('mouseenter', () => {
+            pm.classList.add('show');
+            if (hideTimeout) { clearTimeout(hideTimeout); hideTimeout = null; }
+        });
+        pm.addEventListener('mouseleave', () => {
+            hideTimeout = setTimeout(() => {
+                pm.classList.remove('show');
+            }, 500);
+        });
+    }
     document.addEventListener('click', (e) => {
         // Close the popup menu if clicked outside
         if (pm && !pm.contains(e.target)) pm.classList.remove('show');
+        
         // Toogle the menu if click on menu-link
         const link = e.target.closest('.menu-link');
         if (link){
@@ -381,13 +393,63 @@ function updateEvents() {
             const data = await sendQuery('open_grid', {projectName: name, gridName: gridName});
             if (data.status === "error") {alert(data.message); return;}
             // Show the grid on the map
-            if (gridLayer) map.removeLayer(gridLayer);
+            if (gridLayer) map.removeLayer(gridLayer); gridLayer = null;
             gridLayer = L.geoJSON(data.content, {style: {color: 'black', weight: 1}}).addTo(map);
             showLeafletMap();
         }
         if (event.data?.type === 'showGridTool') {
             const data = await sendQuery('open_gridTool', {});
             if (data.status === "error") {alert(data.message); return;}
+        }
+        if (event.data?.type === 'thermoclineGrid') {
+            startLoading(event.data.message);
+            const key = event.data.key, query = event.data.query;
+            const titleX = event.data.titleX, chartTitle = event.data.chartTitle;
+            const data = await sendQuery('select_thermocline', {key: key, query: query,
+                type: 'thermocline_grid'});
+            if (data.status === "error") {alert(data.message); return;}
+            if (gridLayer) map.removeLayer(gridLayer); gridLayer = null;
+            gridLayer = L.geoJSON(data.content, {
+                style: {color: 'black', weight: 1},
+                onEachFeature: function (feature, layer) {
+                    layer.on('click', function (e) {
+                        const index = feature.properties.index;
+                        // Make popup HTML
+                        const popupContent = `
+                            <div style="width:200px">
+                                <h4 style="margin:0 0 6px 0;">Change Index: #${index}</h4>
+                                <label>New Name:</label>
+                                <input id="nameInput" type="text" value="${index}" 
+                                    style="width:100%;margin-bottom:6px;padding:3px;" />
+                                <button id="saveBtn" 
+                                    style="width:100%;padding:4px;background:#007bff;
+                                    color:white;border:none;border-radius:4px;cursor:pointer;">
+                                    OK
+                                </button>
+                            </div>
+                        `;
+                        layer.bindPopup(popupContent).openPopup(e.latlng);
+                        // Add event listener to save button
+                        setTimeout(() => {
+                            const input = document.getElementById('nameInput');
+                            const saveBtn = document.getElementById('saveBtn');
+                            if (input && saveBtn) {
+                                saveBtn.addEventListener('click', async() => {
+                                    const newName = input.value;
+                                    if (newName !== '') {
+                                        const initData = await sendQuery('select_thermocline', {key: key,
+                                            query: query, idx: index, type: 'thermocline_init'});
+                                        layer.closePopup(); setState({isThemocline: false});
+                                        if (initData.status === "error") { alert(initData.message); return; }
+                                        thermoclinePlotter(profileWindow, initData.content, newName, titleX, 'Depth (m)', chartTitle);
+                                    } else { alert('Please enter a name.'); return; }
+                                });
+                            }
+                        }, 200);
+                    });
+                }
+            }).addTo(map);
+            showLeafletMap();
         }
         if (event.data?.type === 'run-wq') {
             const params = event.data.data;

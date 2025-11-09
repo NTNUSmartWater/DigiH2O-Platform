@@ -9,6 +9,7 @@ import { sendQuery } from './tableManager.js';
 export const layerSelector = () => document.getElementById("layer-selector");
 const vectorSelector = () => document.getElementById("vector-selector");
 const vectorPlotBtn = () => document.getElementById("plotVectorBtn");
+const sigmaSelector = () => document.getElementById("sigma-selector");
 const substanceWindow = () => document.getElementById('substance-window');
 const substanceWindowContent = () => document.getElementById('substance-window-content');
 
@@ -18,23 +19,28 @@ async function checkVectorComponents() {
     // Initiate objects for vector object
     if (getState().layerSelected !== '') layerSelector().value = getState().layerSelected; 
     if (getState().vectorSelected !== '') vectorSelector().value = getState().vectorSelected; 
+    if (getState().sigmaSelected !== '') sigmaSelector().value = getState().sigmaSelected; 
+}
+
+function reAssign(target, key){
+    target().addEventListener('change', () => { 
+        setState({[key]: target().value});
+        document.querySelector('.hide-maps').click();
+    });
 }
 
 export async function spatialMapManager() {
-    await initOptions(layerSelector, 'layer');
+    await initOptions(layerSelector, 'layer_hyd');
     await initOptions(vectorSelector, 'vector');
+    await initOptions(sigmaSelector, 'sigma_waq');
     checkVectorComponents();
     setState({layerSelected: layerSelector().value});
     setState({vectorSelected: vectorSelector().value});
+    setState({sigmaSelected: sigmaSelector().value});
     // Add event listener for objects
-    layerSelector().addEventListener('change', () => { 
-        setState({layerSelected: layerSelector().value});
-        document.querySelector('.hide-maps').click();
-    });
-    vectorSelector().addEventListener('change', () => { 
-        setState({vectorSelected: vectorSelector().value});
-        document.querySelector('.hide-maps').click();
-    });
+    reAssign(layerSelector, 'layerSelected');
+    reAssign(vectorSelector, 'vectorSelected');
+    reAssign(sigmaSelector, 'sigmaSelected');
     // Plot vector map
     vectorPlotBtn().addEventListener('click', () => {
         if (vectorSelector().value === '') { 
@@ -74,11 +80,13 @@ export async function spatialMapManager() {
             }).join('');
             substanceWindow().style.display = 'flex'; const name = data.content[0][0];
             if (type === 'single') {
-                newKey = `${name}_waq_single_dynamic`; newQuery = `mesh2d_2d_${name}|${layerSelector().value}`;
+                newKey = `${name}_waq_single_dynamic`; newQuery = `mesh2d_2d_${name}|${sigmaSelector().value}`;
             } else {
-                newKey = `${name}_waq_multi_dynamic`; newQuery = `mesh2d_${name}|${layerSelector().value}`;
+                newKey = `${name}_waq_multi_dynamic`; newQuery = `mesh2d_${name}|${sigmaSelector().value}`;
             }
-            const colorbarTitle = data.content[0][1];
+            const title = data.content[0][1];
+            const colorbarTitle = sigmaSelector().value==='-1' ? `${title}\nLayer: ${sigmaSelector().selectedOptions[0].text}`
+                        : `${title}\n${sigmaSelector().selectedOptions[0].text}`;
             plot2DMapDynamic(true, newQuery, newKey, colorbarTitle, '');
         });
     });
@@ -88,12 +96,14 @@ export async function spatialMapManager() {
         if (e.target && e.target.name === "waq-substance") {
             const [value, type] = e.target.value.split('|');
             if (type === 'single') {
-                newKey = `${value}_waq_single_dynamic`; newQuery = `mesh2d_2d_${value}|${layerSelector().value}`;
+                newKey = `${value}_waq_single_dynamic`; newQuery = `mesh2d_2d_${value}|${sigmaSelector().value}`;
             } else {
-                newKey = `${value}_waq_multi_dynamic`; newQuery = `mesh2d_${value}|${layerSelector().value}`;
+                newKey = `${value}_waq_multi_dynamic`; newQuery = `mesh2d_${value}|${sigmaSelector().value}`;
             }
             const label = e.target.closest('label');
-            const colorbarTitle = label ? label.textContent.trim() : value;
+            const title = label ? label.textContent.trim() : value;
+            const colorbarTitle = sigmaSelector().value==='-1' ? `${title}\nLayer: ${sigmaSelector().selectedOptions[0].text}`
+                        : `${title}\n${sigmaSelector().selectedOptions[0].text}`;
             plot2DMapDynamic(true, newQuery, newKey, colorbarTitle, '');
         }
     });
@@ -110,5 +120,6 @@ export async function spatialMapManager() {
         map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); layer = null; });
         timeControl().style.display = 'none'; colorbar_container().style.display = 'none';
         colorbar_vector_container().style.display = 'none';
+        document.getElementById('substance-window').style.display = 'none';
     });
 }

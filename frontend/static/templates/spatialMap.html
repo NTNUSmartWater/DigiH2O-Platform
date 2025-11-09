@@ -33,13 +33,12 @@
             <a class="menu-link-1">• Multiple Layer<span class="arrow">&#x25B8;</span></a>
             <div class="submenu-1">
                 <div class="layer {% if not configuration.z_layers %}hidden{% endif %}">
-                    <div style="display: flex; font-size: 15px; flex: 1; padding-left: 17px;">
-                        <span style="margin: 10px 10px 5px 0; color: #0616f3;">Layer:</span>
+                    <div style="display: flex; flex: 1; padding-left: 17px; margin-bottom: 5px;">
+                        <span style="margin: 10px 10px 5px 0; color: #0616f3; font-weight: bold; font-size: 16px;">Layer:</span>
                         <select id="layer-selector" style="flex: 1; margin: 10px 10px 5px 0;">
                             <option value="" disabled selected hidden>- No Selection -</option>
                         </select>
                     </div>
-                    <hr style="border-top: 1px solid #0616f3; margin: 5px 10px 15px 15px;">
                 </div>
                 <div class="menu-1 {% if not configuration.z_layers %}hidden{% endif %}">
                     <div style="display: flex; font-size: 15px; flex: 1;">
@@ -61,6 +60,15 @@
                         data-info="sal_multi_dynamic|Salinity (ppt)|salinity">- Salinity</a>
                     <a class="map2D_dynamic {% if not configuration.spatial_contaminant %}hidden{% endif %}" 
                         data-info="cont_multi_dynamic|Contaminant (g/L)|contaminant">- Contaminant</a>
+                    <a class="waq {% if not configuration.wq_map %}hidden{% endif %}">
+                        <hr style="border-top: 1px solid #0616f3; margin: 5px 10px 10px 0;">
+                        <div style="display: flex;">
+                            <span style="color: #0616f3; padding-right: 10px; font-weight: bold; font-size: 16px;">Sigma Coef.:</span>
+                            <select id="sigma-selector" style="flex: 1; margin-right: 10px;">
+                                <option value="" disabled selected hidden>- No Selection -</option>
+                            </select>
+                        </div>
+                    </a>
                     <a class="wq-function {% if not configuration.waq_map_conservative_decay %}hidden{% endif %}"
                         data-info="waq_map_conservative_selector|multi">- Conservative and decaying tracers</a>
                     <a class="waq-function {% if not configuration.waq_map_suspended_sediment %}hidden{% endif %}"

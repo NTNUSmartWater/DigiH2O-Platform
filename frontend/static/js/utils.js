@@ -17,7 +17,7 @@ export function getColors(nColors){
         '#AEFF01', '#E1FF01', '#FFEA01', '#FFB701', '#FF8401', '#FF5101', '#FF1E00']
 }
 
-function valueFormatter(value, minDiff) {
+export function valueFormatter(value, minDiff) {
     const absVal = Math.abs(value);
     let decimalPlaces = 2;
     if (minDiff >= 0.01) decimalPlaces = 2;
@@ -212,7 +212,7 @@ export async function initOptions(comboBox, key) {
             });
             // Select the first option
             if (key !== 'vector') comboBox().value = -1;
-        } else if (data.status === "error") {alert(data.message);}
+        } else if (data.status === "error") {alert(data.message); return;}
     } catch (error) {alert(error);}
     showLeafletMap();
 }

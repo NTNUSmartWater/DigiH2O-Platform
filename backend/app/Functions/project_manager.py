@@ -78,14 +78,25 @@ async def setup_database(request: Request):
             # Grid/layers generation
             request.app.state.grid = functions.unstructuredGridCreator(request.app.state.hyd_map)
             # Get number of layers
-            layer_path = os.path.join(config_dir, 'layers.json')
+            layer_path = os.path.join(config_dir, 'layers_hyd.json')
             if os.path.exists(layer_path):
                 with open(layer_path, 'r') as f:
-                    request.app.state.layer_reverse = json.load(f)
+                    request.app.state.layer_reverse_hyd = json.load(f)
             else:
-                request.app.state.layer_reverse = functions.layerCounter(request.app.state.hyd_map)
+                request.app.state.layer_reverse_hyd = functions.layerCounter(request.app.state.hyd_map, 'hyd')
                 with open(layer_path, 'w') as f:
-                    json.dump(request.app.state.layer_reverse, f)
+                    json.dump(request.app.state.layer_reverse_hyd, f)
+        else: request.app.state.layer_reverse_hyd = None
+        if request.app.state.waq_map is not None:
+            layer_path = os.path.join(config_dir, 'layers_waq.json')
+            if os.path.exists(layer_path):
+                with open(layer_path, 'r') as f:
+                    request.app.state.layer_reverse_waq = json.load(f)
+            else:
+                request.app.state.layer_reverse_waq = functions.layerCounter(request.app.state.waq_map, 'waq')
+                with open(layer_path, 'w') as f:
+                    json.dump(request.app.state.layer_reverse_waq, f)
+        else: request.app.state.layer_reverse_waq = None
         # Lazy scan HYD variables only once
         if (request.app.state.hyd_map or request.app.state.hyd_his) and not config['meta']['hyd_scanned']:
             hyd_files = [request.app.state.hyd_his, request.app.state.hyd_map]

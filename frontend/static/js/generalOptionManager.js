@@ -17,7 +17,7 @@ const waqObsStation = () => document.getElementById("waq-obs-checkbox");
 const waqLoadsStation = () => document.getElementById("waq-loads-checkbox");
 const pathQuery = () => document.getElementById("path-query-checkbox");
 const mapContainer = () => map.getContainer();
-const profileWindow = () => document.getElementById('profileWindow');
+export const profileWindow = () => document.getElementById('profileWindow');
 const profileWindowHeader = () => document.getElementById('profileWindowHeader');
 const profileCloseBtn = () => document.getElementById('closeProfileWindow');
 
@@ -306,6 +306,7 @@ export function updatePathManager() {
     if (getState().isPathQuery === false) deActivePathQuery();
     pathQuery().addEventListener('change', () => { 
         if (pathQuery().checked) { 
+            setState({isThemocline: false}); 
             if (getState().mapLayer === null){
                 alert("No map layer available"); deActivePathQuery();
             } else {
@@ -390,13 +391,13 @@ async function mapPath(e) {
             if (orderedPolygons.length === 0) { alert("No intersected mesh found"); return; }
             startLoading('Acquiring selected meshes from Database. Please wait...');
             const key = !getState().isHYD ? 'hyd' : 'waq';
-            const unit = colorbar_title().textContent.split('(')[1].trim().replace(')', '');
+            const unit = colorbar_title().textContent.split('(')[1].trim().split(')')[0].replace(')', '');
             const title = `Profile - ${colorbar_title().textContent.split('(')[0].trim()}`;
             const query = getState().showedQuery;
-            const queryContents = {key: key, query: `${query}|load`, ids: orderedPolygons};
+            const queryContents = {key: key, query: query, type: 'load', ids: orderedPolygons};
             const data = await sendQuery('select_meshes', queryContents);
             if (data.status === "error") { alert(data.message); return; }
-            plotProfileMultiLayer(key, query, profileWindow, data.content, title, unit, 4);
+            plotProfileMultiLayer(key, query, profileWindow, data.content, title, unit);
             showLeafletMap();
         }
     }
@@ -404,22 +405,34 @@ async function mapPath(e) {
     if (e.type === "click" && e.originalEvent.button === 0) {
         // Check if clicked inside layer
         if (getState().isClickedInsideLayer) {
-            // Add marker
-            marker = L.circleMarker(e.latlng, {
-                radius: 5, color: 'blue', fillColor: 'cyan', fillOpacity: 0.9
-            }).addTo(map);
-            selectedMarkers.push(marker);
-            // Add point
-            pointContainer.push({
-                lat: e.latlng.lat, lng: e.latlng.lng
-            });
-            // Plot line
-            const latlngs = pointContainer.map(p => [p.lat, p.lng]);
-            if (pathLine) { pathLine.setLatLngs(latlngs);
-            } else {
-                pathLine = L.polyline(latlngs, {
-                    color: 'orange', weight: 2, dashArray: '5,5'
+            if (getState().isPathQuery) {
+                // Add marker
+                marker = L.circleMarker(e.latlng, {
+                    radius: 5, color: 'blue', fillColor: 'cyan', fillOpacity: 0.9
                 }).addTo(map);
+                selectedMarkers.push(marker);
+                // Add point
+                pointContainer.push({ lat: e.latlng.lat, lng: e.latlng.lng });
+                // Plot line
+                const latlngs = pointContainer.map(p => [p.lat, p.lng]);
+                if (pathLine) { pathLine.setLatLngs(latlngs);
+                } else {
+                    pathLine = L.polyline(latlngs, {
+                        color: 'orange', weight: 2, dashArray: '5,5'
+                    }).addTo(map);
+                }
+            }
+            if (getState().isThemocline) {
+                // Clear previous point container and marker
+                if (pointContainer.length > 0) pointContainer = [];
+                if (marker) marker.remove();
+                // Add marker
+                marker = L.circleMarker(e.latlng, {
+                    radius: 4, color: 'red', fillColor: 'black', fillOpacity: 0.9
+                }).addTo(map);
+                // Add point
+                pointContainer.push({ lat: e.latlng.lat, lng: e.latlng.lng });
+                console.log(pointContainer);
             }
         }
         setState({isClickedInsideLayer: false}); // Reset clicked inside layer
@@ -430,10 +443,13 @@ async function mapPath(e) {
 function thermoclinePlot(){
     // Set function for plot using Plotly
     document.querySelectorAll('.thermocline').forEach(plot => {
-        plot.addEventListener('click', () => {
-            const [titleY, titleX, chartTitle] = plot.dataset.info.split('|');
-            console.log(titleX, titleY, chartTitle);
-            // plotChart('', 'thermocline', chartTitle, titleX, titleY);
+        plot.addEventListener('click', async() => {
+            const [key, query, chartTitle] = plot.dataset.info.split('|');
+            setState({isThemocline: true}); 
+            if (getState().isPathQuery) { deActivePathQuery(); }
+            const titleX = key === 'thermocline_hyd' ? 'Temperature (°C)' : 'Water Quality';
+            window.parent.postMessage({type: 'thermoclineGrid', key: key, query: query,
+                titleX: titleX, chartTitle: chartTitle, message: 'Preparing grid for thermocline plot...'}, '*');
         });
     });
 }
