@@ -268,8 +268,7 @@ function updateEvents() {
     window.addEventListener('message', async (event) => {
         if (event.data?.type === 'resize-simulation') {
             const frameHeight = event.data.height;
-            console.log(frameHeight);
-            if (simulationWindow) { simulationWindow().style.height = frameHeight + 'px'; }
+            if (simulationWindow()) { simulationWindow().style.height = frameHeight + 'px'; }
         }
         if (event.data?.type === 'projectConfirmed') {
             projectChecker(event.data.project, event.data.values);
