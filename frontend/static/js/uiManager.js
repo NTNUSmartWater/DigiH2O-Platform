@@ -140,10 +140,9 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
     objWindow.style.display = 'flex';
 }
 
-// iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
-//                     projectOpenWindowContent(), "Select Project with Simulation Result(s)");
-iframeInit("run_hyd_simulation", simulationWindow(), simulationHeader(), 
-                    simulationContent(), "Run Hydrodynamic Simulation");
+iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
+                    projectOpenWindowContent(), "Select Project with Simulation Result(s)");
+
 
 function updateEvents() {
     // Search locations

@@ -40,25 +40,27 @@ def process_internal(request: Request, query: str, key: str):
         if 'single' in key: arr = data_[name].values
         elif 'multi' in key:
             # Initiate cache for the first load
-            if not hasattr(request.app.state, 'dynamic_cache'): request.app.state.dynamic_cache = {}
-            layer_reverse = request.app.state.layer_reverse_waq if 'waq' in key else request.app.state.layer_reverse_hyd
-            value_type = layer_reverse[temp[1]]
-            request.app.state.dynamic_cache = {"layer_reverse": layer_reverse}
-            if value_type == 'Average': 
-                if temp[0] == '': temp_values = np.nanmean(data_[name].values, axis=2)
+            if not hasattr(request.app.state, 'dynamic_cache'):
+                layer_reverse = request.app.state.layer_reverse_waq if 'waq' in key else request.app.state.layer_reverse_hyd
+                value_type = layer_reverse[temp[1]]
+                request.app.state.dynamic_cache = {"layer_reverse": layer_reverse}
+                if value_type == 'Average': 
+                    if temp[0] == '': temp_values = np.nanmean(data_[name].values, axis=2)
+                    else:
+                        temp_name = name.split('_')
+                        new_name = f"{temp_name[0]}_2d_{temp_name[1]}"
+                        temp_values = data_[new_name].values
                 else:
-                    temp_name = name.split('_')
-                    new_name = f"{temp_name[0]}_2d_{temp_name[1]}"
-                    temp_values = data_[new_name].values
+                    row_idx = len(layer_reverse) - int(temp[1]) - 2
+                    if temp[0] == '': temp_values = data_[name].values[:, :, row_idx-1]
+                    else: temp_values = data_[name].values[:, row_idx-1, :]
+                if value_type not in request.app.state.dynamic_cache:
+                    request.app.state.dynamic_cache[value_type] = temp_values
+                arr = temp_values
             else:
-                row_idx = len(layer_reverse) - int(temp[1]) - 2
-                if temp[0] == '': temp_values = data_[name].values[:, :, row_idx-1]
-                else: temp_values = data_[name].values[:, row_idx-1, :]
-            if value_type not in request.app.state.dynamic_cache:
-                request.app.state.dynamic_cache[value_type] = temp_values
+                cache = request.app.state.dynamic_cache
+                arr = cache[cache['layer_reverse'][temp[1]]]
         if temp[2] == 'load': # Initiate skeleton polygon for the first load
-            value_type = request.app.state.dynamic_cache['layer_reverse'][temp[1]]
-            arr = request.app.state.dynamic_cache[value_type]
             # Get values at the last timestamp
             features = [
                 {"type": "Feature", "properties": {"index": idx},
@@ -76,10 +78,7 @@ def process_internal(request: Request, query: str, key: str):
                 'timestamps': [pd.to_datetime(t).strftime('%Y-%m-%d %H:%M:%S') for t in data_[time_column].data],
             }
         else: # Update value of polygons
-            cache = getattr(request.app.state, "dynamic_cache", None)
-            if cache is None: return "Mesh cache is not initialized.", None
-            value_type = cache['layer_reverse'][temp[1]]
-            data = {'values': list(functions.numberFormatter(cache[value_type][int(temp[2]),:]))}
+            data = {'values': list(functions.numberFormatter(arr[int(temp[2]),:]))}
     elif key == 'static':
         # Create static data for map
         grid = request.app.state.grid.copy()
