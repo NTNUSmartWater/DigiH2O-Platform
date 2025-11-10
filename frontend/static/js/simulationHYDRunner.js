@@ -2,6 +2,8 @@ const projectSelector = () => document.getElementById("options");
 const runBtn = () => document.getElementById("run-button");
 const progressbar = () => document.getElementById("progressbar");
 const progressText = () => document.getElementById("progress-text");
+const infoArea = () => document.getElementById('textarea');
+const showCheckbox = () => document.getElementById('show-checkbox');
 
 let ws = null, content = '', currentProject = null;
 
@@ -40,6 +42,12 @@ function statusUpdate(info, barObject, textObject) {
 
 function updateSelection(){
     getProjectList(projectSelector());
+    showCheckbox().addEventListener('change', () => {
+        const wrapper = document.querySelector('.form-row-textarea');
+        if (showCheckbox().checked) { wrapper.style.display = 'block';
+        } else { wrapper.style.display = 'none'; }
+        // setTimeout(updateParentHeight, 50);
+    })
     projectSelector().addEventListener('change', async() => {
         const projectName = projectSelector().value;
         if (!projectName || projectName === '') {alert('Please select a project.'); return;}
@@ -83,9 +91,19 @@ function updateSelection(){
         ws = new WebSocket(`ws://${window.location.host}/sim_progress_hyd/${projectName}`);
         progressText().innerText = 'Start running hydrodynamic simulation...';
         ws.onmessage = (event) => {
+            if (!event.data.includes("[PROGRESS]")) { content += event.data + '\n';}
+            infoArea().value = content;
             const success = statusUpdate(event.data, progressbar, progressText);
             if (!success) return;
         };
     });
 }
-updateSelection();
+function updateParentHeight() {
+  // Update parent height
+  const wrapper = () => document.querySelector('.form-box');
+  if (!wrapper) return;
+  const height = wrapper().scrollHeight;
+  window.parent.postMessage({ type: 'resize-simulation', height: height }, '*');
+}
+
+updateSelection(); //updateParentHeight();

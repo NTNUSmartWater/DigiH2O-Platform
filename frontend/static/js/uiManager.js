@@ -43,6 +43,9 @@ const waqWindowHeader = () => document.getElementById('waqWindowHeader');
 const waqCloseBtn = () => document.getElementById('closeWAQWindow');
 const waqProgressbar = () => document.getElementById('progressbar');
 const waqProgressText = () => document.getElementById('progress-text');
+// const profileWindow = () => document.getElementById('profileWindow-thermocline');
+// const profileWindowHeader = () => document.getElementById('profileWindowHeader');
+// const profileCloseBtn = () => document.getElementById('closeProfileWindow');
 const mapContainer = () => map.getContainer();
 
 initializeMap(); baseMapButtonFunctionality();
@@ -137,9 +140,10 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
     objWindow.style.display = 'flex';
 }
 
-iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
-                    projectOpenWindowContent(), "Select Project with Simulation Result(s)");
-
+// iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
+//                     projectOpenWindowContent(), "Select Project with Simulation Result(s)");
+iframeInit("run_hyd_simulation", simulationWindow(), simulationHeader(), 
+                    simulationContent(), "Run Hydrodynamic Simulation");
 
 function updateEvents() {
     // Search locations
@@ -262,6 +266,11 @@ function updateEvents() {
     });
     // Listent events from open project iframe
     window.addEventListener('message', async (event) => {
+        if (event.data?.type === 'resize-simulation') {
+            const frameHeight = event.data.height;
+            console.log(frameHeight);
+            if (simulationWindow) { simulationWindow().style.height = frameHeight + 'px'; }
+        }
         if (event.data?.type === 'projectConfirmed') {
             projectChecker(event.data.project, event.data.values);
             projectOpenWindow().style.display = 'none';
