@@ -4,6 +4,7 @@ const progressbar = () => document.getElementById("progressbar");
 const progressText = () => document.getElementById("progress-text");
 const infoArea = () => document.getElementById('textarea');
 const showCheckbox = () => document.getElementById('show-checkbox');
+const textareaWrapper = () => document.getElementById('form-row-textarea');
 
 let ws = null, content = '', currentProject = null;
 
@@ -43,10 +44,9 @@ function statusUpdate(info, barObject, textObject) {
 function updateSelection(){
     getProjectList(projectSelector());
     showCheckbox().addEventListener('change', () => {
-        const wrapper = document.querySelector('.form-row-textarea');
-        if (showCheckbox().checked) { wrapper.style.display = 'block';
-        } else { wrapper.style.display = 'none'; }
-        // setTimeout(updateParentHeight, 50);
+        if (showCheckbox().checked) { textareaWrapper().style.display = 'block';
+        } else { textareaWrapper().style.display = 'none'; }
+        // setTimeout(updateParentHeight, 10);
     })
     projectSelector().addEventListener('change', async() => {
         const projectName = projectSelector().value;
@@ -100,10 +100,10 @@ function updateSelection(){
 }
 function updateParentHeight() {
   // Update parent height
-  const wrapper = () => document.querySelector('.form-box');
-  if (!wrapper) return;
-  const height = wrapper().scrollHeight;
-  window.parent.postMessage({ type: 'resize-simulation', height: height }, '*');
+  const formBox = document.querySelector('.form-box');
+  if (!formBox) return;
+  const height = formBox.offsetHeight;
+  window.parent.postMessage({ type: 'resize-simulation', height }, '*');
 }
 
 updateSelection(); //updateParentHeight();
