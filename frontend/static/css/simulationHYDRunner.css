@@ -54,7 +54,7 @@ progress::-moz-progress-bar { background-color: #004080; border-radius: 6px; }
 textarea {
   width: 100%; height: 100px; resize: vertical; box-sizing: border-box; resize: both;
   border: 1px solid #66b2ff; border-radius: 6px; font-family: monospace;
-  overflow-x: auto; overflow-y: auto; white-space: pre;
+  overflow-x: auto; overflow-y: auto; white-space: pre; display: block;
 }
 
-.form-row-textarea { width: 100%; display: flex; height: auto;}
+.form-row-textarea { width: 100%; display: none;}
