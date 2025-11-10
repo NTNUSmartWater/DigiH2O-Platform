@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="/static_frontend/css/simulationHYDRunner.css?v=000">
+  <link rel="stylesheet" href="/static_frontend/css/simulationHYDRunner.css?v=003">
 </head>
 <body>
   <div class="form-container">
@@ -17,8 +17,14 @@
             <progress id="progressbar" value="0" max="100" style="width:100%; height:10px;"></progress>
             <span id="progress-text" style="align-items:center; margin-top: 5px;"></span>
           </div>
+          <label class="checkbox-label" style="font-size: 14px; font-weight: normal;">
+            <input type="checkbox" id="show-checkbox">Show/Hide Details
+          </label>
         </div>
       </form>
+      <div class="form-row-textarea">
+        <textarea id="textarea" readonly></textarea>
+      </div>
     </div>
   </div>
   <script>
