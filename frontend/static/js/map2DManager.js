@@ -308,6 +308,7 @@ export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, 
         data_below.min_max = [-data_below.min_max[1], -data_below.min_max[0]];
     }
     const scale = initScaler();
+    console.log(waterQuality, getState().vectorSelected, key, query);
     // If data is not water quality
     if (!waterQuality && getState().vectorSelected !== '' && key.includes('multi')) {
         let vectorSelected = getState().vectorSelected, layerSelected = getState().layerSelected;
