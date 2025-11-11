@@ -196,7 +196,7 @@ export async function initOptions(comboBox, key) {
         const data = await response.json();
         if (data.status === "ok") {
             // Add none option in case of vector
-            if (key === 'vector'){
+            if (key === 'vector' || key === 'thermocline_waq'){
                 comboBox().innerHTML = '';
                 // Add hint to the velocity object
                 const hint = document.createElement('option');
@@ -207,11 +207,11 @@ export async function initOptions(comboBox, key) {
             // Add options
             data.content.forEach(item => {
                 const option = document.createElement('option');
-                option.value = parseFloat(item[0]); option.text = item[1];
+                option.value = item[0]; option.text = item[1];
                 comboBox().add(option);
             });
             // Select the first option
-            if (key !== 'vector') comboBox().value = -1;
+            if (key !== 'vector' && key !== 'thermocline_waq') {comboBox().value = -1;}
         } else if (data.status === "error") {alert(data.message); return;}
     } catch (error) {alert(error);}
     showLeafletMap();

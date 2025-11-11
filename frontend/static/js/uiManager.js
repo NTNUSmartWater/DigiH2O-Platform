@@ -405,7 +405,8 @@ function updateEvents() {
             if (data.status === "error") {alert(data.message); return;}
         }
         if (event.data?.type === 'thermoclineGridClear') { 
-            if (gridLayer) map.removeLayer(gridLayer); gridLayer = null; 
+            if (gridLayer) map.removeLayer(gridLayer); gridLayer = null;
+            if (plotWindow().style.display === 'flex') plotWindow().style.display = 'none';
         }
         if (event.data?.type === 'thermoclineGrid') {
             startLoading(event.data.message);
@@ -447,7 +448,6 @@ function updateEvents() {
                                             query: query, idx: index, type: 'thermocline_init'});
                                         layer.closePopup(); setState({isThemocline: false});
                                         if (initData.status === "error") { alert(initData.message); return; }
-                                        console.log(initData.content);
                                         thermoclinePlotter(profileWindow, initData.content, newName, titleX, 'Depth (m)', chartTitle);
                                     } else { alert('Please enter a name.'); return; }
                                 });
