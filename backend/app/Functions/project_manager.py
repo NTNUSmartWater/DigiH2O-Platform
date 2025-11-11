@@ -13,15 +13,11 @@ router = APIRouter()
 # Remove folder configuration
 @router.post("/reset_config")
 async def reset_config(request: Request):
-    body = await request.json()
-    try:
-        pass
-
-    except Exception as e:
-        print('/reset_config:\n==============')
-        traceback.print_exc()
-        status, message = 'error', f"Error: {str(e)}"
-    return JSONResponse({"status": status, "message": message})
+    folder = request.app.state.PROJECT_DIR
+    config_dir = os.path.join(folder, "output", "config")
+    if not os.path.exists(config_dir): return JSONResponse({"message": "Configuration folder doesn't exist."})
+    shutil.rmtree(config_dir, onexc=functions.remove_readonly)
+    return JSONResponse({"message": "Configuration was reset successfully!"})
 
 # Create a new project with necessary folders
 @router.post("/setup_new_project")

@@ -1,4 +1,4 @@
-import { loadData } from './utils.js';
+import { loadData, initOptions } from './utils.js';
 import { colorbar_title } from './map2DManager.js';
 import { plotChart, plotProfileSingleLayer, plotProfileMultiLayer } from "./chartManager.js";
 import { n_decimals, getState, setState } from "./constants.js";
@@ -20,6 +20,7 @@ const mapContainer = () => map.getContainer();
 export const profileWindow = () => document.getElementById('profileWindow');
 const profileWindowHeader = () => document.getElementById('profileWindowHeader');
 const profileCloseBtn = () => document.getElementById('closeProfileWindow');
+const thermoclineWAQ = () => document.getElementById('waq-thermocline-selector');
 const configReset = () => document.getElementById('reset-config');
 
 let Dragging = false, pathLine = null, selectedMarkers = [], pointContainer = [], marker = null;
@@ -45,7 +46,21 @@ export function generalOptionsManager(){
     });
     configReset().addEventListener('click', () => { 
         const data = sendQuery('reset_config', {});
-        if (data.status === 'error') { alert(data.message); return; }
+        alert(data.message); return;
+    });
+    // Plot thermocline for water quality
+    thermoclineWAQ().addEventListener('change', () => {
+        const selected = thermoclineWAQ().value;
+        if (selected === '') {
+            window.parent.postMessage({type: 'thermoclineGridClear'}, '*');
+            return;
+        };
+        const titleX = thermoclineWAQ().options[thermoclineWAQ().selectedIndex].text;
+        const chartTitle = 'Thermocline for Water Quality Simulation';
+        const key = 'thermocline_waq', query = `mesh2d_2d_${selected}`;
+        console.log(selected, titleX);
+        window.parent.postMessage({type: 'thermoclineGrid', key: key, query: query,
+            titleX: titleX, chartTitle: chartTitle, message: 'Preparing grid for water quality thermocline plot...'}, '*');
     });
 }
 
@@ -327,7 +342,8 @@ export function updatePathManager() {
 }
 
 export function deActivePathQuery() {
-    pathQuery().checked = false; setState({isPathQuery: false});
+    if (pathQuery) {pathQuery().checked = false;}
+    setState({isPathQuery: false});
     if (pathLine) { map.removeLayer(pathLine); pathLine = null;}
     selectedMarkers.forEach(m => map.removeLayer(m));
     selectedMarkers = []; pointContainer = [];
@@ -442,8 +458,16 @@ function thermoclinePlot(){
             setState({isThemocline: true}); 
             if (getState().isPathQuery) { deActivePathQuery(); }
             const titleX = key === 'thermocline_hyd' ? 'Temperature (°C)' : 'Water Quality';
+            if (key === 'thermocline_waq') {
+                const item = document.getElementById('thermocline-row');
+                if (item) {
+                    item.style.display = item.style.display === 'none' ? 'block' : 'none';
+                    // Load water quality data
+                    initOptions(thermoclineWAQ, 'thermocline_waq'); return;
+                }
+            }
             window.parent.postMessage({type: 'thermoclineGrid', key: key, query: query,
-                titleX: titleX, chartTitle: chartTitle, message: 'Preparing grid for thermocline plot...'}, '*');
+                titleX: titleX, chartTitle: chartTitle, message: 'Preparing grid for hydrodynamic thermocline plot...'}, '*');
         });
     });
 }

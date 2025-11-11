@@ -225,50 +225,38 @@ async def select_thermocline(request: Request):
     body = await request.json()
     key, query, type_, idx = body.get('key'), body.get('query'), body.get('type'), body.get('idx')
     try:
-        status, message, temp_grid = 'ok', "", request.app.state.grid
-        name = functions.variablesNames.get(query, query)
+        status, message = 'ok', ""
         is_hyd = key == 'thermocline_hyd'
         data_ = request.app.state.hyd_map if is_hyd else request.app.state.waq_map
         col_idx = 2 if is_hyd else 1
-        time_column = 'time' if is_hyd else 'nTimesDlwq'
-        group = 'hyd' if is_hyd else 'waq'
-        # Cache data
-        thermocline_cache = getattr(request.app.state, 'thermocline_cache', {})
-        if group not in thermocline_cache: 
-            thermocline_cache[group] = {
-                "layer_reverse": getattr(request.app.state, f'layer_reverse_{group}'),
-                "data": None, "grid": None, "timestamps": None, "depths": None
-            }
-        group_cache = thermocline_cache[group]
-        setattr(request.app.state, 'thermocline_cache', thermocline_cache)
-        if group_cache["data"] is None:
-            layer_reverse = group_cache['layer_reverse']
+        name = functions.variablesNames.get(query, query)
+        if type_ == 'thermocline_grid':
+            temp_grid = request.app.state.grid
+            if is_hyd: grid = temp_grid.reset_index()
+            else:
+                arr = data_[name].values
+                mask_all_nan = np.isnan(arr).all(axis=(0, col_idx))
+                removed_indices = np.where(mask_all_nan)[0]
+                grid = temp_grid.drop(index=removed_indices)
+            data = json.loads(grid.to_json())
+        elif type_ == 'thermocline_init':
+            idx = int(idx)
+            time_column = 'time' if is_hyd else 'nTimesDlwq'
+            time_stamps = pd.to_datetime(data_[time_column]).strftime('%Y-%m-%d %H:%M:%S').tolist()
+            layer_reverse = request.app.state.layer_reverse_hyd if is_hyd else request.app.state.layer_reverse_waq
             layers_values = [float(v.split(' ')[1]) for k, v in layer_reverse.items() if int(k) >= 0]
             arr = data_[name].values
             # Remove polygons having Nan in all layers
             mask_all_nan = np.isnan(arr).all(axis=(0, col_idx))
             arr_filtered = arr[:, ~mask_all_nan, :] if is_hyd else arr[:, :, ~mask_all_nan]
-            removed_indices = np.where(mask_all_nan)[0]
-            # Get grid with polygons having data
-            grid_filtered = temp_grid.drop(index=removed_indices)
-            time_stamps = pd.to_datetime(data_[time_column]).strftime('%Y-%m-%d %H:%M:%S').tolist()
-            group_cache.update({"grid": grid_filtered, "timestamps": time_stamps, "data": arr_filtered, "depths": layers_values})
-        if type_ == 'thermocline_grid':
-            temp = request.app.state.thermocline_cache['grid']
-            temp['index'] = temp.index
-            data = json.loads(temp.to_json())
-        elif type_ == 'thermocline_init':
-            idx = int(idx)
-            cache = getattr(request.app.state, "thermocline_cache", None)
-            if cache is None: return JSONResponse({"status": 'error', "message": "Thermocline cache is not initialized."})
-            data_selected = cache["data"][:, idx, :] if is_hyd else cache["data"][:, :, idx]
-            cache["idx"], values = data_selected, [None if np.isnan(x) else x for x in data_selected[0,:]]
+            data_selected = arr_filtered[:, idx, :] if is_hyd else arr_filtered[:, :, idx]
+            request.app.state.thermocline_cache = {"data": data_selected}
+            values = [None if np.isnan(x) else x for x in data_selected[0,:]]
             # Get the first frame for the first timestamp
-            data = { "timestamps": cache["timestamps"], "depths": cache["depths"], "values": values }
+            data = { "timestamps": time_stamps, "depths": layers_values, "values": values }
         elif type_ == 'thermocline_update':
-            cache = getattr(request.app.state, "thermocline_cache", None)
-            if cache is None: return JSONResponse({"status": 'error', "message": "Thermocline cache is not initialized."})
-            data = [None if np.isnan(x) else x for x in cache["idx"][idx,:]]
+            data_selected = request.app.state.thermocline_cache["data"]
+            data = [None if np.isnan(x) else round(x, 2) for x in data_selected[int(idx),:]]
     except Exception as e:
         print('/select_thermocline:\n==============')
         traceback.print_exc()
@@ -303,12 +291,16 @@ async def initiate_options(request: Request):
     body = await request.json()
     key = body.get('key')
     try:
+        data = []
         if key == 'vector': data = functions.getVectorNames()
         elif key == 'layer_hyd' and request.app.state.layer_reverse_hyd is not None:
             data = [(idx, value) for idx, value in request.app.state.layer_reverse_hyd.items()]
         elif key == 'sigma_waq' and request.app.state.layer_reverse_waq is not None:
             data = [(idx, value) for idx, value in request.app.state.layer_reverse_waq.items()]
-        else: data = []
+        elif key == 'thermocline_waq':
+            item = [x for x in request.app.state.config.keys() 
+                    if x.startswith('waq_map_') and x.endswith('_selector')]
+            if len(item) > 0: data = request.app.state.config[item[0]]
         status, message = 'ok', ''
     except Exception as e:
         print('/initiate_options:\n==============')
