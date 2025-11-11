@@ -144,7 +144,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
         if data is None: continue
         # This is a hydrodynamic his file
         if 'time' in data.sizes and any(k in data.sizes for k in ['stations', 'cross_section', 'source_sink']):
-            print(f"- Checking Hydrodynamics Simulation: His file ...")
+            print(f"- Checking Hydrodynamic Simulation: His file ...")
             # Prepare data for hydrodynamic options
             result['hyd_obs'] = data.sizes['stations'] > 0 if ('stations' in data.sizes) else False
             result['cross_sections'] = False
@@ -221,11 +221,11 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                 result['hyd_wb_storage'] or result['hyd_wb_volume_error']) else False
         # This is a hydrodynamic map file
         elif ('time' in data.sizes and any(k in data.sizes for k in ['mesh2d_nNodes', 'mesh2d_nEdges'])):
-            print(f"- Checking Hydrodynamics Simulation: Map file ...")
+            print(f"- Checking Hydrodynamic Simulation: Map file ...")
             result['z_layers'] = checkVariables(data, 'mesh2d_layer_z')
             # Prepare data for thermocline parameters
             # 1. Thermocline
-            result['thermocline_temp'] = checkVariables(data, 'mesh2d_tem1')
+            result['thermocline_hyd'] = checkVariables(data, 'mesh2d_tem1')
             # 2. Spatial single layer hydrodynamic maps
             result['hyd_wl_dynamic'] = checkVariables(data, 'mesh2d_s1')
             result['hyd_wd_dynamic'] = checkVariables(data, 'mesh2d_waterdepth')
@@ -233,7 +233,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
             # 3. Spatial multi layer hydrodynamic maps
             result['spatial_salinity'] = checkVariables(data, 'mesh2d_sa1')
             result['spatial_contaminant'] = checkVariables(data, 'mesh2d_Contaminant')
-            result['multi_layer'] = True if (result['thermocline_temp'] or
+            result['multi_layer'] = True if (result['thermocline_hyd'] or
                 result['spatial_salinity'] or result['spatial_contaminant']) else False
             # 4. Spatial static maps
             result['waterdepth_static'] = checkVariables(data, 'mesh2d_waterdepth')
@@ -306,7 +306,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
         # This is a water quality map file      
         elif ('nTimesDlwq' in data.sizes and any(k in data.sizes for k in ['mesh2d_nNodes', 'mesh2d_nEdges'])):
             print(f'- Checking Water Quality Simulation: Map file ...')
-            result['wq_map'] = False
+            result['wq_map'] = result['thermocline_waq'] = False
             variables = set(data.variables.keys()) - set(['mesh2d', 'mesh2d_node_x', 'mesh2d_node_y', 'mesh2d_edge_x',
                 'mesh2d_edge_y', 'mesh2d_face_x_bnd', 'mesh2d_face_y_bnd', 'mesh2d_edge_nodes', 'mesh2d_edge_faces',
                 'mesh2d_face_nodes', 'mesh2d_layer_dlwq', 'nTimesDlwqBnd', 'mesh2d_face_x', 'mesh2d_face_y', 'nTimesDlwq'])
@@ -321,7 +321,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                         if item1 not in elements_check:
                             result['waq_map_conservative_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
                 if len(result['waq_map_conservative_selector']) > 0:
-                    result['wq_map'], result['waq_map_conservative_decay'] = True, True                
+                    result['wq_map'] = result['waq_map_conservative_decay'] = result['thermocline_waq'] = True              
             # 2. Suspended Sediment
             elif model_type == 'suspend-sediment':
                 result['waq_map_suspended_sediment_selector'], result['waq_map_suspended_sediment'] = [], False
@@ -332,7 +332,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                         if item1 not in elements_check:
                             result['waq_map_suspended_sediment_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
                 if len(result['waq_map_suspended_sediment_selector']) > 0:
-                    result['wq_map'], result['waq_map_suspended_sediment'] = True, True
+                    result['wq_map'] = result['waq_map_suspended_sediment'] = result['thermocline_waq'] = True
             # Prepare data for Chemical option
             # 1. Simple Oxygen
             elif model_type == 'simple-oxygen':
@@ -344,7 +344,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                         if item1 not in elements_check:
                             result['waq_map_simple_oxygen_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
                 if len(result['waq_map_simple_oxygen_selector']) > 0:
-                    result['wq_map'], result['waq_map_simple_oxygen'] = True, True
+                    result['wq_map'] = result['waq_map_simple_oxygen'] = result['thermocline_waq'] = True
             # 2. Oxygen and BOD (water phase only)
             elif model_type == 'oxygen-bod-water':
                 result['waq_map_oxygen_bod_selector'], result['waq_map_oxygen_bod'] = [], False
@@ -355,7 +355,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                         if item1 not in elements_check:
                             result['waq_map_oxygen_bod_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
                 if len(result['waq_map_oxygen_bod_selector']) > 0:  
-                    result['wq_map'], result['waq_map_oxygen_bod'] = True, True                
+                    result['wq_map'] = result['waq_map_oxygen_bod'] = result['thermocline_waq'] = True
             # 3. Cadmium
             elif model_type == 'cadmium':
                 result['waq_map_cadmium_selector'], result['waq_map_cadmium'] = [], False
@@ -366,7 +366,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                         if item1 not in elements_check:
                             result['waq_map_cadmium_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
                 if len(result['waq_map_cadmium_selector']) > 0:
-                    result['wq_map'], result['waq_map_cadmium'] = True, True                
+                    result['wq_map'] = result['waq_map_cadmium'] = result['thermocline_waq'] = True
             # 4. Eutrophication
             elif model_type == 'eutrophication':
                 result['waq_map_eutrophication_selector'], result['waq_map_eutrophication'] = [], False
@@ -377,7 +377,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                         if item1 not in elements_check:
                             result['waq_map_eutrophication_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
                 if len(result['waq_map_eutrophication_selector']) > 0:
-                    result['wq_map'], result['waq_map_eutrophication'] = True, True
+                    result['wq_map'] = result['waq_map_eutrophication'] = result['thermocline_waq'] = True
             # 5. Trace Metals
             elif model_type == 'tracer-metals':
                 result['waq_map_trace_metals_selector'], result['waq_map_trace_metals'] = [], False
@@ -388,7 +388,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                         if item1 not in elements_check:
                             result['waq_map_trace_metals_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
                 if len(result['waq_map_trace_metals_selector']) > 0:
-                    result['wq_map'], result['waq_map_trace_metals'] = True, True
+                    result['wq_map'] = result['waq_map_trace_metals'] = result['thermocline_waq'] = True
             # Prepare data for Microbial option
             elif model_type == 'coliform':
                 result['waq_map_coliform_selector'], result['waq_map_coliform'] = [], False
@@ -399,8 +399,8 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                         if item1 not in elements_check:
                             result['waq_map_coliform_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
                 if len(result['waq_map_coliform_selector']) > 0:
-                    result['wq_map'], result['waq_map_coliform'] = True, True
-            result['spatial_map'], result['single_layer'], result['multi_layer'] = result['wq_map'], result['wq_map'], result['wq_map']
+                    result['wq_map'] = result['waq_map_coliform'] = result['thermocline_waq'] = True
+            result['spatial_map'] = result['single_layer'] = result['multi_layer'] = result['wq_map']
             result['hide_map'] = result['spatial_map']
     return result
 
@@ -824,7 +824,7 @@ def layerCounter(data_map: xr.Dataset, type: str='hyd') -> dict:
     """
     layers = {}
     if type == 'hyd':
-        z_layer = numberFormatter(data_map['mesh2d_layer_z'].data.compute(), 1e-2)
+        z_layer = [round(x, 2) for x in data_map['mesh2d_layer_z'].values]
         # Add depth-average if available
         if {'mesh2d_ucxa', 'mesh2d_ucya'}.issubset(data_map.variables.keys()): layers[-1] = 'Average'
         # Iterate from bottom to surface

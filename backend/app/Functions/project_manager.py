@@ -1,5 +1,5 @@
 
-import os, shutil, subprocess, re, json, asyncio
+import os, shutil, subprocess, re, json, asyncio, traceback
 import numpy as np
 from fastapi.templating import Jinja2Templates
 from fastapi import APIRouter, Request
@@ -8,6 +8,20 @@ from Functions import functions
 from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND
 
 router = APIRouter()
+
+
+# Remove folder configuration
+@router.post("/reset_config")
+async def reset_config(request: Request):
+    body = await request.json()
+    try:
+        pass
+
+    except Exception as e:
+        print('/reset_config:\n==============')
+        traceback.print_exc()
+        status, message = 'error', f"Error: {str(e)}"
+    return JSONResponse({"status": status, "message": message})
 
 # Create a new project with necessary folders
 @router.post("/setup_new_project")
@@ -24,6 +38,8 @@ async def setup_new_project(request: Request):
         os.makedirs(os.path.join(project_folder, "input"), exist_ok=True)
         status, message = 'ok', f"Project '{project_name}' created successfully!"
     except Exception as e:
+        print('/setup_new_project:\n==============')
+        traceback.print_exc()
         status, message = 'error', f"Error: {str(e)}"
     return JSONResponse({"status": status, "message": message})
 
@@ -130,6 +146,8 @@ async def setup_database(request: Request):
                 result[k] = v
         request.app.state.config, status, message = result, 'ok', ''
     except Exception as e:
+        print('/setup_database:\n==============')
+        traceback.print_exc()
         status, message = 'error', f"Error: {str(e)}"
     return JSONResponse({"status": status, "message": message})
 
@@ -178,6 +196,8 @@ async def select_project(request: Request):
             data = {'hyd': list(hyd_files), 'waq': sorted(list(waq_files))}
         status, message = 'ok', 'JSON loaded successfully.'
     except Exception as e:
+        print('/select_project:\n==============')
+        traceback.print_exc()
         status, message, data = 'error', f"Error: {str(e)}", None
     return JSONResponse({"status": status, "message": message, "content": data})
 
