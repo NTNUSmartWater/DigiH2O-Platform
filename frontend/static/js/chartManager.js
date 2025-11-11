@@ -2,6 +2,7 @@ import { startLoading, showLeafletMap} from "./mapManager.js";
 import { loadData, interpolateJet, interpolateValue, getColors, valueFormatter } from "./utils.js";
 import { getState, setState } from "./constants.js";
 import { sendQuery } from "./tableManager.js";
+import { deActivePathQuery } from "./generalOptionManager.js";
 
 let Dragging = false, colorTicks = [], colorTickLabels = [];
 
@@ -56,7 +57,9 @@ export function plotEvents() {
     // Download data as Excel
     downloadBtn().addEventListener("click", () => { saveToExcel(); });
     // Close plot
-    closePlotOption().addEventListener('click', () => { plotWindow().style.display = "none"; });
+    closePlotOption().addEventListener('click', () => { 
+        plotWindow().style.display = "none"; deActivePathQuery();
+    });
 }
 
 function updateChart() {

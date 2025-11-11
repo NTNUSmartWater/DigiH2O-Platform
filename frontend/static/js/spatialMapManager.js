@@ -13,7 +13,7 @@ const sigmaSelector = () => document.getElementById("sigma-selector");
 const substanceWindow = () => document.getElementById('substance-window');
 const substanceWindowContent = () => document.getElementById('substance-window-content');
 
-let newKey = '', newQuery = '', titleColorbar = ''; 
+let newKey = '', newQuery = '', colorbarTitle = ''; 
 
 async function checkVectorComponents() {
     // Initiate objects for vector object
@@ -49,15 +49,15 @@ export async function spatialMapManager() {
         const vectorName = vectorSelector().value, layerName = layerSelector().value;
         let colorbarTitle = '', colorbarKey = '';
         if (vectorName === '0') {colorbarTitle = 'Velocity (m/s)'; colorbarKey = 'vector';}
-        plot2DVectorMap(`${layerName}|load`, 'vector', colorbarTitle, colorbarKey);
+        plot2DVectorMap('load', layerName, colorbarTitle, colorbarKey);
     });    
     // Set function for 2D dynamic map plot
     document.querySelectorAll('.map2D_dynamic').forEach(plot => {
         plot.addEventListener('click', () => {
             if (substanceWindow().style.display === 'flex') {substanceWindow().style.display = 'none';}
             const [key, colorbarTitle, colorbarKey] = plot.dataset.info.split('|');
-            if (key.includes('single')) {titleColorbar = colorbarTitle;}
-            else {
+            let titleColorbar = colorbarTitle;
+            if (!key.includes('single')) {
                 titleColorbar = layerSelector().value==='-1' ? `${colorbarTitle}\nLayer: ${layerSelector().selectedOptions[0].text}`
                         : `${colorbarTitle}\n${layerSelector().selectedOptions[0].text}`;
             }
@@ -78,15 +78,16 @@ export async function spatialMapManager() {
                 return `<label for="${substance[0]}"><input type="radio" name="waq-substance" id="${substance[0]}"
                     value="${substance[0]}|${type}" ${i === 0 ? 'checked' : ''}>${substance[1]}</label>`;
             }).join('');
-            substanceWindow().style.display = 'flex'; const name = data.content[0][0];
+            substanceWindow().style.display = 'flex'; 
+            const name = data.content[0][0];
+            colorbarTitle = data.content[0][1];
             if (type === 'single') {
                 newKey = `${name}_waq_single_dynamic`; newQuery = `mesh2d_2d_${name}|${sigmaSelector().value}`;
             } else {
                 newKey = `${name}_waq_multi_dynamic`; newQuery = `mesh2d_${name}|${sigmaSelector().value}`;
+                colorbarTitle = sigmaSelector().value==='-1' ? `${colorbarTitle}\nSigma layer: ${sigmaSelector().selectedOptions[0].text}`
+                        : `${colorbarTitle}\n${sigmaSelector().selectedOptions[0].text}`;
             }
-            const title = data.content[0][1];
-            const colorbarTitle = sigmaSelector().value==='-1' ? `${title}\nLayer: ${sigmaSelector().selectedOptions[0].text}`
-                        : `${title}\n${sigmaSelector().selectedOptions[0].text}`;
             plot2DMapDynamic(true, newQuery, newKey, colorbarTitle, '');
         });
     });
@@ -95,15 +96,15 @@ export async function spatialMapManager() {
     substanceWindowContent().addEventListener('change', (e) => {
         if (e.target && e.target.name === "waq-substance") {
             const [value, type] = e.target.value.split('|');
+            const label = e.target.closest('label');
+            colorbarTitle = label ? label.textContent.trim() : value;
             if (type === 'single') {
                 newKey = `${value}_waq_single_dynamic`; newQuery = `mesh2d_2d_${value}|${sigmaSelector().value}`;
             } else {
                 newKey = `${value}_waq_multi_dynamic`; newQuery = `mesh2d_${value}|${sigmaSelector().value}`;
+                colorbarTitle = sigmaSelector().value==='-1' ? `${colorbarTitle}\nLayer: ${sigmaSelector().selectedOptions[0].text}`
+                        : `${colorbarTitle}\n${sigmaSelector().selectedOptions[0].text}`;
             }
-            const label = e.target.closest('label');
-            const title = label ? label.textContent.trim() : value;
-            const colorbarTitle = sigmaSelector().value==='-1' ? `${title}\nLayer: ${sigmaSelector().selectedOptions[0].text}`
-                        : `${title}\n${sigmaSelector().selectedOptions[0].text}`;
             plot2DMapDynamic(true, newQuery, newKey, colorbarTitle, '');
         }
     });

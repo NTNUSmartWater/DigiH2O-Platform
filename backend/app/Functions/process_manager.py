@@ -1,7 +1,7 @@
 import os, json, re, subprocess, math, asyncio, traceback
 from fastapi import APIRouter, Request, File, UploadFile, Form
 from Functions import functions
-from shapely import wkt
+from shapely.geometry import mapping
 from fastapi.responses import JSONResponse
 from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND, GRID_PATH
 import xarray as xr, pandas as pd, numpy as np
@@ -31,54 +31,6 @@ def process_internal(request: Request, query: str, key: str):
         name, stationId, type = temp[0], temp[1], temp[2]
         temp = functions.selectInsitu(request.app.state.hyd_his, request.app.state.hyd_map, name, stationId, type)
         data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
-    elif 'dynamic' in key:
-        temp = query.split('|')
-        if temp[0] == '': data_, time_column = request.app.state.hyd_map, 'time' # For hydrodynamic data
-        else: data_, time_column = request.app.state.waq_map, 'nTimesDlwq' # For water quality
-        name = functions.variablesNames.get(key, key) if time_column == 'time' else temp[0]
-        # Detech layer and get values at the last timestamp
-        if 'single' in key: arr = data_[name].values
-        elif 'multi' in key:
-            # Initiate cache for the first load
-            if not hasattr(request.app.state, 'dynamic_cache'):
-                layer_reverse = request.app.state.layer_reverse_waq if 'waq' in key else request.app.state.layer_reverse_hyd
-                value_type = layer_reverse[temp[1]]
-                request.app.state.dynamic_cache = {"layer_reverse": layer_reverse}
-                if value_type == 'Average': 
-                    if temp[0] == '': temp_values = np.nanmean(data_[name].values, axis=2)
-                    else:
-                        temp_name = name.split('_')
-                        new_name = f"{temp_name[0]}_2d_{temp_name[1]}"
-                        temp_values = data_[new_name].values
-                else:
-                    row_idx = len(layer_reverse) - int(temp[1]) - 2
-                    if temp[0] == '': temp_values = data_[name].values[:, :, row_idx-1]
-                    else: temp_values = data_[name].values[:, row_idx-1, :]
-                if value_type not in request.app.state.dynamic_cache:
-                    request.app.state.dynamic_cache[value_type] = temp_values
-                arr = temp_values
-            else:
-                cache = request.app.state.dynamic_cache
-                arr = cache[cache['layer_reverse'][temp[1]]]
-        if temp[2] == 'load': # Initiate skeleton polygon for the first load
-            # Get values at the last timestamp
-            features = [
-                {"type": "Feature", "properties": {"index": idx},
-                    "geometry": {
-                        "type": wkt.loads(row['geometry'].wkt).geom_type,
-                        "coordinates": [list(row['geometry'].exterior.coords)]
-                    }
-                } for idx, row in request.app.state.grid.iterrows()
-            ]
-            vmin = functions.numberFormatter(np.nanmin(data_[name].values))
-            vmax = functions.numberFormatter(np.nanmax(data_[name].values))
-            data = {
-                'meshes': { 'type': 'FeatureCollection', 'features': features },
-                'values': list(functions.numberFormatter(arr[-1,:])), 'min_max': [vmin, vmax],
-                'timestamps': [pd.to_datetime(t).strftime('%Y-%m-%d %H:%M:%S') for t in data_[time_column].data],
-            }
-        else: # Update value of polygons
-            data = {'values': list(functions.numberFormatter(arr[int(temp[2]),:]))}
     elif key == 'static':
         # Create static data for map
         grid = request.app.state.grid.copy()
@@ -88,36 +40,11 @@ def process_internal(request: Request, query: str, key: str):
         if 'depth' in query:
             values = functions.interpolation_Z(grid, x, y, z)
         # Convert GeoDataFrame to expected format
-        features = [
-            {"type": "Feature", "id": idx,
-                "properties": {"index": idx},   # index để tra values
-                "geometry": {
-                    "type": wkt.loads(row['geometry'].wkt).geom_type,
-                    "coordinates": [list(row['geometry'].exterior.coords)]
-                }
-            } for idx, row in grid.iterrows()
-        ]
+        features = [{
+            "type": "Feature", "properties": {"index": idx}, "geometry": mapping(row["geometry"])
+            } for idx, row in grid.iterrows()]
         data = { 'meshes': { 'type': 'FeatureCollection', 'features': features }}
         data['values'], data['min_max'] = values, [float(np.nanmin(values)), float(np.nanmax(values))]
-        data = functions.clean_nans(data)
-    elif key == 'vector':
-        temp = query.split('|')
-        layer_reverse = request.app.state.layer_reverse_hyd
-        value_type, row_idx = layer_reverse[temp[0]], len(layer_reverse) - int(temp[0]) - 2
-        if temp[1] == 'load': # Initiate skeleton polygon for the first load
-            data = functions.vectorComputer(request.app.state.hyd_map, value_type, row_idx)
-            # Get global vmin and vmax
-            if value_type == 'Average':
-                vmin = float(np.nanmin(request.app.state.hyd_map['mesh2d_ucmaga']))
-                vmax = float(np.nanmax(request.app.state.hyd_map['mesh2d_ucmaga']))
-            else:
-                vmin = float(np.nanmin(request.app.state.hyd_map['mesh2d_ucmag']))
-                vmax = float(np.nanmax(request.app.state.hyd_map['mesh2d_ucmag']))
-            data['timestamps'] = [pd.to_datetime(t).strftime('%Y-%m-%d %H:%M:%S')
-                                  for t in request.app.state.hyd_map['time'].values]
-            data['min_max'] = [vmin, vmax]
-        else:
-            data = functions.vectorComputer(request.app.state.hyd_map, value_type, row_idx, int(temp[1]))
         data = functions.clean_nans(data)
     elif key == 'substance_check':
         substance = request.app.state.config[query]
@@ -145,6 +72,96 @@ async def process_data(request: Request):
         status, message, data = 'ok', result[0], result[1]
     except Exception as e:
         print('/process_data:\n==============')
+        traceback.print_exc()
+        status, message, data = 'error', f"Error: {e}", None
+    return JSONResponse({'content': data, 'status': status, 'message': message})
+
+# Load general dynamic data
+@router.post("/load_general_dynamic")
+async def load_general_dynamic(request: Request):
+    # Get body data
+    body = await request.json()
+    query, key = body.get('query'), body.get('key')
+    try:
+        temp = query.split('|')
+        is_hyd = temp[0] == '' # hydrodynamic or waq
+        data_ = request.app.state.hyd_map if is_hyd else request.app.state.waq_map
+        time_column = 'time' if is_hyd else 'nTimesDlwq'
+        name = functions.variablesNames.get(key, key) if is_hyd else temp[0]
+        # Setup cache
+        dynamic_cache = getattr(request.app.state, 'dynamic_cache', {})
+        group = 'hyd' if is_hyd else 'waq'
+        if group not in dynamic_cache: 
+            dynamic_cache[group] = {
+                "layer_reverse": getattr(request.app.state, f'layer_reverse_{group}'),
+                "layers": {}
+            }
+        group_cache = dynamic_cache[group]
+        setattr(request.app.state, 'dynamic_cache', dynamic_cache)
+        values = data_[name].values
+        if 'single' in key: arr = values
+        else:
+            layer_reverse = group_cache['layer_reverse']
+            value_type = layer_reverse[temp[1]]
+            if value_type in group_cache['layers']: arr = group_cache['layers'][value_type]
+            else:
+                n_layers = len(layer_reverse)
+                row_idx = n_layers - int(temp[1]) - 2
+                if value_type == 'Average':
+                    if is_hyd: temp_values = np.nanmean(values, axis=2)
+                    else:
+                        temp_name = name.split('_')
+                        temp_values = data_[f"{temp_name[0]}_2d_{temp_name[1]}"].values
+                else: temp_values = values[:, :, row_idx-1] if is_hyd else values[:, row_idx-1, :]
+                group_cache['layers'][value_type] = temp_values
+                arr = temp_values
+        fmt = functions.numberFormatter 
+        if temp[2] == 'load': # Initiate skeleton polygon for the first load
+            if not hasattr(request.app.state, 'grid_features'):
+                request.app.state.grid_features = [{
+                    'type': 'Feature', 'properties': {"index": idx},
+                    'geometry': mapping(row['geometry'])
+                } for idx, row in request.app.state.grid.iterrows()]
+            data = { 'meshes': { 'type': 'FeatureCollection', 'features': request.app.state.grid_features },
+               'values': list(fmt(arr[-1, :])), 'min_max': [fmt(np.nanmin(values)), fmt(np.nanmax(values))],
+               'timestamps': [pd.to_datetime(t).strftime('%Y-%m-%d %H:%M:%S') for t in data_[time_column].data]
+            }
+        else: # Update value of polygons
+            data = {'values': list(fmt(arr[int(temp[2]),:]))}
+        status, message = 'ok', ''
+    except Exception as e:
+        print('/load_dynamic:\n==============')
+        traceback.print_exc()
+        status, message, data = 'error', f"Error: {e}", None
+    return JSONResponse({'content': data, 'status': status, 'message': message})
+
+# Load vector dynamic data
+@router.post("/load_vector_dynamic")
+async def load_vector_dynamic(request: Request):
+    body = await request.json()
+    query, key = body.get('query'), body.get('key')
+    try:
+        layer_reverse = request.app.state.layer_reverse_hyd
+        value_type, row_idx = layer_reverse[key], len(layer_reverse) - int(key) - 2
+        data_ = request.app.state.hyd_map
+        if query == 'load': # Initiate skeleton polygon for the first load
+            data = functions.vectorComputer(data_, value_type, row_idx)
+            # Get global vmin and vmax
+            if value_type == 'Average':
+                vmin = float(np.nanmin(data_['mesh2d_ucmaga']))
+                vmax = float(np.nanmax(data_['mesh2d_ucmaga']))
+            else:
+                vmin = float(np.nanmin(data_['mesh2d_ucmag']))
+                vmax = float(np.nanmax(data_['mesh2d_ucmag']))
+            data['timestamps'] = [pd.to_datetime(t).strftime('%Y-%m-%d %H:%M:%S')
+                                  for t in data_['time'].values]
+            data['min_max'] = [vmin, vmax]
+        else:
+            data = functions.vectorComputer(data_, value_type, row_idx, int(query))
+        data = functions.clean_nans(data)
+        status, message = 'ok', ''
+    except Exception as e:
+        print('/load_dynamic:\n==============')
         traceback.print_exc()
         status, message, data = 'error', f"Error: {e}", None
     return JSONResponse({'content': data, 'status': status, 'message': message})
@@ -210,23 +227,32 @@ async def select_thermocline(request: Request):
     try:
         status, message, temp_grid = 'ok', "", request.app.state.grid
         name = functions.variablesNames.get(query, query)
+        is_hyd = key == 'thermocline_hyd'
+        data_ = request.app.state.hyd_map if is_hyd else request.app.state.waq_map
+        col_idx = 2 if is_hyd else 1
+        time_column = 'time' if is_hyd else 'nTimesDlwq'
+        group = 'hyd' if is_hyd else 'waq'
         # Cache data
-        if not hasattr(request.app.state, 'thermocline_cache'):
-            # Select columns that are Nan in all layers
-            if key == 'thermocline_hyd': 
-                data_, col_idx, time_column = request.app.state.hyd_map, 2, 'time'
-            else: 
-                data_, col_idx, time_column = request.app.state.waq_map, 1, 'nTimesDlwq'
-            layers_values = [float(v.split(' ')[1]) for k, v in request.app.state.layer_reverse_hyd.items() if int(k) >= 0]
+        thermocline_cache = getattr(request.app.state, 'thermocline_cache', {})
+        if group not in thermocline_cache: 
+            thermocline_cache[group] = {
+                "layer_reverse": getattr(request.app.state, f'layer_reverse_{group}'),
+                "data": None, "grid": None, "timestamps": None, "depths": None
+            }
+        group_cache = thermocline_cache[group]
+        setattr(request.app.state, 'thermocline_cache', thermocline_cache)
+        if group_cache["data"] is None:
+            layer_reverse = group_cache['layer_reverse']
+            layers_values = [float(v.split(' ')[1]) for k, v in layer_reverse.items() if int(k) >= 0]
             arr = data_[name].values
+            # Remove polygons having Nan in all layers
             mask_all_nan = np.isnan(arr).all(axis=(0, col_idx))
-            arr_filtered = arr[:, ~mask_all_nan, :] if key == 'thermocline_hyd' else arr[:, :, ~mask_all_nan]
+            arr_filtered = arr[:, ~mask_all_nan, :] if is_hyd else arr[:, :, ~mask_all_nan]
             removed_indices = np.where(mask_all_nan)[0]
             # Get grid with polygons having data
-            grid = temp_grid.drop(index=removed_indices)
+            grid_filtered = temp_grid.drop(index=removed_indices)
             time_stamps = pd.to_datetime(data_[time_column]).strftime('%Y-%m-%d %H:%M:%S').tolist()
-            request.app.state.thermocline_cache = {"grid": grid, "timestamps": time_stamps,
-                "data": arr_filtered, "depths": layers_values}
+            group_cache.update({"grid": grid_filtered, "timestamps": time_stamps, "data": arr_filtered, "depths": layers_values})
         if type_ == 'thermocline_grid':
             temp = request.app.state.thermocline_cache['grid']
             temp['index'] = temp.index
@@ -235,7 +261,7 @@ async def select_thermocline(request: Request):
             idx = int(idx)
             cache = getattr(request.app.state, "thermocline_cache", None)
             if cache is None: return JSONResponse({"status": 'error', "message": "Thermocline cache is not initialized."})
-            data_selected = cache["data"][:, idx, :] if key == 'thermocline_hyd' else cache["data"][:, :, idx]
+            data_selected = cache["data"][:, idx, :] if is_hyd else cache["data"][:, :, idx]
             cache["idx"], values = data_selected, [None if np.isnan(x) else x for x in data_selected[0,:]]
             # Get the first frame for the first timestamp
             data = { "timestamps": cache["timestamps"], "depths": cache["depths"], "values": values }

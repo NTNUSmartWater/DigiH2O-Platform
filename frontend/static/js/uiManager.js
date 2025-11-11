@@ -43,9 +43,6 @@ const waqWindowHeader = () => document.getElementById('waqWindowHeader');
 const waqCloseBtn = () => document.getElementById('closeWAQWindow');
 const waqProgressbar = () => document.getElementById('progressbar');
 const waqProgressText = () => document.getElementById('progress-text');
-// const profileWindow = () => document.getElementById('profileWindow-thermocline');
-// const profileWindowHeader = () => document.getElementById('profileWindowHeader');
-// const profileCloseBtn = () => document.getElementById('closeProfileWindow');
 const mapContainer = () => map.getContainer();
 
 initializeMap(); baseMapButtonFunctionality();
@@ -142,7 +139,6 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
 
 iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
                     projectOpenWindowContent(), "Select Project with Simulation Result(s)");
-
 
 function updateEvents() {
     // Search locations
@@ -408,6 +404,9 @@ function updateEvents() {
             const data = await sendQuery('open_gridTool', {});
             if (data.status === "error") {alert(data.message); return;}
         }
+        if (event.data?.type === 'thermoclineGridClear') { 
+            if (gridLayer) map.removeLayer(gridLayer); gridLayer = null; 
+        }
         if (event.data?.type === 'thermoclineGrid') {
             startLoading(event.data.message);
             const key = event.data.key, query = event.data.query;
@@ -431,7 +430,7 @@ function updateEvents() {
                                 <button id="saveBtn" 
                                     style="width:100%;padding:4px;background:#007bff;
                                     color:white;border:none;border-radius:4px;cursor:pointer;">
-                                    OK
+                                    Plot Thermocline Chart
                                 </button>
                             </div>
                         `;
@@ -448,6 +447,7 @@ function updateEvents() {
                                             query: query, idx: index, type: 'thermocline_init'});
                                         layer.closePopup(); setState({isThemocline: false});
                                         if (initData.status === "error") { alert(initData.message); return; }
+                                        console.log(initData.content);
                                         thermoclinePlotter(profileWindow, initData.content, newName, titleX, 'Depth (m)', chartTitle);
                                     } else { alert('Please enter a name.'); return; }
                                 });

@@ -77,7 +77,7 @@ async def wq_time(request: Request):
             elif key == 'oxygen-bod-water': from_ = ['OXY', 'CBOD5']
             elif key == 'cadmium': from_ = ['IM1', 'Cd', 'IM1S1', 'CdS1']
             elif key == 'eutrophication': from_ = ['A', 'DP', 'NORG', 'NH4', 'NO3']
-            elif key == 'tracer-metals': from_ = ['ASWTOT', 'CUWTOT', 'NIWTOT', 'PBWTOT', 'POCW', 'AOCW', 'DOCW', 'SSW', 'ZNWTOT',
+            elif key == 'trace-metals': from_ = ['ASWTOT', 'CUWTOT', 'NIWTOT', 'PBWTOT', 'POCW', 'AOCW', 'DOCW', 'SSW', 'ZNWTOT',
                         'ASREDT', 'ASSTOT', 'ASSUBT', 'CUREDT', 'CUSTOT', 'CUSUBT', 'NIREDT', 'NISTOT', 'NISUBT',
                         'PBREDT', 'PBSTOT', 'PBSUBT', 'DOCB', 'DOCSUB', 'POCB', 'POCSUB', 'S', 'ZNREDT', 'ZNSTOT', 'ZNSUBT']
             elif key == 'conservative-tracers': from_ = ['cTR1', 'cTR2', 'cTR3', 'dTR1', 'dTR2', 'dTR3']

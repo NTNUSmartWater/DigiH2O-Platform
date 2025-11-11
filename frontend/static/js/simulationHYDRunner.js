@@ -98,5 +98,4 @@ function updateSelection(){
         };
     });
 }
-
-updateSelection(); //updateParentHeight();
+updateSelection();

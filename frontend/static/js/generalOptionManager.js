@@ -20,6 +20,7 @@ const mapContainer = () => map.getContainer();
 export const profileWindow = () => document.getElementById('profileWindow');
 const profileWindowHeader = () => document.getElementById('profileWindowHeader');
 const profileCloseBtn = () => document.getElementById('closeProfileWindow');
+const configReset = () => document.getElementById('reset-config');
 
 let Dragging = false, pathLine = null, selectedMarkers = [], pointContainer = [], marker = null;
 
@@ -39,6 +40,13 @@ function checkUpdater(setLayer, objCheckbox, checkFunction){
 export function generalOptionsManager(){
     projectSummaryEvents(); thermoclinePlot();
     updateHYDManager(); updateWAQManager(); updatePathManager();
+    document.querySelector('.thermocline-clear-grid').addEventListener('click', () => { 
+        window.parent.postMessage({type: 'thermoclineGridClear'}, '*');
+    });
+    configReset().addEventListener('click', () => { 
+        const data = sendQuery('reset_config', {});
+        if (data.status === 'error') { alert(data.message); return; }
+    });
 }
 
 // ============================ Project Summary ============================
@@ -74,12 +82,10 @@ async function openProjectSummary() {
             </tr>
         </thead><tbody>`;
         data.content.forEach(item => {
-            html += `
-                <tr>
-                    <td>${item.parameter}</td>
-                    <td>${item.value}</td>
-                </tr>
-            `;
+            html += `<tr>
+                <td>${item.parameter}</td>
+                <td>${item.value}</td>
+            </tr>`;
         });
         html += `</tbody></table>`;
         summaryContent().innerHTML = html;
@@ -320,7 +326,7 @@ export function updatePathManager() {
     moveWindow(profileWindow, profileWindowHeader); 
 }
 
-function deActivePathQuery() {
+export function deActivePathQuery() {
     pathQuery().checked = false; setState({isPathQuery: false});
     if (pathLine) { map.removeLayer(pathLine); pathLine = null;}
     selectedMarkers.forEach(m => map.removeLayer(m));
@@ -421,18 +427,6 @@ async function mapPath(e) {
                         color: 'orange', weight: 2, dashArray: '5,5'
                     }).addTo(map);
                 }
-            }
-            if (getState().isThemocline) {
-                // Clear previous point container and marker
-                if (pointContainer.length > 0) pointContainer = [];
-                if (marker) marker.remove();
-                // Add marker
-                marker = L.circleMarker(e.latlng, {
-                    radius: 4, color: 'red', fillColor: 'black', fillOpacity: 0.9
-                }).addTo(map);
-                // Add point
-                pointContainer.push({ lat: e.latlng.lat, lng: e.latlng.lng });
-                console.log(pointContainer);
             }
         }
         setState({isClickedInsideLayer: false}); // Reset clicked inside layer
