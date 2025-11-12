@@ -115,18 +115,16 @@ function layerCreator(meshes, values, key, vmin, vmax, colorbarTitle, colorbarKe
         map.closeTooltip(hoverTooltip);        
     });
     if (key.includes('multi')) { setState({isMultiLayer: true});
-    } else {
-        setState({isMultiLayer: false});
-        const polygonCentroids = [];
-        filteredData.features.forEach(f => {
-            const value = values[f.properties.index];
-            if (value !== null && value !== undefined){ 
-                const center = turf.centroid(f).geometry.coordinates;
-                polygonCentroids.push({ lat: center[1], lng: center[0], value: value });
-            }
-        });
-        setState({polygonCentroids: polygonCentroids});
-    }
+    } else { setState({isMultiLayer: false}); }
+    const polygonCentroids = [];
+    filteredData.features.forEach(f => {
+        const value = values[f.properties.index];
+        if (value !== null && value !== undefined){ 
+            const center = turf.centroid(f).geometry.coordinates;
+            polygonCentroids.push({ lat: center[1], lng: center[0], value: value });
+        }
+    });
+    setState({polygonCentroids: polygonCentroids});
     // Add click event to the layer
     layerMap.on('click', () => { setState({isClickedInsideLayer: true}); });
     // Adjust Colorbar Control

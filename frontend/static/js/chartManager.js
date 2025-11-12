@@ -1,5 +1,5 @@
 import { startLoading, showLeafletMap} from "./mapManager.js";
-import { loadData, interpolateJet, interpolateValue, getColors, valueFormatter } from "./utils.js";
+import { loadData, interpolateJet, splitLines, getColors, valueFormatter } from "./utils.js";
 import { getState, setState } from "./constants.js";
 import { sendQuery } from "./tableManager.js";
 import { deActivePathQuery } from "./generalOptionManager.js";
@@ -128,27 +128,23 @@ export function drawChart(data, chartTitle, titleX, titleY, selectedColumns=null
         checkboxInputs = document.querySelectorAll(obj);
     }
     // Get selected columns
-    if (!selectedColumns){
+    if (!selectedColumns) {
         selectedColumns = Array.from(checkboxInputs)
-                .filter(cb => cb.checked && cb.value !== 'All').map(cb => cb.value);
+            .filter(cb => cb.checked && cb.value !== 'All').map(cb => cb.value);
     }
     const allCheckbox = Array.from(checkboxInputs).find(cb => cb.value === 'All');
-    let drawColumns;
+    let drawColumns, traceIndex = 0;
     if (allCheckbox && allCheckbox.checked) drawColumns = cols.slice(1);
     else drawColumns = selectedColumns;
     if (drawColumns.length === 0) { Plotly.purge(chartDiv()); return; }
-    const traces = [];
-    let traceIndex = 0;
-    const n = drawColumns.length;  
+    const traces = [], n = drawColumns.length;  
     for (const colName of drawColumns) {
         const i = cols.indexOf(colName);
         if (i === -1) continue;
         const y = rows.map(r => r[i]);
         const t = n <= 1 ? 0 : traceIndex / (n - 1);
         const color = interpolateJet(1-t);
-        traces.push({ x: x, y: y, name: cols[i],
-            type: 'scatter', mode: 'lines', line: { color: color }
-        });
+        traces.push({ x: x, y: y, name: cols[i], type: 'scatter', mode: 'lines', line: { color: color } });
         traceIndex++;
     }
     if (traces.length === 0) { Plotly.purge(chartDiv()); return; }
@@ -172,7 +168,7 @@ export function drawChart(data, chartTitle, titleX, titleY, selectedColumns=null
     plotWindow().style.display = "flex"; // Show the chart
 }
 
-function numberFormatter(num, decimals) {
+export function numberFormatter(num, decimals) {
     if (num === null || num === undefined || isNaN(num)) return '';
     if (num === 0) return '0';
     if (Math.abs(num) < 1e-3 || Math.abs(num) >= 1e6) {
@@ -184,15 +180,12 @@ function numberFormatter(num, decimals) {
 // Export chart data to new tab as CSV format
 function viewData() {
     const data = chartDiv().data?.[0];
-    if (!data) {
-        alert("No data to view."); return;
-    }
+    if (!data) { alert("No data to view."); return; }
     // Get the y values
     const numTraces = chartDiv().data.length;
     const title = chartDiv().layout?.title?.text || "Chart";
     const titleText = typeof title === "string"
-        ? (title.includes(':') ? title.split(':')[1].trim() : title)
-        : "Chart";
+        ? (title.includes(':') ? title.split(':')[1].trim() : title) : "Chart";
     const titleY = chartDiv().layout?.yaxis?.title?.text || "Value";
     let csvHeader = chartDiv().layout?.xaxis?.title?.text || 'Unknown';
     for (let i = 0; i < numTraces; i++) {
@@ -226,10 +219,7 @@ function viewData() {
 // Save to Excel
 export function saveToExcel() {
     const data = chartDiv().data?.[0];
-    if (!data) {
-        alert("No data to save.");
-        return;
-    }
+    if (!data) { alert("No data to save."); return; }
     // Get the y values
     const numTraces = chartDiv().data.length;
     const title = chartDiv().layout?.title?.text || "Chart";
@@ -243,8 +233,7 @@ export function saveToExcel() {
         const traceName = chartDiv().data[i].name || `${titleText}_${titleY}_${i}`;
         headers.push(traceName);
     }
-    const table = [headers];
-    const numPoints = chartDiv().data[0].x.length;
+    const table = [headers], numPoints = chartDiv().data[0].x.length;
     for (let i = 0; i < numPoints; i++) {
         const row = [chartDiv().data[0].x[i]];
         for (let j = 0; j < numTraces; j++) {
@@ -259,44 +248,11 @@ export function saveToExcel() {
     // Download the Excel file
     XLSX.writeFile(workbook, `${titleY.split(' (')[0]}.xlsx`);
 }
-export function plotProfileSingleLayer(pointContainer, polygonCentroids, title, titleY, titleX='Distance (m)', n_decimals) {
-    const subset_dis = 20, interpolatedPoints = [];
-    // Convert Lat, Long to x, y
-    for (let i = 0; i < pointContainer.length - 1; i++) {
-        const p1 = pointContainer[i], p2 = pointContainer[i + 1];
-        const pt1 = L.Projection.SphericalMercator.project(L.latLng(p1.lat, p1.lng));
-        const pt2 = L.Projection.SphericalMercator.project(L.latLng(p2.lat, p2.lng));
-        const dx = pt2.x - pt1.x, dy = pt2.y - pt1.y;
-        const segmentDist = Math.sqrt(dx * dx + dy * dy);
-        const segments = Math.max(1, Math.floor(segmentDist / subset_dis));
-        // Add the first point
-        const originDist = numberFormatter(L.latLng(p1.lat, p1.lng).distanceTo(pointContainer[0]), n_decimals);
-        interpolatedPoints.push([originDist, p1.value]);
-        // Add the intermediate points        
-        for (let j = 1; j < segments; j++) {
-            const ratio = j / segments;
-            const interpX = pt1.x + ratio * dx, interpY = pt1.y + ratio * dy;
-            const latlngInterp = L.Projection.SphericalMercator.unproject(L.point(interpX, interpY));
-            // Interpolate
-            const location = L.latLng(latlngInterp.lat, latlngInterp.lng);
-            const interpValue = interpolateValue(location, polygonCentroids);
-            // Fall back to nearest centroid if interpolation fails
-            if (interpValue === null || interpValue === undefined) {
-                interpValue = p1.value + ratio * (p2.value - p1.value);
-            }
-            // Compute distance            
-            const distInterp = numberFormatter(location.distanceTo(pointContainer[0]), n_decimals);
-            interpolatedPoints.push([distInterp, interpValue]);
-        }
-        // Add the last point
-        const lastDist = numberFormatter(L.latLng(p2.lat, p2.lng).distanceTo(pointContainer[0]), n_decimals);
-        interpolatedPoints.push([lastDist, p2.value]);
-    }
-    // Sort by distance
-    interpolatedPoints.sort((a, b) => a[0] - b[0]);
-    const input = {
-        columns: [titleX, titleY], data: interpolatedPoints
-    };
+
+export function plotProfileSingleLayer(pointContainer, polygonCentroids, title, titleY, titleX='Distance (m)') {
+    const interpolatedPoints = splitLines(pointContainer, polygonCentroids, 20).map(([dist, val]) => [dist, val]);
+    const input = { columns: [titleX, titleY], data: interpolatedPoints };
+    console.log(input);
     drawChart(input, title, titleX, titleY, false);
 }
 
@@ -335,7 +291,7 @@ export function plotProfileMultiLayer(key, query, windowContainer, data, title, 
             values, local_minmax[0], local_minmax[1], nColors, title, unit); 
     // Update a single frame
     async function updateFrame(index) {
-        const queryContents = { key: key, query: query, type: index };
+        const queryContents = { key: key, query: query, idx: index };
         const data = await sendQuery('select_meshes', queryContents);
         if (data.status === "error") { 
             alert(data.message); animating = false;
@@ -389,7 +345,7 @@ export function plotProfileMultiLayer(key, query, windowContainer, data, title, 
     // === Color control === 
     colorCombo.addEventListener('change', async() => { 
         animating = false; playPauseBtn.textContent = '▶ Play';
-        const queryContents = { key: key, query: query, type: frameIndex };
+        const queryContents = { key: key, query: query, idx: frameIndex };
         const refreshed = await sendQuery('select_meshes', queryContents);
         if (refreshed.status === "error") { alert(data.message); return; }
         const { values, local_minmax } = refreshed.content;
