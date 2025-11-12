@@ -187,27 +187,38 @@ async def select_meshes(request: Request):
         mask = (n_layers_values[None, :] < gdf["depth"].values[:, None])
         # Select polygons that contain the interpolated points
         polygons = gpd.sjoin(grid, gdf, predicate='contains', how='inner')
-        n_rows, filled_grid = len(gdf), gdf.drop(columns=['geometry'])
-
+        polygon_sorted = polygons.sort_values(by=['index_right'])
+        polygon_sorted.drop(columns=['geometry'], inplace=True)
+        n_cols, filled_grid = len(gdf), gdf.drop(columns=['geometry'])
+        depth_idx = [round(abs(d)) for d in n_layers_values]
 
         # Cache data
         if not hasattr(request.app.state, 'mesh_cache'):
             n_layers_values = np.array([float(v.split(' ')[1]) for k, v in request.app.state.layer_reverse_hyd.items() if int(k) >= 0])
             max_layer = max(n_layers_values, key=abs)
-            n_cols = abs(math.ceil(max_layer/10)*10) if max_layer > 0 else abs(math.floor(max_layer/10)*10)
-            request.app.state.mesh_cache = { "depths": n_layers_values, "data": data_[name].values, "n_cols": n_cols }
+            n_rows = abs(math.ceil(max_layer/10)*10) if max_layer > 0 else abs(math.floor(max_layer/10)*10) + 1
+            request.app.state.mesh_cache = { "depths": n_layers_values, "data": data_[name].values,
+                "n_rows": n_rows, "depth_idx": depth_idx }
         
         
         
         if idx == 'load': # Initiate data for the first load
             time_column = 'time' if is_hyd else 'nTimesDlwq'
             time_stamps = pd.to_datetime(data_[time_column]).strftime('%Y-%m-%d %H:%M:%S').tolist()
-            values = request.app.state.mesh_cache["data"]
+            cache = getattr(request.app.state, "mesh_cache", None)
+            if cache is None: return JSONResponse({"status": 'error', "message": "Mesh cache is not initialized."})
+            values, depth_idx = cache["data"][0,:,:], cache["depth_idx"]
             global_vmin, global_vmax = fnm(np.nanmin(values)), fnm(np.nanmax(values))
-
-
-            # Get the first frame
-            frame_data = functions.meshProcess(key, data_, name, 0, ids, request.app.state.mesh_cache)
+            count, frame = 0, {}
+            for i in range(cache["n_rows"]):
+                if i in depth_idx:
+                    mask = (-i >= polygon_sorted["depth"].values)
+                    frame[-i] = np.where(mask, values[polygon_sorted["index_right"].values, count-1], np.nan)
+                    count += 1
+                else: frame[-i] = np.nan
+            poly = pd.concat([polygon_sorted[['depth']].reset_index(drop=True), pd.DataFrame(frame)], axis=1)    
+            # # Get the first frame
+            # frame_data = functions.meshProcess(key, data_, name, 0, ids, request.app.state.mesh_cache)
             
             
 
@@ -220,7 +231,8 @@ async def select_meshes(request: Request):
         else:
             cache = getattr(request.app.state, "mesh_cache", None)
             if cache is None: return JSONResponse({"status": 'error', "message": "Mesh cache is not initialized."})
-            idx, values = int(idx), cache["data"]
+            idx = int(idx)
+            values = cache["data"][idx,:,:]
             
             poly_ids = polygons.index.values
             vals = values[idx][poly_ids, :]
