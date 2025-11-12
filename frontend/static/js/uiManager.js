@@ -412,8 +412,8 @@ function updateEvents() {
             startLoading(event.data.message);
             const key = event.data.key, query = event.data.query;
             const titleX = event.data.titleX, chartTitle = event.data.chartTitle;
-            const data = await sendQuery('select_thermocline', {key: key, query: query,
-                type: 'thermocline_grid'});
+            const data = await sendQuery('select_thermocline', {key: key, 
+                query: query, type: 'thermocline_grid'});
             if (data.status === "error") {alert(data.message); return;}
             if (gridLayer) map.removeLayer(gridLayer); gridLayer = null;
             gridLayer = L.geoJSON(data.content, {

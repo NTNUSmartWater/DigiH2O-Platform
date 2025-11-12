@@ -4,7 +4,7 @@ from Functions import functions
 from shapely.geometry import mapping
 from fastapi.responses import JSONResponse
 from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND, GRID_PATH
-import xarray as xr, pandas as pd, numpy as np
+import xarray as xr, pandas as pd, numpy as np, geopandas as gpd
 
 router = APIRouter()
 
@@ -170,49 +170,69 @@ async def load_vector_dynamic(request: Request):
 @router.post("/select_meshes")
 async def select_meshes(request: Request):    
     body = await request.json()
-    key, query, ids, type = body.get('key'), body.get('query'), body.get('ids'), body.get('type')
+    key, query, ids, idx = body.get('key'), body.get('query'), body.get('ids'), body.get('idx')
     try:
-        if key == 'hyd': data_, time_column = request.app.state.hyd_map, 'time'
-        else:
-            data_, time_column = request.app.state.waq_map, 'nTimesDlwq' # For water quality
-            if '_waq_multi_dynamic' in query: query = f'mesh2d_{query.replace('_waq_multi_dynamic', '')}'
+        if '_waq_multi_dynamic' in query: query = 'mesh2d_' + query[:-len('_waq_multi_dynamic')]
+        is_hyd = key == 'hyd'
+        data_ = request.app.state.hyd_map if is_hyd else request.app.state.waq_map
         name, status, message = functions.variablesNames.get(query, query), 'ok', ''
+        ids_arr, fnm = np.array(ids), functions.numberFormatter
+        x_coords, y_coords = ids_arr[:, 2], ids_arr[:, 1]
+        grid = request.app.state.grid
+        gdf = gpd.GeoDataFrame(geometry=gpd.points_from_xy(x_coords, y_coords), crs=grid.crs)
+        gdf['depth'] = functions.interpolation_Z(gdf, request.app.state.hyd_map['mesh2d_node_x'].values, 
+            request.app.state.hyd_map['mesh2d_node_y'].values, request.app.state.hyd_map['mesh2d_node_z'].values
+        )
+        # Create a mask
+        mask = (n_layers_values[None, :] < gdf["depth"].values[:, None])
+        # Select polygons that contain the interpolated points
+        polygons = gpd.sjoin(grid, gdf, predicate='contains', how='inner')
+        n_rows, filled_grid = len(gdf), gdf.drop(columns=['geometry'])
+
+
         # Cache data
         if not hasattr(request.app.state, 'mesh_cache'):
-            temp_grid = request.app.state.grid
-            temp_grid['depth'] = functions.interpolation_Z(temp_grid,
-                request.app.state.hyd_map['mesh2d_node_x'].values, 
-                request.app.state.hyd_map['mesh2d_node_y'].values,
-                request.app.state.hyd_map['mesh2d_node_z'].values
-            )
-            filtered = temp_grid.loc[ids]  # Filter by ids
-            n_layers_values = [float(v.split(' ')[1]) for k, v in request.app.state.layer_reverse_hyd.items() if int(k) >= 0]
+            n_layers_values = np.array([float(v.split(' ')[1]) for k, v in request.app.state.layer_reverse_hyd.items() if int(k) >= 0])
             max_layer = max(n_layers_values, key=abs)
-            n_rows, n_cols = len(ids), math.ceil(max_layer/10)*10 if max_layer > 0 else math.floor(max_layer/10)*10
-            request.app.state.mesh_cache = {
-                "depths": n_layers_values, "filled_grid": filtered.drop(columns=['geometry']), 
-                "n_rows": n_rows, "n_cols": n_cols, "ids": ids
-            }
-        if type == 'load': # Initiate data for the first load
+            n_cols = abs(math.ceil(max_layer/10)*10) if max_layer > 0 else abs(math.floor(max_layer/10)*10)
+            request.app.state.mesh_cache = { "depths": n_layers_values, "data": data_[name].values, "n_cols": n_cols }
+        
+        
+        
+        if idx == 'load': # Initiate data for the first load
+            time_column = 'time' if is_hyd else 'nTimesDlwq'
             time_stamps = pd.to_datetime(data_[time_column]).strftime('%Y-%m-%d %H:%M:%S').tolist()
+            values = request.app.state.mesh_cache["data"]
+            global_vmin, global_vmax = fnm(np.nanmin(values)), fnm(np.nanmax(values))
+
+
             # Get the first frame
             frame_data = functions.meshProcess(key, data_, name, 0, ids, request.app.state.mesh_cache)
-            data = {"timestamps": time_stamps, "ids": ids, "depths": frame_data[0], "values": frame_data[1]}
-            global_arr, local_arr = data_[name].values[:, ids, :], np.array(frame_data[1], dtype=float)
-            global_vmin = functions.numberFormatter(np.nanmin(global_arr))
-            global_vmax = functions.numberFormatter(np.nanmax(global_arr))
-            vmin = functions.numberFormatter(np.nanmin(local_arr))
-            vmax = functions.numberFormatter(np.nanmax(local_arr))
-            data["global_minmax"], data["local_minmax"] = [global_vmin, global_vmax], [vmin, vmax]
+            
+            
+
+            
+            local_arr = np.array(frame_data[1], dtype=float)
+            vmin, vmax = fnm(np.nanmin(local_arr)), fnm(np.nanmax(local_arr))
+
+            data = {"timestamps": time_stamps, "distance": ids, "depths": frame_data[0], "values": frame_data[1],
+                "global_minmax": [global_vmin, global_vmax], "local_minmax": [vmin, vmax]}
         else:
             cache = getattr(request.app.state, "mesh_cache", None)
             if cache is None: return JSONResponse({"status": 'error', "message": "Mesh cache is not initialized."})
-            frame_data = functions.meshProcess(key, data_, name, int(type), cache["ids"], cache)
+            idx, values = int(idx), cache["data"]
+            
+            poly_ids = polygons.index.values
+            vals = values[idx][poly_ids, :]
+            vals_masked = np.where(mask, vals, np.nan)
+
+
+
+            frame_data = functions.meshProcess(key, data_, name, idx, cache["ids"], cache)
             local_arr = np.array(frame_data[1], dtype=float)
-            vmin = functions.numberFormatter(np.nanmin(local_arr))
-            vmax = functions.numberFormatter(np.nanmax(local_arr))
+            vmin, vmax = fnm(np.nanmin(local_arr)), fnm(np.nanmax(local_arr))
             data = {"values": frame_data[1], "local_minmax": [vmin, vmax]}
-        data = functions.clean_nans(data)
+        # data = functions.clean_nans(data)
     except Exception as e:
         print('/select_meshes:\n==============')
         traceback.print_exc()
@@ -231,13 +251,10 @@ async def select_thermocline(request: Request):
         col_idx = 2 if is_hyd else 1
         name = functions.variablesNames.get(query, query)
         if type_ == 'thermocline_grid':
-            temp_grid = request.app.state.grid
-            if is_hyd: grid = temp_grid.reset_index()
-            else:
-                arr = data_[name].values
-                mask_all_nan = np.isnan(arr).all(axis=(0, col_idx))
-                removed_indices = np.where(mask_all_nan)[0]
-                grid = temp_grid.drop(index=removed_indices)
+            temp_grid, arr = request.app.state.grid, data_[name].values
+            mask_all_nan = np.isnan(arr).all(axis=(0, col_idx))               
+            removed_indices = np.where(mask_all_nan)[0]
+            grid = temp_grid.drop(index=removed_indices).reset_index()
             data = json.loads(grid.to_json())
         elif type_ == 'thermocline_init':
             idx = int(idx)
@@ -251,12 +268,12 @@ async def select_thermocline(request: Request):
             arr_filtered = arr[:, ~mask_all_nan, :] if is_hyd else arr[:, :, ~mask_all_nan]
             data_selected = arr_filtered[:, idx, :] if is_hyd else arr_filtered[:, :, idx]
             request.app.state.thermocline_cache = {"data": data_selected}
-            values = [None if np.isnan(x) else x for x in data_selected[0,:]]
+            values = [None if np.isnan(x) else functions.numberFormatter(x) for x in data_selected[0,:]]
             # Get the first frame for the first timestamp
             data = { "timestamps": time_stamps, "depths": layers_values, "values": values }
         elif type_ == 'thermocline_update':
             data_selected = request.app.state.thermocline_cache["data"]
-            data = [None if np.isnan(x) else round(x, 2) for x in data_selected[int(idx),:]]
+            data = [None if np.isnan(x) else functions.numberFormatter(x) for x in data_selected[int(idx),:]]
     except Exception as e:
         print('/select_thermocline:\n==============')
         traceback.print_exc()

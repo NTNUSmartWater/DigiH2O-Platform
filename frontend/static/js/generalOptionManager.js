@@ -1,7 +1,7 @@
-import { loadData, initOptions } from './utils.js';
+import { loadData, initOptions, splitLines } from './utils.js';
 import { colorbar_title } from './map2DManager.js';
 import { plotChart, plotProfileSingleLayer, plotProfileMultiLayer } from "./chartManager.js";
-import { n_decimals, getState, setState } from "./constants.js";
+import { getState, setState } from "./constants.js";
 import { startLoading, showLeafletMap, map, L, ZOOM } from "./mapManager.js";
 import { sendQuery } from './tableManager.js';
 
@@ -51,14 +51,10 @@ export function generalOptionsManager(){
     // Plot thermocline for water quality
     thermoclineWAQ().addEventListener('change', () => {
         const selected = thermoclineWAQ().value;
-        if (selected === '') {
-            window.parent.postMessage({type: 'thermoclineGridClear'}, '*');
-            return;
-        };
+        if (selected === '') { window.parent.postMessage({type: 'thermoclineGridClear'}, '*'); return; };
         const titleX = thermoclineWAQ().options[thermoclineWAQ().selectedIndex].text;
         const chartTitle = 'Thermocline for Water Quality Simulation';
-        const key = 'thermocline_waq', query = `mesh2d_2d_${selected}`;
-        console.log(selected, titleX);
+        const key = 'thermocline_waq', query = `mesh2d_${selected}`;
         window.parent.postMessage({type: 'thermoclineGrid', key: key, query: query,
             titleX: titleX, chartTitle: chartTitle, message: 'Preparing grid for water quality thermocline plot...'}, '*');
     });
@@ -359,64 +355,74 @@ async function mapPath(e) {
         if (!getState().isMultiLayer){
             const titleY = colorbar_title().textContent;
             const title = 'Profile - Single Layer';
-            plotProfileSingleLayer(pointContainer, getState().polygonCentroids, title, titleY, undefined, n_decimals);
+            plotProfileSingleLayer(pointContainer, getState().polygonCentroids, title, titleY, undefined);
         } else {
-            const coords = pathLine.toGeoJSON().geometry.coordinates;
-            const featureMap = getState().featureMap;
-            const orderedPolygons = [], ordered = [], seen = new Set();
-            for (let i = 0; i < coords.length-1; i++) {
-                const start = coords[i], end = coords[i+1];
-                const segment = turf.lineString([start, end]);
-                const segLength = turf.length(segment, { units: 'meters' });
-                const segmentPolys = [];
-                Object.values(featureMap).forEach(f => {
-                    if (!f || !f.geometry) return;
-                    // Check if start point is inside the polygon
-                    const startPt = turf.point(start);
-                    if (turf.booleanPointInPolygon(startPt, f)) {
-                        segmentPolys.push({id: f.properties.index, t: 0});
-                        return;
-                    }
-                    // Check if end point is inside the polygon
-                    const endPt = turf.point(end);
-                    if (turf.booleanPointInPolygon(endPt, f)) {
-                        segmentPolys.push({id: f.properties.index, t: 1});
-                        return;
-                    }
-                    // Check if the segment intersects with the polygon
-                    const intersects = turf.lineIntersect(segment, f);
-                    if (intersects.features && intersects.features.length > 0) {
-                        let minT = Infinity;
-                        intersects.features.forEach(ptFeature => {
-                            const pt = ptFeature.geometry.coordinates;
-                            const distance = turf.distance(turf.point(start), turf.point(pt), {units: 'meters'});
-                            const t = segLength > 0 ? distance / segLength : 0;
-                            segmentPolys.push({id: f.properties.index, t: t});
-                            if (t < minT) minT = t;
-                        });
-                        // Make sure t is in [0, 1]
-                        if (minT === Infinity) minT = 0;
-                        minT = Math.max(0, Math.min(1, minT));
-                        segmentPolys.push({id: f.properties.index, t: minT});
-                    }
-                });
-                // Sort by distance along the segment 
-                segmentPolys.sort((a, b) => a.t - b.t);
-                segmentPolys.forEach(p => ordered.push(p.id));
-                // Remove duplicates while preserving order
-                for (const id of ordered) {
-                    if (!seen.has(id)) {
-                        orderedPolygons.push(id); seen.add(id);
-                    }
-                }
-            }
-            if (orderedPolygons.length === 0) { alert("No intersected mesh found"); return; }
+            // const coords = pathLine.toGeoJSON().geometry.coordinates;
+            // const featureMap = getState().featureMap;
+            // const orderedPoints = [], ordered = [], seen = new Set();
+            // for (let i = 0; i < coords.length-1; i++) {
+            //     const start = coords[i], end = coords[i+1];
+            //     const segment = turf.lineString([start, end]);
+            //     const segLength = turf.length(segment, { units: 'meters' });
+            //     const segmentPolys = [];
+            //     Object.values(featureMap).forEach(f => {
+            //         if (!f || !f.geometry) return;
+            //         // Check if start point is inside the polygon
+            //         const startPt = turf.point(start);
+            //         if (turf.booleanPointInPolygon(startPt, f)) {
+            //             segmentPolys.push({id: f.properties.index, t: 0});
+            //             return;
+            //         }
+            //         // Check if end point is inside the polygon
+            //         const endPt = turf.point(end);
+            //         if (turf.booleanPointInPolygon(endPt, f)) {
+            //             segmentPolys.push({id: f.properties.index, t: 1});
+            //             return;
+            //         }
+            //         // Check if the segment intersects with the polygon
+            //         const intersects = turf.lineIntersect(segment, f);
+            //         if (intersects.features && intersects.features.length > 0) {
+            //             let minT = Infinity;
+            //             intersects.features.forEach(ptFeature => {
+            //                 const pt = ptFeature.geometry.coordinates;
+            //                 const distance = turf.distance(turf.point(start), turf.point(pt), {units: 'meters'});
+            //                 const t = segLength > 0 ? distance / segLength : 0;
+            //                 segmentPolys.push({id: f.properties.index, t: t});
+            //                 if (t < minT) minT = t;
+            //             });
+            //             // Make sure t is in [0, 1]
+            //             if (minT === Infinity) minT = 0;
+            //             minT = Math.max(0, Math.min(1, minT));
+            //             segmentPolys.push({id: f.properties.index, t: minT});
+            //         }
+            //     });
+            //     // Sort by distance along the segment 
+            //     segmentPolys.sort((a, b) => a.t - b.t);
+            //     segmentPolys.forEach(p => ordered.push(p.id));
+            //     // Remove duplicates while preserving order
+            //     for (const id of ordered) {
+            //         if (!seen.has(id)) { orderedPoints.push(id); seen.add(id); }
+            //     }
+            // }
+
+
+
+
+
+
+
+
+
+
+            const orderedPoints = splitLines(pointContainer, getState().polygonCentroids, 20)
+                .map(([dist, , lat, lng]) => [dist, lat, lng]);
+            if (orderedPoints.length === 0) { alert("No intersected mesh found"); return; }
             startLoading('Acquiring selected meshes from Database. Please wait...');
             const key = !getState().isHYD ? 'hyd' : 'waq';
             const unit = colorbar_title().textContent.split('(')[1].trim().split(')')[0].replace(')', '');
             const title = `Profile - ${colorbar_title().textContent.split('(')[0].trim()}`;
             const query = getState().showedQuery;
-            const queryContents = {key: key, query: query, type: 'load', ids: orderedPolygons};
+            const queryContents = {key: key, query: query, type: 'load', ids: orderedPoints};
             const data = await sendQuery('select_meshes', queryContents);
             if (data.status === "error") { alert(data.message); return; }
             plotProfileMultiLayer(key, query, profileWindow, data.content, title, unit);
@@ -438,11 +444,7 @@ async function mapPath(e) {
                 // Plot line
                 const latlngs = pointContainer.map(p => [p.lat, p.lng]);
                 if (pathLine) { pathLine.setLatLngs(latlngs);
-                } else {
-                    pathLine = L.polyline(latlngs, {
-                        color: 'orange', weight: 2, dashArray: '5,5'
-                    }).addTo(map);
-                }
+                } else { pathLine = L.polyline(latlngs, { color: 'orange', weight: 2, dashArray: '5,5' }).addTo(map); }
             }
         }
         setState({isClickedInsideLayer: false}); // Reset clicked inside layer
