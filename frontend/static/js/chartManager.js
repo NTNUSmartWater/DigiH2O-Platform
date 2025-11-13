@@ -277,7 +277,7 @@ export function plotProfileMultiLayer(key, query, windowContainer, data, title, 
     colorCombo.style.display = "block"; minValue.style.display = "block"; maxValue.style.display = "block";
     colorComboLabel.style.display = "block"; minLabel.style.display = "block"; maxLabel.style.display = "block";
     let animating = false, frameIndex = 0, duration, nColors;
-    const { timestamps, ids, depths, values, global_minmax, local_minmax } = data; 
+    const { timestamps, distance, values, depths, global_minmax, local_minmax } = data; 
     minValue.value = valueFormatter(global_minmax[0], 1e-3); maxValue.value = valueFormatter(global_minmax[1], 1e-3);
     nColors = parseInt(colorCombo.value);
     // Set up time slider
@@ -287,7 +287,7 @@ export function plotProfileMultiLayer(key, query, windowContainer, data, title, 
     timeLabelEnd.textContent = `End: ${timestamps[timestamps.length - 1]}`;
     timeLabel.textContent = `Time: ${timestamps[0]}`;
     // Render plot
-    windowContainer()._resizeObserver = renderPlot(chartDiv, ids, depths, 
+    windowContainer()._resizeObserver = renderPlot(chartDiv, distance, depths, 
             values, local_minmax[0], local_minmax[1], nColors, title, unit); 
     // Update a single frame
     async function updateFrame(index) {
@@ -349,15 +349,15 @@ export function plotProfileMultiLayer(key, query, windowContainer, data, title, 
         const refreshed = await sendQuery('select_meshes', queryContents);
         if (refreshed.status === "error") { alert(data.message); return; }
         const { values, local_minmax } = refreshed.content;
-        renderPlot(chartDiv, ids, depths, values, local_minmax[0],
+        renderPlot(chartDiv, distance, depths, values, local_minmax[0],
             local_minmax[1], parseInt(colorCombo.value), title, unit); 
     });
     windowContainer().style.display = "flex";
 }
 
-function renderPlot(plotDiv, ids, depths, values, vmin, vmax, nColors, title, unit){
+function renderPlot(plotDiv, distance, depths, values, vmin, vmax, nColors, title, unit){
     const discreteColors = getColors(nColors);
-    const xLabels = ids.map(String), reversedDepths = [...depths];
+    const xLabels = distance.map(String), reversedDepths = [...depths];
     const reverseDepth = reversedDepths.every(d => d >= 0);
     // Build colorScale for Plotly (discrete)
     const colorScale = [], step = 1 / nColors;
@@ -369,7 +369,7 @@ function renderPlot(plotDiv, ids, depths, values, vmin, vmax, nColors, title, un
     const layout = { title: { text: title, font: { color: 'black', weight: 'bold', size: 20 } },
         paper_bgcolor: '#c2bdbdff', plot_bgcolor: '#c2bdbdff',
         xaxis: {
-            title: {text: `Slice indexes (Selected slices: ${ids.length})`, font: { color: 'black' }},
+            title: {text: 'Distance (m)', font: { color: 'black' }},
             type: 'category', automargin: true, mirror: true, showgrid: false, tickmode: 'auto',
             showline: true, linewidth: 1, linecolor: 'black', tickfont: { color: 'black' }
         },

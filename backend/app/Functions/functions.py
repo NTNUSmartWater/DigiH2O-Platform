@@ -2,7 +2,7 @@ import shapely, os, re, shutil, stat, math
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
-from scipy.interpolate import griddata
+from scipy.interpolate import Rbf
 from config import PROJECT_STATIC_ROOT
 
 def remove_readonly(func, path, excinfo):
@@ -1092,88 +1092,52 @@ def interpolateProfile(array: np.ndarray, depths: np.ndarray, x_new: float) -> f
     v1, v2 = valid_values[idx - 1], valid_values[idx]
     return float(v1 + (v2 - v1) * (x_new - b1) / (b2 - b1))
 
-def meshProcess(key: str, data: xr.Dataset, name: str, idx: int, ids: list, cache: dict) -> tuple:
+def meshProcess(idx: int, cache: dict) -> np.ndarray:
     """
     Optimized mesh processing using vectorization and interp1d interpolation.
 
     Parameters
     ----------
-    key: str
-        The key that defines the type of data, either 'hyd' or 'waq'.
-    data: xr.Dataset
-        The dataset received from _map file.
-    name: str
-        The key of variable.
     idx: int
-        The index of the selected mesh.
-    ids: list
-        The ids of the selected meshes.
+        The index of the layer.
     cache: dict
         The cache store data.
 
     Returns
     -------
-    tuple
-        The processed mesh data.
+    np.ndarray
+        The smoothed values.
     """
-    # depths = np.array([int(abs(round(d))) for d in cache["depths"]])
-    # n_layers = len(depths)
-    # n_rows, n_cols = abs(cache["n_rows"]), abs(cache["n_cols"])
-    # temp_val = np.zeros((n_layers, len(ids)), dtype=float)
-    # # Fill temp_val per layer
-    # for i, layer_idx in enumerate(reversed(range(n_layers))):
-    #     if key == 'hyd': temp_val[i, :] = data[name].values[idx, ids, layer_idx].flatten()
-    #     else: temp_val[i, :] = data[name].values[idx, layer_idx, ids].flatten()
-    # # Interpolate profiles along depth (vectorized)
-    # arr = np.full((n_cols, n_rows), np.nan)
-    # # Fill array using associated depth and layer
-    # for i, depth in enumerate(cache['filled_grid']['depth'].values):
-    #     depth = int(abs(round(depth)))
-    #     arr[depth-1, i] = interpolateProfile(temp_val[:, i], depths, depth)
-    # # Fill other missing values at specific depths
-    # for i in range(arr.shape[1]):
-    #     series = temp_val[:, i]
-    #     valid_positions = depths[~np.isnan(series)]
-    #     valid_values = series[~np.isnan(series)]
-    #     mask_arr = ~np.isnan(arr[:, i])
-    #     valid_positions_arr = np.arange(arr.shape[0])[mask_arr]
-    #     if len(valid_positions_arr) == 0: continue
-    #     mask_result = valid_positions[valid_positions <= valid_positions_arr[-1]]
-    #     if len(mask_result) == 0: continue
-    #     # Vectorized fill: only fill NaN positions in arr at those depths
-    #     target_positions = (np.array(mask_result) - 1).astype(int)
-    #     target_positions = target_positions[(target_positions >= 0) & (target_positions < arr.shape[0])]
-    #     for pos, val in zip(target_positions, valid_values[:len(target_positions)]):
-    #         if np.isnan(arr[pos, i]): arr[pos, i] = val
-    # # Fill missing top values
-    # for i in range(arr.shape[1]):
-    #     valid_idx = np.where(~np.isnan(arr[:, i]))[0]
-    #     if len(valid_idx) == 0: continue
-    #     elif len(valid_idx) == 1: arr[0, i] = arr[valid_idx[0], i]
-    #     else: 
-    #         p1, p2 = valid_idx[0], valid_idx[1]
-    #         v1, v2 = arr[p1, i], arr[p2, i]
-    #         arr[0, i] = v1 + (v2 - v1) / (p2 - p1) * (0 - p1)
-    # # Find maximum index
-    # mask = ~np.isnan(arr) 
-    # max_row = np.where(mask.any(axis=0), mask[::-1,:].argmax(axis=0), -1)
-    # max_row = arr.shape[0] - 1 - max_row
-    # # Define the largest row
-    # row_idx = int(max(max_row))
-    # # Trim values to max_row
-    # arr = arr[:row_idx, :]
-    # # Interpolate missing values
-    # x, y = np.indices(arr.shape)
-    # known = ~np.isnan(arr)
-    # points = np.column_stack((x[known], y[known]))
-    # values = arr[known]
-    # xi, yi = np.indices(arr.shape)
-    # smoothed = griddata(points, values, (xi, yi), method='cubic')   
-    # # Trim values to max_row
-    # idx_trim = np.arange(smoothed.shape[0])[:, None]
-    # mask = idx_trim > max_row[None, :]
-    # smoothed[mask] = np.nan
+    frame, arr, df = {}, cache["data"][idx,:,:], cache["df"]
+    # Create a mask
+    mask = cache["layers_values"][None, :] < df["depth"].values[:, None]
+    depth_rounded = np.round(df["depth"].values, 0)
+    for i in range(cache["n_rows"]):
+        # Initialize column
+        if -i not in frame: frame[-i] = np.full(len(df), np.nan)
+        # Assign values to column using the nearest neighbor depth
+        mask_depth = -i == depth_rounded
+        if np.any(mask_depth):
+            nearest_idx = np.argmin(np.abs(cache["depth_idx"] - i))
+            frame[-i] = np.where(mask_depth, arr[df.index.values, nearest_idx], frame[-i])
+        if i in cache["index_map"]:
+            mask = -i >= df["depth"].values
+            index = cache["index_map"][i]
+            frame[-i] = np.where(mask, arr[df.index.values, index], frame[-i])
+    poly = pd.concat([df[['depth']].reset_index(drop=True), pd.DataFrame(frame)], axis=1)
+    # Get indices of valid columns
+    depth_arr = np.array([float(c) for c in poly.columns if c != "depth"])
+    smoothed = poly.drop("depth", axis=1).to_numpy(dtype=float)
+    mask_valid = depth_arr[None, :] >= depth_rounded[:, None]
+    x_idx, y_idx = np.where(~np.isnan(smoothed) & mask_valid)
+    vals = smoothed[x_idx, y_idx]
+    # If only one point, use that value for the whole grid cell
+    if vals.min() == vals.max(): smoothed[:, :] = vals.min()
+    else:
+        rbf = Rbf(x_idx, y_idx, vals, function='linear')
+        grid_x, grid_y = np.indices(smoothed.shape)
+        smoothed = rbf(grid_x, grid_y)
+    smoothed[~mask_valid] = np.nan
     # Add 1 extra rows at the bottom with NaN values
     smoothed = np.pad(smoothed, ((0, 1), (0, 0)), mode='constant', constant_values=np.nan)
-    heights = np.arange(0, row_idx) if cache["n_cols"] > 0 else np.arange(0, -row_idx, -1)
-    return heights.tolist(), numberFormatter(smoothed)
+    return smoothed
