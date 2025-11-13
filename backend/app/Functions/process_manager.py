@@ -37,15 +37,13 @@ def process_internal(request: Request, query: str, key: str):
         x = request.app.state.hyd_map['mesh2d_node_x'].data.compute()
         y = request.app.state.hyd_map['mesh2d_node_y'].data.compute()
         z = request.app.state.hyd_map['mesh2d_node_z'].data.compute()
-        if 'depth' in query:
-            values = functions.interpolation_Z(grid, x, y, z)
+        if 'depth' in query: values = functions.interpolation_Z(grid, x, y, z)
         # Convert GeoDataFrame to expected format
-        features = [{
-            "type": "Feature", "properties": {"index": idx}, "geometry": mapping(row["geometry"])
+        features = [{ "type": "Feature", "properties": {"index": idx}, "geometry": mapping(row["geometry"])
             } for idx, row in grid.iterrows()]
         data = { 'meshes': { 'type': 'FeatureCollection', 'features': features }}
-        data['values'], data['min_max'] = values, [float(np.nanmin(values)), float(np.nanmax(values))]
-        data = functions.clean_nans(data)
+        fnm = functions.numberFormatter
+        data['values'], data['min_max'] = values, [fnm(np.nanmin(values)), fnm(np.nanmax(values))]
     elif key == 'substance_check':
         substance = request.app.state.config[query]
         if len(substance) > 0:
@@ -144,21 +142,21 @@ async def load_vector_dynamic(request: Request):
         layer_reverse = request.app.state.layer_reverse_hyd
         value_type, row_idx = layer_reverse[key], len(layer_reverse) - int(key) - 2
         data_ = request.app.state.hyd_map
+        fnm = functions.numberFormatter
         if query == 'load': # Initiate skeleton polygon for the first load
             data = functions.vectorComputer(data_, value_type, row_idx)
             # Get global vmin and vmax
             if value_type == 'Average':
-                vmin = float(np.nanmin(data_['mesh2d_ucmaga']))
-                vmax = float(np.nanmax(data_['mesh2d_ucmaga']))
+                vmin = fnm(np.nanmin(data_['mesh2d_ucmaga']))
+                vmax = fnm(np.nanmax(data_['mesh2d_ucmaga']))
             else:
-                vmin = float(np.nanmin(data_['mesh2d_ucmag']))
-                vmax = float(np.nanmax(data_['mesh2d_ucmag']))
+                vmin = fnm(np.nanmin(data_['mesh2d_ucmag']))
+                vmax = fnm(np.nanmax(data_['mesh2d_ucmag']))
             data['timestamps'] = [pd.to_datetime(t).strftime('%Y-%m-%d %H:%M:%S')
                                   for t in data_['time'].values]
             data['min_max'] = [vmin, vmax]
         else:
             data = functions.vectorComputer(data_, value_type, row_idx, int(query))
-        data = functions.clean_nans(data)
         status, message = 'ok', ''
     except Exception as e:
         print('/load_dynamic:\n==============')
@@ -176,7 +174,7 @@ async def select_meshes(request: Request):
         is_hyd = key == 'hyd'
         data_ = request.app.state.hyd_map if is_hyd else request.app.state.waq_map
         name, status, message = functions.variablesNames.get(query, query), 'ok', ''
-        fnm = functions.numberFormatter
+        fnm, arr = functions.numberFormatter, data_[name].values
         # Cache data
         if not hasattr(request.app.state, 'mesh_cache'):
             layers_values = np.array([float(v.split(' ')[1]) for k, v in request.app.state.layer_reverse_hyd.items() if int(k) >= 0])
@@ -185,8 +183,8 @@ async def select_meshes(request: Request):
             depth_idx = np.array([round(abs(d)) for d in layers_values])
             # Using mapping to increase performance
             index_map = {v: depth_idx.shape[0] - i - 1 for i, v in enumerate(depth_idx)}
-            request.app.state.mesh_cache = { "layers_values": layers_values, "data": data_[name].values,
-                "n_rows": n_rows, "depth_idx": depth_idx, "index_map": index_map, "max_layer": max_layer}
+            request.app.state.mesh_cache = { "layers_values": layers_values, "n_rows": n_rows,
+                "depth_idx": depth_idx, "index_map": index_map, "max_layer": max_layer}
         if idx == 'load': # Initiate data for the first load
             cache = getattr(request.app.state, "mesh_cache", None)
             time_column = 'time' if is_hyd else 'nTimesDlwq'
@@ -198,17 +196,16 @@ async def select_meshes(request: Request):
                 request.app.state.hyd_map['mesh2d_node_y'].values, request.app.state.hyd_map['mesh2d_node_z'].values
             )
             cache["df"] = gdf.drop(columns=['geometry'])
-            frame = functions.meshProcess(0, cache)
-            global_vmin, global_vmax = fnm(np.nanmin(cache["data"][0,:,:])), fnm(np.nanmax(cache["data"][0,:,:]))
+            frame = functions.meshProcess(0, arr, cache)
+            global_vmin, global_vmax = fnm(np.nanmin(arr)), fnm(np.nanmax(arr))
             vmin, vmax = fnm(np.nanmin(frame)), fnm(np.nanmax(frame))
             data = {"timestamps": time_stamps, "distance": np.round(points_arr[:, 0], 0).tolist(), "values": fnm(frame), 
-                    "depths": np.arange(0, cache["n_rows"]) if cache["max_layer"] > 0 else np.arange(0, -cache["n_rows"], -1).tolist(),
+                    "depths": np.arange(0, frame.shape[0]) if cache["max_layer"] > 0 else np.arange(0, -frame.shape[0], -1).tolist(),
                     "global_minmax": [global_vmin, global_vmax], "local_minmax": [vmin, vmax]}
-            print(np.round(points_arr[:, 0], 0).tolist())
         else: # Load next frame
             cache = getattr(request.app.state, "mesh_cache", None)
             if cache is None: return JSONResponse({"status": 'error', "message": "Mesh cache is not initialized."})
-            frame = functions.meshProcess(int(idx), cache)
+            frame = functions.meshProcess(int(idx), arr, cache)
             vmin, vmax = fnm(np.nanmin(frame)), fnm(np.nanmax(frame))
             data = {"values": fnm(frame), "local_minmax": [vmin, vmax]}
     except Exception as e:
