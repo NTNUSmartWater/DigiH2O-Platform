@@ -1,4 +1,4 @@
-import shapely, os, re, shutil, stat, math
+import shapely, os, re, shutil, stat
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
@@ -91,7 +91,7 @@ def numberFormatter(arr: np.array, decimals: int=2) -> list:
         return np.reshape(result, arr.shape).tolist()
     except:
         print("Input array contains non-numeric values")
-        return arr
+        return list(arr)
 
 def getVectorNames() -> list:
     """
@@ -867,7 +867,6 @@ def vectorComputer(data_map: xr.Dataset, value_type: str, row_idx: int, step: in
     gpd.GeoDataFrame
         The GeoDataFrame containing the vector map of the mesh.
     """
-    # if step < 0: step = len(data_map['time']) - 1
     if value_type == 'Average':
         # Average velocity in each layer
         ucx = data_map['mesh2d_ucxa'].isel(time=step).values
@@ -888,7 +887,7 @@ def vectorComputer(data_map: xr.Dataset, value_type: str, row_idx: int, step: in
     ucm_flat = np.round(ucm.astype(np.float64), 2)
     result = {"time": pd.to_datetime(data_map['time'].values[step]).strftime('%Y-%m-%d %H:%M:%S'),
         "coordinates": np.column_stack((x_coords, y_coords)).tolist(),
-        "values": np.vstack([ucx_flat, ucy_flat, ucm_flat]).T.tolist(),
+        "values": np.vstack([ucx_flat, ucy_flat, ucm_flat]).T.tolist()
     }
     return result
 
@@ -1034,65 +1033,7 @@ def postProcess(directory: str) -> dict:
         return {'status': 'ok', 'message': 'Data is saved successfully.'}
     except Exception as e: return {'status': 'error', 'message': {str(e)}}
 
-def clean_nans(obj) -> dict:
-    """
-    Clean nans in dictionary
-
-    Parameters
-    ----------
-    obj: dict
-        The dictionary to clean
-
-    Returns
-    -------
-    dict
-        The cleaned dictionary
-    """
-    if isinstance(obj, dict):
-        return {k: clean_nans(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [clean_nans(v) for v in obj]
-    elif isinstance(obj, float):
-        return None if math.isnan(obj) or math.isinf(obj) else obj
-    else: return obj
-
-def interpolateProfile(array: np.ndarray, depths: np.ndarray, x_new: float) -> float:
-    """
-    Interpolate value from 1D array based on x_new and column index col for profile data.
-
-    Parameters
-    ----------
-    array: np.ndarray
-        The 1D array of values containing values at specific layers.
-    depths: np.ndarray
-        The depth values corresponding with index.
-    x_new: float
-        The new x value to interpolate.
-
-    Returns
-    -------
-    float
-        The interpolated value.
-    """
-    if array is None: return np.nan
-    series = np.asarray(array, dtype=float)
-    mask = ~np.isnan(series)
-    valid_depths, valid_values = depths[mask], series[mask]
-    # If no valid values -> return nan
-    if len(valid_depths) == 0: return np.nan
-    # If only one valid value -> return that value
-    if len(valid_depths) == 1: return float(valid_values[0])
-    # If x_new smaller than min -> get min value
-    if x_new <= valid_depths.min(): return float(valid_values[np.argmin(valid_depths)])
-    # If x_new larger than max -> get max value
-    if x_new >= valid_depths.max(): return float(valid_values[np.argmax(valid_depths)])
-    # If x_new in between -> find indices and interpolate
-    idx = np.searchsorted(valid_depths, x_new)
-    b1, b2 = valid_depths[idx - 1], valid_depths[idx]
-    v1, v2 = valid_values[idx - 1], valid_values[idx]
-    return float(v1 + (v2 - v1) * (x_new - b1) / (b2 - b1))
-
-def meshProcess(idx: int, cache: dict) -> np.ndarray:
+def meshProcess(idx: int, arr: np.ndarray, cache: dict) -> np.ndarray:
     """
     Optimized mesh processing using vectorization and interp1d interpolation.
 
@@ -1100,6 +1041,8 @@ def meshProcess(idx: int, cache: dict) -> np.ndarray:
     ----------
     idx: int
         The index of the layer.
+    arr: np.ndarray
+        The array to be processed.
     cache: dict
         The cache store data.
 
@@ -1108,7 +1051,7 @@ def meshProcess(idx: int, cache: dict) -> np.ndarray:
     np.ndarray
         The smoothed values.
     """
-    frame, arr, df = {}, cache["data"][idx,:,:], cache["df"]
+    frame, arr, df = {}, arr[idx,:,:], cache["df"]
     # Create a mask
     mask = cache["layers_values"][None, :] < df["depth"].values[:, None]
     depth_rounded = np.round(df["depth"].values, 0)
@@ -1138,6 +1081,9 @@ def meshProcess(idx: int, cache: dict) -> np.ndarray:
         grid_x, grid_y = np.indices(smoothed.shape)
         smoothed = rbf(grid_x, grid_y)
     smoothed[~mask_valid] = np.nan
-    # Add 1 extra rows at the bottom with NaN values
-    smoothed = np.pad(smoothed, ((0, 1), (0, 0)), mode='constant', constant_values=np.nan)
-    return smoothed
+    # Transpose
+    smoothed_transpose = smoothed.T
+    # Get maximum indice to be used as mask
+    max_row = np.max(np.where(mask_valid.T)[0])
+    smoothed_transpose = smoothed_transpose[:max_row + 2, :]
+    return smoothed_transpose
