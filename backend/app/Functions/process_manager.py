@@ -170,81 +170,47 @@ async def load_vector_dynamic(request: Request):
 @router.post("/select_meshes")
 async def select_meshes(request: Request):    
     body = await request.json()
-    key, query, ids, idx = body.get('key'), body.get('query'), body.get('ids'), body.get('idx')
+    key, query, idx, points = body.get('key'), body.get('query'), body.get('idx'), body.get('points')
     try:
         if '_waq_multi_dynamic' in query: query = 'mesh2d_' + query[:-len('_waq_multi_dynamic')]
         is_hyd = key == 'hyd'
         data_ = request.app.state.hyd_map if is_hyd else request.app.state.waq_map
         name, status, message = functions.variablesNames.get(query, query), 'ok', ''
-        ids_arr, fnm = np.array(ids), functions.numberFormatter
-        x_coords, y_coords = ids_arr[:, 2], ids_arr[:, 1]
-        grid = request.app.state.grid
-        gdf = gpd.GeoDataFrame(geometry=gpd.points_from_xy(x_coords, y_coords), crs=grid.crs)
-        gdf['depth'] = functions.interpolation_Z(gdf, request.app.state.hyd_map['mesh2d_node_x'].values, 
-            request.app.state.hyd_map['mesh2d_node_y'].values, request.app.state.hyd_map['mesh2d_node_z'].values
-        )
-        # Create a mask
-        mask = (n_layers_values[None, :] < gdf["depth"].values[:, None])
-        # Select polygons that contain the interpolated points
-        polygons = gpd.sjoin(grid, gdf, predicate='contains', how='inner')
-        polygon_sorted = polygons.sort_values(by=['index_right'])
-        polygon_sorted.drop(columns=['geometry'], inplace=True)
-        n_cols, filled_grid = len(gdf), gdf.drop(columns=['geometry'])
-        depth_idx = [round(abs(d)) for d in n_layers_values]
-
+        fnm = functions.numberFormatter
         # Cache data
         if not hasattr(request.app.state, 'mesh_cache'):
-            n_layers_values = np.array([float(v.split(' ')[1]) for k, v in request.app.state.layer_reverse_hyd.items() if int(k) >= 0])
-            max_layer = max(n_layers_values, key=abs)
+            layers_values = np.array([float(v.split(' ')[1]) for k, v in request.app.state.layer_reverse_hyd.items() if int(k) >= 0])
+            max_layer = max(layers_values, key=abs)
             n_rows = abs(math.ceil(max_layer/10)*10) if max_layer > 0 else abs(math.floor(max_layer/10)*10) + 1
-            request.app.state.mesh_cache = { "depths": n_layers_values, "data": data_[name].values,
-                "n_rows": n_rows, "depth_idx": depth_idx }
-        
-        
-        
+            depth_idx = np.array([round(abs(d)) for d in layers_values])
+            # Using mapping to increase performance
+            index_map = {v: depth_idx.shape[0] - i - 1 for i, v in enumerate(depth_idx)}
+            request.app.state.mesh_cache = { "layers_values": layers_values, "data": data_[name].values,
+                "n_rows": n_rows, "depth_idx": depth_idx, "index_map": index_map, "max_layer": max_layer}
         if idx == 'load': # Initiate data for the first load
+            cache = getattr(request.app.state, "mesh_cache", None)
             time_column = 'time' if is_hyd else 'nTimesDlwq'
             time_stamps = pd.to_datetime(data_[time_column]).strftime('%Y-%m-%d %H:%M:%S').tolist()
+            points_arr = np.array(points)
+            x_coords, y_coords = points_arr[:, 2], points_arr[:, 1]
+            gdf = gpd.GeoDataFrame(geometry=gpd.points_from_xy(x_coords, y_coords), crs=request.app.state.grid.crs)
+            gdf['depth'] = functions.interpolation_Z(gdf, request.app.state.hyd_map['mesh2d_node_x'].values, 
+                request.app.state.hyd_map['mesh2d_node_y'].values, request.app.state.hyd_map['mesh2d_node_z'].values
+            )
+            cache["df"] = gdf.drop(columns=['geometry'])
+            frame = functions.meshProcess(0, cache)
+            global_vmin, global_vmax = fnm(np.nanmin(cache["data"][0,:,:])), fnm(np.nanmax(cache["data"][0,:,:]))
+            vmin, vmax = fnm(np.nanmin(frame)), fnm(np.nanmax(frame))
+            data = {"timestamps": time_stamps, "distance": np.round(points_arr[:, 0], 0).tolist(), "values": fnm(frame), 
+                    "depths": np.arange(0, cache["n_rows"]) if cache["max_layer"] > 0 else np.arange(0, -cache["n_rows"], -1).tolist(),
+                    "global_minmax": [global_vmin, global_vmax], "local_minmax": [vmin, vmax]}
+            print(np.round(points_arr[:, 0], 0).tolist())
+        else: # Load next frame
             cache = getattr(request.app.state, "mesh_cache", None)
             if cache is None: return JSONResponse({"status": 'error', "message": "Mesh cache is not initialized."})
-            values, depth_idx = cache["data"][0,:,:], cache["depth_idx"]
-            global_vmin, global_vmax = fnm(np.nanmin(values)), fnm(np.nanmax(values))
-            count, frame = 0, {}
-            for i in range(cache["n_rows"]):
-                if i in depth_idx:
-                    mask = (-i >= polygon_sorted["depth"].values)
-                    frame[-i] = np.where(mask, values[polygon_sorted["index_right"].values, count-1], np.nan)
-                    count += 1
-                else: frame[-i] = np.nan
-            poly = pd.concat([polygon_sorted[['depth']].reset_index(drop=True), pd.DataFrame(frame)], axis=1)    
-            # # Get the first frame
-            # frame_data = functions.meshProcess(key, data_, name, 0, ids, request.app.state.mesh_cache)
-            
-            
-
-            
-            local_arr = np.array(frame_data[1], dtype=float)
-            vmin, vmax = fnm(np.nanmin(local_arr)), fnm(np.nanmax(local_arr))
-
-            data = {"timestamps": time_stamps, "distance": ids, "depths": frame_data[0], "values": frame_data[1],
-                "global_minmax": [global_vmin, global_vmax], "local_minmax": [vmin, vmax]}
-        else:
-            cache = getattr(request.app.state, "mesh_cache", None)
-            if cache is None: return JSONResponse({"status": 'error', "message": "Mesh cache is not initialized."})
-            idx = int(idx)
-            values = cache["data"][idx,:,:]
-            
-            poly_ids = polygons.index.values
-            vals = values[idx][poly_ids, :]
-            vals_masked = np.where(mask, vals, np.nan)
-
-
-
-            frame_data = functions.meshProcess(key, data_, name, idx, cache["ids"], cache)
-            local_arr = np.array(frame_data[1], dtype=float)
-            vmin, vmax = fnm(np.nanmin(local_arr)), fnm(np.nanmax(local_arr))
-            data = {"values": frame_data[1], "local_minmax": [vmin, vmax]}
-        # data = functions.clean_nans(data)
+            frame = functions.meshProcess(int(idx), cache)
+            vmin, vmax = fnm(np.nanmin(frame)), fnm(np.nanmax(frame))
+            data = {"values": fnm(frame), "local_minmax": [vmin, vmax]}
     except Exception as e:
         print('/select_meshes:\n==============')
         traceback.print_exc()
