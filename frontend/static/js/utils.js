@@ -1,6 +1,5 @@
 import { startLoading, showLeafletMap } from "./mapManager.js";
 import { n_decimals, superscriptMap, getState, setState} from "./constants.js";
-import { numberFormatter } from "./chartManager.js";
 
 function toSuperscript(num) {
     return String(num).split('').map(ch => superscriptMap[ch] || ch).join('');

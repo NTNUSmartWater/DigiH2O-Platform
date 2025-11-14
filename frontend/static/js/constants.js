@@ -1,4 +1,5 @@
-export const n_decimals = 2; export const degree_decimals = 8;
+export const n_decimals = 2;
+export const degree_decimals = 8;
 export const superscriptMap = {
     '-': '⁻', '0': '⁰', '1': '¹', '2': '²', '3': '³',
     '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹'

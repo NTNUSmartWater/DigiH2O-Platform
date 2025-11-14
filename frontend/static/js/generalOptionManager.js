@@ -17,9 +17,6 @@ const waqObsStation = () => document.getElementById("waq-obs-checkbox");
 const waqLoadsStation = () => document.getElementById("waq-loads-checkbox");
 const pathQuery = () => document.getElementById("path-query-checkbox");
 const mapContainer = () => map.getContainer();
-// export const profileWindow = () => document.getElementById('profileWindow');
-// const profileWindowHeader = () => document.getElementById('profileWindowHeader');
-// const profileCloseBtn = () => document.getElementById('closeProfileWindow');
 const thermoclineWAQ = () => document.getElementById('waq-thermocline-selector');
 const configReset = () => document.getElementById('reset-config');
 

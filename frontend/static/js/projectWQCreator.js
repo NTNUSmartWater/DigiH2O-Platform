@@ -381,7 +381,8 @@ function initializeProject(){
     projectName().addEventListener('input', (e) => { 
         const value = e.target.value.trim();
         if (value === '') {
-            sectionTab().style.display = "none"; sectionDescription().style.display = "block";
+            sectionTab().style.display = "none"; 
+            sectionDescription().style.display = "block";
         }
         renderProjects(projects(), projectList, value);
     });

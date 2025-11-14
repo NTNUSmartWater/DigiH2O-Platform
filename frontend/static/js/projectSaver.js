@@ -75,14 +75,16 @@ export async function saveProject(elements) {
     if (crossSections.rows.length > 0 && crossName !== '') {
         // Write cross sections
         const crossFileName = `${crossName}_crs.pli`;
-        const content = {projectName: name, fileName: crossFileName, data: crossSections.rows, key: 'crs'};
+        const content = {projectName: name, fileName: crossFileName, 
+            data: crossSections.rows, key: 'crs'};
         const output = await sendQuery('save_obs', content);
         if (output.error) { alert(output.error); return; }
         // Add to data
         data.set('crs_file', crossFileName);
     } else data.set('crs_file', '');
     // Get boundary conditions
-    const checkBoundary = await sendQuery('check_condition', {projectName: name, forceName: 'FlowFM_bnd.ext'});
+    const query = {projectName: name, forceName: 'FlowFM_bnd.ext'};
+    const checkBoundary = await sendQuery('check_condition', query);
     if (checkBoundary.status === 'ok') data.set('external_forcing_new', 'FlowFM_bnd.ext'); 
     else data.set('external_forcing_new', '');
     // Get other parameters
@@ -110,7 +112,8 @@ export async function saveProject(elements) {
             data.set('his_end', hisStopSec);
         }
     }
-    data.set('map_interval', '0'); data.set('map_start', ''); data.set('map_end', '');
+    data.set('map_interval', '0'); data.set('map_start', ''); 
+    data.set('map_end', '');
     if (outputMap().checked) {
         data.set('map_interval', mapInterval);
         const start = mapStart().value, stop = mapStop().value;
@@ -123,7 +126,8 @@ export async function saveProject(elements) {
             data.set('map_end', mapStopSec);
         }
     }
-    data.set('wq_interval', '0'); data.set('wq_start', ''); data.set('wq_end', ''); data.set('wq_output_dir', '');
+    data.set('wq_interval', '0'); data.set('wq_start', ''); 
+    data.set('wq_end', ''); data.set('wq_output_dir', '');
     if (outputWQ().checked) {
         data.set('wq_interval', wqInterval); data.set('wq_output_dir', 'DFM_DELWAQ');
         const start = wqStart().value, stop = wqStop().value;
@@ -136,7 +140,8 @@ export async function saveProject(elements) {
             data.set('wq_end', wqStopSec);
         }
     }
-    data.set('rst_interval', '0'); data.set('rst_start', ''); data.set('rst_end', '');
+    data.set('rst_interval', '0'); data.set('rst_start', ''); 
+    data.set('rst_end', '');
     if (outputRestart().checked) {
         data.set('rst_interval', rtsInterval);
         const start = rtsStart().value, stop = rtsStop().value;

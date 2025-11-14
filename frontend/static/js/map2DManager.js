@@ -193,7 +193,8 @@ function vectorCreator(parsedData, vmin, vmax, title, colorbarKey, scale) {
     });
     // Adjust Colorbar Control
     colorbar_vector_scaler().innerHTML = `Scaler: ${scale}`;
-    updateColorbar(vmin, vmax, title, colorbarKey, colorbar_vector_color(), colorbar_vector_title(), colorbar_vector_label());
+    updateColorbar(vmin, vmax, title, colorbarKey, colorbar_vector_color(), 
+                    colorbar_vector_title(), colorbar_vector_label());
     return layer;
 }
 
