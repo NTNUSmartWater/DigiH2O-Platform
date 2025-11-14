@@ -137,9 +137,6 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
     objWindow.style.display = 'flex';
 }
 
-iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
-                    projectOpenWindowContent(), "Select Project with Simulation Result(s)");
-
 function updateEvents() {
     // Search locations
     locationSearcher().addEventListener('input', (e) => {

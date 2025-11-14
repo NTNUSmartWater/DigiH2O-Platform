@@ -99,7 +99,6 @@ const outputRestart = () => document.getElementById('write-restart-file');
 const rtsStart = () => document.getElementById('restart-output-start');
 const rtsStop = () => document.getElementById('restart-output-end');
 
-
 let projectList = [];
 
 function setupTabs(root) {
@@ -258,7 +257,9 @@ function updateOption(){
             const lat = Number(event.data.content.lat).toFixed(12);
             const lon = Number(event.data.content.lng).toFixed(12);
             obsPointLatitude().value = lat; obsPointLongitude().value = lon;
-            if (obsPointName().value.trim() === '') obsPointName().value = `Point_${Number(lat).toFixed(2)}_${Number(lon).toFixed(2)}`;
+            if (obsPointName().value.trim() === '') {
+                obsPointName().value = `Point_${Number(lat).toFixed(2)}_${Number(lon).toFixed(2)}`;
+            }
         }
         if (event.data.type === 'crossSectionPicked') {
             const content = event.data.content;
@@ -306,7 +307,8 @@ function updateOption(){
     });
     // Event when user change radio button for observation points
     pointUpdate(document.getElementById('observation-point-new'), obsPointTable(), false);
-    pointUpdate(document.getElementById('observation-point-exist'), obsPointTable(), true, [obsPointName(), obsPointLatitude(), obsPointLongitude()]);
+    pointUpdate(document.getElementById('observation-point-exist'), 
+        obsPointTable(), true, [obsPointName(), obsPointLatitude(), obsPointLongitude()]);
     // Update observation point on map
     obsPointUpdate().addEventListener('click', () => {
         const content = getDataFromTable(obsPointTable(), true);
