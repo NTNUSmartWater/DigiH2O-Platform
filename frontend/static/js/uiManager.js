@@ -3,7 +3,7 @@ import { initializeMap, baseMapButtonFunctionality } from './mapManager.js';
 import { startLoading, showLeafletMap, map } from './mapManager.js';
 import { plotChart, plotEvents, drawChart, plotWindow, thermoclinePlotter } from './chartManager.js';
 import { timeControl, colorbar_container } from "./map2DManager.js";
-import { generalOptionsManager, summaryWindow, profileWindow } from './generalOptionManager.js';
+import { generalOptionsManager, summaryWindow } from './generalOptionManager.js';
 import { spatialMapManager } from './spatialMapManager.js';
 import { sendQuery } from './tableManager.js';
 import { resetState, setState } from './constants.js';
@@ -448,7 +448,7 @@ function updateEvents() {
                                             query: query, idx: index, type: 'thermocline_init'});
                                         layer.closePopup(); setState({isThemocline: false});
                                         if (initData.status === "error") { alert(initData.message); return; }
-                                        thermoclinePlotter(profileWindow, initData.content, newName, titleX, 'Depth (m)', chartTitle);
+                                        thermoclinePlotter(initData.content, newName, titleX, 'Depth (m)', chartTitle);
                                     } else { alert('Please enter a name.'); return; }
                                 });
                             }

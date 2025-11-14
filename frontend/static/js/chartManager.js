@@ -2,9 +2,10 @@ import { startLoading, showLeafletMap} from "./mapManager.js";
 import { loadData, interpolateJet, splitLines, getColors, valueFormatter } from "./utils.js";
 import { getState, setState } from "./constants.js";
 import { sendQuery } from "./tableManager.js";
-import { deActivePathQuery } from "./generalOptionManager.js";
+import { deActivePathQuery, moveWindow } from "./generalOptionManager.js";
 
 let Dragging = false, colorTicks = [], colorTickLabels = [];
+let animating = false, frameIndex = 0, duration, nColors;
 
 export const plotWindow = () => document.getElementById('plotWindow');
 const plotHeader = () => document.getElementById('plotHeader');
@@ -17,6 +18,9 @@ const chartDiv = () => document.getElementById('myChart');
 const viewDataBtn = () => document.getElementById('viewDataBtn');
 const downloadBtn = () => document.getElementById('downloadExcel');
 // Profile
+export const profileWindow = () => document.getElementById('profileWindow');
+const profileWindowHeader = () => document.getElementById('profileWindowHeader');
+export const profileCloseBtn = () => document.getElementById('closeProfileWindow');
 const chartDivProfile = () => document.getElementById('chartDiv'); 
 const playPauseBtn = () => document.getElementById('chartPlayPauseBtn'); 
 const colorCombo = () => document.getElementById('chartColorCombo'); 
@@ -74,13 +78,24 @@ export function plotEvents() {
     closePlotOption().addEventListener('click', () => { 
         plotWindow().style.display = "none"; deActivePathQuery();
     });
+    // Plot Profile
+    profileCloseBtn().addEventListener('click', () => { 
+        animating = false; playPauseBtn().textContent = '▶ Play'; frameIndex = 0;
+        Plotly.purge(chartDivProfile());   // Delete frame
+        // Disconnect resize observer
+        if (profileWindow()._resizeObserver) {
+            profileWindow()._resizeObserver.disconnect(); 
+            profileWindow()._resizeObserver = null;
+        }
+        profileWindow().style.display = "none"; deActivePathQuery();
+    });
+    moveWindow(profileWindow, profileWindowHeader); 
 }
 
 function updateChart() {
     const checkboxes = checkboxList().querySelectorAll('input[type="checkbox"]');
     const selectedColumns = Array.from(checkboxes)
-        .filter(cb => cb.checked && cb.value !== 'All')
-        .map(cb => cb.value);
+        .filter(cb => cb.checked && cb.value !== 'All').map(cb => cb.value);
     const {data, chartTitle, titleX, titleY, undefined} = getState().globalChartData;
     drawChart(data, chartTitle, titleX, titleY, selectedColumns);
 }
@@ -185,9 +200,7 @@ export function drawChart(data, chartTitle, titleX, titleY, selectedColumns=null
 export function numberFormatter(num, decimals) {
     if (num === null || num === undefined || isNaN(num)) return '';
     if (num === 0) return '0';
-    if (Math.abs(num) < 1e-3 || Math.abs(num) >= 1e6) {
-        return num.toExponential(decimals);
-    }
+    if (Math.abs(num) < 1e-3 || Math.abs(num) >= 1e6) { return num.toExponential(decimals); }
     return num.toFixed(decimals);
 }
 
@@ -266,18 +279,16 @@ export function saveToExcel() {
 export function plotProfileSingleLayer(pointContainer, polygonCentroids, title, titleY, titleX='Distance (m)') {
     const interpolatedPoints = splitLines(pointContainer, polygonCentroids, 20).map(([dist, val]) => [dist, val]);
     const input = { columns: [titleX, titleY], data: interpolatedPoints };
-    console.log(input);
     drawChart(input, title, titleX, titleY, false);
 }
 
-export function plotProfileMultiLayer(key, query, windowContainer, data, title, unit) { 
+export function plotProfileMultiLayer(key, query, data, title, unit) { 
     chartDivProfile().style.border = "1px solid #aaa"; 
     chartDivProfile().style.borderRadius = "10px"; 
     chartDivProfile().style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)"; 
-    if (windowContainer()._resizeObserver) windowContainer()._resizeObserver.disconnect(); 
+    if (profileWindow()._resizeObserver) profileWindow()._resizeObserver.disconnect(); 
     colorCombo().style.display = "block"; minValue().style.display = "block"; maxValue().style.display = "block";
     colorComboLabel().style.display = "block"; minLabel().style.display = "block"; maxLabel().style.display = "block";
-    let animating = false, frameIndex = 0, duration, nColors;
     const { timestamps, distance, values, depths, global_minmax, local_minmax } = data; 
     minValue().value = valueFormatter(global_minmax[0], 1e-3); maxValue().value = valueFormatter(global_minmax[1], 1e-3);
     nColors = parseInt(colorCombo().value);
@@ -288,7 +299,7 @@ export function plotProfileMultiLayer(key, query, windowContainer, data, title, 
     timeLabelEnd().textContent = `End: ${timestamps[timestamps.length - 1]}`;
     timeLabel().textContent = `Time: ${timestamps[0]}`;
     // Render plot
-    windowContainer()._resizeObserver = renderPlot(chartDivProfile(), distance, depths, 
+    profileWindow()._resizeObserver = renderPlot(chartDivProfile(), distance, depths, 
             values, local_minmax[0], local_minmax[1], nColors, title, unit); 
     // Update a single frame
     async function updateFrame(index) {
@@ -335,12 +346,11 @@ export function plotProfileMultiLayer(key, query, windowContainer, data, title, 
             animating = true; playPauseBtn().textContent = '⏸ Pause'; 
             playAnimation(); 
         } else { animating = false; playPauseBtn().textContent = '▶ Play'; } 
-    };
+    }
     // === Slider control === 
-    timeSlider().addEventListener('input', async(e) => {
-        animating = false; playPauseBtn().textContent = '▶ Play';
-        frameIndex = parseInt(e.target.value);
-    })
+    timeSlider().addEventListener('input', resetAnimation);
+    // === Duration control ===
+    durationValue().addEventListener('change', resetAnimation);
     // === Color control === 
     colorCombo().addEventListener('change', async() => { 
         animating = false; playPauseBtn().textContent = '▶ Play';
@@ -350,8 +360,14 @@ export function plotProfileMultiLayer(key, query, windowContainer, data, title, 
         const { values, local_minmax } = refreshed.content;
         renderPlot(chartDivProfile(), distance, depths, values, local_minmax[0],
             local_minmax[1], parseInt(colorCombo().value), title, unit); 
-    });
-    windowContainer().style.display = "flex";
+    })
+    profileWindow().style.display = "flex";
+}
+
+function resetAnimation(e) { 
+    animating = false; playPauseBtn().textContent = '▶ Play'; 
+    if (e) { frameIndex = parseInt(e.target.value); }
+    else { frameIndex = 0; }
 }
 
 function renderPlot(plotDiv, distance, depths, values, vmin, vmax, nColors, title, unit){
@@ -428,11 +444,11 @@ function colorbarTicks(min, max, numStops){
     return ticks;
 }
 
-export function thermoclinePlotter(windowContainer, data, name, titleX, titleY, chartTitle) {
+export function thermoclinePlotter(data, name, titleX, titleY, chartTitle) {
     chartDivProfile().style.border = "1px solid #aaa"; 
     chartDivProfile().style.borderRadius = "10px"; 
     chartDivProfile().style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)"; 
-    if (windowContainer()._resizeObserver) windowContainer()._resizeObserver.disconnect();
+    if (profileWindow()._resizeObserver) profileWindow()._resizeObserver.disconnect();
     // Hide components
     colorCombo().style.display = "none"; minValue().style.display = "none"; maxValue().style.display = "none";
     colorComboLabel().style.display = "none"; minLabel().style.display = "none"; maxLabel().style.display = "none";
@@ -445,7 +461,7 @@ export function thermoclinePlotter(windowContainer, data, name, titleX, titleY, 
     timeLabelEnd().textContent = `End: ${timestamps[timestamps.length - 1]}`;
     timeLabel().textContent = `Time: ${timestamps[0]}`;
     // Render plot
-    windowContainer()._resizeObserver = renderThermocline(chartDivProfile(), depths, values, 
+    profileWindow()._resizeObserver = renderThermocline(chartDivProfile(), depths, values, 
         name, titleX, titleY, chartTitle); 
     // Update a single frame
     async function updateFrame(index) {
@@ -487,7 +503,7 @@ export function thermoclinePlotter(windowContainer, data, name, titleX, titleY, 
         animating = false; playPauseBtn().textContent = '▶ Play';
         frameIndex = parseInt(e.target.value);
     });
-    windowContainer().style.display = "flex"; setState({isThemocline: false});
+    profileWindow().style.display = "flex"; setState({isThemocline: false});
 }
 
 function renderThermocline(plotDiv, xValues, yValues, legend, xTitle, yTitle, title){
