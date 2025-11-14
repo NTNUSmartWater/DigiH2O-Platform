@@ -5,7 +5,7 @@ backend/Delft_Projects
 .vscode
 
 # Files
-*.txt
+Variable_names.txt
 *.jpg
 *.csv
 *.ipynb
