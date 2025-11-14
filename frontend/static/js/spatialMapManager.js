@@ -4,6 +4,7 @@ import { map } from './mapManager.js';
 import { initOptions } from './utils.js';
 import { setState, getState } from './constants.js';
 import { sendQuery } from './tableManager.js';
+import { profileWindow, profileCloseBtn } from "./chartManager.js";
 
 export const layerSelector = () => document.getElementById("layer-selector");
 const vectorSelector = () => document.getElementById("vector-selector");
@@ -87,6 +88,7 @@ export async function spatialMapManager() {
                 colorbarTitle = sigmaSelector().value==='-1' ? `${colorbarTitle}\nSigma layer: ${sigmaSelector().selectedOptions[0].text}`
                     : `${colorbarTitle}\n${sigmaSelector().selectedOptions[0].text}`;
             }
+            setState({sigma: sigmaSelector()});
             plot2DMapDynamic(true, newQuery, newKey, colorbarTitle, '');
         });
     });
@@ -97,12 +99,14 @@ export async function spatialMapManager() {
             const [value, type] = e.target.value.split('|');
             const label = e.target.closest('label');
             colorbarTitle = label ? label.textContent.trim() : value;
+            const sigma = getState().sigma;
             if (type === 'single') {
-                newKey = `${value}_waq_single_dynamic`; newQuery = `mesh2d_2d_${value}|${sigmaSelector().value}`;
+                newKey = `${value}_waq_single_dynamic`; newQuery = `mesh2d_2d_${value}|${sigma.value}`;
             } else {
-                newKey = `${value}_waq_multi_dynamic`; newQuery = `mesh2d_${value}|${sigmaSelector().value}`;
-                colorbarTitle = sigmaSelector().value==='-1' ? `${colorbarTitle}\nLayer: ${sigmaSelector().selectedOptions[0].text}`
-                    : `${colorbarTitle}\n${sigmaSelector().selectedOptions[0].text}`;
+                if (profileWindow().style.display !== 'none') {profileCloseBtn().click();}
+                newKey = `${value}_waq_multi_dynamic`; newQuery = `mesh2d_${value}|${sigma.value}`;
+                colorbarTitle = sigma.value==='-1' ? `${colorbarTitle}\nLayer: ${sigma.selectedOptions[0].text}`
+                    : `${colorbarTitle}\n${sigma.selectedOptions[0].text}`;
             }
             plot2DMapDynamic(true, newQuery, newKey, colorbarTitle, '');
         }

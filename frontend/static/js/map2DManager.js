@@ -19,7 +19,7 @@ const colorbar_vector_color = () => document.getElementById("colorbar-gradient-v
 const colorbar_vector_label = () => document.getElementById("colorbar-labels-vector");
 const colorbar_vector_scaler = () => document.getElementById("custom-colorbar-scaler");
 
-let layerAbove = null, layerMap = null, playHandlerAttached = false, parsedFrame = '';
+let layerAbove = null, layerMap = null, playHandlerAttached = false, parsedFrame = '', scale = null;
 
 // Define CanvasLayer
 L.CanvasLayer = L.Layer.extend({
@@ -197,8 +197,8 @@ function vectorCreator(parsedData, vmin, vmax, title, colorbarKey, scale) {
     return layer;
 }
 
-function initDynamicMap(query, key_below, key_above, data_below, data_above, colorbarTitleBelow, colorbarTitleAbove,
-                        colorbarKeyBelow, colorbarKeyAbove, scale) {
+function initDynamicMap(query, key_below, key_above, data_below, data_above, 
+    colorbarTitleBelow, colorbarTitleAbove, colorbarKeyBelow, colorbarKeyAbove, scale) {
     // Clear map
     map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
     timeControl().style.display = "flex"; // Show time slider
@@ -219,8 +219,8 @@ function initDynamicMap(query, key_below, key_above, data_below, data_above, col
         timestamp = data_below.timestamps; currentIndex = timestamp.length - 1;
         const meshes = data_below.meshes, values = data_below.values;
         if (layerMap) map.removeLayer(layerMap); layerMap = null;
-        layerMap = layerCreator(meshes, values, key_below, vminBelow, vmaxBelow, 
-                                colorbarTitleBelow, colorbarKeyBelow);
+        layerMap = layerCreator(meshes, values, key_below, vminBelow,
+            vmaxBelow, colorbarTitleBelow, colorbarKeyBelow);
         map.addLayer(layerMap);
         colorbar_container().style.display = "block";
     }
@@ -285,8 +285,9 @@ function initDynamicMap(query, key_below, key_above, data_below, data_above, col
 
 function initScaler() {
     // Initialize vector scale
-    if ((!scaler_value().value)||(parseFloat(scaler_value().value) <= 0)) {
-        alert('Wrong scaler value. Please check the scaler value.'); return;
+    if (getState().scalerValue !== null) return parseFloat(getState().scalerValue);
+    if (scaler_value().value === '' || parseFloat(scaler_value().value) <= 0) {
+        alert('Wrong scaler value. Please check the scaler object.'); return;
     }
     // Store scaler value
     setState({scalerValue: scaler_value().value});
@@ -306,14 +307,14 @@ export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, 
         data_below.values = data_below.values.map(v => -v);
         data_below.min_max = [-data_below.min_max[1], -data_below.min_max[0]];
     }
-    const scale = initScaler();
+    scale = initScaler();
     // If vector is selected
     if (getState().vectorSelected !== '' && key.includes('multi')) {
         const vectorSelector = document.getElementById("vector-selector");
         const layerSelector = document.getElementById("layer-selector");
         if (vectorSelector.selectedOptions[0].text === 'Velocity') { // Process above data for velocity
             const title = layerSelector.value==='-1' ? `Layer: ${layerSelector.selectedOptions[0].text}` 
-                    : `${layerSelector.selectedOptions[0].text}`;
+                : `${layerSelector.selectedOptions[0].text}`;
             colorbarTitleAbove = `${vectorSelector.selectedOptions[0].text} (m/s)\n${title}`; colorbarKeyAbove = 'vector';
         }
         key_above = layerSelector.value;
@@ -325,15 +326,13 @@ export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, 
 }
 
 export async function plot2DVectorMap(query, key, colorbarTitleAbove, colorbarKey) {
-    const scale = initScaler(); 
     startLoading('Preparing Dynamic Vector Map. Please wait...');
-    // const data = await loadData(query, key);
     const data = await sendQuery('load_vector_dynamic', {query: query, key: key});
     if (data.status === 'error') { showLeafletMap(); alert(data.message); return; }
     if (layerMap) map.removeLayer(layerMap); layerMap = null;
     if (layerAbove) map.removeLayer(layerAbove); layerAbove = null;
     const colorbarTitle = layerSelector().value==='-1' ? `${colorbarTitleAbove}\nLayer: ${layerSelector().selectedOptions[0].text}` 
-            : `${colorbarTitleAbove}\n${layerSelector().selectedOptions[0].text}`;
+        : `${colorbarTitleAbove}\n${layerSelector().selectedOptions[0].text}`;
     initDynamicMap(query, null, key, null, data.content, null, colorbarTitle, null, colorbarKey, scale);
     showLeafletMap();
 }

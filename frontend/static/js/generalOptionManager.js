@@ -17,9 +17,9 @@ const waqObsStation = () => document.getElementById("waq-obs-checkbox");
 const waqLoadsStation = () => document.getElementById("waq-loads-checkbox");
 const pathQuery = () => document.getElementById("path-query-checkbox");
 const mapContainer = () => map.getContainer();
-export const profileWindow = () => document.getElementById('profileWindow');
-const profileWindowHeader = () => document.getElementById('profileWindowHeader');
-const profileCloseBtn = () => document.getElementById('closeProfileWindow');
+// export const profileWindow = () => document.getElementById('profileWindow');
+// const profileWindowHeader = () => document.getElementById('profileWindowHeader');
+// const profileCloseBtn = () => document.getElementById('closeProfileWindow');
 const thermoclineWAQ = () => document.getElementById('waq-thermocline-selector');
 const configReset = () => document.getElementById('reset-config');
 
@@ -301,7 +301,7 @@ async function loadWAQLoads() {
 }
 
 // ============================ Path Manager ============================
-function moveWindow(window, header){
+export function moveWindow(window, header){
     let dragging = false, offsetX = 0, offsetY = 0;
     header().addEventListener("mousedown", function(e) {
         dragging = true;
@@ -333,12 +333,10 @@ export function updatePathManager() {
         } else deActivePathQuery();
         setState({isPathQuery: pathQuery().checked});
     });
-    profileCloseBtn().addEventListener('click', () => { profileWindow().style.display = 'none'; });
-    moveWindow(profileWindow, profileWindowHeader); 
 }
 
 export function deActivePathQuery() {
-    if (pathQuery) {pathQuery().checked = false;}
+    if (pathQuery() !== null) { pathQuery().checked = false; }
     setState({isPathQuery: false});
     if (pathLine) { map.removeLayer(pathLine); pathLine = null;}
     selectedMarkers.forEach(m => map.removeLayer(m));
@@ -368,7 +366,7 @@ async function mapPath(e) {
             const queryContents = {key: key, query: query, idx: 'load', points: orderedPoints};
             const data = await sendQuery('select_meshes', queryContents);
             if (data.status === "error") { alert(data.message); return; }
-            plotProfileMultiLayer(key, query, profileWindow, data.content, title, unit);
+            plotProfileMultiLayer(key, query, data.content, title, unit);
             showLeafletMap();
         }
     }

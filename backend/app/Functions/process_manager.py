@@ -174,29 +174,29 @@ async def select_meshes(request: Request):
         is_hyd = key == 'hyd'
         data_ = request.app.state.hyd_map if is_hyd else request.app.state.waq_map
         name, status, message = functions.variablesNames.get(query, query), 'ok', ''
-        fnm, arr = functions.numberFormatter, data_[name].values
+        fnm = functions.numberFormatter
         # Cache data
         if not hasattr(request.app.state, 'mesh_cache'):
             layers_values = np.array([float(v.split(' ')[1]) for k, v in request.app.state.layer_reverse_hyd.items() if int(k) >= 0])
-            max_layer = max(layers_values, key=abs)
+            max_layer = float(max(layers_values, key=abs))
             n_rows = abs(math.ceil(max_layer/10)*10) if max_layer > 0 else abs(math.floor(max_layer/10)*10) + 1
             depth_idx = np.array([round(abs(d)) for d in layers_values])
             # Using mapping to increase performance
-            index_map = {v: depth_idx.shape[0] - i - 1 for i, v in enumerate(depth_idx)}
+            index_map = {int(v): depth_idx.shape[0] - i - 1 for i, v in enumerate(depth_idx)}
             request.app.state.mesh_cache = { "layers_values": layers_values, "n_rows": n_rows,
                 "depth_idx": depth_idx, "index_map": index_map, "max_layer": max_layer}
         if idx == 'load': # Initiate data for the first load
             cache = getattr(request.app.state, "mesh_cache", None)
             time_column = 'time' if is_hyd else 'nTimesDlwq'
             time_stamps = pd.to_datetime(data_[time_column]).strftime('%Y-%m-%d %H:%M:%S').tolist()
-            points_arr = np.array(points)
+            points_arr, arr = np.array(points), data_[name].values[0,:,:]
             x_coords, y_coords = points_arr[:, 2], points_arr[:, 1]
             gdf = gpd.GeoDataFrame(geometry=gpd.points_from_xy(x_coords, y_coords), crs=request.app.state.grid.crs)
             gdf['depth'] = functions.interpolation_Z(gdf, request.app.state.hyd_map['mesh2d_node_x'].values, 
                 request.app.state.hyd_map['mesh2d_node_y'].values, request.app.state.hyd_map['mesh2d_node_z'].values
             )
             cache["df"] = gdf.drop(columns=['geometry'])
-            frame = functions.meshProcess(0, arr, cache)
+            frame = functions.meshProcess(is_hyd, arr, cache)
             global_vmin, global_vmax = fnm(np.nanmin(arr)), fnm(np.nanmax(arr))
             vmin, vmax = fnm(np.nanmin(frame)), fnm(np.nanmax(frame))
             data = {"timestamps": time_stamps, "distance": np.round(points_arr[:, 0], 0).tolist(), "values": fnm(frame), 
@@ -205,7 +205,8 @@ async def select_meshes(request: Request):
         else: # Load next frame
             cache = getattr(request.app.state, "mesh_cache", None)
             if cache is None: return JSONResponse({"status": 'error', "message": "Mesh cache is not initialized."})
-            frame = functions.meshProcess(int(idx), arr, cache)
+            arr = data_[name].values[int(idx),:,:]
+            frame = functions.meshProcess(is_hyd, arr, cache)
             vmin, vmax = fnm(np.nanmin(frame)), fnm(np.nanmax(frame))
             data = {"values": fnm(frame), "local_minmax": [vmin, vmax]}
     except Exception as e:

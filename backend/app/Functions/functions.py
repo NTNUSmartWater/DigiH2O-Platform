@@ -1033,14 +1033,14 @@ def postProcess(directory: str) -> dict:
         return {'status': 'ok', 'message': 'Data is saved successfully.'}
     except Exception as e: return {'status': 'error', 'message': {str(e)}}
 
-def meshProcess(idx: int, arr: np.ndarray, cache: dict) -> np.ndarray:
+def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
     """
     Optimized mesh processing using vectorization and interp1d interpolation.
 
     Parameters
     ----------
-    idx: int
-        The index of the layer.
+    is_hyd: bool
+        True if HYD, False if WAQ.
     arr: np.ndarray
         The array to be processed.
     cache: dict
@@ -1051,7 +1051,7 @@ def meshProcess(idx: int, arr: np.ndarray, cache: dict) -> np.ndarray:
     np.ndarray
         The smoothed values.
     """
-    frame, arr, df = {}, arr[idx,:,:], cache["df"]
+    frame, df = {}, cache["df"]
     # Create a mask
     mask = cache["layers_values"][None, :] < df["depth"].values[:, None]
     depth_rounded = np.round(df["depth"].values, 0)
@@ -1062,11 +1062,13 @@ def meshProcess(idx: int, arr: np.ndarray, cache: dict) -> np.ndarray:
         mask_depth = -i == depth_rounded
         if np.any(mask_depth):
             nearest_idx = np.argmin(np.abs(cache["depth_idx"] - i))
-            frame[-i] = np.where(mask_depth, arr[df.index.values, nearest_idx], frame[-i])
+            temp_values = arr[df.index.values, nearest_idx] if is_hyd else arr[nearest_idx, df.index.values]
+            frame[-i] = np.where(mask_depth, temp_values, frame[-i])
         if i in cache["index_map"]:
             mask = -i >= df["depth"].values
             index = cache["index_map"][i]
-            frame[-i] = np.where(mask, arr[df.index.values, index], frame[-i])
+            temp_values = arr[df.index.values, index] if is_hyd else arr[index, df.index.values]
+            frame[-i] = np.where(mask, temp_values, frame[-i])
     poly = pd.concat([df[['depth']].reset_index(drop=True), pd.DataFrame(frame)], axis=1)
     # Get indices of valid columns
     depth_arr = np.array([float(c) for c in poly.columns if c != "depth"])
