@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="/static_frontend/css/projectSelection.css?v=12">
+</head>
+<body>
+    <div class="container">
+        <!-- Select Project -->
+        <div class="row">
+            <label for="project">Project:</label>
+            <select id="project">
+                <option value="" selected>--- No selected ---</option>
+            </select>
+            <button type="button" id="delete-button">Delete Project</button>
+        </div>
+        <!-- Hydrodynamic Options -->
+        <fieldset class="groupbox">
+            <legend>Hydrodynamic Simulation</legend>
+            <div class="input-row">
+                <label for="hyd-option">Select:</label>
+                <select id="hyd-option">
+                    <option value="" selected>--- No selected ---</option>
+                </select>
+            </div>
+        </fieldset>
+        <!-- Water Quality Options -->
+        <fieldset class="groupbox">
+            <legend>Water Quality Simulation</legend>
+            <div class="checkbox-column">
+                <div class="checkbox-list" id="waq-option">
+                    <p style="size: 10px; text-align: center;">No Water Quality files found.</p>
+                </div>
+            </div>
+        </fieldset>
+        <!-- Button -->
+        <div class="btn-row">
+            <button type="button" id="button">Open Project</button>
+        </div>
+    </div>
+    <!-- Load the newest version of the script -->
+    <script type="module">
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = `/static_frontend/js/projectSelector.js?v=${Date.now()}`;
+        document.body.appendChild(script);
+    </script>
+</body>
+</html>

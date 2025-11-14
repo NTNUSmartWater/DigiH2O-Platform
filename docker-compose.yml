@@ -1,0 +1,33 @@
+version: "3.9"
+
+services:
+  backend:
+    build: ./backend
+    container_name: digih2o_backend
+    ports:
+      - "${BACKEND_PORT}:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+      - "C:/Program Files/Deltares/Delft3D FM Suite 2023.02 HMWQ/plugins/DeltaShell.Dimr/kernels/x64:/delft3d:ro"
+    environment:
+      - DELFT3D_PATH=${DELFT3D_PATH}
+    restart: always
+
+  frontend:
+    build: ./frontend
+    container_name: digih2o_frontend
+    expose:
+      - "80"
+    restart: always
+
+  nginx:
+    build: ./nginx
+    container_name: digih2o_nginx
+    ports:
+      - "${NGINX_PORT}:80"
+    depends_on:
+      - frontend
+      - backend
+    restart: always

@@ -1,0 +1,108 @@
+<!-- Dynamic Maps -->
+<div class="menu {% if not configuration.spatial_map %}hidden{% endif %}">
+    <a class="menu-link">Dynamic Maps<span class="arrow">&#x25B8;</span></a>
+    <div class="submenu">
+        <!-- Single Layer Hydrodynamics -->
+        <div class="menu-1 {% if not configuration.single_layer %}hidden{% endif %}">
+            <a class="menu-link-1">• Single Layer<span class="arrow">&#x25B8;</span></a>
+            <div class="submenu-1">
+                <a class="map2D_dynamic {% if not configuration.hyd_wl_dynamic %}hidden{% endif %}" 
+                    data-info="wl_single_dynamic|Water Level (m)|depth">- Water Level</a>
+                <a class="map2D_dynamic {% if not configuration.hyd_wd_dynamic %}hidden{% endif %}" 
+                    data-info="wd_single_dynamic|Water Depth (m)|depth">- Water Depth</a>
+                <a class="waq-function {% if not configuration.waq_map_conservative_decay %}hidden{% endif %}"
+                    data-info="waq_map_conservative_selector|single">- Conservative and decaying tracers</a>
+                <a class="waq-function {% if not configuration.waq_map_suspended_sediment %}hidden{% endif %}"
+                    data-info="waq_map_suspended_sediment_selector|single">- Suspended sediment (three fractions)</a>
+                <a class="waq-function {% if not configuration.waq_map_simple_oxygen %}hidden{% endif %}"
+                    data-info="waq_map_simple_oxygen_selector|single">- Simple Oxygen</a>
+                <a class="waq-function {% if not configuration.waq_map_oxygen_bod %}hidden{% endif %}"
+                    data-info="waq_map_oxygen_bod_selector|single">- Oxygen and BOD (water phase only)</a>
+                <a class="waq-function {% if not configuration.waq_map_cadmium %}hidden{% endif %}"
+                    data-info="waq_map_cadmium_selector|single">- Cadmium</a>
+                <a class="waq-function {% if not configuration.waq_map_eutrophication %}hidden{% endif %}"
+                    data-info="waq_map_eutrophication_selector|single">- Eutrophication</a>
+                <a class="waq-function {% if not configuration.waq_map_trace_metals %}hidden{% endif %}"
+                    data-info="waq_map_trace_metals_selector|single">- Trace metals</a>
+                <a class="waq-function {% if not configuration.waq_map_coliform %}hidden{% endif %}"
+                    data-info="waq_map_coliform_selector|single">- Coliform bacteria</a>
+            </div>
+        </div>
+        <!-- Multiple Layer -->
+        <div class="menu-1 {% if not configuration.multi_layer %}hidden{% endif %}">
+            <a class="menu-link-1">• Multiple Layer<span class="arrow">&#x25B8;</span></a>
+            <div class="submenu-1">
+                <div class="layer {% if not configuration.z_layers %}hidden{% endif %}">
+                    <div style="display: flex; flex: 1; padding-left: 17px; margin-bottom: 5px;">
+                        <span style="margin: 10px 10px 5px 0; color: #0616f3; font-weight: bold; font-size: 16px;">Layer:</span>
+                        <select id="layer-selector" style="flex: 1; margin: 10px 10px 5px 0;">
+                            <option value="" disabled selected hidden>- No Selection -</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="menu-1 {% if not configuration.z_layers %}hidden{% endif %}">
+                    <div style="display: flex; font-size: 15px; flex: 1;">
+                        <span style="margin: 0 10px 0 20px; font-size: 15px;">- Vector:</span>
+                        <select id="vector-selector" style="flex: 1; margin-right: 10px;">
+                            <option value="" disabled selected hidden>- No Selection -</option>
+                        </select>
+                    </div>
+                    <div class="scaler-group" style="margin: 5px 0 0 25px;">
+                        <label>Scale:</label>
+                        <input type="text" id="scaler-value" value="1000" style="width: 80px;">
+                        <button type="button" id="plotVectorBtn" style="margin-right: 5px;">Plot Vector</button>
+                    </div>
+                </div>
+                <div class="menu-1 {% if not configuration.multi_layer %}hidden{% endif %}">
+                    <a class="map2D_dynamic {% if not configuration.thermocline_hyd %}hidden{% endif %}" 
+                        data-info="temp_multi_dynamic|Temperature (°C)|temperature">- Temperature</a>
+                    <a class="map2D_dynamic {% if not configuration.spatial_salinity %}hidden{% endif %}" 
+                        data-info="sal_multi_dynamic|Salinity (ppt)|salinity">- Salinity</a>
+                    <a class="map2D_dynamic {% if not configuration.spatial_contaminant %}hidden{% endif %}" 
+                        data-info="cont_multi_dynamic|Contaminant (g/L)|contaminant">- Contaminant</a>
+                    <a class="waq {% if not configuration.wq_map %}hidden{% endif %}">
+                        <hr style="border-top: 1px solid #0616f3; margin: 5px 10px 10px 0;">
+                        <div style="display: flex;">
+                            <span style="color: #0616f3; padding-right: 10px; font-weight: bold; font-size: 16px;">Sigma Coef.:</span>
+                            <select id="sigma-selector" style="flex: 1; margin-right: 10px;">
+                                <option value="" disabled selected hidden>- No Selection -</option>
+                            </select>
+                        </div>
+                    </a>
+                    <a class="wq-function {% if not configuration.waq_map_conservative_decay %}hidden{% endif %}"
+                        data-info="waq_map_conservative_selector|multi">- Conservative and decaying tracers</a>
+                    <a class="waq-function {% if not configuration.waq_map_suspended_sediment %}hidden{% endif %}"
+                        data-info="waq_map_suspended_sediment_selector|multi">- Suspended sediment (three fractions)</a>
+                    <a class="waq-function {% if not configuration.waq_map_simple_oxygen %}hidden{% endif %}"
+                        data-info="waq_map_simple_oxygen_selector|multi">- Simple Oxygen</a>
+                    <a class="waq-function {% if not configuration.waq_map_oxygen_bod %}hidden{% endif %}"
+                        data-info="waq_map_oxygen_bod_selector|multi">- Oxygen and BOD (water phase only)</a>
+                    <a class="waq-function {% if not configuration.waq_map_cadmium %}hidden{% endif %}"
+                        data-info="waq_map_cadmium_selector|multi">- Cadmium</a>
+                    <a class="waq-function {% if not configuration.waq_map_eutrophication %}hidden{% endif %}"
+                        data-info="waq_map_eutrophication_selector|multi">- Eutrophication</a>
+                    <a class="waq-function {% if not configuration.waq_map_trace_metals %}hidden{% endif %}"
+                        data-info="waq_map_trace_metals_selector|multi">- Trace metals</a>
+                    <a class="waq-function {% if not configuration.waq_map_coliform %}hidden{% endif %}"
+                        data-info="waq_map_coliform_selector|multi">- Coliform bacteria</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Static Maps -->
+<div class="menu {% if not configuration.spatial_static %}hidden{% endif %}">
+    <a class="menu-link">Static Maps<span class="arrow">&#x25B8;</span></a>
+    <div class="submenu">
+        <!-- Water Depth Static -->
+        <a class="map2D_static {% if not configuration.waterdepth_static %}hidden{% endif %}" 
+            data-info="depth_static|Depth (m)|depth">• Bed Depth</a>
+    </div>
+</div>
+
+<!-- Hide Maps -->
+<div class="menu {% if not configuration.hide_map %}hidden{% endif %}">
+    <hr style="border-top: 1px solid #0516f8; margin: 5px 0 5px 0;">
+    <a class="menu-link hide-maps">Hide Maps</a>
+</div>

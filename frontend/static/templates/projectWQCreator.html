@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=2" />
+  <link rel="stylesheet" href="/static_frontend/css/projectHYDCreator.css?v=1">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+</head>
+<body>
+    <div class="wrapper">
+        <div class="page-title">
+            <label for="project-name">Project Name</label>
+            <div id="project-name-wrapper">
+                <input type="text" id="project-name" placeholder="Enter project name">
+                <ul id="project-list"></ul>
+            </div>
+            <button class="tab-btn" id="create-project-button">Create Project<span class="ink"></span></button>
+        </div>
+        <section class="card tabs" id="desription-tab" style="margin-left: 15px; margin-right: 15px;">
+            <p style="text-align: center; font-weight: bold; font-size: 20px;">
+                You should prepare the following data in advance:
+            </p>
+            <ul style="text-align: left; margin-left: 80px; line-height: 2.5;">
+                <li>A project with hydrodynamics simulation was run</li>
+                <li>List of observation points (inside the grid)</li>
+                <li>Time format: YYYY-MM-DD HH:MM:SS</li>
+            </ul>
+        </section>
+        <section class="card tabs" id="parent-tab" style="display: none;">
+            <div class="tabs__header" id="main-tabs">
+                <div class="tabs__list">
+                    <button class="tab-btn" data-tab="model-settings">Model Overview<span class="ink"></span></button>
+                    <button class="tab-btn" data-tab="point-settings">Point Settings<span class="ink"></span></button>
+                    <button class="tab-btn" data-tab="data-processing">Run Simulation<span class="ink"></span></button>
+                </div>
+            </div>
+            <div class="tabs__content">
+                <!-- Tab 1: Model Settings -->
+                <div class="tabpanel main-panel" data-panel="model-settings">
+                    <div class="grid">
+                        <!-- Sub Tabs -->
+                        <div class="tile"><h3>Hydrodynamics (*.hyd)</h3>
+                            <div class="row">
+                                <label for="hyd-filename">Hydrodynamics file:</label>
+                                <input type="text" id="hyd-filename">
+                            </div>
+                        </div>
+                        <div class="tile"><h3>Layers</h3>
+                            <div class="row">
+                                <label for="n-layer">Nr. sigma layers:</label>
+                                <input type="number" id="n-layer">
+                            </div>
+                        </div>
+                        <div class="tile"><h3>Simulation time</h3>
+                            <div class="row">
+                                <label for="start-time">Start time:</label>
+                                <input type="text" class="datetime" id="start-time" placeholder="YYYY-mm-dd HH:mm:ss">
+                            </div>
+                            <div class="row">
+                                <label for="stop-time">Stop time:</label>
+                                <input type="text" class="datetime" id="stop-time" placeholder="YYYY-mm-dd HH:mm:ss">
+                            </div>
+                        </div>
+                        <div class="tile" id="wq-sources-container"><h3>Sources/Sinks</h3>
+                            <table class="attributes-table" id="wq-sources-table">
+                                <thead>
+                                    <tr><th>Name</th><th>Latitude (°)</th><th>Longitude (°)</th></tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- Tab 2: Observation Settings -->
+                <div class="tabpanel main-panel" data-panel="point-settings">
+                    <div class="grid">
+                        <div class="tile"><h3>Observations</h3>
+                            <div class="row">
+                                <button type="button" id="wq-obs-picker">Pick on map</button>
+                                <input type="text" id="wq-obs-point" placeholder="Enter name to remove">
+                                <button type="button" id="wq-obs-remove"
+                                    style="color: crimson; background-color: aliceblue;">Remove Point</button>
+                            </div>
+                            <h4>List of Observations</h4>
+                            <table class="attributes-table" id="wq-obs-table">
+                                <thead>
+                                    <tr><th>Name</th><th>Latitude (°)</th><th>Longitude (°)</th></tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        <div class="tile"><h3>Loads</h3>
+                            <div class="row">
+                                <button type="button" id="wq-loads-picker">Pick on map</button>
+                                <input type="text" id="wq-loads-point" placeholder="Enter name to add/remove">
+                                <button type="button" id="wq-loads-remove"
+                                    style="color: crimson; background-color: aliceblue;">Remove Point</button>
+                            </div>
+                            <h4>List of Loads</h4>
+                            <table class="attributes-table" id="wq-loads-table">
+                                <thead>
+                                    <tr><th>Name</th><th>Latitude (°)</th><th>Longitude (°)</th></tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- Tab 3: Data Processing and Simulation -->
+                <div class="tabpanel main-panel" data-panel="data-processing">
+                    <div class="grid">
+                        <!-- Left Layout -->
+                        <div class="tile">
+                            <h3>Time-Series Preparation</h3>
+                            <table class="attributes-table" id="wq-time-series-table">
+                                <thead>
+                                    <tr><th>Time</th><th>Location</th><th>Substance</th><th>Value</th></tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                            <div class="row">
+                                <input type="file" id="input-csv" style="display:none;" />
+                                <button type="button" id="time-series-csv">Upload CSV</button>
+                                <button type="button" id="time-series-remove"
+                                    style="color: crimson; background-color: aliceblue;">Delete table</button>
+                            </div>
+                            <div class="textarea-container" id="wq-textarea-container">
+                                <label style="margin:20px 0 20px 0; display:inline-block;">Post-process Data</label>
+                                <textarea class="data-textarea" id="wq-data-view" style="height:300px; min-height:300px;"></textarea>
+                            </div>
+                        </div>
+                        <!-- Right Layout -->
+                        <div class="tile">
+                            <!-- Sub Tabs -->
+                            <div class="card tabs tabs--sub">
+                                <div class="tabs__header">
+                                    <div class="tabs__list">
+                                        <button class="tab-btn" data-tab="loads-setting-1">Physical<span class="ink"></span></button>
+                                        <button class="tab-btn" data-tab="loads-setting-2">Chemical<span class="ink"></span></button>
+                                        <button class="tab-btn" data-tab="loads-setting-3">Microbial<span class="ink"></span></button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="tabs__content">
+                                <!-- Sub Tab: Physical Settings -->
+                                <div class="tabpanel" data-panel="loads-setting-1">
+                                    <div class="row">
+                                        <label for="wq-physical">Select model:</label>
+                                        <select id="wq-physical">
+                                            <option value="" selected>--- No selected ---</option>
+                                            <option value="conservative-tracers">Conservative and decaying tracers</option>
+                                            <option value="suspend-sediment">Suspended sediment (three fractions)</option>
+                                        </select>
+                                    </div>
+                                    <div class="row">
+                                        <input type="text" id="wq-physical-name">
+                                        <button class="wq-process-time-series" type="button" id="wq-physical">Process TS Data</button>
+                                    </div>
+                                    <div class="row">
+                                        <div class="textarea-container tile" style="display:block;">
+                                            <label>Assigned Substance</label><br>
+                                            <select id="wq-physical-usefors-from" style="margin: 10px 0 10px 0; width: 120px;"></select>
+                                            <label> --> </label>
+                                            <select id="wq-physical-usefors-to" style="width: 120px;"></select>
+                                            <button class="wq-usefors" type="button" data-info="physical">Update</button>
+                                            <textarea class="data-textarea" id="wq-usefors-physical" style="height:80px; min-height:80px;"></textarea>
+                                            <label style="margin-top:20px; display:inline-block;">Initial Value</label><br>
+                                            <select id="wq-physical-initial-from" style="margin: 10px 0 10px 0; width: 120px;"></select>
+                                            <label> --> </label>
+                                            <input type="text" id="wq-physical-initial" value="0" style="width: 120px;">
+                                            <button class="wq-initial" type="button" data-info="physical">Update</button>
+                                            <textarea class="data-textarea" id="wq-initial-physical" style="height:80px; min-height:80px;"></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="field">
+                                            <label>Intergration method</label>
+                                            <select id="wq-scheme-physical" style="width: 100%; min-width: 100%;">
+                                                <option value="15" selected>Scheme 15</option>
+                                                <option value="22">Scheme 22</option>
+                                            </select>
+                                        </div>
+                                        <div class="field">
+                                            <label>Max iter.</label><input type="text" id="max-iterations-physical" value="500">
+                                        <label>Tolerance</label><input type="text" id="tolerance-physical" value="1E-07" style="margin-right: 10px;">
+                                        </div>
+                                    </div>
+                                    <div class="row" style="justify-content: center;">
+                                        <button class="wq-simulation" type="button" data-info="physical" style="flex:0 0 auto; width:200px;">Run model</button>
+                                    </div>
+                                </div>
+                                <!-- Sub Tab: Chemical Settings -->
+                                <div class="tabpanel" data-panel="loads-setting-2">
+                                    <div class="row">
+                                        <label for="wq-chemical">Select model:</label>
+                                        <select id="wq-chemical">
+                                            <option value="" selected>--- No selected ---</option>
+                                            <option value="simple-oxygen">Simple oxygen</option>
+                                            <option value="oxygen-bod-water">Oxygen and BOD (water phase only)</option>
+                                            <option value="cadmium">Cadmium</option>
+                                            <option value="eutrophication">Eutrophication (Eutrof 1a)</option>
+                                            <option value="trace-metals">Trace metals</option>
+                                        </select>
+                                    </div>
+                                    <div class="row">
+                                        <input type="text" id="wq-chemical-name"></input>
+                                        <button class="wq-process-time-series" type="button" id="wq-chemical">Process TS Data</button>
+                                    </div>
+                                    <div class="row">
+                                        <div class="textarea-container tile" style="display:block;">
+                                            <label>Assigned Substance</label><br>
+                                            <select id="wq-chemical-usefors-from" style="margin: 10px 0 10px 0; width: 120px;"></select>
+                                            <label> --> </label>
+                                            <select id="wq-chemical-usefors-to" style="width: 120px;"></select>
+                                            <button class="wq-usefors" type="button" data-info="chemical">Update</button>
+                                            <textarea class="data-textarea" id="wq-usefors-chemical" style="height:80px; min-height:80px;"></textarea>
+                                            <label style="margin-top:20px; display:inline-block;">Initial Value</label><br>
+                                            <select id="wq-chemical-initial-from" style="margin: 10px 0 10px 0; width: 120px;"></select>
+                                            <label> --> </label>
+                                            <input type="text" id="wq-chemical-initial" value="0" style="width: 120px;">
+                                            <button class="wq-initial" type="button" data-info="chemical">Update</button>
+                                            <textarea class="data-textarea" id="wq-initial-chemical" style="height:80px; min-height:80px;"></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="field">
+                                            <label>Intergration method</label>
+                                            <select id="wq-scheme-chemical" style="width: 100%; min-width: 100%;">
+                                                <option value="15" selected>Scheme 15</option>
+                                                <option value="22">Scheme 22</option>
+                                            </select>
+                                        </div>
+                                        <div class="field">
+                                            <label>Max iter.</label><input type="text" id="max-iterations-chemical" value="500">
+                                            <label>Tolerance</label><input type="text" id="tolerance-chemical" value="1E-07" style="margin-right: 10px;">
+                                        </div>
+                                    </div>
+                                    <div class="row" style="justify-content: center;">
+                                        <button class="wq-simulation" type="button" data-info="chemical" style="flex:0 0 auto; width:200px;">Run model</button>
+                                    </div>
+                                </div>
+                                <!-- Sub Tab: Microbiology Settings -->
+                                <div class="tabpanel" data-panel="loads-setting-3">
+                                    <div class="row">
+                                        <label for="wq-microbial">Select model:</label>
+                                        <select id="wq-microbial">
+                                            <option value="" selected>--- No selected ---</option>
+                                            <option value="coliform">Coliform bacteria</option>
+                                        </select>
+                                    </div>
+                                    <div class="row">
+                                        <input type="text" id="wq-microbial-name">
+                                        <button class="wq-process-time-series" type="button" id="wq-microbial">Process TS Data</button>
+                                    </div>
+                                    <div class="row">
+                                        <div class="textarea-container tile" style="display:block;">
+                                            <label>Assigned Substance</label><br>
+                                            <select id="wq-microbial-usefors-from" style="margin: 10px 0 10px 0; width: 120px;"></select>
+                                            <label> --> </label>
+                                            <select id="wq-microbial-usefors-to" style="width: 120px;"></select>
+                                            <button class="wq-usefors" type="button" data-info="microbial">Update</button>
+                                            <textarea class="data-textarea" id="wq-usefors-microbial" style="height:80px; min-height:80px;"></textarea>
+                                            <label style="margin-top:20px; display:inline-block;">Initial Value</label><br>
+                                            <select id="wq-microbial-initial-from" style="margin: 10px 0 10px 0; width: 120px;"></select>
+                                            <label> --> </label>
+                                            <input type="text" id="wq-microbial-initial" value="0" style="width: 120px;">
+                                            <button class="wq-initial" type="button" data-info="microbial">Update</button>
+                                            <textarea class="data-textarea" id="wq-initial-microbial" style="height:80px; min-height:80px;"></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="field">
+                                            <label>Intergration method</label>
+                                            <select id="wq-scheme-microbial" style="width: 100%; min-width: 100%;">
+                                                <option value="15" selected>Scheme 15</option>
+                                                <option value="22">Scheme 22</option>
+                                            </select>
+                                        </div>
+                                        <div class="field">
+                                            <label>Max iter.</label><input type="text" id="max-iterations-microbial" value="500">
+                                            <label>Tolerance</label><input type="text" id="tolerance-microbial" value="1E-07" style="margin-right: 10px;">
+                                        </div>
+                                    </div>
+                                    <div class="row" style="justify-content: center;">
+                                        <button class="wq-simulation" type="button" data-info="microbial" style="flex:0 0 auto; width:200px;">Run model</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+    <script src="/static_frontend/js/tooltipManager.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script>
+        flatpickr(".datetime", {
+        enableTime: true, enableSeconds: true,
+        dateFormat: "Y-m-d H:i:S", time_24hr: true});
+    </script>
+    <!-- Load the newest version of the script -->
+    <script type="module">
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = `/static_frontend/js/projectWQCreator.js?v=${Date.now()}`;
+        document.body.appendChild(script);
+    </script>
+</body>
+</html>    

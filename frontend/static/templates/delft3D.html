@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>DigiWater Simulation Platform</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <!-- Third-party libraries -->
+        <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+        <link rel="stylesheet" href="https://unpkg.com/leaflet-compass/dist/leaflet-compass.css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.css">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+        <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+        <!-- My styles -->
+        <link rel="stylesheet" href="/static_frontend/css/temp_style.css?v=001">
+        <link rel="stylesheet" href="/static_frontend/css/temp_menu.css?v=001">
+        <!-- Favicon -->
+        <link rel="icon" type="image/png" href="/static_backend/images/Logo.png">
+    </head>
+    <body>
+        <!-- Add the header -->
+        <header class="header">
+            <nav class="nav">
+                <ul class="nav-left">
+                    <li><a class="menu" data-info="0|projectMenu.html" id="projectMenu">Project Management</a></li>
+                    <li style="border-left:3px solid #d5d4dd; margin-left:5px; padding-left:5px;">
+                        <a class="menu" data-info="1|generalOptions.html" id="generalMenu">General Options</a>
+                    </li>
+                    <li><a class="menu" data-info="2|timeSeries.html" id="timeSeriesMenu">Time-series Measurements</a></li>
+                    <li><a class="menu" data-info="3|spatialMap.html" id="spatialMenu">Spatial Map</a></li>
+                </ul>
+                <ul class="nav-middle">
+                    <span id="projectTitle"></span>
+                </ul>
+                <ul class="nav-right">
+                    <li class="search-box">
+                        <label for="search"><i class="fa fa-search"></i></label>
+                        <input type="text" id="search" placeholder="Search..." />
+                        <div id="suggestions" class="suggestions" style="display:none;"></div>
+                    </li>
+                    <li><a data-info="home" id="homeMenu">Home</a></li>
+                    <li><a data-info="help" id="helpMenu">Help</a></li>
+                </ul>
+            </nav>
+        </header>
+        <!-- Add a popup menu -->
+        <div class="popup-menu" id="popup-menu">
+            <div id="popup-content"></div>
+        </div>
+        <!-- Add the control for the map -->
+        <div id="right-side-controls">
+            <!-- Add base map button and compass on one row -->
+            <button type="button" id="custom_compass_btn">
+                <img src="/static_backend/images/compass.png?v=2"alt="Compass">
+            </button>
+            <!-- Add a popup menu for base map -->
+            <div class="basemap-container">
+                <button type="button" id="custom_map_background_btn">
+                    <img src="/static_backend/images/basemap.png?v=3" alt="Basemap">
+                </button>
+                <div id="basemap-popup">
+                    <div><strong>Select Base Map</strong></div>
+                    <button class="basemap-option" data-url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png">Open Street Map</button>
+                    <button class="basemap-option" data-url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}">Satellite</button>
+                    <button class="basemap-option" data-url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}">Street</button>
+                    <button class="basemap-option" data-url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png">Carto Light</button>
+                    <button class="basemap-option" data-url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png">Carto Dark</button>
+                </div>
+            </div>
+            <!--Add Color Legend-->
+            <div id="colorbar-container">
+                <div id="custom-colorbar">
+                    <div class="colorbar-wrapper">
+                        <div class="colorbar-title" id="colorbar-title">Legend</div>
+                        <div class="colorbar-gradient" id="colorbar-gradient"></div>
+                        <div class="colorbar-labels" id="colorbar-labels">
+                            <div></div> <!-- max -->
+                            <div></div> <!-- 75% -->
+                            <div></div> <!-- 50% -->
+                            <div></div> <!-- 25% -->
+                            <div></div> <!-- min -->
+                        </div>
+                    </div>
+                </div>
+                <div id="custom-colorbar-vector">
+                    <div class="colorbar-wrapper">
+                        <div class="colorbar-title" id="colorbar-title-vector">Legend</div>
+                        <div class="colorbar-gradient" id="colorbar-gradient-vector"></div>
+                        <div class="colorbar-labels" id="colorbar-labels-vector">
+                            <div></div> <!-- max -->
+                            <div></div> <!-- 75% -->
+                            <div></div> <!-- 50% -->
+                            <div></div> <!-- 25% -->
+                            <div></div> <!-- min -->
+                        </div>
+                    </div>
+                    <div id="custom-colorbar-scaler">Scaler</div>
+                </div>
+            </div>
+        </div>
+        <!-- Add the map -->
+        <div id="map_container">
+            <div id="leaflet_map"></div>
+            <!-- Add time slider -->
+            <div id="time-controls">
+                <label for="time-slider-speed">Speed:</label>
+                <select id="time-slider-speed" style="width: 70px; padding: 3px;">
+                    <option value="0.5">-2x</option>
+                    <option value="1" selected>1x</option>
+                    <option value="2">+2x</option>
+                    <option value="5">+5x</option>
+                </select>
+                <button id="play-btn">▶ Play</button>
+                <div id="time-slider"></div>
+                <!-- <button id="export-video-btn">💾 Export Video</button>
+                <div id="export-progress-container" style="display:none; margin-top:10px; width: 100%;">
+                <div id="export-progress-bar" style="width: 0%; height: 8px; background: limegreen;
+                    border-radius: 4px; transition: width 0.2s ease;"></div>
+                </div> -->
+            </div>
+            <div id="loadingOverlay">
+                <div class="loading-text">Processing Data. Please wait...</div>
+                <div class="spinner"></div>
+            </div>
+        </div>
+        <!-- Add a floating window for project summary -->
+        <div id="summaryWindow">
+            <div id="summaryHeader">Project Summary<span id="closeSummaryOption">×</span></div>
+            <div id="summaryContent"></div>
+        </div>
+        <!-- Add a floating window for contact information -->
+        <div id="informationContact">
+            <div id="informationContactHeader">Contact Information<span id="closeInformationContact">×</span></div>
+            <div id="informationContactContent"></div>
+        </div>
+        <!-- Add a floating window for open project -->
+        <div id="project-open-window">
+            <div id="project-open-window-header">Open Project<span id="project-open-window-close">×</span></div>
+            <div id="project-open-window-content"></div>
+        </div>
+        <!-- Add a floating window for substance selector -->
+        <div id="substance-window">
+            <div id="substance-window-header">Substance<span id="substance-window-close">×</span></div>
+            <div id="substance-window-content"></div>
+        </div>
+        <!-- Add a floating window for new hydrological model -->
+        <div id="projectWindow">
+            <div id="projectWindowHeader">Project Setup<span id="closeProjectWindow">×</span></div>
+            <div id="projectWindowContent"></div>
+        </div>
+        <!-- Add a floating window for running a hydrodynamic simulation -->
+        <div id="simulationWindow">
+            <div id="simulationWindowHeader">Run Hydrodynamic Simulation<span id="closeSimulationWindow">×</span></div>
+            <div id="simulationWindowContent"></div>
+        </div>
+        <!-- Add a floating window for running a water quality simulation -->
+        <div id="waqWindow">
+            <div id="waqWindowHeader">Water Quality Simulation Progress<span id="closeWAQWindow">×</span></div>
+            <div id="waqWindowContent">
+                <div class="progress-container">
+                    <progress id="progressbar" value="0" max="100" style="width:100%; height:10px;"></progress>
+                    <span id="progress-text" style="align-items:center; margin-top: 10px;"></span>
+                </div>
+            </div>
+        </div>
+        <!-- Add a floating window for drawing a profile -->
+        <div id="profileWindow">
+            <div id="profileWindowHeader">Dynamic Profile<span id="closeProfileWindow">×</span></div>
+            <div id="profileWindowContent" style="display: flex; flex-direction: column; height: 95%; background-color: #fff;">
+                <div id="chartDiv" style="flex: 1; min-height: 300px; height: 100%;"></div>
+                <div id="timeSliderContainer" style="display: flex; flex-direction: column; align-items: center; 
+                    padding: 5px 15px; background-color: #a39e9eff;">
+                    <!-- Slider -->
+                    <input id="timeSlider" type="range" min="0" max="100" step="1" value="0"
+                        style="width: 100%; cursor: pointer; margin-bottom: 4px;">
+                    <div id="timeLabelsRow" style="display: flex; justify-content: space-between; width: 100%; font-size: 13px; color: #000;">
+                        <span id="timeLabelStart" style="text-align: left;">Start: --</span>
+                        <span id="timeLabel" style="text-align: center; font-weight: bold; color: #000;">Time: --</span>
+                        <span id="timeLabelEnd" style="text-align: right;">End: --</span>
+                    </div>
+                </div>
+                <div id="profileControls">
+                    <label style="margin-left: 5px;">Duration:</label>
+                    <select id="chartDurationValue" style="width: 80px;">
+                        <option value="0.1">0.1 s</option>
+                        <option value="0.2" selected>0.2 s</option>
+                        <option value="0.5">0.5 s</option>
+                        <option value="1.0">1.0 s</option>
+                    </select>
+                    <label id="chart-min-label">Min:</label><input type="text" id="chartMinValue" style="text-align: center;" readonly>
+                    <label id="chart-max-label">Max:</label><input type="text" id="chartMaxValue" style="text-align: center;" readonly>
+                    <label for="chartColorCombo" id="chartColorComboLabel" style="margin-left: 30px;">Colors:</label>
+                    <select id="chartColorCombo" style="width: 100px;">
+                        <option value="5">5 colors</option>
+                        <option value="10" selected>10 colors</option>
+                        <option value="15">15 colors</option>
+                        <option value="20">20 colors</option>
+                    </select>
+                    <button id="chartPlayPauseBtn">▶ Play</button>
+                </div>
+            </div>
+        </div>
+        <!-- Add a floating plot window -->
+        <div id="plotWindow">
+            <div id="plotHeader"><span id="plotTitle">Plot Window</span><span id="closePlotBtn">×</span></div>
+            <div class="plot-controls">
+                <label for="select-object" style="margin-left: 30px;">Select:</label>
+                 <div class="select-object" id="select-object">
+                    <div class="select-box">
+                        <span class="label-text">Select one or more options</span>
+                        <span class="arrow">▼</span>
+                    </div>
+                    <div class="checkbox-list"></div>
+                </div>
+                <button type="button" id="viewDataBtn">View Data</button>
+                <button type="button" id="downloadExcel">Download Excel</button>
+            </div>
+            <div id="plotContainer">
+                <div id="myChart"></div>
+            </div>
+        </div>
+        <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+        <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+        <script src="https://unpkg.com/leaflet-compass/dist/leaflet-compass.min.js"></script>
+        <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+        <script src="https://cdn.plot.ly/plotly-2.26.1.min.js"></script>
+        <script src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/gh/antimatter15/whammy/whammy.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+        <!-- Load the newest version of the script -->
+        <script>
+            const script_tooltip = document.createElement('script');
+            script_tooltip.src=`/static_frontend/js/tooltipManager.js?v=${Date.now()}`;
+            document.body.appendChild(script_tooltip);
+        </script>
+        <script type="module">
+            const script = document.createElement('script');
+            script.type = 'module';
+            script.src = `/static_frontend/js/uiManager.js?v=${Date.now()}`;
+            document.body.appendChild(script);
+        </script>
+    </body>
+</html>

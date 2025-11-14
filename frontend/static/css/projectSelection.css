@@ -1,0 +1,50 @@
+body, html {
+    font-family: Arial, sans-serif; color: white; margin: 0; padding: 0; height: 100%;
+    background: linear-gradient(to bottom right, #004080, #66b2ff);
+}
+body { display: flex; align-items: stretch; justify-content: stretch;}
+.container {
+    padding: 10px; flex: 1; display: flex; flex-direction: column;
+}
+.row {
+    display: flex; align-items: center; margin: 10px;
+    text-align: center; justify-content: center; gap: 20px;
+}
+label { font-size: 15px; }
+.row button{
+    border: none; border-radius: 12px; padding: 10px; color: brown;
+    box-shadow: 0px 4px 12px rgba(0,0,0,0.3); font-weight: bold;
+}
+select {
+    border-radius: 10px; border: none; padding: 8px; cursor: pointer; max-width: 100%;
+}
+fieldset {
+    border: 2px solid rgba(255, 255, 255, 0.7);
+    border-radius: 15px; padding: 10px; margin-bottom: 25px;
+    box-shadow: 0px 4px 15px rgba(0,0,0,0.25); transition: 0.3s;
+}
+fieldset:hover { border-color: #fff; box-shadow: 0px 6px 20px rgba(0,0,0,0.4); }
+legend { font-size: 15px; font-weight: bold; padding: 10px; }
+.groupbox select { display: block; width: 100%; max-height: 100%;}
+.input-row { display: flex; align-items: center; gap: 10px; }
+.input-row select { flex: 1;}
+.btn-row { text-align: center; margin-top: auto; padding-bottom: 10px;}
+#button {
+    padding: 8px; border: none; border-radius: 10px; width: 150px;
+    color: rgb(10, 10, 10); cursor: pointer; transition: all 0.3s ease;
+    box-shadow: 0px 4px 12px rgba(0,0,0,0.3); font-weight: bold;
+}
+#button:hover, .row button:hover { transform: scale(1.05);
+    box-shadow: 0px 6px 18px rgba(0,0,0,0.4);
+}
+.checkbox-list {
+    flex: 1; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 10px; border-radius: 8px; max-height: 140px; box-sizing: border-box;
+}
+.checkbox-list label { display: block; padding: 5px; cursor: pointer; margin-bottom: 10px;} 
+.checkbox-list::-webkit-scrollbar { width: 8px; }
+.checkbox-list::-webkit-scrollbar-thumb { 
+    background-color: rgba(0, 0, 0, 0.3); border-radius: 4px;
+}
+input[type="checkbox"], input[type="radio"] { accent-color: #0331af; cursor: pointer; }
+input[type="checkbox"]:checked, input[type="radio"]:checked { background-color: #0331af; border-color: #0331af; }

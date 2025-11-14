@@ -1,0 +1,9 @@
+[forcing]
+Name                            = {sub_boundary}
+Function                        = timeseries
+Time-interpolation              = linear
+Quantity                        = time
+Unit                            = seconds since {ref_date}
+Quantity                        = {boundary_type}
+Unit                            = {unit}
+{data}

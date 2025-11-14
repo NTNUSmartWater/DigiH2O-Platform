@@ -1,0 +1,63 @@
+<a id="projectSummaryOption">Project Summary</a>
+<!-- Point Options -->
+<div class="menu">
+    <a class="menu-link">Observation Points<span class="arrow">&#x25B8;</span></a>
+    <div class="submenu">
+        <label class="submenu-label {% if not configuration.hyd_obs %}hidden{% endif %}">
+            <input type="checkbox" id="hyd-obs-checkbox">Hydrodynamic Observations
+        </label>
+        <label class="submenu-label {% if not configuration.sources %}hidden{% endif %}">
+            <input type="checkbox" id="source-checkbox">Sources/Sinks Observations
+        </label>
+        <label class="submenu-label {% if not configuration.wq_obs %}hidden{% endif %}">
+            <input type="checkbox" id="waq-obs-checkbox">Water Quality Observations
+        </label>
+        <label class="submenu-label {% if not configuration.wq_loads %}hidden{% endif %}">
+            <input type="checkbox" id="waq-loads-checkbox">Loads Observations
+        </label>
+    </div>
+</div>
+<!-- Profile Options -->
+<div class="menu">
+    <a class="menu-link">Observation Path<span class="arrow">&#x25B8;</span></a>
+    <div class="submenu">
+        <label class="submenu-label {% if not configuration.cross_sections %}hidden{% endif %}">
+            <input type="checkbox" id="cross-section-checkbox">Cross-Sections
+        </label>
+        <!-- Path Query -->
+        <label class="submenu-label">
+            <input type="checkbox" id="path-query-checkbox">Profile
+        </label>
+    </div>
+</div>
+<!-- Thermocline -->
+<hr style="border-top: 1px solid #0414f5; margin: 0 5px 0 5px;">
+<div class="menu">
+    <a class="menu-link">Thermocline Chart<span class="arrow">&#x25B8;</span></a>
+    <div class="submenu">
+        <label class="submenu-label thermocline {% if not configuration.thermocline_hyd %}hidden{% endif %}"
+            data-info="thermocline_hyd|temp_multi_dynamic|Thermocline for Hydrodynamic Simulation">• Depth vs. Temperature
+        </label>
+        <div class="submenu-label {% if not configuration.thermocline_waq %}hidden{% endif %}" style="display: block;">
+            <label class="thermocline" 
+                data-info="thermocline_waq||">• Depth vs. Water Quality
+            </label>
+            <div id="thermocline-row" style="display: none;">
+                <span style="margin-left: 5px; font-size: 15px;">Select:</span>
+                <select id="waq-thermocline-selector" style="flex: 1; margin-right: 5px;">
+                    <option value="" disabled selected hidden>- No Selection -</option>
+                </select>
+            </div>
+        </div> 
+        <div class="submenu {% if not (configuration.thermocline_hyd or configuration.thermocline_waq) %}hidden{% endif %}">
+            <hr style="border-top: 1px solid #0414f5; margin: 0 25px 0 25px;">
+            <label class="submenu-label thermocline-clear-grid"> Clear Grid
+            </label>
+        </div>
+    </div>
+</div>
+<!-- Remove Configuration folder -->
+<hr style="border-top: 1px solid #0414f5; margin: 0 5px 0 5px;">
+<div class="menu">
+    <a class="menu-link" id="reset-config">Reset Configuration</a>
+</div>
