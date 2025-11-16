@@ -8,12 +8,9 @@ from starlette.websockets import WebSocketDisconnect
 router = APIRouter()
 processes = {}
 
-def get_log_path(project_name):
-    log_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt")
-    return log_path
 # Utility: append to file log
-def append_log(project_name, text):
-    log_path = get_log_path(project_name)
+def append_log(log_path, text):
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
     with open(log_path, "a", encoding="utf-8", errors="replace") as f:
         f.write(text + "\n")
 
@@ -32,21 +29,20 @@ async def check_sim_status_hyd(request: Request):
     body = await request.json()
     project_name = body.get("projectName")
     info = processes.get(project_name)
+    log_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt")
     if info:
         # Read log file
-        log_path = get_log_path(project_name)
         logs = []
         if os.path.exists(log_path):
             with open(log_path, "r", encoding="utf-8", errors="replace") as f:
                 logs = f.read().splitlines()
-        return JSONResponse({ "status": info["status"],
-            "progress": info["progress"], "logs": logs[-4000:] })
+        return JSONResponse({ "status": info["status"], "progress": info["progress"], "logs": logs})
     # Simulation not in memory → check if log exists → means finished earlier
-    log_path = get_log_path(project_name)
     if os.path.exists(log_path):
+        logs = []
         with open(log_path, "r", encoding="utf-8", errors="replace") as f:
             logs = f.read().splitlines()
-        return JSONResponse({ "status": "finished", "progress": 100, "logs": logs[-4000:] })
+        return JSONResponse({ "status": "finished", "progress": 100, "logs": logs })
     return JSONResponse({"status": "none", "progress": 0, "logs": []})
 
 # Start a hydrodynamic simulation
@@ -63,7 +59,7 @@ async def start_sim_hyd(request: Request):
     if not os.path.exists(bat_path) or not os.path.exists(mdu_path):
         return JSONResponse({"status": "error", "message": "Executable or MDU file not found."})
     # Remove old log
-    log_path = get_log_path(project_name)
+    log_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt")
     if os.path.exists(log_path): os.remove(log_path)
     # Run the process
     command = [bat_path, "--autostartstop", mdu_path]
@@ -81,11 +77,11 @@ async def start_sim_hyd(request: Request):
             for line in process.stdout:
                 line = line.strip()
                 if not line: continue
-                append_log(project_name, line)
+                append_log(log_path, line)
                 # Catch error messages
                 if "forrtl:" in line.lower():
                     processes[project_name]["status"] = "error"
-                    append_log(project_name, f"[ERROR] {line}")
+                    append_log(log_path, f"[ERROR] {line}")
                     try: process.kill()
                     except: pass
                     break
@@ -108,9 +104,9 @@ async def start_sim_hyd(request: Request):
                 try:
                     post_result = functions.postProcess(path)
                     msg = f"[FINISHED] {post_result['message']}" if post_result["status"] == "ok" else f"[ERROR] {post_result['message']}"
-                    append_log(project_name, msg)
-                except Exception as e: append_log(project_name, f"[POSTPROCESS FAILED] {str(e)}")
-            append_log(project_name, "[CLEANUP] Done.")
+                    append_log(log_path, msg)
+                except Exception as e: append_log(log_path, f"[POSTPROCESS FAILED] {str(e)}")
+            append_log(log_path, "[CLEANUP] Done.")
             processes[project_name]["progress"] = 100.0
     threading.Thread(target=stream_logs, daemon=True).start()
     return JSONResponse({"status": "ok", "message":  f"Simulation {project_name} started."})
@@ -118,7 +114,7 @@ async def start_sim_hyd(request: Request):
 @router.websocket("/sim_progress_hyd/{project_name}")
 async def sim_progress_hyd(websocket: WebSocket, project_name: str):
     await websocket.accept()
-    log_path = get_log_path(project_name)
+    log_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt")
     last_pos = 0
     try:
         while True:
