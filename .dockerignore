@@ -1,0 +1,30 @@
+# IDE / editor
+.vscode/
+.idea/
+
+# Python cache / bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Test / notebook / logs
+*.ipynb
+*.log
+*.geojson
+*.csv
+
+# Git
+.git/
+.gitignore
+
+# Docker files if rebuild
+docker-compose.override.yml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temp / backup
+*.bak
+*.tmp

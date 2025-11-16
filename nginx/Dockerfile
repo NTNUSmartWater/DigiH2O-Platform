@@ -1,5 +1,3 @@
-# --- nginx/Dockerfile ---
 FROM nginx:alpine
-
 COPY nginx.conf /etc/nginx/nginx.conf
-EXPOSE 80
+COPY ../frontend /usr/share/nginx/html
