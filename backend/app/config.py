@@ -7,10 +7,9 @@ from dotenv import load_dotenv
 # ============== Root directory ================
 load_dotenv()
 BACKEND_DIR = Path(__file__).parent.parent       # backend/
-PROJECT_ROOT = BACKEND_DIR.parent   # DigiH2O-Platform/
-PROJECT_STATIC_ROOT = os.path.join(BACKEND_DIR, "Delft_Projects")
-STATIC_DIR_BACKEND = os.path.join(BACKEND_DIR, "static")
-STATIC_DIR_FRONTEND = os.path.join(PROJECT_ROOT, "frontend", "static")
+PROJECT_STATIC_ROOT = os.getenv("PROJECT_STATIC_ROOT", "/app/Delft_Projects")
+STATIC_DIR_BACKEND = os.getenv("STATIC_DIR_BACKEND", "/app/static")
+STATIC_DIR_FRONTEND = os.getenv("STATIC_DIR_FRONTEND", "/usr/share/nginx/html/static")
 DELFT_PATH = os.getenv("DELFT3D_PATH")
 GRID_PATH = os.getenv('GRID_PATH')
 

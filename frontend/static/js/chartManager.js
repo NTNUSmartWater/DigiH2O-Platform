@@ -4,7 +4,7 @@ import { getState, setState } from "./constants.js";
 import { sendQuery } from "./tableManager.js";
 import { deActivePathQuery, moveWindow } from "./generalOptionManager.js";
 
-let Dragging = false, colorTicks = [], colorTickLabels = [];
+let Dragging = false, colorTicks = [], colorTickLabels = [], animationToken = 0;
 let animating = false, frameIndex = 0, duration, nColors;
 
 export const plotWindow = () => document.getElementById('plotWindow');
@@ -78,18 +78,31 @@ export function plotEvents() {
     closePlotOption().addEventListener('click', () => { 
         plotWindow().style.display = "none"; deActivePathQuery();
     });
-    // Plot Profile
     profileCloseBtn().addEventListener('click', () => { 
-        animating = false; playPauseBtn().textContent = '▶ Play'; frameIndex = 0;
-        Plotly.purge(chartDivProfile());   // Delete frame
+        animating = false; playPauseBtn().textContent = '▶ Play';
+        frameIndex = 0; animationToken++;
+        // 2. Remove Plotly chart safely
+        const div = chartDivProfile();
+        try {
+            if (div && div.data) Plotly.purge(div);
+        } catch(e) { console.warn("Plotly purge error:", e); }
         // Disconnect resize observer
         if (profileWindow()._resizeObserver) {
             profileWindow()._resizeObserver.disconnect(); 
             profileWindow()._resizeObserver = null;
         }
+        // 4. Remove ALL listeners on buttons & sliders
+        removeAllListeners(playPauseBtn()); removeAllListeners(timeSlider());
+        removeAllListeners(durationValue()); removeAllListeners(colorCombo());
         profileWindow().style.display = "none"; deActivePathQuery();
     });
     moveWindow(profileWindow, profileWindowHeader); 
+}
+
+function removeAllListeners(el) {
+    const clone = el.cloneNode(true);
+    el.parentNode.replaceChild(clone, el);
+    return clone;
 }
 
 function updateChart() {
@@ -283,6 +296,8 @@ export function plotProfileSingleLayer(pointContainer, polygonCentroids, title, 
 }
 
 export function plotProfileMultiLayer(key, query, data, title, unit) { 
+    animationToken++;
+    const myToken = animationToken;
     chartDivProfile().style.border = "1px solid #aaa"; 
     chartDivProfile().style.borderRadius = "10px"; 
     chartDivProfile().style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)"; 
@@ -300,9 +315,12 @@ export function plotProfileMultiLayer(key, query, data, title, unit) {
     timeLabel().textContent = `Time: ${timestamps[0]}`;
     // Render plot
     profileWindow()._resizeObserver = renderPlot(chartDivProfile(), distance, depths, 
-            values, local_minmax[0], local_minmax[1], nColors, title, unit); 
+            values, local_minmax[0], local_minmax[1], nColors, title, unit);
+    // Change header title of window
+    profileWindowHeader().childNodes[0].nodeValue = 'Profile Plot';
     // Update a single frame
     async function updateFrame(index) {
+        if (myToken !== animationToken) return;
         const queryContents = { key: key, query: query, idx: index };
         const data = await sendQuery('select_meshes', queryContents);
         if (data.status === "error") { 
@@ -331,11 +349,12 @@ export function plotProfileMultiLayer(key, query, data, title, unit) {
     // === Play / Pause control === 
     async function playAnimation() { 
         duration = parseFloat(durationValue().value)*1000
-        while (animating && frameIndex < timestamps.length) { 
+        while (animating && frameIndex < timestamps.length && myToken === animationToken) { 
             await updateFrame(frameIndex);
             frameIndex++;
             await new Promise(r => setTimeout(r, duration)); 
-        } 
+        }
+        if (myToken !== animationToken) return;
         if (frameIndex >= timestamps.length) { 
             animating = false; playPauseBtn().textContent = '▶ Play'; 
             frameIndex = 0; // Reset index
@@ -445,6 +464,8 @@ function colorbarTicks(min, max, numStops){
 }
 
 export function thermoclinePlotter(data, name, titleX, titleY, chartTitle) {
+    animationToken++;
+    const myToken = animationToken;
     chartDivProfile().style.border = "1px solid #aaa"; 
     chartDivProfile().style.borderRadius = "10px"; 
     chartDivProfile().style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)"; 
@@ -462,9 +483,12 @@ export function thermoclinePlotter(data, name, titleX, titleY, chartTitle) {
     timeLabel().textContent = `Time: ${timestamps[0]}`;
     // Render plot
     profileWindow()._resizeObserver = renderThermocline(chartDivProfile(), depths, values, 
-        name, titleX, titleY, chartTitle); 
+        name, titleX, titleY, chartTitle);
+    // Change header title of window
+    profileWindowHeader().childNodes[0].nodeValue = 'Thermocline Plot';
     // Update a single frame
     async function updateFrame(index) {
+        if (myToken !== animationToken) return;
         const queryContents = { idx: index, type: 'thermocline_update' };
         const updateData = await sendQuery('select_thermocline', queryContents);
         if (updateData.status === "error") { 
@@ -480,11 +504,12 @@ export function thermoclinePlotter(data, name, titleX, titleY, chartTitle) {
     // === Play / Pause control === 
     async function playAnimation() { 
         duration = parseFloat(durationValue().value)*1000
-        while (animating && frameIndex < timestamps.length) { 
+        while (animating && frameIndex < timestamps.length && myToken === animationToken) {
             await updateFrame(frameIndex);
             frameIndex++;
             await new Promise(r => setTimeout(r, duration)); 
-        } 
+        }
+        if (myToken !== animationToken) return;
         if (frameIndex >= timestamps.length) { 
             animating = false; playPauseBtn().textContent = '▶ Play'; 
             frameIndex = 0; // Reset index

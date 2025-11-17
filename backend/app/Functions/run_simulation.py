@@ -8,6 +8,12 @@ from starlette.websockets import WebSocketDisconnect
 router = APIRouter()
 processes = {}
 
+# Utility: append to file log
+def append_log(log_path, text):
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    with open(log_path, "a", encoding="utf-8", errors="replace") as f:
+        f.write(text + "\n")
+
 @router.post("/check_folder")
 async def check_folder(request: Request):
     body = await request.json()
@@ -23,9 +29,20 @@ async def check_sim_status_hyd(request: Request):
     body = await request.json()
     project_name = body.get("projectName")
     info = processes.get(project_name)
+    log_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt")
     if info:
-        return JSONResponse({ "status": "running" if info["status"] == "running" else "finished",
-            "progress": info["progress"], "logs": info["logs"] })
+        # Read log file
+        logs = []
+        if os.path.exists(log_path):
+            with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+                logs = f.read().splitlines()
+        return JSONResponse({ "status": info["status"], "progress": info["progress"], "logs": logs})
+    # Simulation not in memory → check if log exists → means finished earlier
+    if os.path.exists(log_path):
+        logs = []
+        with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+            logs = f.read().splitlines()
+        return JSONResponse({ "status": "finished", "progress": 100, "logs": logs })
     return JSONResponse({"status": "none", "progress": 0, "logs": []})
 
 # Start a hydrodynamic simulation
@@ -37,24 +54,22 @@ async def start_sim_hyd(request: Request):
     if project_name in processes and processes[project_name]["status"] == "running":
         return JSONResponse({"status": "error", "message": "Simulation is already running."})
     path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
-    bat_path = os.path.normpath(os.path.join(DELFT_PATH, "dflowfm/scripts/run_dflowfm.bat"))
     mdu_path = os.path.join(path, "FlowFM.mdu")
+    bat_path = os.path.join(DELFT_PATH, "dflowfm/scripts/run_dflowfm.bat")
     if not os.path.exists(bat_path) or not os.path.exists(mdu_path):
         return JSONResponse({"status": "error", "message": "Executable or MDU file not found."})
-    command = [bat_path, "--autostartstop", mdu_path]
+    # Remove old log
+    log_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt")
+    if os.path.exists(log_path): os.remove(log_path)
     # Run the process
+    command = [bat_path, "--autostartstop", mdu_path]
     process = subprocess.Popen(
-        command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8",
-        errors="replace", text=True, shell=True, bufsize=1, cwd=path
+        command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        encoding="utf-8", errors="replace", bufsize=1, cwd=path
     )
-    processes[project_name] = {"process": process, "progress": 0, "logs": [], "status": "running"}
-    def safe_append(project, text):
-        """Helper function to safely append logs."""
-        if project in processes:
-            logs = processes[project]["logs"]
-            logs.append(text)
-            if len(logs) > 4000:
-                processes[project]["logs"] = logs[-4000:]
+    processes[project_name] = {"process": process, "progress": 0.0, 
+        "real_time_used": "N/A", "real_time_left": "N/A", "logs": [], "status": "running"}
+    # Stream logs
     def stream_logs():
         percent_re = re.compile(r'(?P<percent>\d{1,3}(?:\.\d+)?)\s*%')
         time_re = re.compile(r'(?P<tt>\d+d\s+\d{1,2}:\d{2}:\d{2})')
@@ -62,19 +77,18 @@ async def start_sim_hyd(request: Request):
             for line in process.stdout:
                 line = line.strip()
                 if not line: continue
-                if project_name not in processes:
-                    break  # Project was removed externally
-                safe_append(project_name, line)
+                append_log(log_path, line)
                 # Catch error messages
                 if "forrtl:" in line.lower():
-                    safe_append(project_name, f"[ERROR] {line}")
                     processes[project_name]["status"] = "error"
+                    append_log(log_path, f"[ERROR] {line}")
                     try: process.kill()
                     except: pass
                     break
                 # Check for progress
                 match_pct = percent_re.search(line)
                 if match_pct: processes[project_name]["progress"] = float(match_pct.group("percent"))
+                # Extract run time
                 times = time_re.findall(line)
                 if len(times) >= 4:
                     processes[project_name]["real_time_used"] = times[2]
@@ -84,52 +98,41 @@ async def start_sim_hyd(request: Request):
                     processes[project_name]["real_time_left"] = times[2]
         finally:
             process.wait()
-            if project_name not in processes:
-                return  # Project removed during execution
             status = processes[project_name]["status"]
             if status != "error":
                 processes[project_name]["status"] = "finished"
                 try:
                     post_result = functions.postProcess(path)
                     msg = f"[FINISHED] {post_result['message']}" if post_result["status"] == "ok" else f"[ERROR] {post_result['message']}"
-                    safe_append(project_name, msg)
-                except Exception as e: safe_append(project_name, f"[POSTPROCESS FAILED] {str(e)}")
-             # Clean up safely
-            if project_name in processes:
-                processes[project_name]["progress"] = 100
-                safe_append(project_name, "[CLEANUP] Done.")
+                    append_log(log_path, msg)
+                except Exception as e: append_log(log_path, f"[POSTPROCESS FAILED] {str(e)}")
+            append_log(log_path, "[CLEANUP] Done.")
+            processes[project_name]["progress"] = 100.0
     threading.Thread(target=stream_logs, daemon=True).start()
     return JSONResponse({"status": "ok", "message":  f"Simulation {project_name} started."})
 
 @router.websocket("/sim_progress_hyd/{project_name}")
 async def sim_progress_hyd(websocket: WebSocket, project_name: str):
     await websocket.accept()
+    log_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt")
+    last_pos = 0
     try:
-        last_log, last_progress = 0, None
         while True:
             info = processes.get(project_name)
             if not info:
-                await websocket.send_text("[ERROR] No such simulation.")
+                await websocket.send_text("[ERROR] Simulation not running.")
                 break
-            logs = info["logs"]
             # Send new logs to the client
-            while last_log < len(logs):
-                msg = logs[last_log]
-                await websocket.send_text(msg[:4000])  # Limit message size
-                last_log += 1
+            if os.path.exists(log_path):
+                with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+                    f.seek(last_pos)
+                    for line in f:
+                        await websocket.send_text(line.strip())
+                    last_pos = f.tell()
             # Send progress to the client if it has changed
-            if info["progress"] != last_progress:
-                last_progress = info["progress"]
-                real_used = info.get("real_time_used", "N/A")
-                real_left = info.get("real_time_left", "N/A")
-                await websocket.send_text(f"[PROGRESS] {last_progress:.2f}|{real_used}|{real_left}")
+            await websocket.send_text(f"[PROGRESS] {info['progress']:.2f}|{info['real_time_used']}|{info['real_time_left']}")
             if info["status"] != "running":
                 await websocket.send_text(f"[FINISHED] Simulation {info['status']}.")
                 break
             await asyncio.sleep(1)
     except WebSocketDisconnect: pass
-    finally:
-        # Clean up if the simulation is finished
-        if project_name in processes and processes[project_name]["status"] != "running":
-            del processes[project_name]
-            

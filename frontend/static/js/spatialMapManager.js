@@ -4,7 +4,6 @@ import { map } from './mapManager.js';
 import { initOptions } from './utils.js';
 import { setState, getState } from './constants.js';
 import { sendQuery } from './tableManager.js';
-import { profileWindow, profileCloseBtn } from "./chartManager.js";
 
 export const layerSelector = () => document.getElementById("layer-selector");
 const vectorSelector = () => document.getElementById("vector-selector");
@@ -33,7 +32,7 @@ export async function spatialMapManager() {
     await initOptions(layerSelector, 'layer_hyd');
     await initOptions(vectorSelector, 'vector');
     await initOptions(sigmaSelector, 'sigma_waq');
-    checkVectorComponents();
+    await checkVectorComponents();
     setState({layerSelected: layerSelector().value});
     setState({vectorSelected: vectorSelector().value});
     setState({sigmaSelected: sigmaSelector().value});
@@ -94,23 +93,7 @@ export async function spatialMapManager() {
     });
 
     // Listen to substance selection
-    substanceWindowContent().addEventListener('change', (e) => {
-        if (e.target && e.target.name === "waq-substance") {
-            const [value, type] = e.target.value.split('|');
-            const label = e.target.closest('label');
-            colorbarTitle = label ? label.textContent.trim() : value;
-            const sigma = getState().sigma;
-            if (type === 'single') {
-                newKey = `${value}_waq_single_dynamic`; newQuery = `mesh2d_2d_${value}|${sigma.value}`;
-            } else {
-                if (profileWindow().style.display !== 'none') {profileCloseBtn().click();}
-                newKey = `${value}_waq_multi_dynamic`; newQuery = `mesh2d_${value}|${sigma.value}`;
-                colorbarTitle = sigma.value==='-1' ? `${colorbarTitle}\nLayer: ${sigma.selectedOptions[0].text}`
-                    : `${colorbarTitle}\n${sigma.selectedOptions[0].text}`;
-            }
-            plot2DMapDynamic(true, newQuery, newKey, colorbarTitle, '');
-        }
-    });
+    substanceWindowContent().addEventListener('change', handleSubstanceChange);
     // Select static map
     document.querySelectorAll('.map2D_static').forEach(plot => {
         plot.addEventListener('click', () => {
@@ -126,4 +109,23 @@ export async function spatialMapManager() {
         colorbar_vector_container().style.display = 'none';
         document.getElementById('substance-window').style.display = 'none';
     });
+}
+
+
+function handleSubstanceChange(e) {
+    if (e.target && e.target.name === "waq-substance") {
+        const [value, type] = e.target.value.split('|');
+        const label = e.target.closest('label');
+        let colorbarTitle = label ? label.textContent.trim() : value;
+        const sigma = getState().sigma;
+        if (type === 'single') {
+            newKey = `${value}_waq_single_dynamic`; newQuery = `mesh2d_2d_${value}|${sigma.value}`;
+        } else {
+            newKey = `${value}_waq_multi_dynamic`; newQuery = `mesh2d_${value}|${sigma.value}`;
+            colorbarTitle = sigma.value==='-1'
+                ? `${colorbarTitle}\nLayer: ${sigma.selectedOptions[0].text}`
+                : `${colorbarTitle}\n${sigma.selectedOptions[0].text}`;
+        }
+        plot2DMapDynamic(true, newQuery, newKey, colorbarTitle, '');
+    }
 }
