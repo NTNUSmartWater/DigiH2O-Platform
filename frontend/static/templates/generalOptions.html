@@ -35,12 +35,11 @@
 <div class="menu">
     <a class="menu-link">Thermocline Chart<span class="arrow">&#x25B8;</span></a>
     <div class="submenu">
-        <label class="submenu-label thermocline {% if not configuration.thermocline_hyd %}hidden{% endif %}"
-            data-info="thermocline_hyd|temp_multi_dynamic|Thermocline for Hydrodynamic Simulation">• Depth vs. Temperature
+        <label id="hyd-thermocline-selector"
+            class="submenu-label {% if not configuration.thermocline_hyd %}hidden{% endif %}">• Depth vs. Temperature
         </label>
         <div class="submenu-label {% if not configuration.thermocline_waq %}hidden{% endif %}" style="display: block;">
-            <label class="thermocline" 
-                data-info="thermocline_waq||">• Depth vs. Water Quality
+            <label id="waq-thermocline" class="thermocline">• Depth vs. Water Quality
             </label>
             <div id="thermocline-row" style="display: none;">
                 <span style="margin-left: 5px; font-size: 15px;">Select:</span>
@@ -49,9 +48,9 @@
                 </select>
             </div>
         </div> 
-        <div class="submenu {% if not (configuration.thermocline_hyd or configuration.thermocline_waq) %}hidden{% endif %}">
+        <div class="thermocline-clear {% if not (configuration.thermocline_hyd or configuration.thermocline_waq) %}hidden{% endif %}">
             <hr style="border-top: 1px solid #0414f5; margin: 0 25px 0 25px;">
-            <label class="submenu-label thermocline-clear-grid"> Clear Grid
+            <label class="submenu-label thermocline-clear-grid"> Clear Thermocline Grid
             </label>
         </div>
     </div>

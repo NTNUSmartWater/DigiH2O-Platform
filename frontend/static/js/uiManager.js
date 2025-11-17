@@ -137,6 +137,9 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
     objWindow.style.display = 'flex';
 }
 
+iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
+                    projectOpenWindowContent(), "Select Project with Simulation Result(s)");
+
 function updateEvents() {
     // Search locations
     locationSearcher().addEventListener('input', (e) => {
@@ -408,7 +411,8 @@ function updateEvents() {
         if (event.data?.type === 'thermoclineGrid') {
             startLoading(event.data.message);
             const key = event.data.key, query = event.data.query;
-            const titleX = event.data.titleX, chartTitle = event.data.chartTitle;
+            const titleX = event.data.titleX, titleY = event.data.titleY;
+            const chartTitle = event.data.chartTitle;
             const data = await sendQuery('select_thermocline', {key: key, 
                 query: query, type: 'thermocline_grid'});
             if (data.status === "error") {alert(data.message); return;}
@@ -445,7 +449,7 @@ function updateEvents() {
                                             query: query, idx: index, type: 'thermocline_init'});
                                         layer.closePopup(); setState({isThemocline: false});
                                         if (initData.status === "error") { alert(initData.message); return; }
-                                        thermoclinePlotter(initData.content, newName, titleX, 'Depth (m)', chartTitle);
+                                        thermoclinePlotter(initData.content, newName, titleX, titleY, chartTitle);
                                     } else { alert('Please enter a name.'); return; }
                                 });
                             }

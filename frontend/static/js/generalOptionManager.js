@@ -17,6 +17,8 @@ const waqObsStation = () => document.getElementById("waq-obs-checkbox");
 const waqLoadsStation = () => document.getElementById("waq-loads-checkbox");
 const pathQuery = () => document.getElementById("path-query-checkbox");
 const mapContainer = () => map.getContainer();
+const thermoclineHYD = () => document.getElementById('hyd-thermocline-selector');
+const waqSelector = () => document.getElementById('waq-thermocline');
 const thermoclineWAQ = () => document.getElementById('waq-thermocline-selector');
 const configReset = () => document.getElementById('reset-config');
 
@@ -36,8 +38,7 @@ function checkUpdater(setLayer, objCheckbox, checkFunction){
 }
 
 export function generalOptionsManager(){
-    projectSummaryEvents(); thermoclinePlot();
-    updateHYDManager(); updateWAQManager(); updatePathManager();
+    projectSummaryEvents(); updateHYDManager(); updateWAQManager(); updatePathManager();
     document.querySelector('.thermocline-clear-grid').addEventListener('click', () => { 
         window.parent.postMessage({type: 'thermoclineGridClear'}, '*');
     });
@@ -45,15 +46,35 @@ export function generalOptionsManager(){
         const data = sendQuery('reset_config', {});
         alert(data.message); return;
     });
+    // Plot thermocline for hydrodynamic simulation
+    thermoclineHYD().addEventListener('click', () => {
+        const titleX = 'Temperature (°C)', titleY = 'Depth (m)';
+        setState({isThemocline: true}); if (getState().isPathQuery) { deActivePathQuery(); }
+        const chartTitle = 'Thermocline for Hydrodynamic Simulation';
+        const key = 'thermocline_hyd', query = `temp_multi_dynamic`;
+        window.parent.postMessage({type: 'thermoclineGrid', key: key, query: query,
+            titleX: titleX, titleY: titleY, chartTitle: chartTitle, 
+            message: 'Preparing grid for hydrodynamic thermocline plot...'}, '*');
+    })
     // Plot thermocline for water quality
+    waqSelector().addEventListener('click', () => {
+        const item = document.getElementById('thermocline-row');
+        if (item) {
+            item.style.display = item.style.display === 'none' ? 'block' : 'none';
+            // Load water quality data
+            initOptions(thermoclineWAQ, 'thermocline_waq'); return;
+        }
+    })
     thermoclineWAQ().addEventListener('change', () => {
-        const selected = thermoclineWAQ().value;
+        const selected = thermoclineWAQ().value, titleY = 'Sigma (%)';
         if (selected === '') { window.parent.postMessage({type: 'thermoclineGridClear'}, '*'); return; };
+        setState({isThemocline: true}); if (getState().isPathQuery) { deActivePathQuery(); }
         const titleX = thermoclineWAQ().options[thermoclineWAQ().selectedIndex].text;
         const chartTitle = 'Thermocline for Water Quality Simulation';
         const key = 'thermocline_waq', query = `mesh2d_${selected}`;
         window.parent.postMessage({type: 'thermoclineGrid', key: key, query: query,
-            titleX: titleX, chartTitle: chartTitle, message: 'Preparing grid for water quality thermocline plot...'}, '*');
+            titleX: titleX, titleY: titleY, chartTitle: chartTitle, 
+            message: 'Preparing grid for water quality thermocline plot...'}, '*');
     });
 }
 
@@ -387,27 +408,4 @@ async function mapPath(e) {
         }
         setState({isClickedInsideLayer: false}); // Reset clicked inside layer
     }
-}
-
-// ============================ Thermocline Plot ============================
-function thermoclinePlot(){
-    // Set function for plot using Plotly
-    document.querySelectorAll('.thermocline').forEach(plot => {
-        plot.addEventListener('click', async() => {
-            const [key, query, chartTitle] = plot.dataset.info.split('|');
-            setState({isThemocline: true}); 
-            if (getState().isPathQuery) { deActivePathQuery(); }
-            const titleX = key === 'thermocline_hyd' ? 'Temperature (°C)' : 'Water Quality';
-            if (key === 'thermocline_waq') {
-                const item = document.getElementById('thermocline-row');
-                if (item) {
-                    item.style.display = item.style.display === 'none' ? 'block' : 'none';
-                    // Load water quality data
-                    initOptions(thermoclineWAQ, 'thermocline_waq'); return;
-                }
-            }
-            window.parent.postMessage({type: 'thermoclineGrid', key: key, query: query,
-                titleX: titleX, chartTitle: chartTitle, message: 'Preparing grid for hydrodynamic thermocline plot...'}, '*');
-        });
-    });
 }
