@@ -3,10 +3,10 @@
 .idea/
 
 # Python cache / bytecode
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
 
 # Test / notebook / logs
 *.ipynb
@@ -24,7 +24,13 @@ docker-compose.override.yml
 # OS files
 .DS_Store
 Thumbs.db
+Variable_names.txt
+LICENSE
+README.md
 
 # Temp / backup
 *.bak
 *.tmp
+
+# Folder
+backend/Delft_Projects
