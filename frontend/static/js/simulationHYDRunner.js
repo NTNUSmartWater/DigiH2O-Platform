@@ -3,10 +3,11 @@ const runBtn = () => document.getElementById("run-button");
 const progressbar = () => document.getElementById("progressbar");
 const progressText = () => document.getElementById("progress-text");
 const infoArea = () => document.getElementById('textarea');
+const checkboxContainer = () => document.getElementById('checkbox-container');
 const showCheckbox = () => document.getElementById('show-checkbox');
 const textareaWrapper = () => document.getElementById('form-row-textarea');
 
-let ws = null, content = '', currentProject = null, height = 0;
+let ws = null, content = '', currentProject = null, height = 0, isRunning = false;
 
 async function sendQuery(functionName, content){
     const response = await fetch(`/${functionName}`, {
@@ -16,12 +17,25 @@ async function sendQuery(functionName, content){
     return data;
 }
 
+function checkboxUpdate(){
+    const show = showCheckbox().checked;
+    textareaWrapper().style.display = show ? 'block' : 'none';
+    height = show ? 250 : 120;
+    requestAnimationFrame(() => { window.parent.postMessage({ type: 'resize-simulation', height }, '*'); });
+}
+
+
 async function getProjectList(target){
     // Update project
     const data = await sendQuery('select_project', {filename: '', key: 'getProjects', folder_check: 'input'});
-    const options = data.content.map(row => `<option value="${row}">${row}</option>`).join(' ');
+    if (!data || !data.content) {
+        target.innerHTML = `<option value="">--- No projects found ---</option>`; return;
+    }
+    const options = data.content.map(name => `<option value="${name}">${name}</option>`).join('');
     const defaultOption = `<option value="" selected>--- No selected ---</option>`;
     target.innerHTML = defaultOption + options;
+    showCheckbox().checked = false; checkboxUpdate();
+
 }
 
 function statusUpdate(info, barObject, textObject) {
@@ -33,8 +47,8 @@ function statusUpdate(info, barObject, textObject) {
     if (info.startsWith("[PROGRESS]")) {
         // Update progress
         const values = info.replace('[PROGRESS] ', '').trim().split('|');
-        const percent = parseFloat(values[0]), time_used = values[1], time_left = values[2];
-        textObject().innerText = 'Completed: ' + percent + '% [Used: ' + time_used + ' -->  Left: ' + time_left + ']';
+        const percent = parseFloat(values[0] || 0), time_used = values[1] || 'N/A', time_left = values[2] || 'N/A';
+        textObject().innerText = `Completed: ${percent}% [Used: ${time_used} → Left: ${time_left}]`;
         barObject().value = percent;
     }
     if (info.startsWith("[FINISHED]")) textObject().innerText = info.replace('[FINISHED]','');
@@ -43,34 +57,38 @@ function statusUpdate(info, barObject, textObject) {
 
 function updateSelection(){
     getProjectList(projectSelector());
-    showCheckbox().addEventListener('change', () => {
-        if (showCheckbox().checked) { textareaWrapper().style.display = 'block'; height = 250;
-        } else { textareaWrapper().style.display = 'none'; height = 120; }
-        setTimeout(() => { window.parent.postMessage({ type: 'resize-simulation', height }, '*'); }, 10);
-    })
+    showCheckbox().addEventListener('change', checkboxUpdate);
     projectSelector().addEventListener('change', async() => {
         const projectName = projectSelector().value;
-        if (!projectName || projectName === '') {alert('Please select a project.'); return;}
+        if (!projectName) {
+            checkboxContainer().style.display = 'none';
+            progressText().innerText = "No simulation running."; progressbar().value = 0;
+            textareaWrapper().style.display = 'none';
+            alert('Please select a project.'); return;
+        }
+        checkboxContainer().style.display = 'block'; textareaWrapper().style.display = 'block';
         const statusRes = await sendQuery('check_sim_status_hyd', {projectName: projectName});
         if (statusRes.status === "running") {
-            currentProject = projectName;
-            content = statusRes.logs.join("\n");
-            progressText().innerText = `Simulation is running: ${statusRes.progress}%`;
-            progressbar().value = statusRes.progress;
-            // Open websocket connection to get simulation progress
-            ws = new WebSocket(`ws://${window.location.host}/sim_progress_hyd/${projectName}`);
-            ws.onmessage = (event) => {
-                const success = statusUpdate(event.data, progressbar, progressText);
-                if (!success) return;
-            };
+            if (!ws || ws.readyState === WebSocket.CLOSED) {
+                ws = new WebSocket(`ws://${window.location.host}/sim_progress_hyd/${projectName}`);
+                ws.onmessage = (event) => {
+                    if (!event.data.includes("[PROGRESS]")) { content += event.data + '\n';}
+                    infoArea().value = content;
+                    statusUpdate(event.data, progressbar, progressText);
+                };
+            }
+            showCheckbox().checked = true;
         } else {
+            showCheckbox().checked = false;
             progressText().innerText = "No simulation running."; progressbar().value = 0;
         }
+        checkboxUpdate();
     });
     // Run new simulation
     runBtn().addEventListener('click', async () => {
+        if (isRunning) return; isRunning = true;
         const projectName = projectSelector().value;
-        if (!projectName || projectName === '') {alert('Please select a project.'); return;}
+        if (!projectName) {alert('Please select a project.'); return;}
         // Check if simulation is running
         const statusRes = await sendQuery('check_sim_status_hyd', {projectName: projectName});
         if (statusRes.status === "running") {
@@ -78,23 +96,20 @@ function updateSelection(){
         }
         const res = await sendQuery('check_folder', {projectName: projectName, folder: ['output']});
         if (res.status === "ok") {
-            const result = confirm("Output is available in this project." + 
-                "\nRe-run simulation will overwrite the existing output." +
-                "\nDo you want to continue?"
-            );
-            if (!result) return;
+            if (!confirm("Output exists. Re-run will overwrite it. Continue?")) return;
         }
-        const res_check = await sendQuery('start_sim_hyd', {projectName: projectName});
-        if (res_check.status === "error") {alert(res_check.message); return;}
-        currentProject = projectName; content = '';
-        // Run hydrodynamics simulation
-        ws = new WebSocket(`ws://${window.location.host}/sim_progress_hyd/${projectName}`);
+        const start = await sendQuery('start_sim_hyd', {projectName: projectName});
+        if (start.status === "error") {alert(start.message); return;}
+        currentProject = projectName; content = ''; infoArea().value = ''; progressbar().value = 0;
         progressText().innerText = 'Start running hydrodynamic simulation...';
+        // Run hydrodynamics simulation
+        if (ws) ws.close();
+        ws = new WebSocket(`ws://${window.location.host}/sim_progress_hyd/${projectName}`);
         ws.onmessage = (event) => {
             if (!event.data.includes("[PROGRESS]")) { content += event.data + '\n';}
             infoArea().value = content;
-            const success = statusUpdate(event.data, progressbar, progressText);
-            if (!success) return;
+            statusUpdate(event.data, progressbar, progressText);
+            if (event.data.includes("[FINISHED]")) isRunning = false;
         };
     });
 }
