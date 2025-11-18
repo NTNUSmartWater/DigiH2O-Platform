@@ -42,8 +42,8 @@ export function generalOptionsManager(){
     document.querySelector('.thermocline-clear-grid').addEventListener('click', () => { 
         window.parent.postMessage({type: 'thermoclineGridClear'}, '*');
     });
-    configReset().addEventListener('click', () => { 
-        const data = sendQuery('reset_config', {});
+    configReset().addEventListener('click', async() => { 
+        const data = await sendQuery('reset_config', {});
         alert(data.message); return;
     });
     // Plot thermocline for hydrodynamic simulation
