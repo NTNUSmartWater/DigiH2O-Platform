@@ -976,7 +976,7 @@ def contentWriter(project_name: str, filename: str, data: list, content: str, un
         else:
             with open(ext_path, 'w') as f:
                 f.write(f"\n{content}\n")
-        status, message = 'ok', f"Data is saved successfully."
+        status, message = 'ok', f"\n\nData is saved successfully."
     except Exception as e:
         status, message = 'error', f"Error: {str(e)}"
     return status, message

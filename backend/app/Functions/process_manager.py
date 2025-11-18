@@ -128,7 +128,7 @@ async def load_general_dynamic(request: Request):
             data = {'values': list(fmt(arr[int(temp[2]),:]))}
         status, message = 'ok', ''
     except Exception as e:
-        print('/load_dynamic:\n==============')
+        print('/load_general_dynamic:\n==============')
         traceback.print_exc()
         status, message, data = 'error', f"Error: {e}", None
     return JSONResponse({'content': data, 'status': status, 'message': message})
@@ -159,7 +159,7 @@ async def load_vector_dynamic(request: Request):
             data = functions.vectorComputer(data_, value_type, row_idx, int(query))
         status, message = 'ok', ''
     except Exception as e:
-        print('/load_dynamic:\n==============')
+        print('/load_vector_dynamic:\n==============')
         traceback.print_exc()
         status, message, data = 'error', f"Error: {e}", None
     return JSONResponse({'content': data, 'status': status, 'message': message})
@@ -238,6 +238,9 @@ async def select_thermocline(request: Request):
             time_stamps = pd.to_datetime(data_[time_column]).strftime('%Y-%m-%d %H:%M:%S').tolist()
             layer_reverse = request.app.state.layer_reverse_hyd if is_hyd else request.app.state.layer_reverse_waq
             layers_values = [float(v.split(' ')[1]) for k, v in layer_reverse.items() if int(k) >= 0]
+
+            layers_values = [-x for x in layers_values]
+            
             arr = data_[name].values
             # Remove polygons having Nan in all layers
             mask_all_nan = np.isnan(arr).all(axis=(0, col_idx))
