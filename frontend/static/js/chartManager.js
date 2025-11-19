@@ -482,7 +482,7 @@ export function thermoclinePlotter(data, name, titleX, titleY, chartTitle) {
     timeLabelEnd().textContent = `End: ${timestamps[timestamps.length - 1]}`;
     timeLabel().textContent = `Time: ${timestamps[0]}`;
     // Render plot
-    profileWindow()._resizeObserver = renderThermocline(chartDivProfile(), depths, values, 
+    profileWindow()._resizeObserver = renderThermocline(chartDivProfile(), values, depths, 
         name, titleX, titleY, chartTitle);
     // Change header title of window
     profileWindowHeader().childNodes[0].nodeValue = 'Thermocline Plot';
@@ -534,17 +534,16 @@ export function thermoclinePlotter(data, name, titleX, titleY, chartTitle) {
 function renderThermocline(plotDiv, xValues, yValues, legend, xTitle, yTitle, title){
     // === Layout ===
     const layout = { title: { text: title, font: { color: 'black', weight: 'bold', size: 20 } },
-        paper_bgcolor: '#c2bdbdff', plot_bgcolor: '#c2bdbdff',
-        showlegend: true,
+        paper_bgcolor: '#c2bdbdff', plot_bgcolor: '#c2bdbdff', showlegend: true,
         xaxis: {
-            title: {text: xTitle, font: { color: 'black' }}, type: 'category',
-            automargin: true, mirror: true, showgrid: false, tickmode: 'auto',
+            title: {text: xTitle, font: { color: 'black' }, standoff: 10}, type: 'category', zeroline: false,
+            automargin: true, mirror: true, showgrid: false, tickmode: 'auto', ticks: 'outside',
             showline: true, linewidth: 1, linecolor: 'black', tickfont: { color: 'black' }
         },
         yaxis: {
-            title: {text: yTitle, font: { color: 'black' }}, automargin: true,
-            mirror: true, showline: true, linewidth: 1, linecolor: 'black', 
-            showgrid: false, tickfont: { color: 'black' }, tickmode: 'auto'
+            title: {text: yTitle, font: { color: 'black' }}, automargin: true, zeroline: false,
+            mirror: true, showline: true, linewidth: 1, linecolor: 'black', autorange: 'reversed',
+            showgrid: false, tickfont: { color: 'black' }, tickmode: 'auto', ticks: 'outside'
         },
         margin: { l: 70, r: true ? 60 : 20, t: 50, b: 50 }
     };
@@ -553,7 +552,7 @@ function renderThermocline(plotDiv, xValues, yValues, legend, xTitle, yTitle, ti
         modeBarButtonsToRemove: ['lasso2d', 'select2d']
     };
     // === Trace ===
-    const trace = { x: yValues, y: xValues, mode: 'lines',
+    const trace = { x: xValues, y: yValues, mode: 'lines',
         type: 'scatter', line: { color: 'blue', width: 2 }, name: legend
     };
     // === Plot ===
