@@ -533,10 +533,10 @@ def checkCoordinateReferenceSystem(name: str, geometry: gpd.GeoSeries, data_his:
     """
     # Check coordinate reference system
     if 'wgs84' in data_his.variables:
-        crs_code = data_his['wgs84'].attrs.get('EPSG_code', 4326)
+        crs_code = data_his['wgs84'].attrs.get('EPSG_code', 'EPSG:4326')
         result = gpd.GeoDataFrame(data={'name': name, 'geometry': geometry}, crs=crs_code)
     else:
-        crs_code = data_his['projected_coordinate_system'].get('EPSG_code', 4326)
+        crs_code = data_his['projected_coordinate_system'].attrs.get('EPSG_code', 'EPSG:4326')
         result = gpd.GeoDataFrame(data={'name': name, 'geometry': geometry}, crs=crs_code)
         result = result.to_crs(epsg=4326)  # Convert to WGS84 if not already
     return result

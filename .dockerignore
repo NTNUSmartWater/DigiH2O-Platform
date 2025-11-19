@@ -13,6 +13,7 @@
 *.log
 *.geojson
 *.csv
+*.md
 
 # Git
 .git/
@@ -31,6 +32,3 @@ README.md
 # Temp / backup
 *.bak
 *.tmp
-
-# Folder
-backend/Delft_Projects
