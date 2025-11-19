@@ -237,16 +237,18 @@ async def select_thermocline(request: Request):
             time_column = 'time' if is_hyd else 'nTimesDlwq'
             time_stamps = pd.to_datetime(data_[time_column]).strftime('%Y-%m-%d %H:%M:%S').tolist()
             layer_reverse = request.app.state.layer_reverse_hyd if is_hyd else request.app.state.layer_reverse_waq
-            layers_values = [abs(float(v.split(' ')[1])) for k, v in layer_reverse.items() if int(k) >= 0]
+            layers_values = [float(v.split(' ')[1]) for k, v in layer_reverse.items() if int(k) >= 0] 
             arr = data_[name].values
             # Remove polygons having Nan in all layers
             mask_all_nan = np.isnan(arr).all(axis=(0, col_idx))
             arr_filtered = arr[:, ~mask_all_nan, :] if is_hyd else arr[:, :, ~mask_all_nan]
             data_selected = arr_filtered[:, idx, :] if is_hyd else arr_filtered[:, :, idx]
             request.app.state.thermocline_cache = {"data": data_selected}
+            max_values = int(abs(np.min(layers_values)))
+            new_depth = [x + max_values for x in layers_values]
             values = [None if np.isnan(x) else functions.numberFormatter(x) for x in data_selected[0,:]]
             # Get the first frame for the first timestamp
-            data = { "timestamps": time_stamps, "depths": layers_values, "values": values }
+            data = { "timestamps": time_stamps, "depths": new_depth, "values": values }
         elif type_ == 'thermocline_update':
             data_selected = request.app.state.thermocline_cache["data"]
             data = [None if np.isnan(x) else functions.numberFormatter(x) for x in data_selected[int(idx),:]]
