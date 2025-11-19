@@ -237,10 +237,7 @@ async def select_thermocline(request: Request):
             time_column = 'time' if is_hyd else 'nTimesDlwq'
             time_stamps = pd.to_datetime(data_[time_column]).strftime('%Y-%m-%d %H:%M:%S').tolist()
             layer_reverse = request.app.state.layer_reverse_hyd if is_hyd else request.app.state.layer_reverse_waq
-            layers_values = [float(v.split(' ')[1]) for k, v in layer_reverse.items() if int(k) >= 0]
-
-            layers_values = [-x for x in layers_values]
-            
+            layers_values = [abs(float(v.split(' ')[1])) for k, v in layer_reverse.items() if int(k) >= 0]
             arr = data_[name].values
             # Remove polygons having Nan in all layers
             mask_all_nan = np.isnan(arr).all(axis=(0, col_idx))
