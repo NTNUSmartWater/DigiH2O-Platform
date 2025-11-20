@@ -1,9 +1,7 @@
-version: "3.9"
-
 services:
   backend:
     build: ./backend
-    image: vanln/digih2o-platform-backend:latest
+    image: lamvannguyen/digih2o-platform-backend:latest
     container_name: digih2o_backend
     restart: always
     ports:
@@ -14,12 +12,13 @@ services:
       - ./backend/static:/app/static
 
   nginx:
-    build: ./nginx
-    image: vanln/digih2o-platform-nginx:latest
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    image: lamvannguyen/digih2o-platform-nginx:latest
     container_name: digih2o_nginx
     restart: always
     ports:
       - "80:80"
     depends_on:
       - backend
-

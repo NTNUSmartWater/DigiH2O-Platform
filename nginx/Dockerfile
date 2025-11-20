@@ -1,8 +1,9 @@
 FROM nginx:alpine
 WORKDIR /usr/share/nginx/html
-# Remove default nginx static assets
+# Remove default HTML folder
 RUN rm -rf ./*
-# Copy frontend (index.html + assets)
-COPY frontend/ .
-COPY nginx/default.conf /etc/nginx/conf.d/default.conf
+# Copy frontend build
+COPY frontend/ /usr/share/nginx/html/
+# Copy nginx config
+COPY nginx/nginx.conf /etc/nginx/nginx.conf
 EXPOSE 80

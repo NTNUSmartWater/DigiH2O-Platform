@@ -8,8 +8,8 @@ if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
 # Import internally backend modules
-from app.config import STATIC_DIR_BACKEND, STATIC_DIR_FRONTEND, PROJECT_STATIC_ROOT, lifespan
-from app.Functions import route_page, process_manager, wq_process, project_manager, run_simulation
+from config import STATIC_DIR_BACKEND, STATIC_DIR_FRONTEND, PROJECT_STATIC_ROOT, lifespan
+from Functions import route_page, process_manager, wq_process, project_manager, run_simulation
 
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(GZipMiddleware, minimum_size=1000)

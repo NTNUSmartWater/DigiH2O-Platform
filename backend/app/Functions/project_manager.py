@@ -331,7 +331,8 @@ async def init_source(request: Request):
                         if os.path.exists(pli_path): os.remove(pli_path)
                         if os.path.exists(tim_path): os.remove(tim_path)
             with open(path, 'w', encoding="utf-8") as file:
-                file.write(f"\n{'\n\n'.join(parts)}\n")
+                joined_parts = '\n\n'.join(parts)
+                file.write(f"\n{joined_parts}\n")
         status, data, type = 'ok', [], []
         for part in parts:
             if 'QUANTITY=discharge_salinity_temperature_sorsin' in part:

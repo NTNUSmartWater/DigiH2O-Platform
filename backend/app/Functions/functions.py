@@ -972,7 +972,8 @@ def contentWriter(project_name: str, filename: str, data: list, content: str, un
                 parts[index] = content
             else: parts.append(content)
             with open(ext_path, 'w') as file:
-                file.write(f"\n{'\n\n'.join(parts)}\n")
+                joined_parts = '\n\n'.join(parts)
+                file.write(f"\n{joined_parts}\n")
         else:
             with open(ext_path, 'w') as f:
                 f.write(f"\n{content}\n")
