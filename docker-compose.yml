@@ -1,6 +1,8 @@
 services:
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.backend
     image: lamvannguyen/digih2o-platform-backend:latest
     container_name: digih2o_backend
     restart: always
@@ -13,8 +15,8 @@ services:
 
   nginx:
     build:
-      context: .
-      dockerfile: nginx/Dockerfile
+      context: ./nginx
+      dockerfile: Dockerfile.nginx
     image: lamvannguyen/digih2o-platform-nginx:latest
     container_name: digih2o_nginx
     restart: always

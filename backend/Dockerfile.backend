@@ -2,7 +2,7 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 # Copy only backend code first (faster caching)
-COPY requirements.txt ./requirements.txt
+COPY requirements.txt .
 # Install dependencies
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
