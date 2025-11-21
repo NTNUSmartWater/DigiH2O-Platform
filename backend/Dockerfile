@@ -6,6 +6,9 @@ COPY requirements.txt .
 # Install dependencies
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
+# Add user to run the app
+RUN useradd -m lamnguyen
+USER lamnguyen
 # Copy all file in ./backend folder to working directory /app
 COPY . . 
 # Create folder projects (optional)
