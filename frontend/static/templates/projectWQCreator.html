@@ -71,7 +71,7 @@
                         </div>
                     </div>
                 </div>
-                <!-- Tab 2: Observation Settings -->
+                <!-- Tab 2: Point Settings -->
                 <div class="tabpanel main-panel" data-panel="point-settings">
                     <div class="grid">
                         <div class="tile"><h3>Observations</h3>
@@ -110,26 +110,6 @@
                 <div class="tabpanel main-panel" data-panel="data-processing">
                     <div class="grid">
                         <!-- Left Layout -->
-                        <div class="tile">
-                            <h3>Time-Series Preparation</h3>
-                            <table class="attributes-table" id="wq-time-series-table">
-                                <thead>
-                                    <tr><th>Time</th><th>Location</th><th>Substance</th><th>Value</th></tr>
-                                </thead>
-                                <tbody></tbody>
-                            </table>
-                            <div class="row">
-                                <input type="file" id="input-csv" style="display:none;" />
-                                <button type="button" id="time-series-csv">Upload CSV</button>
-                                <button type="button" id="time-series-remove"
-                                    style="color: crimson; background-color: aliceblue;">Delete table</button>
-                            </div>
-                            <div class="textarea-container" id="wq-textarea-container">
-                                <label style="margin:20px 0 20px 0; display:inline-block;">Post-process Data</label>
-                                <textarea class="data-textarea" id="wq-data-view" style="height:300px; min-height:300px;"></textarea>
-                            </div>
-                        </div>
-                        <!-- Right Layout -->
                         <div class="tile">
                             <!-- Sub Tabs -->
                             <div class="card tabs tabs--sub">
@@ -285,6 +265,26 @@
                                         <button class="wq-simulation" type="button" data-info="microbial" style="flex:0 0 auto; width:200px;">Run model</button>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                        <!-- Right Layout -->
+                        <div class="tile">
+                            <h3>Time-Series Preparation</h3>
+                            <table class="attributes-table" id="wq-time-series-table">
+                                <thead>
+                                    <tr><th>Time</th><th>Location</th><th>Substance</th><th>Value</th></tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                            <div class="row">
+                                <input type="file" id="input-csv" style="display:none;" />
+                                <button type="button" id="time-series-csv">Upload CSV</button>
+                                <button type="button" id="time-series-remove"
+                                    style="color: crimson; background-color: aliceblue;">Delete table</button>
+                            </div>
+                            <div class="textarea-container" id="wq-textarea-container">
+                                <label style="margin:20px 0 20px 0; display:inline-block;">Post-process Data</label>
+                                <textarea class="data-textarea" id="wq-data-view" style="height:300px; min-height:300px;"></textarea>
                             </div>
                         </div>
                     </div>

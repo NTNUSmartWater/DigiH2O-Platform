@@ -149,7 +149,8 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
                 segment = segmentFinder(point[1], point[2], grid)
                 if segment == 0: continue
                 points.append(f'{point[0]} 1\n{segment}')
-            params_INC['B2_outlocs'] = f"{content}\n{'\n'.join(points)}"
+            joined = '\n'.join(points)
+            params_INC['B2_outlocs'] = f"{content}\n{joined}"
             model_type['wq_obs'] = obs_point
         else: params_INC['B2_outlocs'] = '0 ; nr of monitor locations'
         # Prepare for the config file B2_outputtimers
@@ -160,25 +161,32 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
         ]
         # Prepare for the config file B3_ugrid
         ugrid_path = os.path.join(os.path.dirname(parameters['hyd_path']), 'FlowFM_waqgeom.nc')
-        params_INC['B3_ugrid'] = f"UGRID '{ugrid_path.replace(os.sep, "/")}'"
+        temp_ugrid = ugrid_path.replace(os.sep, "/")
+        params_INC['B3_ugrid'] = f"UGRID '{temp_ugrid}'"
         # Prepare for the config file B3_nrofseg
         params_INC['B3_nrofseg'] = f"{parameters['n_segments']} ; number of segments"
         # Prepare for the config file B3_attributes
-        params_INC['B3_attributes'] = f"INCLUDE '{parameters['attr_path'].replace(os.sep, "/")}' ; attributes file"
+        temp_attr = parameters['attr_path'].replace(os.sep, "/")
+        params_INC['B3_attributes'] = f"INCLUDE '{temp_attr}' ; attributes file"
         # Prepare for the config file B3_volumes
-        params_INC['B3_volumes'] = f"-2 ; volumes will be interpolated from a binary file\n'{parameters['vol_path'].replace(os.sep, "/")}' ; volumes file from hyd file"
+        temp_vol = parameters['vol_path'].replace(os.sep, "/")
+        params_INC['B3_volumes'] = f"-2 ; volumes will be interpolated from a binary file\n'{temp_vol}' ; volumes file from hyd file"
         # Prepare for the config file B4_nrofexch
         params_INC['B4_nrofexch'] = f"{parameters['exchange_x']} {parameters['exchange_y']} {parameters['exchange_z']} ; number of exchanges in three directions"
         # Prepare for the config file B4_pointers
-        params_INC['B4_pointers'] = f"0 ; pointers from binary file.\n'{parameters['ptr_path'].replace(os.sep, "/")}' ; pointers file"
+        temp_ptr = parameters['ptr_path'].replace(os.sep, "/")
+        params_INC['B4_pointers'] = f"0 ; pointers from binary file.\n'{temp_ptr}' ; pointers file"
         # Prepare for the config file B4_cdispersion
         params_INC['B4_cdispersion'] = "1 0.0 1E-07 ; constant dispersion"
         # Prepare for the config file B4_area
-        params_INC['B4_area'] = f"-2 ; areas will be interpolated from a binary file\n'{parameters['area_path'].replace(os.sep, "/")}' ; areas file"
+        temp_area = parameters['area_path'].replace(os.sep, "/")
+        params_INC['B4_area'] = f"-2 ; areas will be interpolated from a binary file\n'{temp_area}' ; areas file"
         # Prepare for the config file B4_flows
-        params_INC['B4_flows'] = f"-2 ; flows from binary file\n'{parameters['flow_path'].replace(os.sep, "/")}' ; flows file"
+        temp_flow = parameters['flow_path'].replace(os.sep, "/")
+        params_INC['B4_flows'] = f"-2 ; flows from binary file\n'{temp_flow}' ; flows file"
         # Prepare for the config file B4_length
-        params_INC['B4_length'] = f"0 ; Lengths from binary file\n'{parameters['length_path'].replace(os.sep, "/")}' ; lengths file"
+        temp_length = parameters['length_path'].replace(os.sep, "/")
+        params_INC['B4_length'] = f"0 ; Lengths from binary file\n'{temp_length}' ; lengths file"
         # Prepare for the config file B5
         params_INC['B5_boundlist'] = [";'NodeID' 'Comment field' 'Boundary name used for data grouping'"]
         n_layers, points = int(parameters['n_layers']), parameters['sources']
@@ -205,14 +213,17 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
             params_INC['B6_loads_aliases'].append(f"USEDATA_ITEM '{load[0]}' FORITEM\n'{load[0]}'")
         # Prepare for the config file B6_loads_data
         tbl_path = os.path.join(output_folder, 'includes_deltashell', 'load_data_tables', f'{parameters["folder_name"]}.tbl')
-        params_INC['B6_loads_data'] = f"INCLUDE '{tbl_path.replace(os.sep, "/")}'"
+        temp_btl = tbl_path.replace(os.sep, "/")
+        params_INC['B6_loads_data'] = f"INCLUDE '{temp_btl}'"
         # Prepare for the config file B7_functions, B7_dispersion
         params_INC['B7_functions'], params_INC['B7_dispersion'] = '', ''
         # Prepare for the config file B7_parameters
-        params_INC['B7_parameters'] = f"PARAMETERS\n'Surf'\nALL\nBINARY_FILE '{parameters['srf_path'].replace(os.sep, "/")}' ; from horizontal-surfaces-file key in hyd file"
+        temp_srf = parameters['srf_path'].replace(os.sep, "/")
+        params_INC['B7_parameters'] = f"PARAMETERS\n'Surf'\nALL\nBINARY_FILE '{temp_srf}' ; from horizontal-surfaces-file key in hyd file"
         # Prepare for the config file B7_vdiffusion
+        temp_vdf = parameters['vdf_path'].replace(os.sep, "/")
         params_INC['B7_vdiffusion'] = ["CONSTANTS 'ACTIVE_VertDisp' DATA 1.0","SEG_FUNCTIONS","'VertDisper'",
-                                        "ALL", f"BINARY_FILE '{parameters['vdf_path'].replace(os.sep, "/")}'"]
+                                        "ALL", f"BINARY_FILE '{temp_vdf}'"]
         # Prepare for the config file B7_numerical_options
         params_INC['B7_numerical_options'] = ["CONSTANTS 'CLOSE_ERR' DATA 1 ; If defined, allow delwaq to correct water volumes to keep concentrations continuous",
             "CONSTANTS 'NOTHREADS' DATA 2 ; Number of threads used by delwaq",
@@ -251,7 +262,8 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
             for i in range(len(constants)):
                 params_INC['B7_constants'].append(f"CONSTANTS '{constants[i]}' DATA {values[i]}")
             # Prepare for the config file B7_segfunctions
-            params_INC['B7_segfunctions'] = ["SEG_FUNCTIONS", "'Temp'", "ALL", f"BINARY_FILE '{parameters['tem_path'].replace(os.sep, "/")}'"]
+            temp_tem = parameters['tem_path'].replace(os.sep, "/")
+            params_INC['B7_segfunctions'] = ["SEG_FUNCTIONS", "'Temp'", "ALL", f"BINARY_FILE '{temp_tem}'"]
             # Prepare for the config file B9
             pr = ['DO']
             temp = ["2 ; perform default output and extra parameters listed below", f"{len(pr)} ; number of parameters listed"]
@@ -432,7 +444,8 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
             for i in range(len(constants)):
                 params_INC['B7_constants'].append(f"CONSTANTS '{constants[i]}' DATA {values[i]}")
             # Prepare for the config file B7_segfunctions
-            params_INC['B7_segfunctions'] = [f"SEG_FUNCTIONS\n'Temp'\nALL\nBINARY_FILE '{parameters['tem_path'].replace(os.sep, "/")}'"]
+            temp_tem = parameters['tem_path'].replace(os.sep, "/")
+            params_INC['B7_segfunctions'] = [f"SEG_FUNCTIONS\n'Temp'\nALL\nBINARY_FILE '{temp_tem}'"]
             # Prepare for the config file B9
             pr = []
             temp = ["2 ; perform default output and extra parameters listed below", f"{len(pr)} ; number of parameters listed"]

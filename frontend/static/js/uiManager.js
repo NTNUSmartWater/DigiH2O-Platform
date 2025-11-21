@@ -2,7 +2,7 @@
 import { initializeMap, baseMapButtonFunctionality } from './mapManager.js';
 import { startLoading, showLeafletMap, map } from './mapManager.js';
 import { plotChart, plotEvents, drawChart, plotWindow, thermoclinePlotter } from './chartManager.js';
-import { timeControl, colorbar_container } from "./map2DManager.js";
+import { timeControl, colorbar_container, plot2DMapDynamic } from "./map2DManager.js";
 import { generalOptionsManager, summaryWindow } from './generalOptionManager.js';
 import { spatialMapManager } from './spatialMapManager.js';
 import { sendQuery } from './tableManager.js';
@@ -47,7 +47,15 @@ const mapContainer = () => map.getContainer();
 
 initializeMap(); baseMapButtonFunctionality();
 projectChecker(); initializeMenu();
-updateEvents(); plotEvents();
+updateEvents(); plotEvents(); openDemoProject();
+
+function openDemoProject() { 
+    projectChecker('demo', ['FlowFM_his.zarr', 'FlowFM_map.zarr', 'Cadmium_his.zarr', 'Cadmium_map.zarr']);
+    // Load temperature dynamic map
+    const query = '|-1', key = 'temp_multi_dynamic', titleColorbar = 'Temperature (°C)';
+    const colorbarKey = 'Layer: Average temperature';
+    plot2DMapDynamic(false, query, key, titleColorbar, colorbarKey);
+}
 
 // ============================ Functions ============================
 
@@ -232,7 +240,7 @@ function updateEvents() {
             if (name === 'visualization') {
                 // Open project for visualization
                 iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
-                    projectOpenWindowContent(), "Select Project with Simulation Result(s)");
+                    projectOpenWindowContent(), "Select Project with Simulation Result");
             } else if (name === 'new-hyd-project') { 
                 // Create new hyd project
                 projectChecker();
@@ -263,6 +271,7 @@ function updateEvents() {
             if (simulationWindow()) { simulationWindow().style.height = frameHeight + 'px'; }
         }
         if (event.data?.type === 'projectConfirmed') {
+            console.log(event.data.project, event.data.values);
             projectChecker(event.data.project, event.data.values);
             projectOpenWindow().style.display = 'none';
         }

@@ -19,7 +19,8 @@ const colorbar_vector_color = () => document.getElementById("colorbar-gradient-v
 const colorbar_vector_label = () => document.getElementById("colorbar-labels-vector");
 const colorbar_vector_scaler = () => document.getElementById("custom-colorbar-scaler");
 
-let layerAbove = null, layerMap = null, playHandlerAttached = false, parsedFrame = '', scale = null;
+let layerAbove = null, layerMap = null, playHandlerAttached = false, 
+    playHandlerRef = null, parsedFrame = '', scale = null;
 
 // Define CanvasLayer
 L.CanvasLayer = L.Layer.extend({
@@ -264,39 +265,49 @@ function initDynamicMap(query, key_below, key_above, data_below, data_above,
         }
     });
     // Play/Pause button
-    if (!playHandlerAttached) {
-        playBtn().addEventListener("click", () => {
-            if (getState().isPlaying) {
-                clearInterval(getState().isPlaying); setState({isPlaying: null});
-                playBtn().textContent = "▶ Play";
-            } else {
-                const speed = 1000/parseFloat(timeSpeed().value);
-                currentIndex = parseInt(Math.floor(slider().noUiSlider.get()));
-                const playing = setInterval(() => {
-                    currentIndex = (currentIndex + 1) % timestamp.length;
-                    slider().noUiSlider.set(currentIndex);
-                }, speed);
-                setState({isPlaying: playing});
-                playBtn().textContent = "⏸ Pause";
-            }
-        });
-        playHandlerAttached = true;
+    if (playHandlerAttached && playHandlerRef) {
+        // Remove previous handler
+        playBtn().removeEventListener("click", playHandlerRef);
+        playHandlerAttached = false; playHandlerRef = null;
     }
+    playHandlerRef = () => {
+        if (getState().isPlaying) {
+            clearInterval(getState().isPlaying); setState({isPlaying: null});
+            playBtn().textContent = "▶ Play";
+        } else {
+            // Reset slider
+            if (slider().noUiSlider) {slider().noUiSlider.set(0); }
+            let currentIndexLocal = 0;
+            const rangeOpts = slider().noUiSlider && slider().noUiSlider.options && slider().noUiSlider.options.range;
+            const maxIndex = rangeOpts ? parseInt(rangeOpts.max) : (timestamp ? timestamp.length - 1 : 0);
+            const len = maxIndex + 1;
+            const speed = 1000/parseFloat(timeSpeed().value);
+            const playing = setInterval(() => {
+                currentIndexLocal = (currentIndexLocal + 1) % len;
+                slider().noUiSlider.set(currentIndexLocal);
+            }, speed);
+            setState({isPlaying: playing});
+            playBtn().textContent = "⏸ Pause";
+        }
+    };
+    playBtn().addEventListener("click", playHandlerRef);
+    playHandlerAttached = true;
 }
 
 function initScaler() {
     // Initialize vector scale
-    if (getState().scalerValue !== null) return parseFloat(getState().scalerValue);
-    if (scaler_value().value === '' || parseFloat(scaler_value().value) <= 0) {
+    if (!scaler_value()) { return 1000; }
+    if (parseFloat(scaler_value().value) <= 0) {
         alert('Wrong scaler value. Please check the scaler object.'); return;
     }
+    getState().scalerValue = scaler_value().value || 1000;
     // Store scaler value
-    setState({scalerValue: scaler_value().value});
+    setState({scalerValue: scale});
     return parseFloat(getState().scalerValue);
 }
 
 export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, colorbarKey) {
-    startLoading('Preparing Dynamic Map. Please wait...');
+    startLoading('Preparing Dynamic Map. Please wait...'); scale = initScaler();
     let data_below = null, data_above = null, colorbarTitleAbove = null, colorbarKeyAbove = null, key_below = key, key_above = null;
     setState({showedQuery: key}); setState({isHYD: waterQuality});  // Set HYD flag
     // Process below layer
@@ -308,8 +319,7 @@ export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, 
         data_below.values = data_below.values.map(v => -v);
         data_below.min_max = [-data_below.min_max[1], -data_below.min_max[0]];
     }
-    scale = initScaler();
-    // If vector is selected
+    if (waterQuality) {getState().vectorSelected = '';}
     if (getState().vectorSelected !== '' && key.includes('multi')) {
         const vectorSelector = document.getElementById("vector-selector");
         const layerSelector = document.getElementById("layer-selector");
@@ -327,7 +337,7 @@ export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, 
 }
 
 export async function plot2DVectorMap(query, key, colorbarTitleAbove, colorbarKey) {
-    startLoading('Preparing Dynamic Vector Map. Please wait...');
+    startLoading('Preparing Dynamic Vector Map. Please wait...'); scale = initScaler();
     const data = await sendQuery('load_vector_dynamic', {query: query, key: key});
     if (data.status === 'error') { showLeafletMap(); alert(data.message); return; }
     if (layerMap) map.removeLayer(layerMap); layerMap = null;

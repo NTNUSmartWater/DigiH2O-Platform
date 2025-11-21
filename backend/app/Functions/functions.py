@@ -533,10 +533,10 @@ def checkCoordinateReferenceSystem(name: str, geometry: gpd.GeoSeries, data_his:
     """
     # Check coordinate reference system
     if 'wgs84' in data_his.variables:
-        crs_code = data_his['wgs84'].attrs.get('EPSG_code', 4326)
+        crs_code = data_his['wgs84'].attrs.get('EPSG_code', 'EPSG:4326')
         result = gpd.GeoDataFrame(data={'name': name, 'geometry': geometry}, crs=crs_code)
     else:
-        crs_code = data_his['projected_coordinate_system'].get('EPSG_code', 4326)
+        crs_code = data_his['projected_coordinate_system'].attrs.get('EPSG_code', 'EPSG:4326')
         result = gpd.GeoDataFrame(data={'name': name, 'geometry': geometry}, crs=crs_code)
         result = result.to_crs(epsg=4326)  # Convert to WGS84 if not already
     return result
@@ -972,11 +972,12 @@ def contentWriter(project_name: str, filename: str, data: list, content: str, un
                 parts[index] = content
             else: parts.append(content)
             with open(ext_path, 'w') as file:
-                file.write(f"\n{'\n\n'.join(parts)}\n")
+                joined_parts = '\n\n'.join(parts)
+                file.write(f"\n{joined_parts}\n")
         else:
             with open(ext_path, 'w') as f:
                 f.write(f"\n{content}\n")
-        status, message = 'ok', f"Data is saved successfully."
+        status, message = 'ok', f"\n\nData is saved successfully."
     except Exception as e:
         status, message = 'error', f"Error: {str(e)}"
     return status, message

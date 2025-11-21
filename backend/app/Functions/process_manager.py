@@ -128,7 +128,7 @@ async def load_general_dynamic(request: Request):
             data = {'values': list(fmt(arr[int(temp[2]),:]))}
         status, message = 'ok', ''
     except Exception as e:
-        print('/load_dynamic:\n==============')
+        print('/load_general_dynamic:\n==============')
         traceback.print_exc()
         status, message, data = 'error', f"Error: {e}", None
     return JSONResponse({'content': data, 'status': status, 'message': message})
@@ -159,7 +159,7 @@ async def load_vector_dynamic(request: Request):
             data = functions.vectorComputer(data_, value_type, row_idx, int(query))
         status, message = 'ok', ''
     except Exception as e:
-        print('/load_dynamic:\n==============')
+        print('/load_vector_dynamic:\n==============')
         traceback.print_exc()
         status, message, data = 'error', f"Error: {e}", None
     return JSONResponse({'content': data, 'status': status, 'message': message})
@@ -233,20 +233,21 @@ async def select_thermocline(request: Request):
             grid = temp_grid.drop(index=removed_indices).reset_index()
             data = json.loads(grid.to_json())
         elif type_ == 'thermocline_init':
-            idx = int(idx)
             time_column = 'time' if is_hyd else 'nTimesDlwq'
             time_stamps = pd.to_datetime(data_[time_column]).strftime('%Y-%m-%d %H:%M:%S').tolist()
             layer_reverse = request.app.state.layer_reverse_hyd if is_hyd else request.app.state.layer_reverse_waq
             layers_values = [float(v.split(' ')[1]) for k, v in layer_reverse.items() if int(k) >= 0]
-            arr = data_[name].values
+            new_depth = [x + max_values for x in layers_values]
+            arr, idx = data_[name].values, int(idx)
             # Remove polygons having Nan in all layers
             mask_all_nan = np.isnan(arr).all(axis=(0, col_idx))
             arr_filtered = arr[:, ~mask_all_nan, :] if is_hyd else arr[:, :, ~mask_all_nan]
             data_selected = arr_filtered[:, idx, :] if is_hyd else arr_filtered[:, :, idx]
             request.app.state.thermocline_cache = {"data": data_selected}
+            max_values = int(abs(np.min(layers_values)))
             values = [None if np.isnan(x) else functions.numberFormatter(x) for x in data_selected[0,:]]
             # Get the first frame for the first timestamp
-            data = { "timestamps": time_stamps, "depths": layers_values, "values": values }
+            data = { "timestamps": time_stamps, "depths": new_depth, "values": values }
         elif type_ == 'thermocline_update':
             data_selected = request.app.state.thermocline_cache["data"]
             data = [None if np.isnan(x) else functions.numberFormatter(x) for x in data_selected[int(idx),:]]
@@ -284,7 +285,7 @@ async def initiate_options(request: Request):
     body = await request.json()
     key = body.get('key')
     try:
-        data = []
+        status, message, data = 'ok', '', []
         if key == 'vector': data = functions.getVectorNames()
         elif key == 'layer_hyd' and request.app.state.layer_reverse_hyd is not None:
             data = [(idx, value) for idx, value in request.app.state.layer_reverse_hyd.items()]
@@ -294,7 +295,6 @@ async def initiate_options(request: Request):
             item = [x for x in request.app.state.config.keys() 
                     if x.startswith('waq_map_') and x.endswith('_selector')]
             if len(item) > 0: data = request.app.state.config[item[0]]
-        status, message = 'ok', ''
     except Exception as e:
         print('/initiate_options:\n==============')
         traceback.print_exc()
@@ -354,7 +354,8 @@ async def update_boundary(request: Request):
                 parts[index] = file_content
             else: parts.append(file_content)
             with open(ext_path, 'w', encoding="utf-8") as file:
-                file.write(f"\n{'\n\n'.join(parts)}\n")
+                joined_parts = '\n\n'.join(parts)
+                file.write(f"\n{joined_parts}\n")
                 file.flush()
                 os.fsync(file.fileno())
         else:   
@@ -385,7 +386,8 @@ async def update_boundary(request: Request):
                 parts[index] = update_content
             else: parts.append(update_content)                
             with open(file_path, 'w', encoding="utf-8") as file:
-                file.write('\n\n'.join(parts))
+                joined_parts = '\n\n'.join(parts)
+                file.write(f"\n{joined_parts}\n")
                 file.flush()
                 os.fsync(file.fileno())
         else:
@@ -467,6 +469,7 @@ async def generate_mdu(request: Request):
     body = await request.json()
     params = dict(body.get('params'))
     try:
+        status, message = 'ok', f"Project '{project_name}' created successfully!"
         project_name = params['project_name']
         # Create MDU file
         project_path = os.path.join(PROJECT_STATIC_ROOT, project_name, 'input')
@@ -475,7 +478,6 @@ async def generate_mdu(request: Request):
         # Write file
         with open(os.path.join(project_path, 'FlowFM.mdu'), 'w') as file:
             file.write(file_content)
-        status, message = 'ok', f"Project '{project_name}' created successfully!"
     except Exception as e:
         print('/generate_mdu:\n==============')
         traceback.print_exc()

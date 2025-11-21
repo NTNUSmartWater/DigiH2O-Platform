@@ -110,8 +110,6 @@ export async function spatialMapManager() {
         document.getElementById('substance-window').style.display = 'none';
     });
 }
-
-
 function handleSubstanceChange(e) {
     if (e.target && e.target.name === "waq-substance") {
         const [value, type] = e.target.value.split('|');

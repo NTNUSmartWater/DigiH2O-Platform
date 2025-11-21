@@ -1,6 +1,8 @@
 # IDE / editor
 .vscode/
 .idea/
+backend/Delft_Projects/Andrea
+backend/Delft_Projects/team
 
 # Python cache / bytecode
 **/__pycache__/
@@ -13,6 +15,7 @@
 *.log
 *.geojson
 *.csv
+*.md
 
 # Git
 .git/
@@ -31,6 +34,3 @@ README.md
 # Temp / backup
 *.bak
 *.tmp
-
-# Folder
-backend/Delft_Projects

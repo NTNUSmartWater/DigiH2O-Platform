@@ -496,14 +496,30 @@ function updateOption(){
 
 function initializeProject(){
     // Update project name
+    projectName().addEventListener('click', () => {
+        if (projects().children.length === 0) {
+            projectList.forEach(p => {
+                const li = document.createElement("li");
+                li.textContent = p;
+                li.addEventListener('mousedown', () => {
+                    projectName().value = p; projects().style.display = "none";
+                });
+                projects().appendChild(li);
+            });
+        }
+        projects().style.display = "block";
+    });
     projectName().addEventListener('input', (e) => { 
         const value = e.target.value.trim();
         if (value === '') {
-            sectionTab().style.display = "none"; sectionDescription().style.display = "block";
+            sectionTab().style.display = "none"; 
+            sectionDescription().style.display = "block";
         }
         renderProjects(projects(), projectList, value);
     });
-    projectName().addEventListener('blur', () => { projects().style.display = "none"; });
+    projectName().addEventListener('blur', () => { 
+        setTimeout(() => { projects().style.display = "none"; }, 100);
+     });
     // Create new project
     projectCreator().addEventListener('click', () => {
         const name = projectName().value.trim();
