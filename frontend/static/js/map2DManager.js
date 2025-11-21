@@ -296,6 +296,7 @@ function initDynamicMap(query, key_below, key_above, data_below, data_above,
 
 function initScaler() {
     // Initialize vector scale
+    if (!scaler_value()) { return 1000; }
     if (parseFloat(scaler_value().value) <= 0) {
         alert('Wrong scaler value. Please check the scaler object.'); return;
     }

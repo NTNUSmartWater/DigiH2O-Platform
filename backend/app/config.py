@@ -15,11 +15,7 @@ if env_mode == "development":
 else:
     PROJECT_STATIC_ROOT = "/app/Delft_Projects"
     STATIC_DIR_BACKEND = "/app/static"
-    STATIC_DIR_FRONTEND = "/usr/share/nginx/html/static"
-
-# PROJECT_STATIC_ROOT = os.getenv("PROJECT_STATIC_ROOT", "/app/Delft_Projects")
-# STATIC_DIR_BACKEND = os.getenv("STATIC_DIR_BACKEND", "/app/static")
-# STATIC_DIR_FRONTEND = os.getenv("STATIC_DIR_FRONTEND", "/usr/share/nginx/html/static")
+    STATIC_DIR_FRONTEND = "/app/frontend/static"
 DELFT_PATH = os.getenv("DELFT3D_PATH")
 GRID_PATH = os.getenv('GRID_PATH')
 
