@@ -10,3 +10,4 @@ python-multipart==0.0.20
 zarr>=2.15.0,<3.0.0
 gunicorn==23.0.0
 dask==2025.11.0
+requests==2.32.5

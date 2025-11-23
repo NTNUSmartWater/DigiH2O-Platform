@@ -1,4 +1,4 @@
-import os, json, re, subprocess, math, asyncio, traceback
+import os, json, re, requests, math, asyncio, traceback
 from fastapi import APIRouter, Request, File, UploadFile, Form
 from Functions import functions
 from shapely.geometry import mapping
@@ -86,21 +86,20 @@ async def load_general_dynamic(request: Request):
         data_ = request.app.state.hyd_map if is_hyd else request.app.state.waq_map
         time_column = 'time' if is_hyd else 'nTimesDlwq'
         name = functions.variablesNames.get(key, key) if is_hyd else temp[0]
+        values = data_[name].values
         # Setup cache
         dynamic_cache = getattr(request.app.state, 'dynamic_cache', {})
         group = 'hyd' if is_hyd else 'waq'
         if group not in dynamic_cache: 
             dynamic_cache[group] = {
-                "layer_reverse": getattr(request.app.state, f'layer_reverse_{group}'),
-                "layers": {}
+                "layer_reverse": getattr(request.app.state, f'layer_reverse_{group}'), "layers": {}
             }
         group_cache = dynamic_cache[group]
         setattr(request.app.state, 'dynamic_cache', dynamic_cache)
-        values = data_[name].values
         if 'single' in key: arr = values
         else:
             layer_reverse = group_cache['layer_reverse']
-            value_type = layer_reverse[temp[1]]
+            value_type = layer_reverse[int(temp[1])]
             if value_type in group_cache['layers']: arr = group_cache['layers'][value_type]
             else:
                 n_layers = len(layer_reverse)
@@ -140,7 +139,7 @@ async def load_vector_dynamic(request: Request):
     query, key = body.get('query'), body.get('key')
     try:
         layer_reverse = request.app.state.layer_reverse_hyd
-        value_type, row_idx = layer_reverse[key], len(layer_reverse) - int(key) - 2
+        value_type, row_idx = layer_reverse[int(key)], len(layer_reverse) - int(key) - 2
         data_ = request.app.state.hyd_map
         fnm = functions.numberFormatter
         if query == 'load': # Initiate skeleton polygon for the first load
@@ -493,5 +492,11 @@ async def generate_mdu(request: Request):
 async def open_gridTool(request: Request):
     await request.json()
     if not os.path.exists(GRID_PATH): return JSONResponse({"status": "error", "message": "Grid Tool not found."})
-    subprocess.Popen(GRID_PATH, shell=True)
-    return JSONResponse({"status": "ok", "message": ""})
+    payload = {"path": GRID_PATH, "args": []}
+    WINDOWS_AGENT_URL = "http://host.docker.internal:5055/run"
+    # subprocess.Popen(GRID_PATH, shell=True)
+    try:
+        requests.post(WINDOWS_AGENT_URL, json=payload, timeout=10)
+        return JSONResponse({"status": "ok", "message": ""})
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": f"Error: {str(e)}"})
