@@ -12,18 +12,26 @@ if env_mode == "development":
     PROJECT_STATIC_ROOT = os.getenv("PROJECT_STATIC_ROOT")
     STATIC_DIR_BACKEND = os.getenv("STATIC_DIR_BACKEND")
     STATIC_DIR_FRONTEND = os.getenv("STATIC_DIR_FRONTEND")
+    DELFT_PATH = os.getenv("DELFT3D_PATH")
+    GRID_PATH = os.getenv('GRID_PATH')
 else:
     PROJECT_STATIC_ROOT = "/app/Delft_Projects"
     STATIC_DIR_BACKEND = "/app/static"
     STATIC_DIR_FRONTEND = "/app/frontend/static"
-DELFT_PATH = os.getenv("DELFT3D_PATH")
-GRID_PATH = os.getenv('GRID_PATH')
+    DELFT_PATH = "/host_delft3d/DeltaShell.Dimr/kernels/x64"
+    GRID_PATH = "/host_delft3d/DeltaShell.Plugins.FMSuite.Common.Gui/plugins-qt/x64/rgfgrid.cmd"
 
 # ============== Lifespan ================
 @asynccontextmanager
 async def lifespan(app):
     # Dataset
     app.state.dataset_manager = dataset_manager.DatasetManager()
+    app.state.hyd_his = app.state.hyd_map = None
+    app.state.waq_his = app.state.waq_map = None
+    app.state.layer_reverse_hyd = app.state.layer_reverse_waq = None
+    app.state.grid = app.state.config = None
+    app.state.PROJECT_DIR = app.state.templates = None
+    app.state.obs = {}
     yield
     try:
         app.state.dataset_manager.close()

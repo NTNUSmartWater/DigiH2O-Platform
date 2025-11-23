@@ -55,9 +55,10 @@ async def start_sim_hyd(request: Request):
         return JSONResponse({"status": "error", "message": "Simulation is already running."})
     path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
     mdu_path = os.path.join(path, "FlowFM.mdu")
+    # Check if MDU file exists
+    if not os.path.exists(mdu_path): return JSONResponse({"status": "error", "message": "MDU file not found."})
     bat_path = os.path.join(DELFT_PATH, "dflowfm/scripts/run_dflowfm.bat")
-    if not os.path.exists(bat_path) or not os.path.exists(mdu_path):
-        return JSONResponse({"status": "error", "message": "Executable or MDU file not found."})
+    if not os.path.exists(bat_path): return JSONResponse({"status": "error", "message": "Executable file not found."})
     # Remove old log
     log_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt")
     if os.path.exists(log_path): os.remove(log_path)
