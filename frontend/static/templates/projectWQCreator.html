@@ -270,18 +270,26 @@
                         <!-- Right Layout -->
                         <div class="tile">
                             <h3>Time-Series Preparation</h3>
-                            <table class="attributes-table" id="wq-time-series-table">
-                                <thead>
-                                    <tr><th>Time</th><th>Location</th><th>Substance</th><th>Value</th></tr>
-                                </thead>
-                                <tbody></tbody>
-                            </table>
                             <div class="row">
+                                <button type="button" id="time-series-add-row">Add row</button>
                                 <input type="file" id="input-csv" style="display:none;" />
                                 <button type="button" id="time-series-csv">Upload CSV</button>
                                 <button type="button" id="time-series-remove"
                                     style="color: crimson; background-color: aliceblue;">Delete table</button>
                             </div>
+                            <table class="attributes-table" id="wq-time-series-table">
+                                <thead>
+                                    <tr><th>Time</th><th>Location</th><th>Substance</th><th>Value</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><input type="text" placeholder="YYYY-MM-DD HH:MM:SS"></td>
+                                        <td><input type="text" placeholder="PointName"></td>
+                                        <td><input type="text" placeholder="Substance"></td>
+                                        <td><input type="text" placeholder="Value"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
                             <div class="textarea-container" id="wq-textarea-container">
                                 <label style="margin:20px 0 20px 0; display:inline-block;">Post-process Data</label>
                                 <textarea class="data-textarea" id="wq-data-view" style="height:300px; min-height:300px;"></textarea>

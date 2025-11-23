@@ -137,11 +137,12 @@
                         <label for="observation-point-longitude">Longitude (°):</label>
                         <input type="text" id="observation-point-longitude" placeholder="Enter longitude">
                       </div>
-                      <div class="row">
+                      <div class="row row-buttons">
                         <button type="button" id="observation-point-picker">Pick on map</button>
-                        <button type="button" id="observation-point-save">Add to list</button>
+                        <button type="button" id="observation-point-add-list">Add to list</button>
+                        <button type="button" id="observation-point-add-row">Add row</button>
                         <button type="button" id="observation-point-remove"
-                          style="color: crimson; background-color: aliceblue;">Remove from list</button>
+                          style="color: crimson; background-color: aliceblue;">Remove Point</button>
                       </div>
                     </div>
                     <!-- Layer 2: "Create a new observation point" -->
@@ -155,7 +156,13 @@
                       <thead>
                         <tr><th>Point</th><th>Latitude (°)</th><th>Longitude (°)</th></tr>
                       </thead>
-                      <tbody></tbody>
+                      <tbody>
+                        <tr>
+                          <td><input type="text" placeholder="PointName"></td>
+                          <td><input type="text" placeholder="PointLatitude"></td>
+                          <td><input type="text" placeholder="PointLongitude"></td>
+                        </tr>
+                      </tbody>
                     </table>
                     <div class="row">
                       <button type="button" id="observation-point-update" style="display: none;">Update observation points on map</button>
@@ -211,11 +218,19 @@
                         <option value="Contaminant">Contaminant</option>
                       </select>
                     </div>
+                    <div class="row">
+                      <button type="button" id="boundary-add-row">Add new row</button>
+                    </div>
                     <table class="attributes-table" id="boundary-edit-table">
                       <thead>
                         <tr><th>Time</th><th>Value</th></tr>
                       </thead>
-                      <tbody></tbody>
+                      <tbody>
+                        <tr>
+                          <td><input type="text" placeholder="YYYY-MM-DD HH:MM:SS"></td>
+                          <td><input type="text" placeholder="Value"></td>
+                        </tr>
+                      </tbody>
                     </table>
                     <div class="row">
                       <button type="button" id="boundary-update">Create/Update boundary</button>
@@ -393,14 +408,23 @@
                           <option value="spider-web-grid">Spider web grid</option> -->
                         </select>
                       </div>
+                      <div class="row">
+                        <input type="file" id="weather-update-csv" accept=".csv" style="width: 50px; display: none;">
+                        <button type="button" id="weather-add-row" style="display: none;">Add row</button>
+                      </div>
                       <table class="attributes-table" id="weather-edit-table">
                         <thead>
                           <tr><th>Time</th><th>Magnitude (m/s)</th><th>Direction (°)</th></tr>
                         </thead>
-                        <tbody></tbody>
+                        <tbody>
+                          <tr>
+                            <td><input type="text" placeholder="YYYY-MM-DD HH:MM:SS"></td>
+                            <td><input type="text" placeholder="Magnitude"></td>
+                            <td><input type="text" placeholder="Direction"></td>
+                        </tr>
+                        </tbody>
                       </table>
                       <div class="row">
-                        <input type="file" id="weather-update-csv" accept=".csv" style="width: 50px; display: none;">
                         <button type="button" id="weather-update" style="display: none;">Create/Update weather data</button>
                       </div>
 

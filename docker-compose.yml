@@ -1,15 +1,15 @@
 services:
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
-    image: lamvannguyen/digih2o-platform-backend:latest
-    container_name: digi_H20
+      context: .
+      dockerfile: backend/Dockerfile
+    image: lamvannguyen/digih2o-platform:latest
+    container_name: digi_H2O
     restart: always
     ports:
       - "8000:8000"
     env_file: .env
     volumes:
-      - ./backend/Delft_Projects:/app/Delft_Projects
-      - ./backend/static:/app/static
-      - ./frontend:/app/frontend
+      - backend_static:/app/static
+volumes:
+  backend_static:

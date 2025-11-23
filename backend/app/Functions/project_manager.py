@@ -9,15 +9,20 @@ from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND
 
 router = APIRouter()
 
-
 # Remove folder configuration
 @router.post("/reset_config")
-async def reset_config(request: Request):
-    folder = request.app.state.PROJECT_DIR
-    config_dir = os.path.join(folder, "output", "config")
-    if not os.path.exists(config_dir): return JSONResponse({"message": "Configuration folder doesn't exist."})
-    shutil.rmtree(config_dir, onexc=functions.remove_readonly)
-    return JSONResponse({"message": "Configuration was reset successfully!"})
+def reset_config(request: Request):
+    try:
+        folder = request.app.state.PROJECT_DIR
+        if not folder: return JSONResponse({"message": "Project folder doesn't exist."})
+        config_dir = os.path.join(folder, "output", "config")
+        if not os.path.exists(config_dir): return JSONResponse({"message": "Configuration folder doesn't exist."})
+        shutil.rmtree(config_dir, onexc=functions.remove_readonly)
+        return JSONResponse({"message": "Configuration was reset successfully!"})
+    except Exception as e:
+        print('/reset_config:\n==============')
+        traceback.print_exc()
+        return JSONResponse({"message": f"Error: {e}"})
 
 # Create a new project with necessary folders
 @router.post("/setup_new_project")
@@ -44,20 +49,17 @@ async def setup_new_project(request: Request):
 async def setup_database(request: Request):
     body = await request.json()
     project_name, params = body.get('projectName'), body.get('params')
-    loop = asyncio.get_running_loop()
-    dm = request.app.state.dataset_manager
-    # Set PROJECT_DIR
-    project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
-    output_dir = os.path.join(project_folder, "output")
-    config_dir = os.path.join(output_dir, "config")
-    hyd_dir, waq_dir = os.path.join(output_dir, 'HYD'), os.path.join(output_dir, 'WAQ')
-    request.app.state.PROJECT_DIR = project_folder
-    request.app.state.templates = Jinja2Templates(directory="static/templates")
     try:
+        loop = asyncio.get_running_loop()
+        dm = request.app.state.dataset_manager
+        # Set PROJECT_DIR
+        project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
+        output_dir = os.path.join(project_folder, "output")
+        config_dir = os.path.join(output_dir, "config")
+        hyd_dir, waq_dir = os.path.join(output_dir, 'HYD'), os.path.join(output_dir, 'WAQ')
+        request.app.state.PROJECT_DIR = project_folder
+        request.app.state.templates = Jinja2Templates(directory="static/templates")
         os.makedirs(config_dir, exist_ok=True)
-        # Reset app state
-        request.app.state.hyd_his = request.app.state.hyd_map = None
-        request.app.state.waq_his = request.app.state.waq_map = None
         # Load datasets asynchronously
         async def load_dataset(dir: str, filename: str):
             path = os.path.join(dir, filename)
@@ -73,20 +75,24 @@ async def setup_database(request: Request):
         # Load or init config
         config_path = os.path.join(config_dir, 'config.json')
         if os.path.exists(config_path) and os.path.getsize(config_path) > 0:
+            print('Config already exists. Loading...')
             with open(config_path, 'r') as f:
                 config = json.load(f)
         else:
+            print('Config doesn\'t exist. Creating...')
             config = {"hyd": {}, "waq": {}, "meta": {"hyd_scanned": False, "waq_scanned": False}, "model_type": ''}
             if os.path.exists(config_path): os.remove(config_path)
             with open(config_path, "w") as f:
                 json.dump(config, f)
         # Delete waq option if no waq files
         if request.app.state.waq_his is None and request.app.state.waq_map is None:
+            print('No waq files. Deleting waq option...')
             config['waq'], config['meta']['waq_scanned'], config['model_type'] = {}, False, ''
             if "wq_obs" in config: del config["wq_obs"]
             if "wq_loads" in config: del config["wq_loads"]
         # Transfer data to app state
         if request.app.state.hyd_map is not None:
+            print('Creating grid and layers for hydrodynamic simulation...')
             # Grid/layers generation
             request.app.state.grid = functions.unstructuredGridCreator(request.app.state.hyd_map)
             # Get number of layers
@@ -98,8 +104,8 @@ async def setup_database(request: Request):
                 request.app.state.layer_reverse_hyd = functions.layerCounter(request.app.state.hyd_map, 'hyd')
                 with open(layer_path, 'w') as f:
                     json.dump(request.app.state.layer_reverse_hyd, f)
-        else: request.app.state.layer_reverse_hyd = None
         if request.app.state.waq_map is not None:
+            print('Creating grid and layers for water quality simulation...')
             layer_path = os.path.join(config_dir, 'layers_waq.json')
             if os.path.exists(layer_path):
                 with open(layer_path, 'r') as f:
@@ -108,9 +114,9 @@ async def setup_database(request: Request):
                 request.app.state.layer_reverse_waq = functions.layerCounter(request.app.state.waq_map, 'waq')
                 with open(layer_path, 'w') as f:
                     json.dump(request.app.state.layer_reverse_waq, f)
-        else: request.app.state.layer_reverse_waq = None
         # Lazy scan HYD variables only once
         if (request.app.state.hyd_map or request.app.state.hyd_his) and not config['meta']['hyd_scanned']:
+            print('Scanning HYD variables...')
             hyd_files = [request.app.state.hyd_his, request.app.state.hyd_map]
             hyd_vars = functions.getVariablesNames(hyd_files)
             config["hyd"], config["meta"]["hyd_scanned"] = hyd_vars, True
@@ -118,9 +124,10 @@ async def setup_database(request: Request):
         temp = params[2].replace('_his.zarr', '') if params[2] != '' else params[3].replace('_map.zarr', '')
         model_path, waq_model = os.path.join(waq_dir, f'{temp}.json'), ''
         if os.path.exists(model_path):
+            print('Loading WAQ model...')
             with open(model_path, 'r') as f:
                 temp_data = json.load(f)
-            waq_model, request.app.state.obs = temp_data['model_type'], {}
+            waq_model = temp_data['model_type']
             if 'wq_obs' in temp_data: 
                 config['wq_obs'], request.app.state.obs['wq_obs'] = True, temp_data['wq_obs']
             if 'wq_loads' in temp_data:
@@ -129,6 +136,7 @@ async def setup_database(request: Request):
             return JSONResponse({"status": 'error', "message": "Some WAQ-related parameters are missing.\nConsider running the model again."})  
         # Lazy scan WAQ
         if (request.app.state.waq_map or request.app.state.waq_his) and config['model_type'] != waq_model:
+            print('Scanning WAQ variables...')
             waq_files = [request.app.state.waq_his, request.app.state.waq_map]
             waq_vars = functions.getVariablesNames(waq_files, waq_model)
             config["waq"], config["meta"]["waq_scanned"], config['model_type'] = waq_vars, True, waq_model
@@ -141,6 +149,7 @@ async def setup_database(request: Request):
             if k not in ("hyd", "waq", "meta"):
                 result[k] = v
         request.app.state.config, status, message = result, 'ok', ''
+        print('Configuration loaded successfully.')
     except Exception as e:
         print('/setup_database:\n==============')
         traceback.print_exc()

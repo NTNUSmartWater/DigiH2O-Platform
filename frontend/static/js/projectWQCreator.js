@@ -1,4 +1,4 @@
-import { fillTable, getDataFromTable, removeRowFromTable } from "./tableManager.js";
+import { fillTable, getDataFromTable, removeRowFromTable, addRowToTable } from "./tableManager.js";
 import { renderProjects, sendQuery, deleteTable, copyPaste } from "./tableManager.js";
 import { toUTC } from "./projectSaver.js";
 
@@ -22,6 +22,7 @@ const loadsPointPicker = () => document.getElementById('wq-loads-picker');
 const loadsPointRemove = () => document.getElementById('wq-loads-remove');
 const loadsPointTable = () => document.getElementById('wq-loads-table');
 const timeTable = () => document.getElementById('wq-time-series-table');
+const timeTableAddRow = () => document.getElementById('time-series-add-row');
 const inputFile = () => document.getElementById('input-csv');
 const csvTable = () => document.getElementById('time-series-csv');
 const removeTable = () => document.getElementById('time-series-remove');
@@ -170,6 +171,10 @@ function updateOption(){
     substanceChanger(chemicalSelector(), chemicalName());
     substanceChanger(physicalSelector(), physicalName());
     substanceChanger(microbialSelector(), microbialName());
+    // Add new row to table
+    timeTableAddRow().addEventListener('click', () => {
+        addRowToTable(timeTable(), ['YYYY-MM-DD HH:MM:SS', 'PointName', '0Substance', 'Value'])
+    });
     // Delete table
     deleteTable(removeTable(), timeTable());
     // Upload CSV

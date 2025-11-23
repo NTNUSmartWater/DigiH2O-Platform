@@ -1,4 +1,4 @@
-import os, json, re, subprocess, math, asyncio, traceback
+import os, json, re, requests, math, asyncio, traceback
 from fastapi import APIRouter, Request, File, UploadFile, Form
 from Functions import functions
 from shapely.geometry import mapping
@@ -86,21 +86,20 @@ async def load_general_dynamic(request: Request):
         data_ = request.app.state.hyd_map if is_hyd else request.app.state.waq_map
         time_column = 'time' if is_hyd else 'nTimesDlwq'
         name = functions.variablesNames.get(key, key) if is_hyd else temp[0]
+        values = data_[name].values
         # Setup cache
         dynamic_cache = getattr(request.app.state, 'dynamic_cache', {})
         group = 'hyd' if is_hyd else 'waq'
         if group not in dynamic_cache: 
             dynamic_cache[group] = {
-                "layer_reverse": getattr(request.app.state, f'layer_reverse_{group}'),
-                "layers": {}
+                "layer_reverse": getattr(request.app.state, f'layer_reverse_{group}'), "layers": {}
             }
         group_cache = dynamic_cache[group]
         setattr(request.app.state, 'dynamic_cache', dynamic_cache)
-        values = data_[name].values
         if 'single' in key: arr = values
         else:
             layer_reverse = group_cache['layer_reverse']
-            value_type = layer_reverse[temp[1]]
+            value_type = layer_reverse[int(temp[1])]
             if value_type in group_cache['layers']: arr = group_cache['layers'][value_type]
             else:
                 n_layers = len(layer_reverse)
@@ -140,7 +139,7 @@ async def load_vector_dynamic(request: Request):
     query, key = body.get('query'), body.get('key')
     try:
         layer_reverse = request.app.state.layer_reverse_hyd
-        value_type, row_idx = layer_reverse[key], len(layer_reverse) - int(key) - 2
+        value_type, row_idx = layer_reverse[int(key)], len(layer_reverse) - int(key) - 2
         data_ = request.app.state.hyd_map
         fnm = functions.numberFormatter
         if query == 'load': # Initiate skeleton polygon for the first load
@@ -226,6 +225,10 @@ async def select_thermocline(request: Request):
         data_ = request.app.state.hyd_map if is_hyd else request.app.state.waq_map
         col_idx = 2 if is_hyd else 1
         name = functions.variablesNames.get(query, query)
+        # Create cache for thermocline data
+        if not hasattr(request.app.state, 'thermocline_cache'):
+            request.app.state.thermocline_cache = {}
+        # Initiate data for the first load
         if type_ == 'thermocline_grid':
             temp_grid, arr = request.app.state.grid, data_[name].values
             mask_all_nan = np.isnan(arr).all(axis=(0, col_idx))               
@@ -237,6 +240,7 @@ async def select_thermocline(request: Request):
             time_stamps = pd.to_datetime(data_[time_column]).strftime('%Y-%m-%d %H:%M:%S').tolist()
             layer_reverse = request.app.state.layer_reverse_hyd if is_hyd else request.app.state.layer_reverse_waq
             layers_values = [float(v.split(' ')[1]) for k, v in layer_reverse.items() if int(k) >= 0]
+            max_values = int(abs(np.min(layers_values)))
             new_depth = [x + max_values for x in layers_values]
             arr, idx = data_[name].values, int(idx)
             # Remove polygons having Nan in all layers
@@ -244,7 +248,6 @@ async def select_thermocline(request: Request):
             arr_filtered = arr[:, ~mask_all_nan, :] if is_hyd else arr[:, :, ~mask_all_nan]
             data_selected = arr_filtered[:, idx, :] if is_hyd else arr_filtered[:, :, idx]
             request.app.state.thermocline_cache = {"data": data_selected}
-            max_values = int(abs(np.min(layers_values)))
             values = [None if np.isnan(x) else functions.numberFormatter(x) for x in data_selected[0,:]]
             # Get the first frame for the first timestamp
             data = { "timestamps": time_stamps, "depths": new_depth, "values": values }
@@ -489,5 +492,11 @@ async def generate_mdu(request: Request):
 async def open_gridTool(request: Request):
     await request.json()
     if not os.path.exists(GRID_PATH): return JSONResponse({"status": "error", "message": "Grid Tool not found."})
-    subprocess.Popen(GRID_PATH, shell=True)
-    return JSONResponse({"status": "ok", "message": ""})
+    payload = {"path": GRID_PATH, "args": []}
+    WINDOWS_AGENT_URL = "http://host.docker.internal:5055/run"
+    # subprocess.Popen(GRID_PATH, shell=True)
+    try:
+        requests.post(WINDOWS_AGENT_URL, json=payload, timeout=10)
+        return JSONResponse({"status": "ok", "message": ""})
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": f"Error: {str(e)}"})

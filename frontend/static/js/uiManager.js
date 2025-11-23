@@ -2,7 +2,7 @@
 import { initializeMap, baseMapButtonFunctionality } from './mapManager.js';
 import { startLoading, showLeafletMap, map } from './mapManager.js';
 import { plotChart, plotEvents, drawChart, plotWindow, thermoclinePlotter } from './chartManager.js';
-import { timeControl, colorbar_container, plot2DMapDynamic } from "./map2DManager.js";
+import { timeControl, colorbar_container, colorbar_vector_container, plot2DMapDynamic } from "./map2DManager.js";
 import { generalOptionsManager, summaryWindow } from './generalOptionManager.js';
 import { spatialMapManager } from './spatialMapManager.js';
 import { sendQuery } from './tableManager.js';
@@ -49,8 +49,8 @@ initializeMap(); baseMapButtonFunctionality();
 projectChecker(); initializeMenu();
 updateEvents(); plotEvents(); openDemoProject();
 
-function openDemoProject() { 
-    projectChecker('demo', ['FlowFM_his.zarr', 'FlowFM_map.zarr', 'Cadmium_his.zarr', 'Cadmium_map.zarr']);
+async function openDemoProject() { 
+    await projectChecker('demo', ['FlowFM_his.zarr', 'FlowFM_map.zarr', 'Cadmium_his.zarr', 'Cadmium_map.zarr']);
     // Load temperature dynamic map
     const query = '|-1', key = 'temp_multi_dynamic', titleColorbar = 'Temperature (°C)';
     const colorbarKey = 'Layer: Average temperature';
@@ -86,11 +86,18 @@ async function projectChecker(name=null, params=null) {
     map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
     resetState();  // Reset variables
     if (name === null) return;
-    if (summaryWindow().style.display !== 'flex') summaryWindow().style.display = 'none';  // Close summary window if open
+    // Close windows if open
+    if (summaryWindow().style.display !== 'none') summaryWindow().style.display = 'none';
+    if (waqWindow().style.display !== 'none') waqWindow().style.display = 'none';
+    if (plotWindow().style.display !== 'none') plotWindow().style.display = 'none';
+    timeControl().style.display = 'none'; colorbar_container().style.display = 'none';
+    colorbar_vector_container().style.display = 'none';
+    const subtance = document.getElementById('substance-window');
+    if (subtance.style.display !== 'none') subtance.style.display = 'none';
     projectTitle().textContent = `Project: ${name}`;
-    startLoading('Reading Simulation Outputs and Setting up Database.\nThis takes a while. Please wait...');
+    startLoading('Reading Simulation Outputs and Setting up Database.\nThis takes a while (especially the first time). Please wait...');
     const data = await sendQuery('setup_database', {projectName: name, params: params});
-    if (data.status === "error") {alert(data.message); location.reload(); }
+    if (data.status === "error") { alert(data.message); location.reload(); }
     showLeafletMap();
 }
 
@@ -271,7 +278,6 @@ function updateEvents() {
             if (simulationWindow()) { simulationWindow().style.height = frameHeight + 'px'; }
         }
         if (event.data?.type === 'projectConfirmed') {
-            console.log(event.data.project, event.data.values);
             projectChecker(event.data.project, event.data.values);
             projectOpenWindow().style.display = 'none';
         }
@@ -412,7 +418,7 @@ function updateEvents() {
         }
         if (event.data?.type === 'thermoclineGridClear') { 
             if (gridLayer) map.removeLayer(gridLayer); gridLayer = null;
-            if (plotWindow().style.display === 'flex') plotWindow().style.display = 'none';
+            if (plotWindow().style.display !== 'none') plotWindow().style.display = 'none';
         }
         if (event.data?.type === 'thermoclineGrid') {
             startLoading(event.data.message);
@@ -501,6 +507,7 @@ function updateEvents() {
         substanceWindow().style.display = 'none'; plotWindow().style.display = 'none';
         map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
         timeControl().style.display = 'none'; colorbar_container().style.display = 'none';
+        colorbar_vector_container().style.display = 'none';
     });
     contactInfoCloseBtn().addEventListener('click', () => { contactInfo().style.display = 'none'; });
     projectOpenCloseBtn().addEventListener('click', () => { projectOpenWindow().style.display = 'none'; });

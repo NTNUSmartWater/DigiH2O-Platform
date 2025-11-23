@@ -1,4 +1,4 @@
-import { fillTable, getDataFromTable, removeRowFromTable, deleteTable, copyPaste } from "./tableManager.js";
+import { fillTable, getDataFromTable, addRowToTable, removeRowFromTable, deleteTable, copyPaste } from "./tableManager.js";
 import { csvUploader, mapPicker, renderProjects, pointUpdate, updateTable, plotTable, sendQuery } from "./tableManager.js";
 import { saveProject, timeStepCalculator } from "./projectSaver.js";
 
@@ -16,7 +16,8 @@ const obsPointName = () => document.getElementById('observation-point');
 const obsPointLatitude = () => document.getElementById('observation-point-latitude');
 const obsPointLongitude = () => document.getElementById('observation-point-longitude');
 const obsPointPicker = () => document.getElementById('observation-point-picker');
-const obsPointSave = () => document.getElementById('observation-point-save');
+const obsPointAddList = () => document.getElementById('observation-point-add-list');
+const obsPointAddRow = () => document.getElementById('observation-point-add-row');
 const obsPointRemove = () => document.getElementById('observation-point-remove');
 const obsPointUpload = () => document.getElementById('observation-point-csv');
 const obsPointUpdate = () => document.getElementById('observation-point-update');
@@ -26,6 +27,7 @@ const boundaryPicker = () => document.getElementById('boundary-picker');
 const boundaryRemove = () => document.getElementById('boundary-remove');
 const boundarySelector = () => document.getElementById('option-boundary-edit');
 const boundaryTypeSelector = () => document.getElementById('option-boundary-type');
+const boundaryAddRow = () => document.getElementById('boundary-add-row');
 const boundaryEditTable = () => document.getElementById('boundary-edit-table');
 const boundaryEditUpdate = () => document.getElementById('boundary-update');
 const boundaryEditRemove = () => document.getElementById('boundary-edit-remove');
@@ -55,6 +57,7 @@ const meteoTable = () => document.getElementById('edit-meteo-table');
 const meteoUpload = () => document.getElementById('meteo-picker-csv');
 const weatherSelector = () => document.getElementById('option-weather');
 const weatherUpload = () => document.getElementById('weather-update');
+const weatherAddRow = () => document.getElementById('weather-add-row');
 const weatherCSVUpload = () => document.getElementById('weather-update-csv');
 const weatherTable = () => document.getElementById('weather-edit-table');
 const hisIntervalDate = () => document.getElementById('his-output-interval-date');
@@ -287,8 +290,8 @@ function updateOption(){
             sourceLongitude().value = Number(content.lng).toFixed(16);
         }
     });
-    // Save point to table
-    obsPointSave().addEventListener('click', () => {
+    // Add point to table
+    obsPointAddList().addEventListener('click', () => {
         const name = obsPointName().value.trim();
         const lat = obsPointLatitude().value.trim();
         const lon = obsPointLongitude().value.trim();
@@ -300,13 +303,19 @@ function updateOption(){
         // Clear input
         obsPointName().value = ''; obsPointLatitude().value = ''; obsPointLongitude().value = '';
     });
+    // Add a new row to the table
+    obsPointAddRow().addEventListener('click', () => addRowToTable(obsPointTable(), ['PointName', 'PointLatitude', 'PointLongitude']));
+    boundaryAddRow().addEventListener('click', () => addRowToTable(boundaryEditTable(), ['YYYY-MM-DD HH:MM:SS', 'Value']));
+    weatherAddRow().addEventListener('click', () => addRowToTable(weatherTable(), ['YYYY-MM-DD HH:MM:SS', 'Magnitude', 'Direction']));
+
     // Remove point from table
     obsPointRemove().addEventListener('click', () => {
         const name = obsPointName().value.trim();
         removeRowFromTable(obsPointTable(), name); obsPointName().value = '';
     });
     // Event when user change radio button for observation points
-    pointUpdate(document.getElementById('observation-point-new'), obsPointTable(), false);
+    pointUpdate(document.getElementById('observation-point-new'), obsPointTable(),
+        false, ["PointName", "PointLatitude", "PointLongitude"]);
     pointUpdate(document.getElementById('observation-point-exist'), 
         obsPointTable(), true, [obsPointName(), obsPointLatitude(), obsPointLongitude()]);
     // Update observation point on map
@@ -462,10 +471,13 @@ function updateOption(){
     // Weather data
     weatherSelector().addEventListener('change', () => {
         if (weatherSelector().value === '') {
-            weatherCSVUpload().style.display = 'none'; 
+            weatherCSVUpload().style.display = 'none';
+            weatherAddRow().style.display = 'none';
             weatherUpload().style.display = 'none'; return;}
         deleteTable(weatherSelector(), weatherTable());
-        weatherCSVUpload().style.display = 'block'; weatherUpload().style.display = 'block';
+        weatherCSVUpload().style.display = 'block'; 
+        weatherAddRow().style.display = 'block';
+        weatherUpload().style.display = 'block';
     });
     weatherUpload().addEventListener('click', async () => {
         const nameProject = projectName().value.trim();
