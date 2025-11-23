@@ -11,6 +11,5 @@ services:
     env_file: .env
     volumes:
       - backend_static:/app/static
-      - "C:/Program Files/Deltares/Delft3D FM Suite 2023.02 HMWQ/plugins:/host_delft3d"
 volumes:
   backend_static:
