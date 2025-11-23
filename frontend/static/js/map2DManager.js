@@ -296,13 +296,16 @@ function initDynamicMap(query, key_below, key_above, data_below, data_above,
 
 function initScaler() {
     // Initialize vector scale
-    if (!scaler_value()) { return 1000; }
+    if (scaler_value() === null) {
+        setState({scalerValue: 1000});
+        return getState().scalerValue;
+    };
     if (parseFloat(scaler_value().value) <= 0) {
         alert('Wrong scaler value. Please check the scaler object.'); return;
     }
-    getState().scalerValue = scaler_value().value || 1000;
+    getState().scalerValue = scaler_value().value;
     // Store scaler value
-    setState({scalerValue: scale});
+    setState({scalerValue: scaler_value().value}); 
     return parseFloat(getState().scalerValue);
 }
 

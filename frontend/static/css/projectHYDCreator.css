@@ -96,6 +96,8 @@ body {
 .tile .row select { flex: 2 1 150px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--card); color: var(--text); outline: none; cursor: pointer;}
 .tile .row select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--ring); }
 .tile .row select option { background: var(--card); color: var(--text); }
+.row-buttons { flex-wrap: nowrap !important; }
+.row-buttons button { white-space: nowrap; }
 
 .row-block { display: flex; flex-direction: row; gap: 8px; margin: 10px 5px; align-items: center; }
 .row-block input, .row-block label { min-width: 0; width: auto; }

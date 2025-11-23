@@ -1,15 +1,16 @@
 services:
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
-    image: lamvannguyen/digih2o-platform-backend:latest
-    container_name: digi_H20
+      context: .
+      dockerfile: backend/Dockerfile
+    image: lamvannguyen/digih2o-platform:latest
+    container_name: digi_H2O
     restart: always
     ports:
       - "8000:8000"
     env_file: .env
     volumes:
-      - ./backend/Delft_Projects:/app/Delft_Projects
-      - ./backend/static:/app/static
-      - ./frontend:/app/frontend
+      - backend_static:/app/static
+      - "C:/Program Files/Deltares/Delft3D FM Suite 2023.02 HMWQ/plugins:/host_delft3d"
+volumes:
+  backend_static:

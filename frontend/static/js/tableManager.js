@@ -10,17 +10,18 @@ export async function sendQuery(functionName, content){
 
 export function copyPaste(table, nCols){
     const tbody = table.querySelector('tbody');
-    tbody.innerHTML = '';
     table.addEventListener('paste', (e) => {
         e.preventDefault();
         const text = (e.clipboardData || window.Clipboard).getData('text'); // Get clipboard data
+        const rows = text.split(/\r?\n/).filter(r => r.trim() !== ''); // Split into rows 
+        if (!rows.length) return;
         // Get the first row
-        const firstLine = text.split(/\r?\n/)[0];
+        const firstLine = rows[0];
         const columns = firstLine.split(/\t|,/);
         if (columns.length !== nCols) { 
             alert(`The current table has ${columns.length} columns.\nNumber of columns must be ${nCols}.`); 
             return; }
-        const rows = text.split(/\r?\n/).filter(row => row.trim() !== ''); // Split into rows 
+        tbody.innerHTML = '';
         const data_arr = rows.map(row => row.split(/\t|,/).slice(0, nCols)); // Split into columns
         fillTable(data_arr, table);
     });
@@ -77,10 +78,37 @@ export function pointUpdate(target, table, isExist=true, objList=[]){
         document.getElementById('observation-point-csv').value = "";
         const objUpdate = document.getElementById('observation-point-update');
         objUpdate.style.display = 'none';
-        if (isExist) {objList.forEach(obj => obj.value = ''); objUpdate.style.display = 'block';}
-        let tbody = table.querySelector("tbody"); const newTbody = document.createElement("tbody");
-        tbody.replaceWith(newTbody); tbody = newTbody;
+        if (isExist) {
+            objList.forEach(obj => obj.value = ''); objUpdate.style.display = 'block';
+        } else {
+            const tbody = table.querySelector("tbody");
+            const newTbody = document.createElement('tbody');
+            const tr = document.createElement('tr');
+            objList.forEach(text => {
+                const td = document.createElement('td');
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.placeholder = text;
+                td.appendChild(input);
+                tr.appendChild(td);
+            });
+            newTbody.appendChild(tr); tbody.replaceWith(newTbody);
+        }
     });
+}
+
+export function addRowToTable(table, list){
+    const tbody = table.querySelector("tbody");
+    const tr = document.createElement('tr');
+    list.forEach(text => {
+        const td = document.createElement('td');
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = text;
+        td.appendChild(input);
+        tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
 }
 
 export function getDataFromTable(table, isZeroIndexString=false){

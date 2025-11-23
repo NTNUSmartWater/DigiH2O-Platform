@@ -54,7 +54,7 @@ export async function spatialMapManager() {
     // Set function for 2D dynamic map plot
     document.querySelectorAll('.map2D_dynamic').forEach(plot => {
         plot.addEventListener('click', () => {
-            if (substanceWindow().style.display === 'flex') {substanceWindow().style.display = 'none';}
+            if (substanceWindow().style.display !== 'none') {substanceWindow().style.display = 'none';}
             const [key, colorbarTitle, colorbarKey] = plot.dataset.info.split('|');
             let titleColorbar = colorbarTitle;
             if (!key.includes('single')) {
@@ -71,7 +71,10 @@ export async function spatialMapManager() {
         obj.addEventListener('click', async() => {
             const [query, type] = obj.dataset.info.split('|');
             const data = await sendQuery('process_data', {query: query, key: 'substance_check'});
-            if (data.status === "error") { alert(data.message); substanceWindow().style.display = 'none'; return; }
+            if (data.status === "error") { 
+                map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
+                alert(data.message); substanceWindow().style.display = 'none'; return; 
+            }
             substanceWindowContent().innerHTML = '';
             // Add content
             substanceWindowContent().innerHTML = data.content.map((substance, i) => {
