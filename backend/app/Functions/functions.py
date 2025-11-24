@@ -144,7 +144,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
         if data is None: continue
         # This is a hydrodynamic his file
         if 'time' in data.sizes and any(k in data.sizes for k in ['stations', 'cross_section', 'source_sink']):
-            print(f"- Checking Hydrodynamic Simulation: His file ...")
+            print(f"- Checking Hydrodynamic Simulation: His file...")
             # Prepare data for hydrodynamic options
             result['hyd_obs'] = data.sizes['stations'] > 0 if ('stations' in data.sizes) else False
             result['cross_sections'] = False
@@ -221,7 +221,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                 result['hyd_wb_storage'] or result['hyd_wb_volume_error']) else False
         # This is a hydrodynamic map file
         elif ('time' in data.sizes and any(k in data.sizes for k in ['mesh2d_nNodes', 'mesh2d_nEdges'])):
-            print(f"- Checking Hydrodynamic Simulation: Map file ...")
+            print(f"- Checking Hydrodynamic Simulation: Map file...")
             result['z_layers'] = checkVariables(data, 'mesh2d_layer_z')
             # Prepare data for thermocline parameters
             # 1. Thermocline
@@ -242,7 +242,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
             result['hide_map'] = result['spatial_map']
         # This is a water quality his file
         elif ('nTimesDlwq' in data.sizes and not any(k in data.sizes for k in ['mesh2d_nNodes', 'mesh2d_nEdges'])):
-            print(f"- Checking Water Quality Simulation: His file ...")
+            print(f"- Checking Water Quality Simulation: His file...")
             variables = set(data.variables.keys()) - set(['nTimesDlwqBnd', 'station_name', 'station_x', 'station_y', 'station_z', 'nTimesDlwq'])
             result['waq_his'] = False
             # Prepare data for Physical option
@@ -305,7 +305,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                 result['wq_his'] = result['waq_his_coliform']
         # This is a water quality map file      
         elif ('nTimesDlwq' in data.sizes and any(k in data.sizes for k in ['mesh2d_nNodes', 'mesh2d_nEdges'])):
-            print(f'- Checking Water Quality Simulation: Map file ...')
+            print(f'- Checking Water Quality Simulation: Map file...')
             result['wq_map'] = result['thermocline_waq'] = False
             variables = set(data.variables.keys()) - set(['mesh2d', 'mesh2d_node_x', 'mesh2d_node_y', 'mesh2d_edge_x',
                 'mesh2d_edge_y', 'mesh2d_face_x_bnd', 'mesh2d_face_y_bnd', 'mesh2d_edge_nodes', 'mesh2d_edge_faces',
@@ -827,7 +827,7 @@ def layerCounter(data_map: xr.Dataset, type: str='hyd') -> dict:
     if type == 'hyd':
         z_layer = [round(x, 2) for x in data_map['mesh2d_layer_z'].values]
         # Add depth-average if available
-        if {'mesh2d_ucxa', 'mesh2d_ucya'}.issubset(data_map.variables.keys()): layers[-1] = 'Average'
+        if {'mesh2d_ucxa', 'mesh2d_ucya'}.issubset(data_map.variables.keys()): layers['-1'] = 'Average'
         # Iterate from bottom to surface
         ucx = data_map['mesh2d_ucx'].data
         ucy = data_map['mesh2d_ucy'].data
@@ -839,12 +839,12 @@ def layerCounter(data_map: xr.Dataset, type: str='hyd') -> dict:
             ucm_i = ucm[:, :, i].compute()
             # Check if all values are nan
             if (np.isnan(ucx_i).all() or np.isnan(ucy_i).all() or np.isnan(ucm_i).all()): continue
-            layers[len(z_layer)-i-1] = f'Depth: {z_layer[i]} m'
+            layers[str(len(z_layer)-i-1)] = f'Depth: {z_layer[i]} m'
     else:
         z_layer = np.round([100*x for x in data_map['mesh2d_layer_dlwq'].data.compute()], 0)
-        layers[-1] = 'Average'
+        layers['-1'] = 'Average'
         for i in reversed(range(len(z_layer))):
-            layers[len(z_layer)-i-1] = f'Sigma: {z_layer[i]} %'
+            layers[str(len(z_layer)-i-1)] = f'Sigma: {z_layer[i]} %'
     return layers
 
 def vectorComputer(data_map: xr.Dataset, value_type: str, row_idx: int, step: int=-1) -> gpd.GeoDataFrame:

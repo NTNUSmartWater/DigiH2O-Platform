@@ -99,7 +99,7 @@ async def load_general_dynamic(request: Request):
         if 'single' in key: arr = values
         else:
             layer_reverse = group_cache['layer_reverse']
-            value_type = layer_reverse[int(temp[1])]
+            value_type = layer_reverse[temp[1]]
             if value_type in group_cache['layers']: arr = group_cache['layers'][value_type]
             else:
                 n_layers = len(layer_reverse)
@@ -139,7 +139,7 @@ async def load_vector_dynamic(request: Request):
     query, key = body.get('query'), body.get('key')
     try:
         layer_reverse = request.app.state.layer_reverse_hyd
-        value_type, row_idx = layer_reverse[int(key)], len(layer_reverse) - int(key) - 2
+        value_type, row_idx = layer_reverse[key], len(layer_reverse) - int(key) - 2
         data_ = request.app.state.hyd_map
         fnm = functions.numberFormatter
         if query == 'load': # Initiate skeleton polygon for the first load
