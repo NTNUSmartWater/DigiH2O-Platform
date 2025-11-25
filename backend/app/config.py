@@ -18,6 +18,7 @@ else:
     STATIC_DIR_FRONTEND = "/app/frontend/static"
 DELFT_PATH = os.getenv("DELFT3D_PATH")
 GRID_PATH = os.getenv('GRID_PATH')
+WINDOWS_AGENT_URL = "http://host.docker.internal:5055/run"
 # ============== Lifespan ================
 @asynccontextmanager
 async def lifespan(app):
@@ -28,7 +29,7 @@ async def lifespan(app):
     app.state.layer_reverse_hyd = app.state.layer_reverse_waq = None
     app.state.grid = app.state.config = None
     app.state.PROJECT_DIR = app.state.templates = None
-    app.state.obs = {}
+    app.state.obs, app.state.env = {}, env_mode
     yield
     try:
         app.state.dataset_manager.close()

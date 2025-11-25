@@ -12,6 +12,7 @@ Variable_names.txt
 
 # Additional files
 *.pyc
+rgfgrid.dia
 
 # Environment
 .env
