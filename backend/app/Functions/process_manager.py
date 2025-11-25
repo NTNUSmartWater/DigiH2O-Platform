@@ -1,9 +1,9 @@
-import os, json, re, requests, math, asyncio, traceback
+import os, json, re, requests, math, asyncio, traceback, subprocess
 from fastapi import APIRouter, Request, File, UploadFile, Form
 from Functions import functions
 from shapely.geometry import mapping
 from fastapi.responses import JSONResponse
-from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND, GRID_PATH
+from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND, GRID_PATH, WINDOWS_AGENT_URL
 import xarray as xr, pandas as pd, numpy as np, geopandas as gpd
 
 router = APIRouter()
@@ -492,11 +492,12 @@ async def generate_mdu(request: Request):
 async def open_gridTool(request: Request):
     await request.json()
     if not os.path.exists(GRID_PATH): return JSONResponse({"status": "error", "message": "Grid Tool not found."})
-    payload = {"path": GRID_PATH, "args": []}
-    WINDOWS_AGENT_URL = "http://host.docker.internal:5055/run"
-    # subprocess.Popen(GRID_PATH, shell=True)
-    try:
-        requests.post(WINDOWS_AGENT_URL, json=payload, timeout=10)
-        return JSONResponse({"status": "ok", "message": ""})
-    except Exception as e:
-        return JSONResponse({"status": "error", "message": f"Error: {str(e)}"})
+    if request.app.state.env == 'development': subprocess.Popen(GRID_PATH, shell=True)
+    else:
+        payload = {"action": "run_grid_tool", "path": GRID_PATH}
+        try:
+            res = requests.post(WINDOWS_AGENT_URL, json=payload, timeout=10)
+            res.raise_for_status()
+            return JSONResponse({"status": "ok", "message": ""})
+        except Exception as e:
+            return JSONResponse({"status": "error", "message": f"Exception: {str(e)}"})
