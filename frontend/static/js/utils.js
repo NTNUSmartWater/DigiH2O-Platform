@@ -179,10 +179,10 @@ export function updateMapByTime(layerMap, values, vmin, vmax, colorbarKey) {
 }
 
 // Load data
-export async function loadData(query, key){
+export async function loadData(query, key, projectName){
     const response = await fetch('/process_data', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({query: query, key: key})});
+    body: JSON.stringify({query: query, key: key, projectName: projectName})});
     const data = await response.json();
     return data;
 }
@@ -231,7 +231,7 @@ export async function initOptions(comboBox, key) {
     try {
         const response = await fetch('/initiate_options', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({key: key})});
+        body: JSON.stringify({key: key, projectName: getState().projectName})});
         const data = await response.json();
         if (data.status === "ok") {
             // Add none option in case of vector

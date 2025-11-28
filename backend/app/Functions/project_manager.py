@@ -1,7 +1,7 @@
 
 import os, shutil, subprocess, re, json, asyncio, traceback
 import numpy as np
-from fastapi.templating import Jinja2Templates
+# from fastapi.templating import Jinja2Templates
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from Functions import functions
@@ -11,14 +11,32 @@ router = APIRouter()
 
 # Remove folder configuration
 @router.post("/reset_config")
-def reset_config(request: Request):
+async def reset_config(request: Request):
+    body = await request.json()
+    project_name = body.get("projectName")
+    redis = request.app.state.redis
+    lock = redis.lock(f"lock:{project_name}:reset_config", timeout=20)
     try:
-        folder = request.app.state.PROJECT_DIR
-        if not folder: return JSONResponse({"message": "Project folder doesn't exist."})
-        config_dir = os.path.join(folder, "output", "config")
-        if not os.path.exists(config_dir): return JSONResponse({"message": "Configuration folder doesn't exist."})
-        shutil.rmtree(config_dir, onexc=functions.remove_readonly)
-        return JSONResponse({"message": "Configuration was reset successfully!"})
+        async with lock:
+            extend_task = asyncio.create_task(functions.auto_extend(lock))
+            try:
+                project_key = f"project:{project_name}"
+                # Reset project data in Redis
+                folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
+                if not os.path.exists(folder): return JSONResponse({"message": "Project folder doesn't exist."})
+                config_dir = os.path.join(folder, "output", "config")
+                if not os.path.exists(config_dir): return JSONResponse({"message": "Configuration folder doesn't exist."})
+                try:
+                    shutil.rmtree(config_dir, onexc=functions.remove_readonly)
+                except Exception as e:
+                    return JSONResponse({"message": f"Failed to delete config folder: {e}"})
+                # Delete config in Redis
+                await redis.hdel(project_key, "config")
+                await redis.hdel(project_key, "layer_reverse_hyd")
+                await redis.hdel(project_key, "layer_reverse_waq")
+                return JSONResponse({"message": "Configuration reset successfully!"})
+            finally:
+                extend_task.cancel()
     except Exception as e:
         print('/reset_config:\n==============')
         traceback.print_exc()
@@ -49,111 +67,111 @@ async def setup_new_project(request: Request):
 async def setup_database(request: Request):
     body = await request.json()
     project_name, params = body.get('projectName'), body.get('params')
+    redis, project_key = request.app.state.redis, f"project:{project_name}"
+    lock = redis.lock(f"lock:{project_name}:setup_database", timeout=300)
+    status, message, extend_task = 'ok', '', None
     try:
-        loop = asyncio.get_running_loop()
-        dm = request.app.state.dataset_manager
-        # Set PROJECT_DIR
-        project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
-        output_dir = os.path.join(project_folder, "output")
-        config_dir = os.path.join(output_dir, "config")
-        hyd_dir, waq_dir = os.path.join(output_dir, 'HYD'), os.path.join(output_dir, 'WAQ')
-        request.app.state.PROJECT_DIR = project_folder
-        request.app.state.templates = Jinja2Templates(directory="static/templates")
-        os.makedirs(config_dir, exist_ok=True)
-        # Load datasets asynchronously
-        async def load_dataset(dir: str, filename: str):
-            path = os.path.join(dir, filename)
-            if os.path.exists(path): return await loop.run_in_executor(None, lambda: dm.get(path))
-            return None
-        # Assign datasets (only load if file path exists)
-        mapping = [
-            ('hyd_his', hyd_dir, params[0]), ('hyd_map', hyd_dir, params[1]),
-            ('waq_his', waq_dir, params[2]), ('waq_map', waq_dir, params[3])
-        ]
-        for key, dir, filename in mapping:
-            if filename: setattr(request.app.state, key, await load_dataset(dir, filename))
-        # Load or init config
-        config_path = os.path.join(config_dir, 'config.json')
-        if os.path.exists(config_path) and os.path.getsize(config_path) > 0:
-            print('Config already exists. Loading...')
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-        else:
-            print('Config doesn\'t exist. Creating...')
-            config = {"hyd": {}, "waq": {}, "meta": {"hyd_scanned": False, "waq_scanned": False}, "model_type": ''}
-            if os.path.exists(config_path): os.remove(config_path)
-            with open(config_path, "w") as f:
-                json.dump(config, f)
-        # Delete waq option if no waq files
-        if request.app.state.waq_his is None and request.app.state.waq_map is None:
-            print('No waq files. Deleting waq option...')
-            config['waq'], config['meta']['waq_scanned'], config['model_type'] = {}, False, ''
-            if "wq_obs" in config: del config["wq_obs"]
-            if "wq_loads" in config: del config["wq_loads"]
-        # Transfer data to app state
-        if request.app.state.hyd_map is not None:
-            print('Creating grid and layers for hydrodynamic simulation...')
-            # Grid/layers generation
-            request.app.state.grid = functions.unstructuredGridCreator(request.app.state.hyd_map)
-            # Get number of layers
-            layer_path = os.path.join(config_dir, 'layers_hyd.json')
-            if os.path.exists(layer_path):
-                with open(layer_path, 'r') as f:
-                    request.app.state.layer_reverse_hyd = json.load(f)
+        async with lock:
+            extend_task = asyncio.create_task(functions.auto_extend(lock, interval=10))
+            # Create project entry
+            project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
+            output_dir = os.path.join(project_folder, "output")
+            config_dir = os.path.join(output_dir, "config")
+            hyd_dir, waq_dir = os.path.join(output_dir, 'HYD'), os.path.join(output_dir, 'WAQ')
+            os.makedirs(config_dir, exist_ok=True)
+            project_cache = request.app.state.project_cache.setdefault(project_name, {})
+            dm = request.app.state.dataset_manager
+            # request.app.state.templates = Jinja2Templates(directory="static/templates")
+            # Assign datasets (only load if file path exists)
+            hyd_his = await functions.load_dataset_cached(project_cache, 'hyd_his', dm, hyd_dir, params[0])
+            hyd_map = await functions.load_dataset_cached(project_cache, 'hyd_map', dm, hyd_dir, params[1])
+            waq_his = await functions.load_dataset_cached(project_cache, 'waq_his', dm, waq_dir, params[2])
+            waq_map = await functions.load_dataset_cached(project_cache, 'waq_map', dm, waq_dir, params[3])
+            # Load or init config
+            config_path = os.path.join(config_dir, 'config.json')
+            if os.path.exists(config_path) and os.path.getsize(config_path) > 0:
+                print('Config already exists. Loading...')
+                config = json.loads(open(config_path).read())
             else:
-                request.app.state.layer_reverse_hyd = functions.layerCounter(request.app.state.hyd_map, 'hyd')
-                with open(layer_path, 'w') as f:
-                    json.dump(request.app.state.layer_reverse_hyd, f)
-        if request.app.state.waq_map is not None:
-            print('Creating grid and layers for water quality simulation...')
-            layer_path = os.path.join(config_dir, 'layers_waq.json')
-            if os.path.exists(layer_path):
-                with open(layer_path, 'r') as f:
-                    request.app.state.layer_reverse_waq = json.load(f)
-            else:
-                request.app.state.layer_reverse_waq = functions.layerCounter(request.app.state.waq_map, 'waq')
-                with open(layer_path, 'w') as f:
-                    json.dump(request.app.state.layer_reverse_waq, f)
-        # Lazy scan HYD variables only once
-        if (request.app.state.hyd_map or request.app.state.hyd_his) and not config['meta']['hyd_scanned']:
-            print('Scanning HYD variables...')
-            hyd_files = [request.app.state.hyd_his, request.app.state.hyd_map]
-            hyd_vars = functions.getVariablesNames(hyd_files)
-            config["hyd"], config["meta"]["hyd_scanned"] = hyd_vars, True
-        # Get WAQ model
-        temp = params[2].replace('_his.zarr', '') if params[2] != '' else params[3].replace('_map.zarr', '')
-        model_path, waq_model = os.path.join(waq_dir, f'{temp}.json'), ''
-        if os.path.exists(model_path):
-            print('Loading WAQ model...')
-            with open(model_path, 'r') as f:
-                temp_data = json.load(f)
-            waq_model = temp_data['model_type']
-            if 'wq_obs' in temp_data: 
-                config['wq_obs'], request.app.state.obs['wq_obs'] = True, temp_data['wq_obs']
-            if 'wq_loads' in temp_data:
-                config['wq_loads'], request.app.state.obs['wq_loads'] = True, temp_data['wq_loads']
-        if (request.app.state.waq_his or request.app.state.waq_map) and waq_model == '':
-            return JSONResponse({"status": 'error', "message": "Some WAQ-related parameters are missing.\nConsider running the model again."})  
-        # Lazy scan WAQ
-        if (request.app.state.waq_map or request.app.state.waq_his) and config['model_type'] != waq_model:
-            print('Scanning WAQ variables...')
-            waq_files = [request.app.state.waq_his, request.app.state.waq_map]
-            waq_vars = functions.getVariablesNames(waq_files, waq_model)
-            config["waq"], config["meta"]["waq_scanned"], config['model_type'] = waq_vars, True, waq_model
-        # Save config
-        with open(config_path, 'w') as f:
-            json.dump(config, f)
-        # Restructure configuration
-        result = {**config.get("hyd", {}), **config.get("waq", {})}
-        for k, v in config.items():
-            if k not in ("hyd", "waq", "meta"):
-                result[k] = v
-        request.app.state.config, status, message = result, 'ok', ''
-        print('Configuration loaded successfully.')
+                print('Config doesn\'t exist. Creating...')
+                config = {"hyd": {}, "waq": {}, "meta": {"hyd_scanned": False, "waq_scanned": False}, "model_type": ''}
+                if os.path.exists(config_path): os.remove(config_path)
+                open(config_path, "w").write(json.dumps(config))
+            # ---------------- Grid & Layer ----------------
+            layer_reverse_hyd, layer_reverse_waq = {}, {}
+            if hyd_map:
+                print('Creating grid and layers for hydrodynamic simulation...')
+                # Grid/layers generation
+                grid = functions.unstructuredGridCreator(hyd_map)
+                # Get number of layers
+                layer_path = os.path.join(config_dir, 'layers_hyd.json')
+                if os.path.exists(layer_path):
+                    layer_reverse_hyd = json.load(open(layer_path))
+                else:
+                    layer_reverse_hyd = functions.layerCounter(hyd_map, 'hyd')
+                    json.dump(layer_reverse_hyd, open(layer_path, "w"))
+            if waq_map:
+                print('Creating grid and layers for water quality simulation...')
+                layer_path = os.path.join(config_dir, 'layers_waq.json')
+                if os.path.exists(layer_path):
+                    layer_reverse_waq = json.load(open(layer_path))
+                else:
+                    layer_reverse_waq = functions.layerCounter(waq_map, 'waq')
+                    json.dump(layer_reverse_waq, open(layer_path, "w"))
+            # Lazy scan HYD variables only once
+            if (hyd_map or hyd_his) and not config['meta']['hyd_scanned']:
+                print('Scanning HYD variables...')
+                hyd_vars = functions.getVariablesNames([hyd_his, hyd_map], 'hyd')
+                config["hyd"], config["meta"]["hyd_scanned"] = hyd_vars, True
+            # Get WAQ model
+            temp = params[2].replace('_his.zarr', '') if params[2] != '' else params[3].replace('_map.zarr', '')
+            model_path, waq_model, obs = os.path.join(waq_dir, f'{temp}.json'), '', {}
+            if os.path.exists(model_path):
+                print('Loading WAQ model...')
+                temp_data = json.load(open(model_path))
+                waq_model = temp_data['model_type']
+                if 'wq_obs' in temp_data: 
+                    config['wq_obs'], obs['wq_obs'] = True, temp_data['wq_obs']
+                if 'wq_loads' in temp_data:
+                    config['wq_loads'], obs['wq_loads'] = True, temp_data['wq_loads']
+            if (waq_his or waq_map) and waq_model == '':
+                return JSONResponse({"status": 'error', "message": "Some WAQ-related parameters are missing.\nConsider running the model again."})  
+            # Lazy scan WAQ
+            if (waq_map or waq_his) and config['model_type'] != waq_model:
+                print('Scanning WAQ variables...')
+                waq_vars = functions.getVariablesNames([waq_his, waq_map], waq_model)
+                config["waq"], config["meta"]["waq_scanned"], config['model_type'] = waq_vars, True, waq_model
+            # Delete waq option if no waq files
+            if waq_his is None and waq_map is None:
+                print('No waq files. Deleting waq option...')
+                config['waq'], config['meta']['waq_scanned'], config['model_type'] = {}, False, ''
+                config.pop("wq_obs", None)
+                config.pop("wq_loads", None)
+            # Save config
+            open(config_path, "w").write(json.dumps(config))
+            # Restructure configuration
+            result = {**config.get("hyd", {}), **config.get("waq", {})}
+            for k, v in config.items():
+                if k not in ("hyd", "waq", "meta"):
+                    result[k] = v
+            # Serialize grid & layer_reverse to JSON-safe formats
+            redis_mapping = {
+                "hyd_his_path": params[0], "hyd_map_path": params[1], "waq_his_path": params[2], "waq_map_path": params[3],
+                "layer_reverse_hyd": json.dumps(layer_reverse_hyd), "layer_reverse_waq": json.dumps(layer_reverse_waq),
+                "config": json.dumps(result), "waq_obs": json.dumps(obs), "grid": grid.to_json()                
+            }
+            # Save to Redis
+            await redis.hset(project_key, mapping=redis_mapping)
+            print('Configuration loaded successfully.')
     except Exception as e:
         print('/setup_database:\n==============')
         traceback.print_exc()
         status, message = 'error', f"Error: {str(e)}"
+    finally:
+        if extend_task:
+            extend_task.cancel()
+            try: await extend_task
+            except asyncio.CancelledError: pass
     return JSONResponse({"status": status, "message": message})
 
 # Delete a project

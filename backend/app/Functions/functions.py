@@ -1,14 +1,39 @@
-import shapely, os, re, shutil, stat
+import shapely, os, re, shutil, stat, asyncio
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
 from scipy.interpolate import Rbf
 from config import PROJECT_STATIC_ROOT
+from redis.asyncio.lock import Lock
 
 def remove_readonly(func, path, excinfo):
     # Change the readonly bit, but not the file contents
     os.chmod(path, stat.S_IWRITE)
     func(path)
+
+async def auto_extend(lock: Lock, interval: int = 10):
+    """
+    Auto-extend Redis lock every `interval` seconds, only if still owned.
+    """
+    try:
+        while True:
+            await asyncio.sleep(interval)
+            if not await lock.locked(): break
+            try: await lock.extend()
+            except Exception: break
+    except asyncio.CancelledError: pass
+
+async def load_dataset_cached(project_cache, key, dm, dir_path, filename):
+    """
+    Load dataset from DatasetManager once per project and cache in memory.
+    """
+    if key in project_cache: return project_cache[key]
+    if not filename: return None
+    path = os.path.join(dir_path, filename)
+    if not os.path.exists(path): return None
+    ds = dm.get(path)
+    project_cache[key] = ds
+    return ds
 
 variablesNames = {
     # For In-situ options
