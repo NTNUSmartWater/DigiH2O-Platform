@@ -137,7 +137,7 @@ function layerCreator(meshes, values, key, vmin, vmax, colorbarTitle, colorbarKe
 
 export async function plot2DMapStatic(key, colorbarTitle, colorbarKey) {
     startLoading();
-    const data = await loadData(key, 'static');
+    const data = await loadData(key, 'static', getState().projectName);
     if (data.status === 'error') { showLeafletMap(); alert(data.message); return; }
     setState({isPlaying: false});
     // Hide timeslider
@@ -251,14 +251,16 @@ function initDynamicMap(query, key_below, key_above, data_below, data_above,
     slider().noUiSlider.on('update', async (values, handle, unencoded) => {
         currentIndex = Math.round(unencoded[handle]);
         if (data_below && layerMap) {
-            const frame_below = await sendQuery('load_general_dynamic', {query: `${query}|${currentIndex}`, key: key_below});
+            const frame_below = await sendQuery('load_general_dynamic', {query: `${query}|${currentIndex}`, 
+                key: key_below, projectName: getState().projectName});
             if (frame_below.status === 'error') { alert(frame_below.message); return; }
             if (key_below === 'wd_single_dynamic') frame_below.content.values = frame_below.content.values.map(v => -v);
             const values = frame_below.content.values;
             updateMapByTime(layerMap, values, vminBelow, vmaxBelow, colorbarKeyBelow);
         }
         if (data_above && layerAbove) {
-            const frame_above = await sendQuery('load_vector_dynamic', {query: currentIndex, key: key_above});
+            const frame_above = await sendQuery('load_vector_dynamic', {query: currentIndex, 
+                key: key_above, projectName: getState().projectName});
             if (frame_above.status === 'error') { alert(frame_above.message); return; }
             parsedFrame = buildFrameData(frame_above.content);
             layerAbove.options.data = parsedFrame; layerAbove._redraw();
@@ -314,7 +316,7 @@ export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, 
     let data_below = null, data_above = null, colorbarTitleAbove = null, colorbarKeyAbove = null, key_below = key, key_above = null;
     setState({showedQuery: key}); setState({isHYD: waterQuality});  // Set HYD flag
     // Process below layer
-    const dataBelow = await sendQuery('load_general_dynamic', {query: `${query}|load`, key: key});
+    const dataBelow = await sendQuery('load_general_dynamic', {query: `${query}|load`, key: key, projectName: getState().projectName});
     if (dataBelow.status === 'error') { showLeafletMap(); alert(dataBelow.message); return; }
     data_below = dataBelow.content;
     // If data is water depth, reverse values in below layer    
@@ -332,7 +334,7 @@ export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, 
             colorbarTitleAbove = `${vectorSelector.selectedOptions[0].text} (m/s)\n${title}`; colorbarKeyAbove = 'vector';
         }
         key_above = layerSelector.value;
-        const dataAbove = await sendQuery('load_vector_dynamic', {query: 'load', key: key_above});
+        const dataAbove = await sendQuery('load_vector_dynamic', {query: 'load', key: key_above, projectName: getState().projectName});
         data_above = dataAbove.content; 
     }
     initDynamicMap(query, key_below, key_above, data_below, data_above, colorbarTitle, colorbarTitleAbove, colorbarKey, colorbarKeyAbove, scale);
@@ -341,7 +343,7 @@ export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, 
 
 export async function plot2DVectorMap(query, key, colorbarTitleAbove, colorbarKey) {
     startLoading('Preparing Dynamic Vector Map. Please wait...'); scale = initScaler();
-    const data = await sendQuery('load_vector_dynamic', {query: query, key: key});
+    const data = await sendQuery('load_vector_dynamic', {query: query, key: key, projectName: getState().projectName});
     if (data.status === 'error') { showLeafletMap(); alert(data.message); return; }
     if (layerMap) map.removeLayer(layerMap); layerMap = null;
     if (layerAbove) map.removeLayer(layerAbove); layerAbove = null;

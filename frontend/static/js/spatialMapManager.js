@@ -70,7 +70,8 @@ export async function spatialMapManager() {
     document.querySelectorAll('.waq-function').forEach(obj => {
         obj.addEventListener('click', async() => {
             const [query, type] = obj.dataset.info.split('|');
-            const data = await sendQuery('process_data', {query: query, key: 'substance_check'});
+            const data = await sendQuery('process_data', {query: query, key: 'substance_check',
+                projectName: projectTitle().textContent.replace('Project: ', '')});
             if (data.status === "error") { 
                 map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
                 alert(data.message); substanceWindow().style.display = 'none'; return; 

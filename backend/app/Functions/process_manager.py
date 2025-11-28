@@ -9,34 +9,37 @@ import xarray as xr, pandas as pd, numpy as np, geopandas as gpd
 router = APIRouter()
 
 # Process data
-def process_internal(request: Request, query: str, key: str):
+async def process_internal(query: str, key: str, redis, project_name: str):
     # Internal function to process data
     message = ''
     if key == 'summary':
-        dia_path = os.path.join(request.app.state.PROJECT_DIR, "output", "HYD", "FlowFM.dia")
-        data_his = [request.app.state.hyd_his, request.app.state.waq_his]
-        data = functions.getSummary(dia_path, data_his)
+        dia_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "HYD", "FlowFM.dia")
+        hyd_his = await redis.hgetall(f"project:{project_name}:grid")
+        waq_his = await redis.hgetall(f"project:{project_name}:grid")
+        data = functions.getSummary(dia_path, [hyd_his, waq_his])
     elif key == 'hyd_station':
-        temp, message = functions.hydCreator(request.app.state.hyd_his)
+        temp, message = functions.hydCreator(await redis.hgetall(f"project:{project_name}:hyd_his"))
         data = json.loads(temp.to_json())
     elif key in ['wq_obs', 'wq_loads']:
-        data = json.loads(functions.obsCreator(request.app.state.obs[key]).to_json())
+        data = json.loads(functions.obsCreator(await redis.hgetall(f"project:{project_name}:waq_obs")[key]).to_json())
     elif key == 'sources':
-        data = json.loads(functions.sourceCreator(request.app.state.hyd_his).to_json())
+        data = json.loads(functions.sourceCreator(await redis.hgetall(f"project:{project_name}:hyd_his")).to_json())
     elif key == 'crosssections':
-        temp, message = functions.crosssectionCreator(request.app.state.hyd_his)
+        temp, message = functions.crosssectionCreator(await redis.hgetall(f"project:{project_name}:hyd_his"))
         data = json.loads(temp.to_json())
     elif key == '_in-situ':
         temp = query.split('*')
         name, stationId, type = temp[0], temp[1], temp[2]
-        temp = functions.selectInsitu(request.app.state.hyd_his, request.app.state.hyd_map, name, stationId, type)
+        temp = functions.selectInsitu(await redis.hgetall(f"project:{project_name}:hyd_his"), 
+                                      await redis.hgetall(f"project:{project_name}:hyd_map"), name, stationId, type)
         data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
     elif key == 'static':
         # Create static data for map
-        grid = request.app.state.grid.copy()
-        x = request.app.state.hyd_map['mesh2d_node_x'].data.compute()
-        y = request.app.state.hyd_map['mesh2d_node_y'].data.compute()
-        z = request.app.state.hyd_map['mesh2d_node_z'].data.compute()
+        grid = await redis.hgetall(f"project:{project_name}:grid").copy()
+        hyd_map = await redis.hgetall(f"project:{project_name}:hyd_map")
+        x = hyd_map['mesh2d_node_x'].data.compute()
+        y = hyd_map['mesh2d_node_y'].data.compute()
+        z = hyd_map['mesh2d_node_z'].data.compute()
         if 'depth' in query: values = functions.interpolation_Z(grid, x, y, z)
         # Convert GeoDataFrame to expected format
         features = [{ "type": "Feature", "properties": {"index": idx}, "geometry": mapping(row["geometry"])
@@ -45,16 +48,16 @@ def process_internal(request: Request, query: str, key: str):
         fnm = functions.numberFormatter
         data['values'], data['min_max'] = values, [fnm(np.nanmin(values)), fnm(np.nanmax(values))]
     elif key == 'substance_check':
-        substance = request.app.state.config[query]
+        substance = await redis.hgetall(f"project:{project_name}:config")[query]
         if len(substance) > 0:
             data, message = sorted(substance), functions.valueToKeyConverter(substance)
         else: data, message = None, f"No substance defined."
     elif key == 'substance':
-        temp = functions.timeseriesCreator(request.app.state.waq_his, query.split(' ')[0], timeColumn='nTimesDlwq')
+        temp = functions.timeseriesCreator(await redis.hgetall(f"project:{project_name}:waq_his"), query.split(' ')[0], timeColumn='nTimesDlwq')
         data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
     else:
         # Create time series data
-        temp = functions.timeseriesCreator(request.app.state.hyd_his, key)
+        temp = functions.timeseriesCreator(await redis.hgetall(f"project:{project_name}:hyd_his"), key)
         data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
     return message, data
 
@@ -62,12 +65,20 @@ def process_internal(request: Request, query: str, key: str):
 async def process_data(request: Request):
     # Get body data
     body = await request.json()
-    query, key = body.get('query'), body.get('key')
-    loop = asyncio.get_event_loop()
+    query, key, project_name = body.get('query'), body.get('key'), body.get('projectName')
+    redis = request.app.state.redis
+    lock = redis.lock(f"project:{project_name}:process_data", timeout=20)
     try:
-        result = await loop.run_in_executor(None, lambda: process_internal(request, query, key))
-        if result[1] is None: return JSONResponse({'status': 'error', 'message': result[0]})
-        status, message, data = 'ok', result[0], result[1]
+        async with lock:
+            # Start auto-extend task
+            extend_task = asyncio.create_task(functions.auto_extend(lock))
+            try:
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(None, lambda: process_internal(query, key, redis, project_name))
+                if result[1] is None: return JSONResponse({'status': 'error', 'message': result[0]})
+                status, message, data = 'ok', result[0], result[1]
+            finally:
+                extend_task.cancel()
     except Exception as e:
         print('/process_data:\n==============')
         traceback.print_exc()
@@ -79,84 +90,116 @@ async def process_data(request: Request):
 async def load_general_dynamic(request: Request):
     # Get body data
     body = await request.json()
-    query, key = body.get('query'), body.get('key')
+    query, key, project_name = body.get('query'), body.get('key'), body.get('projectName')
+    redis, dynamic_cache_key = request.app.state.redis, f"project:{project_name}:dynamic_cache"
+    lock = redis.lock(f"project:{project_name}:load_general_dynamic", timeout=60)
+    status, message, extend_task, project_key = 'ok', '', None, f"project:{project_name}"
+    project_cache = request.app.state.project_cache.setdefault(project_name)
+    if not project_cache: return JSONResponse({"status": "error", "message": "Project not initialized."})
+    hyd_his, hyd_map = project_cache.get("hyd_his"), project_cache.get("hyd_map")
+    waq_his, waq_map = project_cache.get("waq_his"), project_cache.get("waq_map")
+    if not any([hyd_his, hyd_map, waq_his, waq_map]):
+        return JSONResponse({"status": "error", "message": "Project not initialized."})
     try:
-        temp = query.split('|')
-        is_hyd = temp[0] == '' # hydrodynamic or waq
-        data_ = request.app.state.hyd_map if is_hyd else request.app.state.waq_map
-        time_column = 'time' if is_hyd else 'nTimesDlwq'
-        name = functions.variablesNames.get(key, key) if is_hyd else temp[0]
-        values = data_[name].values
-        # Setup cache
-        dynamic_cache = getattr(request.app.state, 'dynamic_cache', {})
-        group = 'hyd' if is_hyd else 'waq'
-        if group not in dynamic_cache: 
-            dynamic_cache[group] = {
-                "layer_reverse": getattr(request.app.state, f'layer_reverse_{group}'), "layers": {}
-            }
-        group_cache = dynamic_cache[group]
-        setattr(request.app.state, 'dynamic_cache', dynamic_cache)
-        if 'single' in key: arr = values
-        else:
-            layer_reverse = group_cache['layer_reverse']
-            value_type = layer_reverse[temp[1]]
-            if value_type in group_cache['layers']: arr = group_cache['layers'][value_type]
+        async with lock:
+            extend_task = asyncio.create_task(functions.auto_extend(lock))
+            temp = query.split('|')
+            is_hyd = temp[0] == '' # hydrodynamic or waq
+            data_ = hyd_map if is_hyd else waq_map
+            time_column = 'time' if is_hyd else 'nTimesDlwq'
+            name = functions.variablesNames.get(key, key) if is_hyd else temp[0]
+            values = data_[name].values
+            # Load dynamic cache from Redis
+            raw_cache = await redis.get(dynamic_cache_key)
+            if raw_cache: dynamic_cache = json.loads(raw_cache)
             else:
-                n_layers = len(layer_reverse)
-                row_idx = n_layers - int(temp[1]) - 2
-                if value_type == 'Average':
-                    if is_hyd: temp_values = np.nanmean(values, axis=2)
-                    else:
-                        temp_name = name.split('_')
-                        temp_values = data_[f"{temp_name[0]}_2d_{temp_name[1]}"].values
-                else: temp_values = values[:, :, row_idx-1] if is_hyd else values[:, row_idx-1, :]
-                group_cache['layers'][value_type] = temp_values
-                arr = temp_values
-        fmt = functions.numberFormatter 
-        if temp[2] == 'load': # Initiate skeleton polygon for the first load
-            if not hasattr(request.app.state, 'grid_features'):
-                request.app.state.grid_features = [{
-                    'type': 'Feature', 'properties': {"index": idx},
-                    'geometry': mapping(row['geometry'])
-                } for idx, row in request.app.state.grid.iterrows()]
-            data = { 'meshes': { 'type': 'FeatureCollection', 'features': request.app.state.grid_features },
-               'values': list(fmt(arr[-1, :])), 'min_max': [fmt(np.nanmin(values)), fmt(np.nanmax(values))],
-               'timestamps': [pd.to_datetime(t).strftime('%Y-%m-%d %H:%M:%S') for t in data_[time_column].data]
-            }
-        else: # Update value of polygons
-            data = {'values': list(fmt(arr[int(temp[2]),:]))}
-        status, message = 'ok', ''
+                layer_reverse_key = "layer_reverse_hyd" if is_hyd else "layer_reverse_waq"
+                layer_reverse = await redis.hget(project_key, layer_reverse_key)
+                layer_reverse = json.loads(layer_reverse)
+                dynamic_cache = {"layer_reverse": layer_reverse, "layers": {}}
+            layer_reverse = dynamic_cache["layer_reverse"]
+            # Process data
+            if 'single' in key: arr = values
+            else:
+                layer_reverse = dynamic_cache['layer_reverse']
+                value_type = layer_reverse[temp[1]]
+                if value_type in dynamic_cache['layers']: arr = dynamic_cache['layers'][value_type]
+                else:
+                    n_layers = len(layer_reverse)
+                    row_idx = n_layers - int(temp[1]) - 2
+                    if value_type == 'Average':
+                        if is_hyd: temp_values = np.nanmean(values, axis=2)
+                        else:
+                            temp_name = name.split('_')
+                            temp_values = data_[f"{temp_name[0]}_2d_{temp_name[1]}"].values
+                    else: temp_values = values[:, :, row_idx-1] if is_hyd else values[:, row_idx-1, :]
+                    dynamic_cache['layers'][value_type] = temp_values.tolist()
+                    arr = temp_values
+            # Save back dynamic cache to Redis
+            await redis.set(dynamic_cache_key, json.dumps(dynamic_cache))
+            fmt = functions.numberFormatter 
+            if temp[2] == 'load': # Initiate skeleton polygon for the first load
+                grid_raw = json.loads(await redis.hget(project_key, "grid"))
+                if not grid_raw:
+                    return JSONResponse({"status": "error", "message": "Grid data not found in Redis."})
+                # Construct GeoJSON features
+                features = grid_raw.get("features", [])
+                grid_features = [
+                    {"type": "Feature", "properties": {"index": idx}, "geometry": feature["geometry"]}
+                    for idx, feature in enumerate(features)
+                ]
+                arr_np = np.array(arr)
+                if arr_np.ndim == 1: new_arr = arr_np
+                elif arr_np.ndim == 2: new_arr = arr_np[-1, :]
+                data = { 'meshes': { 'type': 'FeatureCollection', 'features': grid_features },
+                'values': list(fmt(new_arr)), 'min_max': [fmt(np.nanmin(values)), fmt(np.nanmax(values))],
+                'timestamps': [pd.to_datetime(t).strftime('%Y-%m-%d %H:%M:%S') for t in data_[time_column].data]
+                }
+            else: # Update value of polygons
+                arr_np = np.array(arr)
+                if arr_np.ndim == 1: new_arr = arr_np
+                elif arr_np.ndim == 2: new_arr = arr_np[int(temp[2]), :]
+                data = {'values': list(fmt(new_arr))}
     except Exception as e:
         print('/load_general_dynamic:\n==============')
         traceback.print_exc()
         status, message, data = 'error', f"Error: {e}", None
+    finally:
+        if extend_task:
+            extend_task.cancel()
+            try: await extend_task
+            except asyncio.CancelledError: pass
     return JSONResponse({'content': data, 'status': status, 'message': message})
 
 # Load vector dynamic data
 @router.post("/load_vector_dynamic")
 async def load_vector_dynamic(request: Request):
     body = await request.json()
-    query, key = body.get('query'), body.get('key')
+    query, key, project_name = body.get('query'), body.get('key'), body.get('projectName')
+    redis = request.app.state.redis
+    lock = redis.lock(f"project:{project_name}:load_vector_dynamic", timeout=20)
     try:
-        layer_reverse = request.app.state.layer_reverse_hyd
-        value_type, row_idx = layer_reverse[key], len(layer_reverse) - int(key) - 2
-        data_ = request.app.state.hyd_map
-        fnm = functions.numberFormatter
-        if query == 'load': # Initiate skeleton polygon for the first load
-            data = functions.vectorComputer(data_, value_type, row_idx)
-            # Get global vmin and vmax
-            if value_type == 'Average':
-                vmin = fnm(np.nanmin(data_['mesh2d_ucmaga']))
-                vmax = fnm(np.nanmax(data_['mesh2d_ucmaga']))
-            else:
-                vmin = fnm(np.nanmin(data_['mesh2d_ucmag']))
-                vmax = fnm(np.nanmax(data_['mesh2d_ucmag']))
-            data['timestamps'] = [pd.to_datetime(t).strftime('%Y-%m-%d %H:%M:%S')
-                                  for t in data_['time'].values]
-            data['min_max'] = [vmin, vmax]
-        else:
-            data = functions.vectorComputer(data_, value_type, row_idx, int(query))
-        status, message = 'ok', ''
+        async with lock:
+            extend_task = asyncio.create_task(functions.auto_extend(lock))
+            try:
+                layer_reverse = await redis.hgetall(f"project:{project_name}:layer_reverse_hyd")
+                value_type, row_idx = layer_reverse[key], len(layer_reverse) - int(key) - 2
+                data_ = await redis.hgetall(f"project:{project_name}:hyd_map")
+                fnm = functions.numberFormatter
+                if query == 'load': # Initiate skeleton polygon for the first load
+                    data = functions.vectorComputer(data_, value_type, row_idx)
+                    # Get global vmin and vmax
+                    if value_type == 'Average':
+                        vmin, vmax = fnm(np.nanmin(data_['mesh2d_ucmaga'])), fnm(np.nanmax(data_['mesh2d_ucmaga']))
+                    else:
+                        vmin, vmax = fnm(np.nanmin(data_['mesh2d_ucmag'])), fnm(np.nanmax(data_['mesh2d_ucmag']))
+                    data['timestamps'] = [pd.to_datetime(t).strftime('%Y-%m-%d %H:%M:%S') for t in data_['time'].values]
+                    data['min_max'] = [vmin, vmax]
+                else:
+                    data = functions.vectorComputer(data_, value_type, row_idx, int(query))
+                status, message = 'ok', ''
+            finally:
+                extend_task.cancel()
     except Exception as e:
         print('/load_vector_dynamic:\n==============')
         traceback.print_exc()
@@ -167,47 +210,65 @@ async def load_vector_dynamic(request: Request):
 @router.post("/select_meshes")
 async def select_meshes(request: Request):    
     body = await request.json()
-    key, query, idx, points = body.get('key'), body.get('query'), body.get('idx'), body.get('points')
+    key, query, idx = body.get('key'), body.get('query'), body.get('idx')
+    project_name, points = body.get('projectName'), body.get('points')
+    redis, cache_key = request.app.state.redis, f"project:{project_name}:mesh_cache"
+    lock = redis.lock(f"project:{project_name}:select_meshes", timeout=20)
     try:
-        if '_waq_multi_dynamic' in query: query = 'mesh2d_' + query[:-len('_waq_multi_dynamic')]
-        is_hyd = key == 'hyd'
-        data_ = request.app.state.hyd_map if is_hyd else request.app.state.waq_map
-        name, status, message = functions.variablesNames.get(query, query), 'ok', ''
-        fnm = functions.numberFormatter
-        # Cache data
-        if not hasattr(request.app.state, 'mesh_cache'):
-            layers_values = np.array([float(v.split(' ')[1]) for k, v in request.app.state.layer_reverse_hyd.items() if int(k) >= 0])
-            max_layer = float(max(layers_values, key=abs))
-            n_rows = abs(math.ceil(max_layer/10)*10) if max_layer > 0 else abs(math.floor(max_layer/10)*10) + 1
-            depth_idx = np.array([round(abs(d)) for d in layers_values])
-            # Using mapping to increase performance
-            index_map = {int(v): depth_idx.shape[0] - i - 1 for i, v in enumerate(depth_idx)}
-            request.app.state.mesh_cache = { "layers_values": layers_values, "n_rows": n_rows,
-                "depth_idx": depth_idx, "index_map": index_map, "max_layer": max_layer}
-        if idx == 'load': # Initiate data for the first load
-            cache = getattr(request.app.state, "mesh_cache", None)
-            time_column = 'time' if is_hyd else 'nTimesDlwq'
-            time_stamps = pd.to_datetime(data_[time_column]).strftime('%Y-%m-%d %H:%M:%S').tolist()
-            points_arr, arr = np.array(points), data_[name].values[0,:,:]
-            x_coords, y_coords = points_arr[:, 2], points_arr[:, 1]
-            gdf = gpd.GeoDataFrame(geometry=gpd.points_from_xy(x_coords, y_coords), crs=request.app.state.grid.crs)
-            gdf['depth'] = functions.interpolation_Z(gdf, request.app.state.hyd_map['mesh2d_node_x'].values, 
-                request.app.state.hyd_map['mesh2d_node_y'].values, request.app.state.hyd_map['mesh2d_node_z'].values
-            )
-            cache["df"] = gdf.drop(columns=['geometry'])
-            frame = functions.meshProcess(is_hyd, arr, cache)
-            global_vmin, global_vmax = fnm(np.nanmin(arr)), fnm(np.nanmax(arr))
-            vmin, vmax = fnm(np.nanmin(frame)), fnm(np.nanmax(frame))
-            data = {"timestamps": time_stamps, "distance": np.round(points_arr[:, 0], 0).tolist(), "values": fnm(frame), 
-                    "depths": np.arange(0, frame.shape[0]) if cache["max_layer"] > 0 else np.arange(0, -frame.shape[0], -1).tolist(),
-                    "global_minmax": [global_vmin, global_vmax], "local_minmax": [vmin, vmax]}
-        else: # Load next frame
-            cache = getattr(request.app.state, "mesh_cache", None)
-            if cache is None: return JSONResponse({"status": 'error', "message": "Mesh cache is not initialized."})
-            arr = data_[name].values[int(idx),:,:]
-            frame = functions.meshProcess(is_hyd, arr, cache)
-            vmin, vmax = fnm(np.nanmin(frame)), fnm(np.nanmax(frame))
-            data = {"values": fnm(frame), "local_minmax": [vmin, vmax]}
+        async with lock:
+            extend_task = asyncio.create_task(functions.auto_extend(lock))
+            try:
+                if '_waq_multi_dynamic' in query: query = 'mesh2d_' + query[:-len('_waq_multi_dynamic')]
+                is_hyd = key == 'hyd'
+                hyd_map = await redis.hgetall(f"project:{project_name}:hyd_map")
+                data_ = hyd_map if is_hyd else await redis.hgetall(f"project:{project_name}:waq_map")
+                name, status, message = functions.variablesNames.get(query, query), 'ok', ''
+                fnm = functions.numberFormatter
+                # Initialize mesh cache in Redis if not exists
+                mesh_cache_raw = await redis.get(cache_key)
+                if mesh_cache_raw:
+                    mesh_cache = json.loads(mesh_cache_raw)
+                    # Convert lists back to numpy arrays
+                    mesh_cache['layers_values'] = np.array(mesh_cache['layers_values'])
+                    mesh_cache['depth_idx'] = np.array(mesh_cache['depth_idx'])
+                else:
+                    layers_values = np.array([float(v.split(' ')[1]) for k, v in await redis.hgetall(f"project:{project_name}:layer_reverse_hyd").items() if int(k) >= 0])
+                    max_layer = float(max(layers_values, key=abs))
+                    n_rows = abs(math.ceil(max_layer/10)*10) if max_layer > 0 else abs(math.floor(max_layer/10)*10) + 1
+                    depth_idx = np.array([round(abs(d)) for d in layers_values])
+                    # Using mapping to increase performance
+                    index_map = {int(v): depth_idx.shape[0] - i - 1 for i, v in enumerate(depth_idx)}
+                    cache = { "layers_values": layers_values.tolist(), "n_rows": n_rows, "df": None,
+                        "depth_idx": depth_idx.tolist(), "index_map": index_map, "max_layer": max_layer}
+                    await redis.set(cache_key, json.dumps(cache))
+                # Initiate data for the first load
+                if idx == 'load': 
+                    cache = getattr(request.app.state, "mesh_cache", None)
+                    time_column = 'time' if is_hyd else 'nTimesDlwq'
+                    time_stamps = pd.to_datetime(data_[time_column]).strftime('%Y-%m-%d %H:%M:%S').tolist()
+                    points_arr, arr = np.array(points), data_[name].values[0,:,:]
+                    x_coords, y_coords = points_arr[:, 2], points_arr[:, 1]
+                    grid = await redis.hgetall(f"project:{project_name}:grid")
+                    gdf = gpd.GeoDataFrame(geometry=gpd.points_from_xy(x_coords, y_coords), crs=grid.crs)
+                    gdf['depth'] = functions.interpolation_Z(gdf, hyd_map['mesh2d_node_x'].values, 
+                        hyd_map['mesh2d_node_y'].values, hyd_map['mesh2d_node_z'].values
+                    )
+                    cache["df"] = gdf.drop(columns=['geometry'])
+                    frame = functions.meshProcess(is_hyd, arr, cache)
+                    global_vmin, global_vmax = fnm(np.nanmin(arr)), fnm(np.nanmax(arr))
+                    vmin, vmax = fnm(np.nanmin(frame)), fnm(np.nanmax(frame))
+                    data = {"timestamps": time_stamps, "distance": np.round(points_arr[:, 0], 0).tolist(), "values": fnm(frame), 
+                            "depths": np.arange(0, frame.shape[0]) if cache["max_layer"] > 0 else np.arange(0, -frame.shape[0], -1).tolist(),
+                            "global_minmax": [global_vmin, global_vmax], "local_minmax": [vmin, vmax]}
+                else: # Load next frame
+                    cache = getattr(request.app.state, "mesh_cache", None)
+                    if cache is None: return JSONResponse({"status": 'error', "message": "Mesh cache is not initialized."})
+                    arr = data_[name].values[int(idx),:,:]
+                    frame = functions.meshProcess(is_hyd, arr, cache)
+                    vmin, vmax = fnm(np.nanmin(frame)), fnm(np.nanmax(frame))
+                    data = {"values": fnm(frame), "local_minmax": [vmin, vmax]}
+            finally:
+                extend_task.cancel()
     except Exception as e:
         print('/select_meshes:\n==============')
         traceback.print_exc()
@@ -218,42 +279,52 @@ async def select_meshes(request: Request):
 @router.post("/select_thermocline")
 async def select_thermocline(request: Request):
     body = await request.json()
-    key, query, type_, idx = body.get('key'), body.get('query'), body.get('type'), body.get('idx')
+    key, query, type_ = body.get('key'), body.get('query'), body.get('type')
+    project_name, idx = body.get('projectName'), body.get('idx')
+    redis, thermo_cache_key = request.app.state.redis, f"project:{project_name}:thermocline_cache"
+    lock = redis.lock(f"lock:{project_name}:select_thermocline", timeout=20)
     try:
-        status, message = 'ok', ""
-        is_hyd = key == 'thermocline_hyd'
-        data_ = request.app.state.hyd_map if is_hyd else request.app.state.waq_map
-        col_idx = 2 if is_hyd else 1
-        name = functions.variablesNames.get(query, query)
-        # Create cache for thermocline data
-        if not hasattr(request.app.state, 'thermocline_cache'):
-            request.app.state.thermocline_cache = {}
-        # Initiate data for the first load
-        if type_ == 'thermocline_grid':
-            temp_grid, arr = request.app.state.grid, data_[name].values
-            mask_all_nan = np.isnan(arr).all(axis=(0, col_idx))               
-            removed_indices = np.where(mask_all_nan)[0]
-            grid = temp_grid.drop(index=removed_indices).reset_index()
-            data = json.loads(grid.to_json())
-        elif type_ == 'thermocline_init':
-            time_column = 'time' if is_hyd else 'nTimesDlwq'
-            time_stamps = pd.to_datetime(data_[time_column]).strftime('%Y-%m-%d %H:%M:%S').tolist()
-            layer_reverse = request.app.state.layer_reverse_hyd if is_hyd else request.app.state.layer_reverse_waq
-            layers_values = [float(v.split(' ')[1]) for k, v in layer_reverse.items() if int(k) >= 0]
-            max_values = int(abs(np.min(layers_values)))
-            new_depth = [x + max_values for x in layers_values]
-            arr, idx = data_[name].values, int(idx)
-            # Remove polygons having Nan in all layers
-            mask_all_nan = np.isnan(arr).all(axis=(0, col_idx))
-            arr_filtered = arr[:, ~mask_all_nan, :] if is_hyd else arr[:, :, ~mask_all_nan]
-            data_selected = arr_filtered[:, idx, :] if is_hyd else arr_filtered[:, :, idx]
-            request.app.state.thermocline_cache = {"data": data_selected}
-            values = [None if np.isnan(x) else functions.numberFormatter(x) for x in data_selected[0,:]]
-            # Get the first frame for the first timestamp
-            data = { "timestamps": time_stamps, "depths": new_depth, "values": values }
-        elif type_ == 'thermocline_update':
-            data_selected = request.app.state.thermocline_cache["data"]
-            data = [None if np.isnan(x) else functions.numberFormatter(x) for x in data_selected[int(idx),:]]
+        async with lock:
+            # Start auto-extend task
+            extend_task = asyncio.create_task(functions.auto_extend(lock))
+            try:
+                status, message = 'ok', ""
+                is_hyd = key == 'thermocline_hyd'
+                data_ = await redis.hgetall(f"project:{project_name}:hyd_map") if is_hyd else await redis.hgetall(f"project:{project_name}:waq_map")
+                col_idx = 2 if is_hyd else 1
+                name = functions.variablesNames.get(query, query)
+                # Initiate data for the first load
+                if type_ == 'thermocline_grid':
+                    temp_grid, arr = await redis.hgetall(f"project:{project_name}:grid"), data_[name].values
+                    mask_all_nan = np.isnan(arr).all(axis=(0, col_idx))               
+                    removed_indices = np.where(mask_all_nan)[0]
+                    grid = temp_grid.drop(index=removed_indices).reset_index()
+                    data = json.loads(grid.to_json())
+                elif type_ == 'thermocline_init':
+                    time_column = 'time' if is_hyd else 'nTimesDlwq'
+                    time_stamps = pd.to_datetime(data_[time_column]).strftime('%Y-%m-%d %H:%M:%S').tolist()
+                    layer_reverse = await redis.hgetall(f"project:{project_name}:layer_reverse_hyd") if is_hyd else await redis.hgetall(f"project:{project_name}:layer_reverse_waq")
+                    layers_values = [float(v.split(' ')[1]) for k, v in layer_reverse.items() if int(k) >= 0]
+                    max_values = int(abs(np.min(layers_values)))
+                    new_depth = [x + max_values for x in layers_values]
+                    arr, idx = data_[name].values, int(idx)
+                    # Remove polygons having Nan in all layers
+                    mask_all_nan = np.isnan(arr).all(axis=(0, col_idx))
+                    arr_filtered = arr[:, ~mask_all_nan, :] if is_hyd else arr[:, :, ~mask_all_nan]
+                    data_selected = arr_filtered[:, idx, :] if is_hyd else arr_filtered[:, :, idx]
+                    # Store in Redis cache
+                    await redis.set(thermo_cache_key, json.dumps(data_selected.tolist()))
+                    values = [None if np.isnan(x) else functions.numberFormatter(x) for x in data_selected[0,:]]
+                    # Get the first frame for the first timestamp
+                    data = { "timestamps": time_stamps, "depths": new_depth, "values": values }
+                elif type_ == 'thermocline_update':
+                    raw_cache = await redis.get(thermo_cache_key)
+                    if not raw_cache:
+                        return JSONResponse({"status": "error", "message": "Thermocline cache not initialized."})
+                    data_selected = np.array(json.loads(raw_cache))
+                    data = [None if np.isnan(x) else functions.numberFormatter(x) for x in data_selected[int(idx),:]]
+            finally:
+                extend_task.cancel()
     except Exception as e:
         print('/select_thermocline:\n==============')
         traceback.print_exc()
@@ -286,18 +357,27 @@ async def open_grid(request: Request):
 @router.post("/initiate_options")
 async def initiate_options(request: Request):
     body = await request.json()
-    key = body.get('key')
+    key, project_name = body.get('key'), body.get('projectName')
+    redis = request.app.state.redis
+    lock = redis.lock(f"project:{project_name}:initiate_options", timeout=20)
     try:
-        status, message, data = 'ok', '', []
-        if key == 'vector': data = functions.getVectorNames()
-        elif key == 'layer_hyd' and request.app.state.layer_reverse_hyd is not None:
-            data = [(idx, value) for idx, value in request.app.state.layer_reverse_hyd.items()]
-        elif key == 'sigma_waq' and request.app.state.layer_reverse_waq is not None:
-            data = [(idx, value) for idx, value in request.app.state.layer_reverse_waq.items()]
-        elif key == 'thermocline_waq':
-            item = [x for x in request.app.state.config.keys() 
-                    if x.startswith('waq_map_') and x.endswith('_selector')]
-            if len(item) > 0: data = request.app.state.config[item[0]]
+        async with lock:
+            extend_task = asyncio.create_task(functions.auto_extend(lock))
+            try:
+                status, message, data = 'ok', '', []
+                if key == 'vector': data = functions.getVectorNames()
+                elif key == 'layer_hyd':
+                    layer_reverse_hyd = await redis.hgetall(f"project:{project_name}:layer_reverse_hyd")
+                    if layer_reverse_hyd is not None: data = [(idx, value) for idx, value in layer_reverse_hyd.items()]
+                elif key == 'sigma_waq':
+                    layer_reverse_waq = await redis.hgetall(f"project:{project_name}:layer_reverse_waq")
+                    if layer_reverse_waq is not None: data = [(idx, value) for idx, value in layer_reverse_waq.items()]
+                elif key == 'thermocline_waq':
+                    config = await redis.hgetall(f"project:{project_name}:config")
+                    item = [x for x in config.keys() if x.startswith('waq_map_') and x.endswith('_selector')]
+                    if len(item) > 0: data = config[item[0]]
+            finally:
+                extend_task.cancel()
     except Exception as e:
         print('/initiate_options:\n==============')
         traceback.print_exc()

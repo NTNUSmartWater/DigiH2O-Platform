@@ -1,14 +1,27 @@
-import os
+import os, json
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from app.config import STATIC_DIR_FRONTEND, STATIC_DIR_BACKEND
 from Functions import functions
+from redis.asyncio.lock import Lock
 
 router = APIRouter()
 templates = Jinja2Templates(directory=os.path.join(STATIC_DIR_FRONTEND, "templates"))
 
-# Select Project
+# ==================== Helper ====================
+async def get_project_data(request: Request, project_name: str):
+    # Get project data from Redis, if not found return None
+    key = f"project:{project_name}"
+    data = await request.app.state.redis.get(key)
+    if data: return json.loads(data)
+    return None
+async def set_project_data(request: Request, project_name: str, data: dict):
+    key = f"project:{project_name}"
+    await request.app.state.redis.set(key, json.dumps(data))
+
+# ==================== Routes ====================
+# Home page
 @router.get("/", response_class=HTMLResponse)
 def home(request: Request):
     folder = Jinja2Templates(directory=os.path.dirname(STATIC_DIR_FRONTEND))
@@ -31,22 +44,33 @@ def load_contact(request: Request):
 
 # Load popup menu
 @router.get("/load_popupMenu", response_class=HTMLResponse)
-async def load_popupMenu(request: Request, htmlFile: str):
+async def load_popupMenu(request: Request, htmlFile: str, project_name: str = None):
+    # Show project menu, read config from Redis
     if htmlFile == 'projectMenu.html':
         return templates.TemplateResponse(htmlFile, {"request": request})
-    if not request.app.state.templates:
+    if not project_name:
         return HTMLResponse("<p>No project selected</p>", status_code=400)
+    project_data = await get_project_data(request, project_name)
+    if not project_data:
+        return HTMLResponse(f"<p>Project '{project_name}' not found</p>", status_code=404)
     path = os.path.join(STATIC_DIR_FRONTEND, "templates", htmlFile)
     if not os.path.exists(path):
         return HTMLResponse(f"<p>Popup menu template not found</p>", status_code=404)
-    if not request.app.state.config:
-        if (request.app.state.waq_his or request.app.state.waq_map) and not request.app.state.waq_model:
-            return JSONResponse({"status": 'error', "message":
-                "Some WAQ-related parameters are missing.\nConsider running the model again."})
-        files = [request.app.state.hyd_his, request.app.state.hyd_map, 
-            request.app.state.waq_his, request.app.state.waq_map]
-        request.app.state.config = functions.getVariablesNames(files, request.app.state.waq_model)
-    return templates.TemplateResponse(htmlFile, {"request": request, 'configuration': request.app.state.config})
+    # Get config from Redis, if not found scan files to get variables
+    if "config" not in project_data:
+        files = [
+            project_data.get("hyd_his"), project_data.get("hyd_map"),
+            project_data.get("waq_his"), project_data.get("waq_map")
+        ]
+        waq_model = project_data.get("waq_model")
+        project_data["config"] = await functions.getVariablesNames(files, waq_model)
+        # Acquire Redis lock to prevent race condition
+        redis = request.app.state.redis
+        lock = Lock(redis, f"lock:project:{project_name}", timeout=10)  # 10s lock
+        async with lock:
+        # Save updated project data back to Redis
+            await set_project_data(request, project_name, project_data)
+    return templates.TemplateResponse(htmlFile, {"request": request, 'configuration': project_data["config"]})
 
 # Load open project
 @router.get("/open_project")
