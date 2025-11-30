@@ -1,7 +1,7 @@
-import { loadData, getColorFromValue, updateColorbar, updateMapByTime } from "./utils.js";
+import { loadData, getColorFromValue, updateColorbar, updateMapByTime, decodeArray } from "./utils.js";
 import { startLoading, showLeafletMap, L, map } from "./mapManager.js";
 import { arrowShape, getState, setState } from "./constants.js";
-import { layerSelector } from "./spatialMapManager.js";
+import { layerSelector, substanceWindow } from "./spatialMapManager.js";
 import { sendQuery } from "./tableManager.js";
 
 export const timeControl = () => document.getElementById('time-controls');
@@ -20,7 +20,7 @@ const colorbar_vector_label = () => document.getElementById("colorbar-labels-vec
 const colorbar_vector_scaler = () => document.getElementById("custom-colorbar-scaler");
 
 let layerAbove = null, layerMap = null, playHandlerAttached = false, 
-    playHandlerRef = null, parsedFrame = '', scale = null;
+    playHandlerRef = null, parsedFrame = null, scale = null;
 
 // Define CanvasLayer
 L.CanvasLayer = L.Layer.extend({
@@ -141,7 +141,7 @@ export async function plot2DMapStatic(key, colorbarTitle, colorbarKey) {
     if (data.status === 'error') { showLeafletMap(); alert(data.message); return; }
     setState({isPlaying: false});
     // Hide timeslider
-    timeControl().style.display = 'none';
+    timeControl().style.display = 'none'; substanceWindow().style.display = 'none';
     // Get the min and max values of the data
     const vmin = data.content.min_max[0], vmax = data.content.min_max[1];
     const meshes = data.content.meshes, values = data.content.values;
@@ -151,10 +151,9 @@ export async function plot2DMapStatic(key, colorbarTitle, colorbarKey) {
 }
 
 function buildFrameData(data) {
-    const coordsArray = data.coordinates, values = data.values, result = [];    
+    const coordsArray = data.coordinates, result = [], values = data.values;
     for (let i = 0; i < coordsArray.length; i++) {
-        const coords = coordsArray[i];
-        const val = values[i];
+        const coords = coordsArray[i], val = values[i];
         let parts = [];
         if (typeof val === 'string') {
             const temp = val.replace(/[()]/g, '');
@@ -205,22 +204,23 @@ function initDynamicMap(query, key_below, key_above, data_below, data_above,
     map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
     timeControl().style.display = "flex"; // Show time slider
     // Hide colorbar control
-    colorbar_container().style.display = "none";
-    colorbar_vector_container().style.display = "none";
-    let timestamp, currentIndex, vminBelow, vmaxBelow, vminAbove, vmaxAbove;
+    colorbar_container().style.display = "none"; colorbar_vector_container().style.display = "none";
     // Destroy slider if it exists
-    if (slider().noUiSlider) { 
-        slider().noUiSlider.destroy();
+    if (slider().noUiSlider) slider().noUiSlider.destroy();
+    // Stop animation if running
+    if (getState().isPlaying) {
         clearInterval(getState().isPlaying); setState({isPlaying: null});
         playBtn().textContent = "▶ Play";
     }
+    let timestamp = null, currentIndex, vminBelow, vmaxBelow, vminAbove, vmaxAbove,
+        lastRequestId = 0, debounceTimer = null;
     // Process below layer
     if (data_below !== null) {
         // Get min and max values
         vminBelow = data_below.min_max[0]; vmaxBelow = data_below.min_max[1];
         timestamp = data_below.timestamps; currentIndex = timestamp.length - 1;
         const meshes = data_below.meshes, values = data_below.values;
-        if (layerMap) map.removeLayer(layerMap); layerMap = null;
+        if (layerMap) map.removeLayer(layerMap);
         layerMap = layerCreator(meshes, values, key_below, vminBelow,
             vmaxBelow, colorbarTitleBelow, colorbarKeyBelow);
         map.addLayer(layerMap);
@@ -231,66 +231,74 @@ function initDynamicMap(query, key_below, key_above, data_below, data_above,
         // Get min and max values
         vminAbove = data_above.min_max[0], vmaxAbove = data_above.min_max[1];
         timestamp = data_above.timestamps; currentIndex = timestamp.length - 1;
-        if (layerAbove) map.removeLayer(layerAbove); layerAbove = null; // Remove previous layer
+        if (layerAbove) map.removeLayer(layerAbove); // Remove previous layer
         parsedFrame = buildFrameData(data_above);
         layerAbove = vectorCreator(parsedFrame, vminAbove, vmaxAbove,
             colorbarTitleAbove, colorbarKeyAbove, scale);
         map.addLayer(layerAbove);
         colorbar_vector_container().style.display = "block";
     }
-    // Recreate Slider
+    // Create Slider
+    const maxIndex = timestamp.length - 1;
     noUiSlider.create(slider(), {
         start: currentIndex, step: 1,
-        range: { min: 0, max: timestamp.length - 1 },
+        range: { min: 0, max: maxIndex },
         tooltips: [{
             to: value => timestamp[Math.round(value)],
             from: value => timestamp.indexOf(value)
         }]
     });
-    // Update map by time
-    slider().noUiSlider.on('update', async (values, handle, unencoded) => {
-        currentIndex = Math.round(unencoded[handle]);
+    // Slider update event (with debounce to avoid multiple requests)
+    const handleSliderUpdate = async (values, handle, unencoded) => {
+        const rawIndex = unencoded[handle];
+        const newIndex = Math.round(rawIndex);
+        const safeIndex = Math.max(0, Math.min(newIndex, maxIndex));
+        currentIndex = safeIndex;
+        // Token to avoid race conditions
+        const requestId = ++lastRequestId;
         if (data_below && layerMap) {
             const frame_below = await sendQuery('load_general_dynamic', {query: `${query}|${currentIndex}`, 
                 key: key_below, projectName: getState().projectName});
-            if (frame_below.status === 'error') { alert(frame_below.message); return; }
-            if (key_below === 'wd_single_dynamic') frame_below.content.values = frame_below.content.values.map(v => -v);
-            const values = frame_below.content.values;
-            updateMapByTime(layerMap, values, vminBelow, vmaxBelow, colorbarKeyBelow);
+            if (requestId !== lastRequestId) return;
+            if (frame_below.status === 'error') return alert(frame_below.message);
+            let parsedFrame = decodeArray(frame_below.content.values, 3);
+            if (key_below === 'wd_single_dynamic') parsedFrame = parsedFrame.map(v => -v);
+            updateMapByTime(layerMap, parsedFrame, vminBelow, vmaxBelow, colorbarKeyBelow);
         }
         if (data_above && layerAbove) {
             const frame_above = await sendQuery('load_vector_dynamic', {query: currentIndex, 
                 key: key_above, projectName: getState().projectName});
-            if (frame_above.status === 'error') { alert(frame_above.message); return; }
+            if (frame_above.status === 'error') return alert(frame_above.message);
             parsedFrame = buildFrameData(frame_above.content);
             layerAbove.options.data = parsedFrame; layerAbove._redraw();
         }
+    };
+    // Debounce wrapper
+    slider().noUiSlider.on('update', async (values, handle, unencoded) => {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => { handleSliderUpdate(values, handle, unencoded); }, 80);
     });
     // Play/Pause button
     if (playHandlerAttached && playHandlerRef) {
         // Remove previous handler
         playBtn().removeEventListener("click", playHandlerRef);
-        playHandlerAttached = false; playHandlerRef = null;
+        playHandlerAttached = false;
     }
     playHandlerRef = () => {
         if (getState().isPlaying) {
             clearInterval(getState().isPlaying); setState({isPlaying: null});
-            playBtn().textContent = "▶ Play";
-        } else {
-            // Reset slider
-            if (slider().noUiSlider) {slider().noUiSlider.set(0); }
-            let currentIndexLocal = 0;
-            const rangeOpts = slider().noUiSlider && slider().noUiSlider.options && slider().noUiSlider.options.range;
-            const maxIndex = rangeOpts ? parseInt(rangeOpts.max) : (timestamp ? timestamp.length - 1 : 0);
-            const len = maxIndex + 1;
-            const speed = 1000/parseFloat(timeSpeed().value);
-            const playing = setInterval(() => {
-                currentIndexLocal = (currentIndexLocal + 1) % len;
-                slider().noUiSlider.set(currentIndexLocal);
-            }, speed);
-            setState({isPlaying: playing});
-            playBtn().textContent = "⏸ Pause";
+            playBtn().textContent = "▶ Play"; return;
         }
+        // Get current index
+        let idx = Math.round(slider().noUiSlider.get());
+        const len = maxIndex + 1;
+        const speed = 1000/parseFloat(timeSpeed().value || 1);
+        const interval = setInterval(() => {
+            idx = (idx + 1) % len;
+            slider().noUiSlider.set(idx);
+        }, speed);
+        setState({isPlaying: interval});
+        playBtn().textContent = "⏸ Pause";
     };
     playBtn().addEventListener("click", playHandlerRef);
     playHandlerAttached = true;
@@ -318,7 +326,7 @@ export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, 
     // Process below layer
     const dataBelow = await sendQuery('load_general_dynamic', {query: `${query}|load`, key: key, projectName: getState().projectName});
     if (dataBelow.status === 'error') { showLeafletMap(); alert(dataBelow.message); return; }
-    data_below = dataBelow.content;
+    data_below = dataBelow.content; data_below.values = decodeArray(data_below.values, 3);
     // If data is water depth, reverse values in below layer    
     if (key === 'wd_single_dynamic') {
         data_below.values = data_below.values.map(v => -v);
@@ -335,7 +343,7 @@ export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, 
         }
         key_above = layerSelector.value;
         const dataAbove = await sendQuery('load_vector_dynamic', {query: 'load', key: key_above, projectName: getState().projectName});
-        data_above = dataAbove.content; 
+        data_above = dataAbove.content; data_above.values = decodeArray(data_above.values, 3);
     }
     initDynamicMap(query, key_below, key_above, data_below, data_above, colorbarTitle, colorbarTitleAbove, colorbarKey, colorbarKeyAbove, scale);
     showLeafletMap();

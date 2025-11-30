@@ -43,7 +43,7 @@ async def lifespan(app):
     app.state.env, app.state.project_cache = env_mode, {}
     # Redis
     try:
-        app.state.redis = Redis.from_url(REDIS_URL, decode_responses=True)
+        app.state.redis = Redis.from_url(REDIS_URL, decode_responses=False)
     except Exception as e:
         print(f"❌ Failed to initialize Redis: {e}")
         app.state.redis = None

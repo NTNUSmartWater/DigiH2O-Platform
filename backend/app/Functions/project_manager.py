@@ -1,7 +1,7 @@
 
-import os, shutil, subprocess, re, json, asyncio, traceback
+import os, shutil, subprocess, re, json
+import asyncio, traceback, msgpack
 import numpy as np
-# from fastapi.templating import Jinja2Templates
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from Functions import functions
@@ -13,30 +13,22 @@ router = APIRouter()
 @router.post("/reset_config")
 async def reset_config(request: Request):
     body = await request.json()
-    project_name = body.get("projectName")
-    redis = request.app.state.redis
-    lock = redis.lock(f"lock:{project_name}:reset_config", timeout=20)
+    redis, project_name = request.app.state.redis, body.get("projectName")
+    lock = redis.lock(f"{project_name}:reset_config", timeout=20)
     try:
         async with lock:
-            extend_task = asyncio.create_task(functions.auto_extend(lock))
+            # Reset project data in Redis
+            folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
+            if not os.path.exists(folder): return JSONResponse({"message": "Project folder doesn't exist."})
+            config_dir = os.path.join(folder, "output", "config")
+            if not os.path.exists(config_dir): return JSONResponse({"message": "Configuration folder doesn't exist."})
             try:
-                project_key = f"project:{project_name}"
-                # Reset project data in Redis
-                folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
-                if not os.path.exists(folder): return JSONResponse({"message": "Project folder doesn't exist."})
-                config_dir = os.path.join(folder, "output", "config")
-                if not os.path.exists(config_dir): return JSONResponse({"message": "Configuration folder doesn't exist."})
-                try:
-                    shutil.rmtree(config_dir, onexc=functions.remove_readonly)
-                except Exception as e:
-                    return JSONResponse({"message": f"Failed to delete config folder: {e}"})
-                # Delete config in Redis
-                await redis.hdel(project_key, "config")
-                await redis.hdel(project_key, "layer_reverse_hyd")
-                await redis.hdel(project_key, "layer_reverse_waq")
-                return JSONResponse({"message": "Configuration reset successfully!"})
-            finally:
-                extend_task.cancel()
+                shutil.rmtree(config_dir, onerror=functions.remove_readonly)
+            except Exception as e:
+                return JSONResponse({"message": f"Failed to delete config folder: {e}"})
+            # Delete config in Redis
+            await redis.hdel(project_name, "config", "layer_reverse_hyd", "layer_reverse_waq")
+            return JSONResponse({"message": "Configuration reset successfully!"})
     except Exception as e:
         print('/reset_config:\n==============')
         traceback.print_exc()
@@ -67,9 +59,8 @@ async def setup_new_project(request: Request):
 async def setup_database(request: Request):
     body = await request.json()
     project_name, params = body.get('projectName'), body.get('params')
-    redis, project_key = request.app.state.redis, f"project:{project_name}"
-    lock = redis.lock(f"lock:{project_name}:setup_database", timeout=300)
-    status, message, extend_task = 'ok', '', None
+    redis = request.app.state.redis
+    lock = redis.lock(f"{project_name}:setup_database", timeout=300)
     try:
         async with lock:
             extend_task = asyncio.create_task(functions.auto_extend(lock, interval=10))
@@ -79,9 +70,12 @@ async def setup_database(request: Request):
             config_dir = os.path.join(output_dir, "config")
             hyd_dir, waq_dir = os.path.join(output_dir, 'HYD'), os.path.join(output_dir, 'WAQ')
             os.makedirs(config_dir, exist_ok=True)
-            project_cache = request.app.state.project_cache.setdefault(project_name, {})
+            project_cache_dict = getattr(request.app.state, "project_cache", None)
+            if project_cache_dict is None:
+                request.app.state.project_cache = {}
+                project_cache_dict = request.app.state.project_cache
+            project_cache = project_cache_dict.setdefault(project_name, {})
             dm = request.app.state.dataset_manager
-            # request.app.state.templates = Jinja2Templates(directory="static/templates")
             # Assign datasets (only load if file path exists)
             hyd_his = await functions.load_dataset_cached(project_cache, 'hyd_his', dm, hyd_dir, params[0])
             hyd_map = await functions.load_dataset_cached(project_cache, 'hyd_map', dm, hyd_dir, params[1])
@@ -103,6 +97,7 @@ async def setup_database(request: Request):
                 print('Creating grid and layers for hydrodynamic simulation...')
                 # Grid/layers generation
                 grid = functions.unstructuredGridCreator(hyd_map)
+                project_cache['grid'] = grid
                 # Get number of layers
                 layer_path = os.path.join(config_dir, 'layers_hyd.json')
                 if os.path.exists(layer_path):
@@ -157,43 +152,61 @@ async def setup_database(request: Request):
             # Serialize grid & layer_reverse to JSON-safe formats
             redis_mapping = {
                 "hyd_his_path": params[0], "hyd_map_path": params[1], "waq_his_path": params[2], "waq_map_path": params[3],
-                "layer_reverse_hyd": json.dumps(layer_reverse_hyd), "layer_reverse_waq": json.dumps(layer_reverse_waq),
-                "config": json.dumps(result), "waq_obs": json.dumps(obs), "grid": grid.to_json()                
+                "layer_reverse_hyd": msgpack.packb(layer_reverse_hyd, use_bin_type=True),
+                "layer_reverse_waq": msgpack.packb(layer_reverse_waq, use_bin_type=True),
+                "config": msgpack.packb(result, use_bin_type=True),
+                "waq_obs": msgpack.packb(obs, use_bin_type=True), "waq_model": waq_model
             }
             # Save to Redis
-            await redis.hset(project_key, mapping=redis_mapping)
+            await redis.hset(project_name, mapping=redis_mapping)
             print('Configuration loaded successfully.')
+            return JSONResponse({"status": 'ok'})
     except Exception as e:
         print('/setup_database:\n==============')
         traceback.print_exc()
-        status, message = 'error', f"Error: {str(e)}"
+        return JSONResponse({"status": 'error', "message": f"Error: {str(e)}"})
     finally:
         if extend_task:
             extend_task.cancel()
             try: await extend_task
-            except asyncio.CancelledError: pass
-    return JSONResponse({"status": status, "message": message})
+            except asyncio.CancelledError: pass 
 
 # Delete a project
 @router.post("/delete_project")
 async def delete_project(request: Request):
     body = await request.json()
-    project_name = body.get('projectName')
+    redis, project_name = request.app.state.redis, body.get("projectName")
+    lock = redis.lock(f"{project_name}:delete_project", timeout=10)
     project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
-    if not os.path.exists(project_folder): 
-        return JSONResponse({"status": 'error', "message": f"Project '{project_name}' does not exist."})
     try:
-        shutil.rmtree(project_folder, onexc=functions.remove_readonly)
-        return JSONResponse({"status": "ok", "message": f"Project '{project_name}' was deleted successfully."})
-    except PermissionError as e:
-        if os.name == 'nt':
+        async with lock:
+            # Optional: auto-extend lock if deletion may take long
+            extend_task = asyncio.create_task(functions.extend_lock(lock))
+            if not os.path.exists(project_folder): 
+                return JSONResponse({"status": 'error', "message": f"Project '{project_name}' does not exist."})
             try:
-                subprocess.run(['rmdir', '/s', '/q', project_folder], shell=True, check=True)
+                shutil.rmtree(project_folder, onerror=functions.remove_readonly)
+                # Optional: remove project cache in app.state if exists
+                if hasattr(request.app.state, "project_cache"):
+                    request.app.state.project_cache.pop(project_name, None)
                 return JSONResponse({"status": "ok", "message": f"Project '{project_name}' was deleted successfully."})
-            except subprocess.CalledProcessError as e2:
-                return JSONResponse({"status": "error", "message": f"Error: {str(e2)}"})
+            except PermissionError as e:
+                try:
+                    subprocess.run(['rmdir', '/s', '/q', project_folder], shell=True, check=True)
+                    return JSONResponse({"status": "ok", "message": f"Project '{project_name}' was deleted successfully."})
+                except subprocess.CalledProcessError as e2:
+                    return JSONResponse({"status": "error", "message": f"Error: {str(e2)}"})
+            except Exception as e:
+                return JSONResponse({"status": "error", "message": f"Error: {str(e)}"})
     except Exception as e:
-        return JSONResponse({"status": "error", "message": f"Error: {str(e)}"}) 
+        print('/delete_project:\n==============')
+        traceback.print_exc()
+        return JSONResponse({"status": 'error', "message": f"Error: {str(e)}"})
+    finally:
+        if extend_task:
+            extend_task.cancel()
+            try: await extend_task
+            except asyncio.CancelledError: pass
 
 # Open a project
 @router.post("/select_project")
@@ -261,6 +274,8 @@ async def save_obs(request: Request):
     project_name, file_name = body.get('projectName'), body.get('fileName')
     data, key = body.get('data'), body.get('key')
     path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
+    redis = request.app.state.redis
+    lock = redis.lock(f"{project_name}:save_obs:{file_name}", timeout=10)
     def write_file(path, file_name, data, key):
         with open(os.path.join(path, file_name), 'w', encoding="utf-8") as f:
             if key == 'obs':
@@ -274,8 +289,9 @@ async def save_obs(request: Request):
                 for line in data:
                     f.write(f"{line[2]}  {line[1]}  {line[0]}\n")
     try:
-        await asyncio.to_thread(write_file, path, file_name, data, key)
-        status, message = 'ok', 'Observations saved successfully.'
+        async with lock:
+            await asyncio.to_thread(write_file, path, file_name, data, key)
+            status, message = 'ok', 'Observations saved successfully.'
     except Exception as e:
         status, message = 'error', f"Error: {str(e)}"
     return JSONResponse({"status": status, "message": message})
@@ -286,45 +302,48 @@ async def save_source(request: Request):
     body = await request.json()
     project_name, source_name = body.get('projectName'), body.get('nameSource')
     lat, lon, data = body.get('lat'), body.get('lon'), body.get('data')
+    redis = request.app.state.redis
+    lock = redis.lock(f"{project_name}:save_source:{source_name}", timeout=10)
+    path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
     try:
-        path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
-        os.makedirs(path, exist_ok=True)
-        update_content = 'QUANTITY=discharge_salinity_temperature_sorsin\n' + \
-            f'FILENAME={source_name}.pli\n' + 'FILETYPE=9\n' + 'METHOD=1\n' + 'OPERAND=O\n' + 'AREA=1'
-        # Write old format boundary file (*.ext)
-        ext_path = os.path.join(path, "FlowFM.ext")
-        if os.path.exists(ext_path):
-            with open(ext_path, encoding="utf-8") as f:
-                content = f.read()
-            blocks = re.split(r'\n\s*\n', content)
-            blocks = [p.strip() for p in blocks if p.strip()]
-            updated = False
-            for i, block in enumerate(blocks):
-                if f'FILENAME={source_name}.pli' in block:
-                    blocks[i] = update_content
-                    updated = True
-                    break
-            if not updated:
-                blocks.append(update_content)
-            new_content = '\n\n'.join(blocks)
-        else: new_content = f"\n{update_content}\n"
-        with open(ext_path, 'w', encoding="utf-8") as f:
-            f.write(new_content.strip() + "\n")
-        # Write .pli file
-        pli_path = os.path.join(path, f"{source_name}.pli")
-        with open(pli_path, 'w', encoding="utf-8") as f:
-            f.write(f'{source_name}\n')
-            f.write('    1    2\n')
-            f.write(f"{lon}  {lat}")
-        # Write .tim file
-        tim_path = os.path.join(path, f"{source_name}.tim")
-        with open(tim_path, 'w', encoding="utf-8") as f:
-            for row in data:
-                try: t = float(row[0])/(1000.0*60.0)
-                except Exception: t = 0
-                values = [str(t)] + [str(r) for r in row[1:]]
-                f.write('  '.join(values) + '\n')
-        return JSONResponse({"status": 'ok', "message": f"Source '{source_name}' saved successfully."})
+        async with lock:
+            os.makedirs(path, exist_ok=True)
+            update_content = 'QUANTITY=discharge_salinity_temperature_sorsin\n' + \
+                f'FILENAME={source_name}.pli\n' + 'FILETYPE=9\n' + 'METHOD=1\n' + 'OPERAND=O\n' + 'AREA=1'
+            # Write old format boundary file (*.ext)
+            ext_path = os.path.join(path, "FlowFM.ext")
+            if os.path.exists(ext_path):
+                with open(ext_path, encoding="utf-8") as f:
+                    content = f.read()
+                blocks = re.split(r'\n\s*\n', content)
+                blocks = [p.strip() for p in blocks if p.strip()]
+                updated = False
+                for i, block in enumerate(blocks):
+                    if f'FILENAME={source_name}.pli' in block:
+                        blocks[i] = update_content
+                        updated = True
+                        break
+                if not updated:
+                    blocks.append(update_content)
+                new_content = '\n\n'.join(blocks)
+            else: new_content = f"\n{update_content}\n"
+            with open(ext_path, 'w', encoding="utf-8") as f:
+                f.write(new_content.strip() + "\n")
+            # Write .pli file
+            pli_path = os.path.join(path, f"{source_name}.pli")
+            with open(pli_path, 'w', encoding="utf-8") as f:
+                f.write(f'{source_name}\n')
+                f.write('    1    2\n')
+                f.write(f"{lon}  {lat}\n")
+            # Write .tim file
+            tim_path = os.path.join(path, f"{source_name}.tim")
+            with open(tim_path, 'w', encoding="utf-8") as f:
+                for row in data:
+                    try: t = float(row[0])/(1000.0*60.0)
+                    except Exception: t = 0
+                    values = [str(t)] + [str(r) for r in row[1:]]
+                    f.write('  '.join(values) + '\n')
+            return JSONResponse({"status": 'ok', "message": f"Source '{source_name}' saved successfully."})
     except Exception as e:
         return JSONResponse({"status": 'error', "message": f"Error: {str(e)}"})
 
