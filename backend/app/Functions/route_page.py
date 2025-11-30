@@ -1,24 +1,12 @@
-import os, json
+import os, msgpack
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from app.config import STATIC_DIR_FRONTEND, STATIC_DIR_BACKEND
 from Functions import functions
-from redis.asyncio.lock import Lock
 
 router = APIRouter()
 templates = Jinja2Templates(directory=os.path.join(STATIC_DIR_FRONTEND, "templates"))
-
-# ==================== Helper ====================
-async def get_project_data(request: Request, project_name: str):
-    # Get project data from Redis, if not found return None
-    key = f"project:{project_name}"
-    data = await request.app.state.redis.get(key)
-    if data: return json.loads(data)
-    return None
-async def set_project_data(request: Request, project_name: str, data: dict):
-    key = f"project:{project_name}"
-    await request.app.state.redis.set(key, json.dumps(data))
 
 # ==================== Routes ====================
 # Home page
@@ -49,28 +37,40 @@ async def load_popupMenu(request: Request, htmlFile: str, project_name: str = No
     if htmlFile == 'projectMenu.html':
         return templates.TemplateResponse(htmlFile, {"request": request})
     if not project_name:
-        return HTMLResponse("<p>No project selected</p>", status_code=400)
-    project_data = await get_project_data(request, project_name)
-    if not project_data:
         return HTMLResponse(f"<p>Project '{project_name}' not found</p>", status_code=404)
+    # Acquire Redis lock to prevent race condition
+    redis = request.app.state.redis
     path = os.path.join(STATIC_DIR_FRONTEND, "templates", htmlFile)
     if not os.path.exists(path):
         return HTMLResponse(f"<p>Popup menu template not found</p>", status_code=404)
     # Get config from Redis, if not found scan files to get variables
-    if "config" not in project_data:
-        files = [
-            project_data.get("hyd_his"), project_data.get("hyd_map"),
-            project_data.get("waq_his"), project_data.get("waq_map")
-        ]
-        waq_model = project_data.get("waq_model")
-        project_data["config"] = await functions.getVariablesNames(files, waq_model)
-        # Acquire Redis lock to prevent race condition
-        redis = request.app.state.redis
-        lock = Lock(redis, f"lock:project:{project_name}", timeout=10)  # 10s lock
-        async with lock:
+    config_raw = await redis.hget(project_name, "config")
+    # If config already exists → no race → render
+    if config_raw:
+        config = msgpack.unpackb(config_raw, raw=False)
+        return templates.TemplateResponse(htmlFile, {"request": request, 'configuration': config})
+    lock = redis.lock(f"lock:{project_name}:init_config", timeout=10)  # 10s lock
+    async with lock:
+        # Double check: Is there anyone else running?
+        config_raw = await redis.hget(project_name, "config")
+        if config_raw:
+            config = msgpack.unpackb(config_raw, raw=False)
+            return templates.TemplateResponse(htmlFile, {"request": request, 'configuration': config})
+        # Create config the first time
+        project_cache = request.app.state.project_cache.setdefault(project_name)
+        files = [project_cache.get("hyd_his"), project_cache.get("hyd_map"),
+                project_cache.get("waq_his"), project_cache.get("waq_map")]
+        waq_model_raw = await redis.hget(project_name, "waq_model")
+        waq_model = waq_model_raw.decode() if waq_model_raw else "unknown"
+        config_obj = functions.getVariablesNames(files, waq_model)
+        # Restructure configuration
+        config = {**config_obj.get("hyd", {}), **config_obj.get("waq", {})}
+        for k, v in config_obj.items():
+            if k not in ("hyd", "waq", "meta"):
+                config[k] = v
         # Save updated project data back to Redis
-            await set_project_data(request, project_name, project_data)
-    return templates.TemplateResponse(htmlFile, {"request": request, 'configuration': project_data["config"]})
+            await redis.hset(project_name, "config", msgpack.packb(config, use_bin_type=True))
+    return templates.TemplateResponse(htmlFile, {"request": request, 'configuration': config})
 
 # Load open project
 @router.get("/open_project")

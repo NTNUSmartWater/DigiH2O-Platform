@@ -1,4 +1,4 @@
-import shapely, os, re, shutil, stat, asyncio
+import shapely, os, re, shutil, stat, asyncio, base64
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
@@ -18,10 +18,50 @@ async def auto_extend(lock: Lock, interval: int = 10):
     try:
         while True:
             await asyncio.sleep(interval)
-            if not await lock.locked(): break
+            try:
+                if not await lock.locked(): break
+            except Exception: break
             try: await lock.extend()
             except Exception: break
     except asyncio.CancelledError: pass
+
+def encode_array(arr: np.ndarray) -> str:
+    """Encode numpy array float32 to base64 string for fast transfer."""
+    arr = arr.astype(np.float32)
+    return base64.b64encode(arr.tobytes()).decode()
+
+def decode_array(b64_str: str, shape, dtype=np.float32) -> np.ndarray:
+    """Decode base64 string to numpy array."""
+    arr = np.frombuffer(base64.b64decode(b64_str), dtype=dtype)
+    return arr.reshape(shape)
+
+async def layer_lock(redis, project_name: str, layer: str, timeout: int = 10):
+    """Context manager lock for a specific layer."""
+    lock = redis.lock(f"project:{project_name}:layer:{layer}", timeout=timeout)
+    await lock.acquire()
+    try: yield
+    finally: await lock.release()
+
+def serialize_geometry(gdf: gpd.GeoDataFrame):
+    """
+    Convert GeoDataFrame to dict GeoJSON (Polygon / MultiPolygon -> coordinates list)
+    """
+    features_serializable = []
+    for _, row in gdf.iterrows():
+        geom = row.geometry
+        if geom is None: geom_serial = None
+        else: geom_serial = shapely.geometry.mapping(geom)
+        properties = {k: v for k, v in row.items() if k != gdf.geometry.name}
+        features_serializable.append({
+            "type": "Feature",
+            "properties": properties,
+            "geometry": geom_serial
+        })
+    grid_dict = {
+        "type": "FeatureCollection",
+        "features": features_serializable
+    }
+    return grid_dict
 
 async def load_dataset_cached(project_cache, key, dm, dir_path, filename):
     """
@@ -113,7 +153,7 @@ def numberFormatter(arr: np.array, decimals: int=2) -> list:
         # NaN -> None
         nan_mask = ~finite_mask
         result[nan_mask] = None
-        return np.reshape(result, arr.shape).tolist()
+        return np.reshape(result, arr.shape)
     except:
         print("Input array contains non-numeric values")
         return list(arr)
@@ -872,7 +912,7 @@ def layerCounter(data_map: xr.Dataset, type: str='hyd') -> dict:
             layers[str(len(z_layer)-i-1)] = f'Sigma: {z_layer[i]} %'
     return layers
 
-def vectorComputer(data_map: xr.Dataset, value_type: str, row_idx: int, step: int=-1) -> gpd.GeoDataFrame:
+def vectorComputer(data_map: xr.Dataset, value_type: str, row_idx: int, step: int=-1) -> dict:
     """
     Compute vector in each layer and average value (if possible)
 
@@ -889,8 +929,8 @@ def vectorComputer(data_map: xr.Dataset, value_type: str, row_idx: int, step: in
 
     Returns:
     -------
-    gpd.GeoDataFrame
-        The GeoDataFrame containing the vector map of the mesh.
+    dict
+        A dictionary containing time, coordinates, and values of the vector.
     """
     if value_type == 'Average':
         # Average velocity in each layer
@@ -904,15 +944,16 @@ def vectorComputer(data_map: xr.Dataset, value_type: str, row_idx: int, step: in
         ucm = data_map['mesh2d_ucmag'].isel(time=step).values[:, row_idx]
     # Get indices of non-nan values
     col_idx = np.where(~np.isnan(ucx) & ~np.isnan(ucy) & ~np.isnan(ucm))
+    # Coordinates (filtered)
     x_coords = data_map['mesh2d_face_x'].values[col_idx]
     y_coords = data_map['mesh2d_face_y'].values[col_idx]
-    # Prepare values
-    ucx_flat = np.round(ucx.astype(np.float64), 5) 
-    ucy_flat = np.round(ucy.astype(np.float64), 5) 
-    ucm_flat = np.round(ucm.astype(np.float64), 2)
+    # Values (filtered)
+    ucx_valid = np.round(ucx[col_idx].astype(np.float64), 5)
+    ucy_valid = np.round(ucy[col_idx].astype(np.float64), 5)
+    ucm_valid = np.round(ucm[col_idx].astype(np.float64), 2)
     result = {"time": pd.to_datetime(data_map['time'].values[step]).strftime('%Y-%m-%d %H:%M:%S'),
         "coordinates": np.column_stack((x_coords, y_coords)).tolist(),
-        "values": np.vstack([ucx_flat, ucy_flat, ucm_flat]).T.tolist()
+        "values": np.column_stack((ucx_valid, ucy_valid, ucm_valid)).tolist()
     }
     return result
 
@@ -1070,48 +1111,115 @@ def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
     arr: np.ndarray
         The array to be processed.
     cache: dict
-        The cache store data.
+        Cache containing 'df', 'layers_values', 'depth_idx', 'n_rows', 'index_map', 'max_layer'.
 
     Returns
     -------
     np.ndarray
         The smoothed values.
     """
-    frame, df = {}, cache["df"]
-    # Create a mask
-    mask = cache["layers_values"][None, :] < df["depth"].values[:, None]
-    depth_rounded = np.round(df["depth"].values, 0)
-    for i in range(cache["n_rows"]):
-        # Initialize column
-        if -i not in frame: frame[-i] = np.full(len(df), np.nan)
+    cache_copy = cache.copy()
+    # frame, df = {}, pd.DataFrame(cache_copy["df"])
+    # # Create a mask
+    # layers_values = np.array(cache_copy["layers_values"], dtype=float)
+    # depth_values = np.array(df["depth"].values, dtype=float)
+    # depth_idx = np.array(cache_copy["depth_idx"], dtype=float)
+    # # Convert keys to int
+    # cache_copy["index_map"] = {int(k): v for k, v in cache_copy["index_map"].items()}
+    # mask = layers_values[None, :] < depth_values[:, None]
+    # depth_rounded = np.round(depth_values, 0)
+    # for i in range(cache_copy["n_rows"]):
+    #     # Initialize column
+    #     if -i not in frame: frame[-i] = np.full(len(df), np.nan)
+    #     # Assign values to column using the nearest neighbor depth
+    #     mask_depth = -i == depth_rounded
+    #     if np.any(mask_depth):
+    #         nearest_idx = np.argmin(np.abs(depth_idx - i))
+    #         temp_values = arr[df.index.values, nearest_idx] if is_hyd else arr[nearest_idx, df.index.values]
+    #         frame[-i] = np.where(mask_depth, temp_values, frame[-i])
+    #     if i in cache_copy["index_map"]:
+    #         mask = -i >= depth_values
+    #         index = cache_copy["index_map"][i]
+    #         temp_values = arr[df.index.values, index] if is_hyd else arr[index, df.index.values]
+    #         frame[-i] = np.where(mask, temp_values, frame[-i])
+    # poly = pd.concat([df[['depth']].reset_index(drop=True), pd.DataFrame(frame)], axis=1)
+    # # Get indices of valid columns
+    # depth_arr = np.array([float(c) for c in poly.columns if c != "depth"])
+    # smoothed = poly.drop("depth", axis=1).to_numpy(dtype=float)
+    # mask_valid = depth_arr[None, :] >= depth_rounded[:, None]
+    # x_idx, y_idx = np.where(~np.isnan(smoothed) & mask_valid)
+    # vals = smoothed[x_idx, y_idx]
+    # # If only one point, use that value for the whole grid cell
+    # if vals.min() == vals.max(): smoothed[:, :] = vals.min()
+    # else:
+    #     rbf = Rbf(x_idx, y_idx, vals, function='linear')
+    #     grid_x, grid_y = np.indices(smoothed.shape)
+    #     smoothed = rbf(grid_x, grid_y)
+    # smoothed[~mask_valid] = np.nan
+    # # Transpose
+    # smoothed_transpose = smoothed.T
+    # # Get maximum indice to be used as mask
+    # max_row = np.max(np.where(mask_valid.T)[0])
+    # smoothed_transpose = smoothed_transpose[:max_row + 2, :]
+
+
+
+
+    df, n_rows = pd.DataFrame(cache_copy["df"]), cache_copy["n_rows"]
+    depth_values = np.array(df["depth"].values, dtype=float)
+    depth_rounded = np.round(depth_values, 0)
+    index_map = {int(k): v for k, v in cache_copy["index_map"].items()}
+    depth_idx = np.array(cache_copy["depth_idx"], dtype=float)
+    # Pre-allocate frame
+    frame = np.full((n_rows, len(df)), np.nan, float)
+    # Index map
+    available_layers = np.array(list(index_map.keys()), int)
+    mapped_indices = np.array(list(index_map.values()), int)
+    for i in np.unique(depth_rounded):
+        row_idx = int(-i)
+        if row_idx < 0 or row_idx >= n_rows: continue
         # Assign values to column using the nearest neighbor depth
-        mask_depth = -i == depth_rounded
-        if np.any(mask_depth):
-            nearest_idx = np.argmin(np.abs(cache["depth_idx"] - i))
-            temp_values = arr[df.index.values, nearest_idx] if is_hyd else arr[nearest_idx, df.index.values]
-            frame[-i] = np.where(mask_depth, temp_values, frame[-i])
-        if i in cache["index_map"]:
-            mask = -i >= df["depth"].values
-            index = cache["index_map"][i]
-            temp_values = arr[df.index.values, index] if is_hyd else arr[index, df.index.values]
-            frame[-i] = np.where(mask, temp_values, frame[-i])
-    poly = pd.concat([df[['depth']].reset_index(drop=True), pd.DataFrame(frame)], axis=1)
-    # Get indices of valid columns
-    depth_arr = np.array([float(c) for c in poly.columns if c != "depth"])
-    smoothed = poly.drop("depth", axis=1).to_numpy(dtype=float)
-    mask_valid = depth_arr[None, :] >= depth_rounded[:, None]
-    x_idx, y_idx = np.where(~np.isnan(smoothed) & mask_valid)
-    vals = smoothed[x_idx, y_idx]
-    # If only one point, use that value for the whole grid cell
-    if vals.min() == vals.max(): smoothed[:, :] = vals.min()
-    else:
-        rbf = Rbf(x_idx, y_idx, vals, function='linear')
-        grid_x, grid_y = np.indices(smoothed.shape)
-        smoothed = rbf(grid_x, grid_y)
-    smoothed[~mask_valid] = np.nan
-    # Transpose
-    smoothed_transpose = smoothed.T
-    # Get maximum indice to be used as mask
+        mask_depth = (depth_rounded == i)
+        nearest_idx = np.argmin(np.abs(depth_idx - i))
+        if is_hyd: temp = arr[df.index.values, nearest_idx]
+        else: temp = arr[nearest_idx, df.index.values]
+        frame[row_idx, mask_depth] = temp[mask_depth]
+    
+    # if len(available_layers) > 0:
+    #     i_arr = available_layers
+    #     row_idx = -i_arr  # map row → -i
+    #     valid_row_mask = (row_idx >= 0) & (row_idx < n_rows)
+    #     i_arr = i_arr[valid_row_mask]
+    #     row_idx = row_idx[valid_row_mask]
+    #     mapped_indices = mapped_indices[valid_row_mask]
+    #     # Create broadcast mask: depth_values <= -i
+    #     depth_matrix = depth_values[None, :]
+    #     i_matrix = (-i_arr)[:, None]
+    #     depth_mask = (depth_matrix <= i_matrix)
+    #     if is_hyd:
+    #         temp_vals = arr[df.index.values[:, None], mapped_indices]
+    #         temp_vals = temp_vals.T  
+    #         frame[row_idx, :] = np.where(depth_mask, temp_vals, frame[row_idx, :])
+    #     else:
+    #         temp_vals = arr[mapped_indices][:, df.index.values]
+    #         frame[row_idx, :] = np.where(depth_mask, temp_vals, frame[row_idx, :])
+    
+    
+    frame = frame.T
+    mask_valid = -np.arange(n_rows)[None, :] >= depth_rounded[:, None]
+    x_idx, y_idx = np.where(~np.isnan(frame) & mask_valid)
+    if len(x_idx) > 0:
+        vals = frame[x_idx, y_idx]
+        # If only one point, use that value for the whole grid cell
+        if vals.min() == vals.max(): frame[:, :] = vals.min()
+        else:
+            rbf = Rbf(x_idx, y_idx, vals, function='linear')
+            grid_x, grid_y = np.indices(frame.shape)
+            frame = rbf(grid_x, grid_y)
+    frame[~mask_valid] = np.nan
+    smoothed_transpose = frame.T
     max_row = np.max(np.where(mask_valid.T)[0])
     smoothed_transpose = smoothed_transpose[:max_row + 2, :]
+
+    # print(smoothed_transpose)
     return smoothed_transpose

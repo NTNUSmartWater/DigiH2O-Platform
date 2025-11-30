@@ -9,7 +9,7 @@ export const layerSelector = () => document.getElementById("layer-selector");
 const vectorSelector = () => document.getElementById("vector-selector");
 const vectorPlotBtn = () => document.getElementById("plotVectorBtn");
 const sigmaSelector = () => document.getElementById("sigma-selector");
-const substanceWindow = () => document.getElementById('substance-window');
+export const substanceWindow = () => document.getElementById('substance-window');
 const substanceWindowContent = () => document.getElementById('substance-window-content');
 
 let newKey = '', newQuery = '', colorbarTitle = ''; 
@@ -65,13 +65,11 @@ export async function spatialMapManager() {
             plot2DMapDynamic(false, query, key, titleColorbar, colorbarKey);
         });
     });
-    
     // Set function for water quality
     document.querySelectorAll('.waq-function').forEach(obj => {
         obj.addEventListener('click', async() => {
             const [query, type] = obj.dataset.info.split('|');
-            const data = await sendQuery('process_data', {query: query, key: 'substance_check',
-                projectName: projectTitle().textContent.replace('Project: ', '')});
+            const data = await sendQuery('process_data', {query: query, key: 'substance_check', projectName: getState().projectName});
             if (data.status === "error") { 
                 map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
                 alert(data.message); substanceWindow().style.display = 'none'; return; 
@@ -95,7 +93,6 @@ export async function spatialMapManager() {
             plot2DMapDynamic(true, newQuery, newKey, colorbarTitle, '');
         });
     });
-
     // Listen to substance selection
     substanceWindowContent().addEventListener('change', handleSubstanceChange);
     // Select static map

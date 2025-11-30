@@ -381,7 +381,8 @@ async function mapPath(e) {
             const unit = colorbar_title().textContent.split('(')[1].trim().split(')')[0].replace(')', '');
             const title = `Profile - ${colorbar_title().textContent.split('(')[0].trim()}`;
             const query = getState().showedQuery;
-            const queryContents = {key: key, query: query, idx: 'load', points: orderedPoints};
+            const queryContents = {key: key, query: query, idx: 'load', 
+                points: orderedPoints, projectName: getState().projectName};
             const data = await sendQuery('select_meshes', queryContents);
             if (data.status === "error") { alert(data.message); return; }
             plotProfileMultiLayer(key, query, data.content, title, unit);
