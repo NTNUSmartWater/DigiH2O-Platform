@@ -1,14 +1,79 @@
-import shapely, os, re, shutil, stat
+import shapely, os, re, shutil, stat, asyncio, base64
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
 from scipy.interpolate import Rbf
 from config import PROJECT_STATIC_ROOT
+from redis.asyncio.lock import Lock
 
 def remove_readonly(func, path, excinfo):
     # Change the readonly bit, but not the file contents
     os.chmod(path, stat.S_IWRITE)
     func(path)
+
+async def auto_extend(lock: Lock, interval: int = 10):
+    """
+    Auto-extend Redis lock every `interval` seconds, only if still owned.
+    """
+    try:
+        while True:
+            await asyncio.sleep(interval)
+            try:
+                if not await lock.locked(): break
+            except Exception: break
+            try: await lock.extend()
+            except Exception: break
+    except asyncio.CancelledError: pass
+
+def encode_array(arr: np.ndarray) -> str:
+    """Encode numpy array float32 to base64 string for fast transfer."""
+    arr = arr.astype(np.float32)
+    return base64.b64encode(arr.tobytes()).decode()
+
+def decode_array(b64_str: str, shape, dtype=np.float32) -> np.ndarray:
+    """Decode base64 string to numpy array."""
+    arr = np.frombuffer(base64.b64decode(b64_str), dtype=dtype)
+    return arr.reshape(shape)
+
+async def layer_lock(redis, project_name: str, layer: str, timeout: int = 10):
+    """Context manager lock for a specific layer."""
+    lock = redis.lock(f"project:{project_name}:layer:{layer}", timeout=timeout)
+    await lock.acquire()
+    try: yield
+    finally: await lock.release()
+
+def serialize_geometry(gdf: gpd.GeoDataFrame):
+    """
+    Convert GeoDataFrame to dict GeoJSON (Polygon / MultiPolygon -> coordinates list)
+    """
+    features_serializable = []
+    for _, row in gdf.iterrows():
+        geom = row.geometry
+        if geom is None: geom_serial = None
+        else: geom_serial = shapely.geometry.mapping(geom)
+        properties = {k: v for k, v in row.items() if k != gdf.geometry.name}
+        features_serializable.append({
+            "type": "Feature",
+            "properties": properties,
+            "geometry": geom_serial
+        })
+    grid_dict = {
+        "type": "FeatureCollection",
+        "features": features_serializable
+    }
+    return grid_dict
+
+async def load_dataset_cached(project_cache, key, dm, dir_path, filename):
+    """
+    Load dataset from DatasetManager once per project and cache in memory.
+    """
+    if key in project_cache: return project_cache[key]
+    if not filename: return None
+    path = os.path.join(dir_path, filename)
+    if not os.path.exists(path): return None
+    ds = dm.get(path)
+    project_cache[key] = ds
+    return ds
 
 variablesNames = {
     # For In-situ options
@@ -88,7 +153,7 @@ def numberFormatter(arr: np.array, decimals: int=2) -> list:
         # NaN -> None
         nan_mask = ~finite_mask
         result[nan_mask] = None
-        return np.reshape(result, arr.shape).tolist()
+        return np.reshape(result, arr.shape)
     except:
         print("Input array contains non-numeric values")
         return list(arr)
@@ -847,7 +912,7 @@ def layerCounter(data_map: xr.Dataset, type: str='hyd') -> dict:
             layers[str(len(z_layer)-i-1)] = f'Sigma: {z_layer[i]} %'
     return layers
 
-def vectorComputer(data_map: xr.Dataset, value_type: str, row_idx: int, step: int=-1) -> gpd.GeoDataFrame:
+def vectorComputer(data_map: xr.Dataset, value_type: str, row_idx: int, step: int=-1) -> dict:
     """
     Compute vector in each layer and average value (if possible)
 
@@ -864,8 +929,8 @@ def vectorComputer(data_map: xr.Dataset, value_type: str, row_idx: int, step: in
 
     Returns:
     -------
-    gpd.GeoDataFrame
-        The GeoDataFrame containing the vector map of the mesh.
+    dict
+        A dictionary containing time, coordinates, and values of the vector.
     """
     if value_type == 'Average':
         # Average velocity in each layer
@@ -879,15 +944,16 @@ def vectorComputer(data_map: xr.Dataset, value_type: str, row_idx: int, step: in
         ucm = data_map['mesh2d_ucmag'].isel(time=step).values[:, row_idx]
     # Get indices of non-nan values
     col_idx = np.where(~np.isnan(ucx) & ~np.isnan(ucy) & ~np.isnan(ucm))
+    # Coordinates (filtered)
     x_coords = data_map['mesh2d_face_x'].values[col_idx]
     y_coords = data_map['mesh2d_face_y'].values[col_idx]
-    # Prepare values
-    ucx_flat = np.round(ucx.astype(np.float64), 5) 
-    ucy_flat = np.round(ucy.astype(np.float64), 5) 
-    ucm_flat = np.round(ucm.astype(np.float64), 2)
+    # Values (filtered)
+    ucx_valid = np.round(ucx[col_idx].astype(np.float64), 5)
+    ucy_valid = np.round(ucy[col_idx].astype(np.float64), 5)
+    ucm_valid = np.round(ucm[col_idx].astype(np.float64), 2)
     result = {"time": pd.to_datetime(data_map['time'].values[step]).strftime('%Y-%m-%d %H:%M:%S'),
         "coordinates": np.column_stack((x_coords, y_coords)).tolist(),
-        "values": np.vstack([ucx_flat, ucy_flat, ucm_flat]).T.tolist()
+        "values": np.column_stack((ucx_valid, ucy_valid, ucm_valid)).tolist()
     }
     return result
 
@@ -1045,48 +1111,41 @@ def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
     arr: np.ndarray
         The array to be processed.
     cache: dict
-        The cache store data.
+        Cache containing 'df', 'depth_values', 'n_rows'.
 
     Returns
     -------
     np.ndarray
         The smoothed values.
     """
-    frame, df = {}, cache["df"]
-    # Create a mask
-    mask = cache["layers_values"][None, :] < df["depth"].values[:, None]
-    depth_rounded = np.round(df["depth"].values, 0)
-    for i in range(cache["n_rows"]):
-        # Initialize column
-        if -i not in frame: frame[-i] = np.full(len(df), np.nan)
-        # Assign values to column using the nearest neighbor depth
-        mask_depth = -i == depth_rounded
-        if np.any(mask_depth):
-            nearest_idx = np.argmin(np.abs(cache["depth_idx"] - i))
-            temp_values = arr[df.index.values, nearest_idx] if is_hyd else arr[nearest_idx, df.index.values]
-            frame[-i] = np.where(mask_depth, temp_values, frame[-i])
-        if i in cache["index_map"]:
-            mask = -i >= df["depth"].values
-            index = cache["index_map"][i]
-            temp_values = arr[df.index.values, index] if is_hyd else arr[index, df.index.values]
-            frame[-i] = np.where(mask, temp_values, frame[-i])
-    poly = pd.concat([df[['depth']].reset_index(drop=True), pd.DataFrame(frame)], axis=1)
-    # Get indices of valid columns
-    depth_arr = np.array([float(c) for c in poly.columns if c != "depth"])
-    smoothed = poly.drop("depth", axis=1).to_numpy(dtype=float)
-    mask_valid = depth_arr[None, :] >= depth_rounded[:, None]
-    x_idx, y_idx = np.where(~np.isnan(smoothed) & mask_valid)
-    vals = smoothed[x_idx, y_idx]
-    # If only one point, use that value for the whole grid cell
-    if vals.min() == vals.max(): smoothed[:, :] = vals.min()
-    else:
-        rbf = Rbf(x_idx, y_idx, vals, function='linear')
-        grid_x, grid_y = np.indices(smoothed.shape)
-        smoothed = rbf(grid_x, grid_y)
-    smoothed[~mask_valid] = np.nan
-    # Transpose
-    smoothed_transpose = smoothed.T
-    # Get maximum indice to be used as mask
+    cache_copy = cache.copy()
+    df, n_rows = pd.DataFrame(cache_copy["df"]), cache_copy["n_rows"]
+    df_depth_rounded = np.array(df["depth"].values, dtype=float)
+    depth_values = np.array(cache_copy["depth_values"], dtype=float)
+    depth_rounded = abs(np.round(depth_values, 0))
+    index_map = {int(v): len(depth_rounded)-i-1 for i, v in enumerate(depth_rounded)}
+    # Pre-allocate frame
+    frame = np.full((len(df), abs(n_rows)), np.nan, float)
+    values_filtered = arr[df.index.values, :] if is_hyd else arr[:, df.index.values]
+    for i in range(abs(n_rows)):
+        mask_depth = ((df['depth'].values <= -i) & (i in depth_rounded))
+        row_idx = np.where(mask_depth)[0]
+        if len(row_idx) == 0: continue
+        if is_hyd: temp = values_filtered[:, index_map[i]]
+        else: temp = values_filtered[index_map[i], :]
+        frame[row_idx, i] = temp[mask_depth]
+    mask_valid = -np.arange(abs(n_rows))[None, :] >= df_depth_rounded[:, None]
+    x_idx, y_idx = np.where(~np.isnan(frame))
+    if len(x_idx) > 0:
+        vals = frame[x_idx, y_idx]
+        # If only one point, use that value for the whole grid cell
+        if vals.min() == vals.max(): frame[:, :] = vals.min()
+        else:
+            rbf = Rbf(x_idx, y_idx, vals, function='linear')
+            grid_x, grid_y = np.indices(frame.shape)
+            frame = rbf(grid_x, grid_y)
+    frame[~mask_valid] = np.nan
+    smoothed_transpose = frame.T
     max_row = np.max(np.where(mask_valid.T)[0])
     smoothed_transpose = smoothed_transpose[:max_row + 2, :]
     return smoothed_transpose

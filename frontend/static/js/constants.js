@@ -6,7 +6,7 @@ export const superscriptMap = {
 };
 
 const defaultState = {
-    hydLayer: null, waqLayer: null, sourceLayer: null, crosssectionLayer: null, isHYD: false, 
+    hydLayer: null, waqLayer: null, sourceLayer: null, crosssectionLayer: null, isHYD: false, projectName: '',
     mapLayer: null, isPathQuery: false, isMultiLayer: false, isClickedInsideLayer: false, isThemocline: false,
     lastFeatureColors: {}, featureMap: {}, polygonCentroids: [], wqObsLayer: null, wqLoadsLayer: null, 
     globalChartData: {data: null, chartTitle: "", titleX: "", titleY: "", validColumns: []}, sigma: null,

@@ -37,13 +37,13 @@ function checkUpdater(setLayer, objCheckbox, checkFunction){
     });
 }
 
-export function generalOptionsManager(){
+export function generalOptionsManager(projectName){
     projectSummaryEvents(); updateHYDManager(); updateWAQManager(); updatePathManager();
     document.querySelector('.thermocline-clear-grid').addEventListener('click', () => { 
         window.parent.postMessage({type: 'thermoclineGridClear'}, '*');
     });
     configReset().addEventListener('click', async() => { 
-        const data = await sendQuery('reset_config', {});
+        const data = await sendQuery('reset_config', {projectName: projectName});
         alert(data.message); return;
     });
     // Plot thermocline for hydrodynamic simulation
@@ -99,7 +99,7 @@ function projectSummaryEvents(){
 }
 
 async function openProjectSummary() {
-    const data = await loadData('', 'summary');
+    const data = await loadData('', 'summary', getState().projectName);
     if (data.status === 'error') { alert(data.message); return; }
     const currentDisplay = window.getComputedStyle(summaryWindow()).display;
     if (currentDisplay === "none") {
@@ -150,7 +150,7 @@ function updateHYDManager(){
 // Load hydrodynamic observation points
 async function loadHYDStations() {
     startLoading('Reading Hydrodynamic Observation Points from Database. Please wait...'); // Show spinner
-    const data = await loadData('', 'hyd_station'); // Load data
+    const data = await loadData('', 'hyd_station', getState().projectName); // Load data
     if (data.status === "error") { alert(data.message); return; }
     if (getState().hydLayer) { map.removeLayer(getState().hydLayer); }
     // Add station layer to the map
@@ -194,7 +194,7 @@ async function loadHYDStations() {
 // Load sources/sinks observation points
 async function loadSourceStations() {
     startLoading('Reading Sources/Sinks from Database. Please wait...');
-    const data = await loadData('', 'sources');
+    const data = await loadData('', 'sources', getState().projectName);
     if (data.status === "error") { alert(data.message); return; }
     if (getState().sourceLayer) { map.removeLayer(getState().sourceLayer); }
     const layer = L.geoJSON(data.content, {
@@ -220,7 +220,7 @@ async function loadSourceStations() {
 // Load cross-section observation path
 async function loadCrossSection() {
     startLoading('Reading Cross-Sections from Database. Please wait...');
-    const data = await loadData('', 'crosssections');
+    const data = await loadData('', 'crosssections', getState().projectName);
     if (data.status === "error") { alert(data.message); showLeafletMap(); return; }
     if (getState().crosssectionLayer) { map.removeLayer(getState().crosssectionLayer); }
     const indx = data.message;
@@ -261,7 +261,7 @@ function updateWAQManager() {
 
 async function loadWAQStations() {
     startLoading('Loading Water Quality Observation Points from Database. Please wait...');
-    const data = await loadData('', 'wq_obs');
+    const data = await loadData('', 'wq_obs', getState().projectName);
     if (data.status === "error") { alert(data.message); return; }
     if (getState().wqObsLayer) { map.removeLayer(getState().wqObsLayer); }
     const layer = L.geoJSON(data.content, {
@@ -290,7 +290,7 @@ async function loadWAQStations() {
 }
 async function loadWAQLoads() {
     startLoading('Loading Loads of Water Quality Observation Points from Database. Please wait...');
-    const data = await loadData('', 'wq_loads');
+    const data = await loadData('', 'wq_loads', getState().projectName);
     if (data.status === "error") { alert(data.message); return; }
     if (getState().wqLoadsLayer) { map.removeLayer(getState().wqLoadsLayer); }
     const layer = L.geoJSON(data.content, {
@@ -381,7 +381,8 @@ async function mapPath(e) {
             const unit = colorbar_title().textContent.split('(')[1].trim().split(')')[0].replace(')', '');
             const title = `Profile - ${colorbar_title().textContent.split('(')[0].trim()}`;
             const query = getState().showedQuery;
-            const queryContents = {key: key, query: query, idx: 'load', points: orderedPoints};
+            const queryContents = {key: key, query: query, idx: 'load', 
+                points: orderedPoints, projectName: getState().projectName};
             const data = await sendQuery('select_meshes', queryContents);
             if (data.status === "error") { alert(data.message); return; }
             plotProfileMultiLayer(key, query, data.content, title, unit);

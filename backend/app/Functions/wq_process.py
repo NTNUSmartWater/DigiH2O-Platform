@@ -1,7 +1,7 @@
-import os, subprocess, asyncio, re, shutil
+import os, subprocess, asyncio, re, shutil, requests
 import pandas as pd, numpy as np, xarray as xr
 from fastapi import APIRouter, Request, WebSocket
-from config import PROJECT_STATIC_ROOT, DELFT_PATH
+from config import PROJECT_STATIC_ROOT, DELFT_PATH, WINDOWS_AGENT_URL
 from fastapi.responses import JSONResponse
 from datetime import datetime, timezone
 from Functions import wq_functions
@@ -186,33 +186,59 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
         os.environ["PATH"] += os.pathsep + dll_path
         # Run Simulation and get output
         inp_name = os.path.basename(inp_file)
-        # === Run delwaq1 ===
-        await websocket.send_json({'status': "Checking inputs for WAQ simulation..."})
-        print('=== Run delwaq1 ===')
-        cmd1 = [delwaq1_path, inp_name, "-p", proc_path, "-eco", bloom_path]
-        ok1 = await subprocessRunner(cmd1, output_folder, websocket, project_name)
-        if not ok1:
-            await websocket.send_json({'error': "Prepare inputs failed."})
-            processes[project_name]["status"] = "finished"
-            return
-        # === Run delwaq2 ===
-        await websocket.send_json({'status': "Running WAQ simulation..."})
-        print('=== Run delwaq2 ===')
         progress_regex = re.compile(r"(\d+(?:\.\d+)?)% Completed")
-        cmd2 = [delwaq2_path, inp_name]
-        ok2 = await subprocessRunner(cmd2, output_folder, websocket, project_name, progress_regex, "ERROR in GMRES")
-        if not ok2:
-            await websocket.send_json({'error': "Run failed."})
-            processes[project_name]["status"] = "finished"
-            return
+        if websocket.app.state.env == "development":
+            # === Run delwaq1 ===
+            await websocket.send_json({'status': "Checking inputs for WAQ simulation..."})
+            print('=== Run delwaq1 ===')
+            cmd1 = [delwaq1_path, inp_name, "-p", proc_path, "-eco", bloom_path]
+            ok1 = await subprocessRunner(cmd1, output_folder, websocket, project_name)
+            if not ok1:
+                await websocket.send_json({'error': "Prepare inputs failed."})
+                processes[project_name]["status"] = "finished"
+                return
+            # === Run delwaq2 ===
+            await websocket.send_json({'status': "Running WAQ simulation..."})
+            print('=== Run delwaq2 ===')
+            cmd2 = [delwaq2_path, inp_name]
+            ok2 = await subprocessRunner(cmd2, output_folder, websocket, project_name, progress_regex, "ERROR in GMRES")
+            if not ok2:
+                await websocket.send_json({'error': "Run failed."})
+                processes[project_name]["status"] = "finished"
+                return
+        else:
+            # === Run delwaq1 ===
+            await websocket.send_json({'status': "Checking inputs for WAQ simulation..."})
+            print('=== Run delwaq1 ===')
+            cmd1 = [delwaq1_path, inp_name, "-p", proc_path, "-eco", bloom_path]
+            payload = {"action": "run_waq", "cmd": cmd1, "project_name": project_name,
+                       "cwd": output_folder, "websocket": websocket}
+            res = requests.post(WINDOWS_AGENT_URL, json=payload, timeout=10)
+            res.raise_for_status()
+            ok1 = res.json()
+            if ok1['status'] != "ok":
+                await websocket.send_json({'error': "Prepare inputs failed."})
+                processes[project_name]["status"] = "finished"
+                return
+            # === Run delwaq2 ===
+            await websocket.send_json({'status': "Running WAQ simulation..."})
+            print('=== Run delwaq2 ===')
+            progress_regex = re.compile(r"(\d+(?:\.\d+)?)% Completed")
+            payload = {"action": "run_waq", "cmd": cmd2, "project_name": project_name, "cwd": output_folder,
+                       "websocket": websocket, "progress_regex": progress_regex, "stop_on_error": "ERROR in GMRES"}
+            res = requests.post(WINDOWS_AGENT_URL, json=payload, timeout=10)
+            res.raise_for_status()
+            ok2 = res.json()
+            if ok2['status'] != "ok":
+                await websocket.send_json({'error': "Run failed."})
+                processes[project_name]["status"] = "finished"
+                return
         print('=== Finished ===')
         # Move WAQ output files to output folder
         await websocket.send_json({'status': "Reorganizing output files ..."})
         try:
             output_dir = os.path.join(PROJECT_STATIC_ROOT, project_name, "output")
             if not os.path.exists(output_dir): os.makedirs(output_dir)
-            # config_dir = os.path.join(output_dir, "config")
-            # if os.path.exists(config_dir): shutil.rmtree(config_dir, ignore_errors=True)
             output_WAQ_dir = os.path.join(output_dir, 'WAQ')
             if not os.path.exists(output_WAQ_dir): os.makedirs(output_WAQ_dir)
             for suffix in ["_his.nc", "_map.nc", ".json"]:
@@ -239,7 +265,7 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
             processes.pop(project_name, None)
 
 async def subprocessRunner(cmd, cwd, websocket, project_name, progress_regex=None, stop_on_error=None):
-    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd, bufsize=1,
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=cwd, bufsize=1,
                                 universal_newlines=True, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
     processes[project_name]["process"], success = process, False
     try:
@@ -272,13 +298,12 @@ async def subprocessRunner(cmd, cwd, websocket, project_name, progress_regex=Non
                 processes[project_name]["status"] = "error"
                 return False
             if "Normal end" in line: success = True
-        for line in process.stderr:
+        for line in process.stdout:
             if not line.strip(): continue
             print("[ERR]", line.strip())
             await websocket.send_json({"error": line.strip()}) 
     finally:
         process.stdout.close()
-        process.stderr.close()
         try: process.wait(timeout=3)
         except subprocess.TimeoutExpired: kill_process(process)
         if process.poll() is None: kill_process(process)

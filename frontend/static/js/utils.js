@@ -5,6 +5,21 @@ function toSuperscript(num) {
     return String(num).split('').map(ch => superscriptMap[ch] || ch).join('');
 }
 
+export function decodeArray(base64Str, n_decimals=3) {
+    // Convert base64 to ArrayBuffer
+    const binaryStr = atob(base64Str);
+    const buffer = new ArrayBuffer(binaryStr.length);
+    const view = new Uint8Array(buffer);
+    for (let i = 0; i < binaryStr.length; i++) {
+        view[i] = binaryStr.charCodeAt(i);
+    }
+    // Convert buffer to Float32Array
+    const floatArray = new Float32Array(buffer);
+    // Round values
+    const values = Array.from(floatArray).map(v => parseFloat(v.toFixed(n_decimals)));
+    return values;
+}
+
 export function getColors(nColors){
     if (nColors === 5) return ['#0416FF', '#03FFF8', '#02FF07', '#EDFF01', '#FF1E00'];
     else if (nColors === 10) return ['#0416FF', '#0094FF', '#03DAFF', '#00A305',
@@ -29,9 +44,7 @@ export function valueFormatter(value, minDiff) {
         const [mantissa, exponent] = expStr.split('e');
         const expNum = parseInt(exponent, 10);
         return `${mantissa}×10${toSuperscript(expNum)}`;
-    } else {
-        return value.toFixed(decimalPlaces);
-    }
+    } else { return value.toFixed(decimalPlaces); }
 }
 
 export function interpolateJet(t) {
@@ -179,10 +192,10 @@ export function updateMapByTime(layerMap, values, vmin, vmax, colorbarKey) {
 }
 
 // Load data
-export async function loadData(query, key){
+export async function loadData(query, key, projectName){
     const response = await fetch('/process_data', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({query: query, key: key})});
+    body: JSON.stringify({query: query, key: key, projectName: projectName})});
     const data = await response.json();
     return data;
 }
@@ -231,7 +244,7 @@ export async function initOptions(comboBox, key) {
     try {
         const response = await fetch('/initiate_options', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({key: key})});
+        body: JSON.stringify({key: key, projectName: getState().projectName})});
         const data = await response.json();
         if (data.status === "ok") {
             // Add none option in case of vector

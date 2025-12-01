@@ -6,7 +6,7 @@ import { timeControl, colorbar_container, colorbar_vector_container, plot2DMapDy
 import { generalOptionsManager, summaryWindow } from './generalOptionManager.js';
 import { spatialMapManager } from './spatialMapManager.js';
 import { sendQuery } from './tableManager.js';
-import { resetState, setState } from './constants.js';
+import { getState, resetState, setState } from './constants.js';
 
 let pickerState = { location: false, point: false, crosssection: false, boundary: false, source: false },
     cachedMenus = {}, markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [],
@@ -58,19 +58,18 @@ async function openDemoProject() {
 }
 
 // ============================ Functions ============================
-
-async function showPopupMenu(id, htmlFile) {
+async function showPopupMenu(projectName, id, htmlFile) {
     try {
         let html;
         if (cachedMenus[htmlFile]) html = cachedMenus[htmlFile];
         else {
-            const response = await fetch(`/load_popupMenu?htmlFile=${htmlFile}`);
+            const response = await fetch(`/load_popupMenu?htmlFile=${htmlFile}&project_name=${projectName}`);
             if (response.status === 'error') {alert(response.message); return;}
             html = await response.text();
             cachedMenus[htmlFile] = html;
         }
         popupContent().innerHTML = html;
-        if (id === '1') generalOptionsManager(); // Events on general options submenu
+        if (id === '1') generalOptionsManager(projectName); // Events on general options submenu
         if (id === '2') timeSeriesManager(); // Events on time series measurement submenu
         if (id === '3') spatialMapManager(); // Events on spatial map submenu
     } catch (error) {alert(error + ': ' + htmlFile);}
@@ -94,7 +93,7 @@ async function projectChecker(name=null, params=null) {
     colorbar_vector_container().style.display = 'none';
     const subtance = document.getElementById('substance-window');
     if (subtance.style.display !== 'none') subtance.style.display = 'none';
-    projectTitle().textContent = `Project: ${name}`;
+    setState({projectName: name}); projectTitle().textContent = `Project: ${name}`;
     startLoading('Reading Simulation Outputs and Setting up Database.\nThis takes a while (especially the first time). Please wait...');
     const data = await sendQuery('setup_database', {projectName: name, params: params});
     if (data.status === "error") { alert(data.message); location.reload(); }
@@ -114,7 +113,7 @@ async function initializeMenu(){
             if (info === 'help') { contactInformation(); return;}
             const [id, htmlFile] = info.split('|');
             startLoading('Getting Information. Please wait...');
-            await showPopupMenu(id, htmlFile);
+            await showPopupMenu(getState().projectName, id, htmlFile);
             showLeafletMap();
             pm.style.top = `${rect.bottom + 15 + window.scrollY}px`;
             pm.style.left = `${rect.left + window.scrollX}px`;
@@ -425,8 +424,8 @@ function updateEvents() {
             const key = event.data.key, query = event.data.query;
             const titleX = event.data.titleX, titleY = event.data.titleY;
             const chartTitle = event.data.chartTitle;
-            const data = await sendQuery('select_thermocline', {key: key, 
-                query: query, type: 'thermocline_grid'});
+            const data = await sendQuery('select_thermocline', {key: key, query: query,
+                type: 'thermocline_grid', projectName: getState().projectName});
             if (data.status === "error") {alert(data.message); return;}
             if (gridLayer) map.removeLayer(gridLayer); gridLayer = null;
             gridLayer = L.geoJSON(data.content, {
@@ -458,7 +457,7 @@ function updateEvents() {
                                     const newName = input.value;
                                     if (newName !== '') {
                                         const initData = await sendQuery('select_thermocline', {key: key,
-                                            query: query, idx: index, type: 'thermocline_init'});
+                                            query: query, idx: index, type: 'thermocline_init', projectName: getState().projectName});
                                         layer.closePopup(); setState({isThemocline: false});
                                         if (initData.status === "error") { alert(initData.message); return; }
                                         thermoclinePlotter(initData.content, newName, titleX, titleY, chartTitle);
@@ -631,7 +630,8 @@ function timeSeriesManager() {
     document.querySelectorAll('.waq_his').forEach(item => {
         item.addEventListener('click', async() => {
             const query = item.dataset.info;
-            const data = await sendQuery('process_data', {query: query, key: 'substance_check'});
+            const data = await sendQuery('process_data', {query: query, 
+                key: 'substance_check', projectName: getState().projectName});
             if (data.status === "error") {alert(data.message); substanceWindow().style.display = 'none'; return;}
             substanceWindowContent().innerHTML = '';
             // Add content

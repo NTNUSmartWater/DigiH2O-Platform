@@ -1,5 +1,5 @@
 import { startLoading, showLeafletMap} from "./mapManager.js";
-import { loadData, interpolateJet, splitLines, getColors, valueFormatter } from "./utils.js";
+import { loadData, interpolateJet, splitLines, getColors, valueFormatter, decodeArray } from "./utils.js";
 import { getState, setState } from "./constants.js";
 import { sendQuery } from "./tableManager.js";
 import { deActivePathQuery, moveWindow } from "./generalOptionManager.js";
@@ -38,7 +38,7 @@ const timeLabelEnd = () => document.getElementById('timeLabelEnd');
 
 export async function plotChart(query, key, chartTitle, titleX, titleY) {
     startLoading('Preparing Data for Chart. Please wait...'); // Show spinner
-    const data = await loadData(query, key); // Load data
+    const data = await loadData(query, key, getState().projectName); // Load data
     if (data.status === 'error') { showLeafletMap(); alert(data.message); return; }
     drawChart(data.content, chartTitle, titleX, titleY);
     showLeafletMap(); // Hide the spinner and show the map
@@ -60,7 +60,8 @@ export function plotEvents() {
     });
     // Resize the chart window
     document.addEventListener("mouseup", function() { 
-        Plotly.Plots.resize(chartDiv()); Dragging = false; 
+        if (chartDiv()) Plotly.Plots.resize(chartDiv()); 
+        Dragging = false; 
     });
     // Open dropdown
     selectBox().addEventListener("click", () => {
@@ -321,7 +322,7 @@ export function plotProfileMultiLayer(key, query, data, title, unit) {
     // Update a single frame
     async function updateFrame(index) {
         if (myToken !== animationToken) return;
-        const queryContents = { key: key, query: query, idx: index };
+        const queryContents = { key: key, query: query, idx: index, projectName: getState().projectName };
         const data = await sendQuery('select_meshes', queryContents);
         if (data.status === "error") { 
             alert(data.message); animating = false;
@@ -373,7 +374,7 @@ export function plotProfileMultiLayer(key, query, data, title, unit) {
     // === Color control === 
     colorCombo().addEventListener('change', async() => { 
         animating = false; playPauseBtn().textContent = '▶ Play';
-        const queryContents = { key: key, query: query, idx: frameIndex };
+        const queryContents = { key: key, query: query, idx: frameIndex, projectName: getState().projectName };
         const refreshed = await sendQuery('select_meshes', queryContents);
         if (refreshed.status === "error") { alert(data.message); return; }
         const { values, local_minmax } = refreshed.content;
@@ -473,7 +474,7 @@ export function thermoclinePlotter(data, name, titleX, titleY, chartTitle) {
     // Hide components
     colorCombo().style.display = "none"; minValue().style.display = "none"; maxValue().style.display = "none";
     colorComboLabel().style.display = "none"; minLabel().style.display = "none"; maxLabel().style.display = "none";
-    let animating = false, frameIndex = 0, duration; 
+    let animating = false, frameIndex = 0, duration;
     const { timestamps, depths, values } = data;
     // Set up time slider
     timeSlider().min = 0; timeSlider().max = timestamps.length - 1;
@@ -482,14 +483,14 @@ export function thermoclinePlotter(data, name, titleX, titleY, chartTitle) {
     timeLabelEnd().textContent = `End: ${timestamps[timestamps.length - 1]}`;
     timeLabel().textContent = `Time: ${timestamps[0]}`;
     // Render plot
-    profileWindow()._resizeObserver = renderThermocline(chartDivProfile(), values, depths, 
-        name, titleX, titleY, chartTitle);
+    profileWindow()._resizeObserver = renderThermocline(chartDivProfile(), values,
+            depths, name, titleX, titleY, chartTitle);
     // Change header title of window
     profileWindowHeader().childNodes[0].nodeValue = 'Thermocline Plot';
     // Update a single frame
     async function updateFrame(index) {
         if (myToken !== animationToken) return;
-        const queryContents = { idx: index, type: 'thermocline_update' };
+        const queryContents = { idx: index, type: 'thermocline_update', projectName: getState().projectName };
         const updateData = await sendQuery('select_thermocline', queryContents);
         if (updateData.status === "error") { 
             alert(updateData.message); animating = false;
@@ -527,6 +528,10 @@ export function thermoclinePlotter(data, name, titleX, titleY, chartTitle) {
     timeSlider().addEventListener('input', async(e) => {
         animating = false; playPauseBtn().textContent = '▶ Play';
         frameIndex = parseInt(e.target.value);
+    });
+    // === Duration control ===
+    durationValue().addEventListener('change', () => { 
+        animating = false; playPauseBtn().textContent = '▶ Play';
     });
     profileWindow().style.display = "flex"; setState({isThemocline: false});
 }

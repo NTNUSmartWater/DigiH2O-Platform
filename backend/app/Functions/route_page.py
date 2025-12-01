@@ -1,6 +1,6 @@
-import os
+import os, msgpack
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from app.config import STATIC_DIR_FRONTEND, STATIC_DIR_BACKEND
 from Functions import functions
@@ -8,7 +8,8 @@ from Functions import functions
 router = APIRouter()
 templates = Jinja2Templates(directory=os.path.join(STATIC_DIR_FRONTEND, "templates"))
 
-# Select Project
+# ==================== Routes ====================
+# Home page
 @router.get("/", response_class=HTMLResponse)
 def home(request: Request):
     folder = Jinja2Templates(directory=os.path.dirname(STATIC_DIR_FRONTEND))
@@ -31,22 +32,45 @@ def load_contact(request: Request):
 
 # Load popup menu
 @router.get("/load_popupMenu", response_class=HTMLResponse)
-async def load_popupMenu(request: Request, htmlFile: str):
+async def load_popupMenu(request: Request, htmlFile: str, project_name: str = None):
+    # Show project menu, read config from Redis
     if htmlFile == 'projectMenu.html':
         return templates.TemplateResponse(htmlFile, {"request": request})
-    if not request.app.state.templates:
-        return HTMLResponse("<p>No project selected</p>", status_code=400)
+    if not project_name:
+        return HTMLResponse(f"<p>Project '{project_name}' not found</p>", status_code=404)
+    # Acquire Redis lock to prevent race condition
+    redis = request.app.state.redis
     path = os.path.join(STATIC_DIR_FRONTEND, "templates", htmlFile)
     if not os.path.exists(path):
         return HTMLResponse(f"<p>Popup menu template not found</p>", status_code=404)
-    if not request.app.state.config:
-        if (request.app.state.waq_his or request.app.state.waq_map) and not request.app.state.waq_model:
-            return JSONResponse({"status": 'error', "message":
-                "Some WAQ-related parameters are missing.\nConsider running the model again."})
-        files = [request.app.state.hyd_his, request.app.state.hyd_map, 
-            request.app.state.waq_his, request.app.state.waq_map]
-        request.app.state.config = functions.getVariablesNames(files, request.app.state.waq_model)
-    return templates.TemplateResponse(htmlFile, {"request": request, 'configuration': request.app.state.config})
+    # Get config from Redis, if not found scan files to get variables
+    config_raw = await redis.hget(project_name, "config")
+    # If config already exists → no race → render
+    if config_raw:
+        config = msgpack.unpackb(config_raw, raw=False)
+        return templates.TemplateResponse(htmlFile, {"request": request, 'configuration': config})
+    lock = redis.lock(f"lock:{project_name}:init_config", timeout=10)  # 10s lock
+    async with lock:
+        # Double check: Is there anyone else running?
+        config_raw = await redis.hget(project_name, "config")
+        if config_raw:
+            config = msgpack.unpackb(config_raw, raw=False)
+            return templates.TemplateResponse(htmlFile, {"request": request, 'configuration': config})
+        # Create config the first time
+        project_cache = request.app.state.project_cache.setdefault(project_name)
+        files = [project_cache.get("hyd_his"), project_cache.get("hyd_map"),
+                project_cache.get("waq_his"), project_cache.get("waq_map")]
+        waq_model_raw = await redis.hget(project_name, "waq_model")
+        waq_model = waq_model_raw.decode() if waq_model_raw else "unknown"
+        config_obj = functions.getVariablesNames(files, waq_model)
+        # Restructure configuration
+        config = {**config_obj.get("hyd", {}), **config_obj.get("waq", {})}
+        for k, v in config_obj.items():
+            if k not in ("hyd", "waq", "meta"):
+                config[k] = v
+        # Save updated project data back to Redis
+            await redis.hset(project_name, "config", msgpack.packb(config, use_bin_type=True))
+    return templates.TemplateResponse(htmlFile, {"request": request, 'configuration': config})
 
 # Load open project
 @router.get("/open_project")
