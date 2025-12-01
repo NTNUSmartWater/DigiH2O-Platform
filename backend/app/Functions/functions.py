@@ -1111,7 +1111,7 @@ def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
     arr: np.ndarray
         The array to be processed.
     cache: dict
-        Cache containing 'df', 'layers_values', 'depth_idx', 'n_rows', 'index_map', 'max_layer'.
+        Cache containing 'df', 'depth_values', 'n_rows'.
 
     Returns
     -------
@@ -1119,95 +1119,23 @@ def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
         The smoothed values.
     """
     cache_copy = cache.copy()
-    # frame, df = {}, pd.DataFrame(cache_copy["df"])
-    # # Create a mask
-    # layers_values = np.array(cache_copy["layers_values"], dtype=float)
-    # depth_values = np.array(df["depth"].values, dtype=float)
-    # depth_idx = np.array(cache_copy["depth_idx"], dtype=float)
-    # # Convert keys to int
-    # cache_copy["index_map"] = {int(k): v for k, v in cache_copy["index_map"].items()}
-    # mask = layers_values[None, :] < depth_values[:, None]
-    # depth_rounded = np.round(depth_values, 0)
-    # for i in range(cache_copy["n_rows"]):
-    #     # Initialize column
-    #     if -i not in frame: frame[-i] = np.full(len(df), np.nan)
-    #     # Assign values to column using the nearest neighbor depth
-    #     mask_depth = -i == depth_rounded
-    #     if np.any(mask_depth):
-    #         nearest_idx = np.argmin(np.abs(depth_idx - i))
-    #         temp_values = arr[df.index.values, nearest_idx] if is_hyd else arr[nearest_idx, df.index.values]
-    #         frame[-i] = np.where(mask_depth, temp_values, frame[-i])
-    #     if i in cache_copy["index_map"]:
-    #         mask = -i >= depth_values
-    #         index = cache_copy["index_map"][i]
-    #         temp_values = arr[df.index.values, index] if is_hyd else arr[index, df.index.values]
-    #         frame[-i] = np.where(mask, temp_values, frame[-i])
-    # poly = pd.concat([df[['depth']].reset_index(drop=True), pd.DataFrame(frame)], axis=1)
-    # # Get indices of valid columns
-    # depth_arr = np.array([float(c) for c in poly.columns if c != "depth"])
-    # smoothed = poly.drop("depth", axis=1).to_numpy(dtype=float)
-    # mask_valid = depth_arr[None, :] >= depth_rounded[:, None]
-    # x_idx, y_idx = np.where(~np.isnan(smoothed) & mask_valid)
-    # vals = smoothed[x_idx, y_idx]
-    # # If only one point, use that value for the whole grid cell
-    # if vals.min() == vals.max(): smoothed[:, :] = vals.min()
-    # else:
-    #     rbf = Rbf(x_idx, y_idx, vals, function='linear')
-    #     grid_x, grid_y = np.indices(smoothed.shape)
-    #     smoothed = rbf(grid_x, grid_y)
-    # smoothed[~mask_valid] = np.nan
-    # # Transpose
-    # smoothed_transpose = smoothed.T
-    # # Get maximum indice to be used as mask
-    # max_row = np.max(np.where(mask_valid.T)[0])
-    # smoothed_transpose = smoothed_transpose[:max_row + 2, :]
-
-
-
-
     df, n_rows = pd.DataFrame(cache_copy["df"]), cache_copy["n_rows"]
-    depth_values = np.array(df["depth"].values, dtype=float)
-    depth_rounded = np.round(depth_values, 0)
-    index_map = {int(k): v for k, v in cache_copy["index_map"].items()}
-    depth_idx = np.array(cache_copy["depth_idx"], dtype=float)
+    df_depth_rounded = np.array(df["depth"].values, dtype=float)
+    depth_values = np.array(cache_copy["depth_values"], dtype=float)
+    depth_rounded = abs(np.round(depth_values, 0))
+    index_map = {int(v): len(depth_rounded)-i-1 for i, v in enumerate(depth_rounded)}
     # Pre-allocate frame
-    frame = np.full((n_rows, len(df)), np.nan, float)
-    # Index map
-    available_layers = np.array(list(index_map.keys()), int)
-    mapped_indices = np.array(list(index_map.values()), int)
-    for i in np.unique(depth_rounded):
-        row_idx = int(-i)
-        if row_idx < 0 or row_idx >= n_rows: continue
-        # Assign values to column using the nearest neighbor depth
-        mask_depth = (depth_rounded == i)
-        nearest_idx = np.argmin(np.abs(depth_idx - i))
-        if is_hyd: temp = arr[df.index.values, nearest_idx]
-        else: temp = arr[nearest_idx, df.index.values]
-        frame[row_idx, mask_depth] = temp[mask_depth]
-    
-    # if len(available_layers) > 0:
-    #     i_arr = available_layers
-    #     row_idx = -i_arr  # map row → -i
-    #     valid_row_mask = (row_idx >= 0) & (row_idx < n_rows)
-    #     i_arr = i_arr[valid_row_mask]
-    #     row_idx = row_idx[valid_row_mask]
-    #     mapped_indices = mapped_indices[valid_row_mask]
-    #     # Create broadcast mask: depth_values <= -i
-    #     depth_matrix = depth_values[None, :]
-    #     i_matrix = (-i_arr)[:, None]
-    #     depth_mask = (depth_matrix <= i_matrix)
-    #     if is_hyd:
-    #         temp_vals = arr[df.index.values[:, None], mapped_indices]
-    #         temp_vals = temp_vals.T  
-    #         frame[row_idx, :] = np.where(depth_mask, temp_vals, frame[row_idx, :])
-    #     else:
-    #         temp_vals = arr[mapped_indices][:, df.index.values]
-    #         frame[row_idx, :] = np.where(depth_mask, temp_vals, frame[row_idx, :])
-    
-    
-    frame = frame.T
-    mask_valid = -np.arange(n_rows)[None, :] >= depth_rounded[:, None]
-    x_idx, y_idx = np.where(~np.isnan(frame) & mask_valid)
+    frame = np.full((len(df), abs(n_rows)), np.nan, float)
+    values_filtered = arr[df.index.values, :] if is_hyd else arr[:, df.index.values]
+    for i in range(abs(n_rows)):
+        mask_depth = ((df['depth'].values <= -i) & (i in depth_rounded))
+        row_idx = np.where(mask_depth)[0]
+        if len(row_idx) == 0: continue
+        if is_hyd: temp = values_filtered[:, index_map[i]]
+        else: temp = values_filtered[index_map[i], :]
+        frame[row_idx, i] = temp[mask_depth]
+    mask_valid = -np.arange(abs(n_rows))[None, :] >= df_depth_rounded[:, None]
+    x_idx, y_idx = np.where(~np.isnan(frame))
     if len(x_idx) > 0:
         vals = frame[x_idx, y_idx]
         # If only one point, use that value for the whole grid cell
@@ -1220,6 +1148,4 @@ def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
     smoothed_transpose = frame.T
     max_row = np.max(np.where(mask_valid.T)[0])
     smoothed_transpose = smoothed_transpose[:max_row + 2, :]
-
-    # print(smoothed_transpose)
     return smoothed_transpose

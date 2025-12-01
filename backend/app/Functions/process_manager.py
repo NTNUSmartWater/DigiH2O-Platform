@@ -215,22 +215,13 @@ async def select_meshes(request: Request):
             if idx == 'load':
                 # Initialize mesh cache in Redis if not exists
                 await redis.delete(mesh_cache_key)
-                raw_cache = await redis.get(mesh_cache_key)
-                if raw_cache:
-                    mesh_cache = msgpack.unpackb(raw_cache, raw=False)
-                else:
-                    layer_reverse_raw = await redis.hget(project_name, "layer_reverse_hyd")
-                    layer_reverse = msgpack.unpackb(layer_reverse_raw, raw=False)
-                    layers_values = [float(v.split(' ')[1]) for k, v in layer_reverse.items() if int(k) >= 0]
-                    max_layer = float(max(np.array(layers_values), key=abs))
-                    n_rows = abs(math.ceil(max_layer/10)*10) if max_layer > 0 else abs(math.floor(max_layer/10)*10) + 1
-                    depth_idx = [round(abs(d)) for d in layers_values]
-                    # Using mapping to increase performance
-                    index_map = {str(v): len(depth_idx)-i-1 for i, v in enumerate(depth_idx)}
-                    mesh_cache = { "layers_values": layers_values, "n_rows": n_rows, "df": None,
-                        "depth_idx": depth_idx, "index_map": index_map, "max_layer": max_layer}
-                    print(mesh_cache)
-                    await redis.set(mesh_cache_key, msgpack.packb(mesh_cache, use_bin_type=True))
+                layer_reverse_raw = await redis.hget(project_name, "layer_reverse_hyd")
+                layer_reverse = msgpack.unpackb(layer_reverse_raw, raw=False)
+                depth_values = [float(v.split(' ')[1]) for k, v in layer_reverse.items() if int(k) >= 0]
+                max_layer = float(max(np.array(depth_values), key=abs))
+                n_rows = math.ceil(abs(max_layer)/10)*10 + 1 if max_layer < 0 else -(math.ceil(abs(max_layer)/10)*10 + 1)
+                mesh_cache = { "depth_values": depth_values, "n_rows": n_rows, "df": None}
+                await redis.set(mesh_cache_key, msgpack.packb(mesh_cache, use_bin_type=True))
                 time_column = 'time' if is_hyd else 'nTimesDlwq'
                 time_stamps = pd.to_datetime(data_ds[time_column]).strftime('%Y-%m-%d %H:%M:%S').tolist()
                 points_arr, arr = np.array(points), values[0,:,:]
@@ -244,16 +235,14 @@ async def select_meshes(request: Request):
                 gdf_filtered = gpd.sjoin(gdf, grid, how="left", predicate="intersects")
                 gdf_filtered.set_index('index_right', inplace=True)
                 df_serialized = gdf_filtered.drop(columns=['geometry'])
-                print(df_serialized)
                 mesh_cache["df"] = df_serialized.to_dict(orient='list')
                 # Compute frame in thread to avoid blocking
                 frame = await asyncio.to_thread(functions.meshProcess, is_hyd, arr, mesh_cache)
                 global_vmin, global_vmax = fnm(np.nanmin(arr)).tolist(), fnm(np.nanmax(arr)).tolist()
                 vmin, vmax = fnm(np.nanmin(frame)).tolist(), fnm(np.nanmax(frame)).tolist()
+                depths_idx = np.arange(0, frame.shape[0]) if mesh_cache["n_rows"] > 0 else np.arange(0, -frame.shape[0], -1)
                 data = {"timestamps": time_stamps, "distance": np.round(points_arr[:, 0], 0).tolist(), "values": fnm(frame).tolist(), 
-                        "depths": np.arange(0, frame.shape[0]) if mesh_cache["max_layer"] > 0 else np.arange(0, -frame.shape[0], -1).tolist(),
-                        "global_minmax": [global_vmin, global_vmax], "local_minmax": [vmin, vmax]}
-                print(mesh_cache)
+                        "depths": depths_idx.tolist(), "global_minmax": [global_vmin, global_vmax], "local_minmax": [vmin, vmax]}
                 await redis.set(mesh_cache_key, msgpack.packb(mesh_cache, use_bin_type=True))
             else: # Load next frame
                 raw_cache = await redis.get(mesh_cache_key)
