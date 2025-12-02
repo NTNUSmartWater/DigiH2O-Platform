@@ -1,5 +1,4 @@
 import os, socket
-from pathlib import Path
 from contextlib import asynccontextmanager
 from Functions import dataset_manager
 from dotenv import load_dotenv
@@ -7,12 +6,12 @@ from redis.asyncio import Redis
 
 # ============== Root directory ================
 load_dotenv()
-BACKEND_DIR = Path(__file__).parent.parent
 env_mode = os.getenv("ENV", "development")
 if env_mode == "development":
     PROJECT_STATIC_ROOT = os.getenv("PROJECT_STATIC_ROOT")
     STATIC_DIR_BACKEND = os.getenv("STATIC_DIR_BACKEND")
     STATIC_DIR_FRONTEND = os.getenv("STATIC_DIR_FRONTEND")
+    ALLOWED_USERS_PATH = os.getenv("ALLOWED_USERS")
     REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 else:
     PROJECT_STATIC_ROOT = "/app/Delft_Projects"

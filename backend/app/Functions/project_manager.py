@@ -2,7 +2,7 @@
 import os, shutil, subprocess, re, json
 import asyncio, traceback, msgpack
 import numpy as np
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
 from Functions import functions
 from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND
@@ -56,7 +56,7 @@ async def setup_new_project(request: Request):
 
 # Set up the database depending on the project
 @router.post("/setup_database")
-async def setup_database(request: Request):
+async def setup_database(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
     project_name, params = body.get('projectName'), body.get('params')
     redis = request.app.state.redis
