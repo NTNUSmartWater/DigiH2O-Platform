@@ -59,7 +59,7 @@ async def setup_new_project(request: Request):
 async def setup_database(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
     project_name, params = body.get('projectName'), body.get('params')
-    redis = request.app.state.redis
+    redis, project_key = request.app.state.redis, f"{project_name}:{user}"
     lock = redis.lock(f"{project_name}:setup_database", timeout=300)
     try:
         async with lock:
