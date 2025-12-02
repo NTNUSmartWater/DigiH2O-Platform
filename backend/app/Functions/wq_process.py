@@ -1,4 +1,4 @@
-import os, subprocess, asyncio, re, shutil, requests
+import os, subprocess, asyncio, re, shutil
 import pandas as pd, numpy as np, xarray as xr
 from fastapi import APIRouter, Request, WebSocket
 from config import PROJECT_STATIC_ROOT, DELFT_PATH, WINDOWS_AGENT_URL

@@ -8,19 +8,24 @@ from redis.asyncio import Redis
 load_dotenv()
 env_mode = os.getenv("ENV", "development")
 if env_mode == "development":
-    PROJECT_STATIC_ROOT = os.getenv("PROJECT_STATIC_ROOT")
-    STATIC_DIR_BACKEND = os.getenv("STATIC_DIR_BACKEND")
-    STATIC_DIR_FRONTEND = os.getenv("STATIC_DIR_FRONTEND")
-    ALLOWED_USERS_PATH = os.getenv("ALLOWED_USERS")
-    REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    PROJECT_DES = os.getenv("PROJECT_DES")
+    ALLOWED_USERS_PATH = os.path.join(PROJECT_DES, "backend/static/allowed_users.json")
+    PROJECT_STATIC_ROOT = os.path.join(PROJECT_DES, "backend/Delft_Projects")
+    STATIC_DIR_BACKEND = os.path.join(PROJECT_DES, "backend/static")
+    STATIC_DIR_FRONTEND = os.path.join(PROJECT_DES, "frontend/static")
+    DELFT_PATH = os.path.join(PROJECT_DES, "backend/x64")
+    REDIS_URL = "redis://localhost:6379/0"
 else:
+    PROJECT_DES = os.getenv("/app")
+    ALLOWED_USERS_PATH = os.path.join(PROJECT_DES, "static/allowed_users.json")
     PROJECT_STATIC_ROOT = "/app/Delft_Projects"
     STATIC_DIR_BACKEND = "/app/static"
     STATIC_DIR_FRONTEND = "/app/frontend/static"
+    DELFT_PATH = os.path.join(PROJECT_DES, "x64")
     REDIS_URL = "redis://redis:6379/0"
-DELFT_PATH = os.getenv("DELFT3D_PATH")
+    WINDOWS_AGENT_URL = "http://host.docker.internal:5055/run" 
 GRID_PATH = os.getenv('GRID_PATH')
-WINDOWS_AGENT_URL = "http://host.docker.internal:5055/run"
+
 
 # ============== Redis Client ================
 def check_redis_running(host="localhost", port=6379, timeout=1):
