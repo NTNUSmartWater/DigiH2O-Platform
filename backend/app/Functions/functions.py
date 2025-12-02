@@ -1,10 +1,27 @@
-import shapely, os, re, shutil, stat, asyncio, base64
+import shapely, os, re, shutil, stat, asyncio, base64, json
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
 from scipy.interpolate import Rbf
-from config import PROJECT_STATIC_ROOT
+from config import PROJECT_STATIC_ROOT, ALLOWED_USERS_PATH
 from redis.asyncio.lock import Lock
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi import Depends, HTTPException, status
+
+
+security = HTTPBasic()
+ALLOWED_USERS = json.load(open(ALLOWED_USERS_PATH))
+
+
+def basic_auth(credentials: HTTPBasicCredentials=Depends(security)):
+    username, password = credentials.username, credentials.password
+    if username not in ALLOWED_USERS or ALLOWED_USERS[username] != password:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authorized", headers={"WWW-Authenticate": "Basic"}
+        )
+    return username
+
 
 def remove_readonly(func, path, excinfo):
     # Change the readonly bit, but not the file contents
