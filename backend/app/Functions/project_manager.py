@@ -158,6 +158,7 @@ async def setup_database(request: Request):
                 "waq_obs": msgpack.packb(obs, use_bin_type=True), "waq_model": waq_model
             }
             # Save to Redis
+            await redis.delete(project_name)
             await redis.hset(project_name, mapping=redis_mapping)
             print('Configuration loaded successfully.')
             return JSONResponse({"status": 'ok'})
