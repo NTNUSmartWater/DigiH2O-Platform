@@ -1141,7 +1141,7 @@ def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
         # If only one point, use that value for the whole grid cell
         if vals.min() == vals.max(): frame[:, :] = vals.min()
         else:
-            rbf = Rbf(x_idx, y_idx, vals, function='linear')
+            rbf = Rbf(x_idx, y_idx, vals, function='cubic')
             grid_x, grid_y = np.indices(frame.shape)
             frame = rbf(grid_x, grid_y)
     frame[~mask_valid] = np.nan
