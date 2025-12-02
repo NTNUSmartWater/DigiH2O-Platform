@@ -23,7 +23,7 @@ else:
     STATIC_DIR_FRONTEND = "/app/frontend/static"
     DELFT_PATH = os.path.join(PROJECT_DES, "x64")
     REDIS_URL = "redis://redis:6379/0"
-    WINDOWS_AGENT_URL = "http://host.docker.internal:5055/run" 
+WINDOWS_AGENT_URL = "http://host.docker.internal:5055/run" 
 GRID_PATH = os.getenv('GRID_PATH')
 
 
