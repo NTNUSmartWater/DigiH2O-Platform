@@ -1,4 +1,3 @@
-
 import os, shutil, subprocess, re, json
 import asyncio, traceback, msgpack
 import numpy as np
@@ -11,9 +10,9 @@ router = APIRouter()
 
 # Remove folder configuration
 @router.post("/reset_config")
-async def reset_config(request: Request):
+async def reset_config(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    redis, project_name = request.app.state.redis, body.get("projectName")
+    redis, project_name = request.app.state.redis, functions.project_definer(body.get('projectName'), user)
     lock = redis.lock(f"{project_name}:reset_config", timeout=20)
     try:
         async with lock:
@@ -36,15 +35,16 @@ async def reset_config(request: Request):
 
 # Create a new project with necessary folders
 @router.post("/setup_new_project")
-async def setup_new_project(request: Request):
+async def setup_new_project(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name = body.get('projectName')
+    project_name = functions.project_definer(body.get('projectName'), user)
     project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
     # Check if project already exists
     if os.path.exists(project_folder):
         return JSONResponse({"status": 'ok', "message": f"Project '{project_name}' already exists."})
     try:
         # Create project directories
+        os.makedirs(body.get('projectName'), exist_ok=True)
         os.makedirs(project_folder, exist_ok=True)
         os.makedirs(os.path.join(project_folder, "input"), exist_ok=True)
         status, message = 'ok', f"Project '{project_name}' created successfully!"
@@ -58,9 +58,9 @@ async def setup_new_project(request: Request):
 @router.post("/setup_database")
 async def setup_database(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name, params = body.get('projectName'), body.get('params')
-    redis, project_key = request.app.state.redis, f"{project_name}:{user}"
-    lock = redis.lock(f"{project_name}:setup_database", timeout=300)
+    project_name, params = functions.project_definer(body.get('projectName'), user), body.get('params')
+    redis = request.app.state.redis
+    extend_task, lock = None, redis.lock(f"{project_name}:setup_database", timeout=300)
     try:
         async with lock:
             extend_task = asyncio.create_task(functions.auto_extend(lock, interval=10))
@@ -85,12 +85,14 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
             config_path = os.path.join(config_dir, 'config.json')
             if os.path.exists(config_path) and os.path.getsize(config_path) > 0:
                 print('Config already exists. Loading...')
-                config = json.loads(open(config_path).read())
+                with open(config_path) as f:
+                    config = json.load(f)
             else:
                 print('Config doesn\'t exist. Creating...')
                 config = {"hyd": {}, "waq": {}, "meta": {"hyd_scanned": False, "waq_scanned": False}, "model_type": ''}
                 if os.path.exists(config_path): os.remove(config_path)
-                open(config_path, "w").write(json.dumps(config))
+                with open(config_path, "w", encoding="utf-8") as f:
+                    json.dump(config, f)
             # ---------------- Grid & Layer ----------------
             layer_reverse_hyd, layer_reverse_waq = {}, {}
             if hyd_map:
@@ -101,18 +103,22 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
                 # Get number of layers
                 layer_path = os.path.join(config_dir, 'layers_hyd.json')
                 if os.path.exists(layer_path):
-                    layer_reverse_hyd = json.load(open(layer_path))
+                    with open(layer_path) as f:
+                        layer_reverse_hyd = json.load(f)
                 else:
                     layer_reverse_hyd = functions.layerCounter(hyd_map, 'hyd')
-                    json.dump(layer_reverse_hyd, open(layer_path, "w"))
+                    with open(layer_path, "w", encoding="utf-8") as f:
+                        json.dump(layer_reverse_hyd, f)
             if waq_map:
                 print('Creating grid and layers for water quality simulation...')
                 layer_path = os.path.join(config_dir, 'layers_waq.json')
                 if os.path.exists(layer_path):
-                    layer_reverse_waq = json.load(open(layer_path))
+                    with open(layer_path) as f:
+                        layer_reverse_waq = json.load(f)
                 else:
                     layer_reverse_waq = functions.layerCounter(waq_map, 'waq')
-                    json.dump(layer_reverse_waq, open(layer_path, "w"))
+                    with open(layer_path, "w", encoding="utf-8") as f:
+                        json.dump(layer_reverse_waq, f)
             # Lazy scan HYD variables only once
             if (hyd_map or hyd_his) and not config['meta']['hyd_scanned']:
                 print('Scanning HYD variables...')
@@ -123,12 +129,11 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
             model_path, waq_model, obs = os.path.join(waq_dir, f'{temp}.json'), '', {}
             if os.path.exists(model_path):
                 print('Loading WAQ model...')
-                temp_data = json.load(open(model_path))
+                with open(model_path) as f:
+                    temp_data = json.load(f)
                 waq_model = temp_data['model_type']
-                if 'wq_obs' in temp_data: 
-                    config['wq_obs'], obs['wq_obs'] = True, temp_data['wq_obs']
-                if 'wq_loads' in temp_data:
-                    config['wq_loads'], obs['wq_loads'] = True, temp_data['wq_loads']
+                if 'wq_obs' in temp_data: config['wq_obs'], obs['wq_obs'] = True, temp_data['wq_obs']
+                if 'wq_loads' in temp_data: config['wq_loads'], obs['wq_loads'] = True, temp_data['wq_loads']
             if (waq_his or waq_map) and waq_model == '':
                 return JSONResponse({"status": 'error', "message": "Some WAQ-related parameters are missing.\nConsider running the model again."})  
             # Lazy scan WAQ
@@ -143,7 +148,8 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
                 config.pop("wq_obs", None)
                 config.pop("wq_loads", None)
             # Save config
-            open(config_path, "w").write(json.dumps(config))
+            with open(config_path, "w", encoding="utf-8") as f:
+                json.dump(config, f)
             # Restructure configuration
             result = {**config.get("hyd", {}), **config.get("waq", {})}
             for k, v in config.items():
@@ -174,11 +180,11 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
 
 # Delete a project
 @router.post("/delete_project")
-async def delete_project(request: Request):
+async def delete_project(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    redis, project_name = request.app.state.redis, body.get("projectName")
+    redis, project_name = request.app.state.redis, functions.project_definer(body.get('projectName'), user)
     lock = redis.lock(f"{project_name}:delete_project", timeout=10)
-    project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
+    project_folder, extend_task = os.path.join(PROJECT_STATIC_ROOT, project_name), None
     try:
         async with lock:
             # Optional: auto-extend lock if deletion may take long
@@ -211,9 +217,10 @@ async def delete_project(request: Request):
 
 # Open a project
 @router.post("/select_project")
-async def select_project(request: Request):
+async def select_project(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name, key, folder_check = body.get('filename'), body.get('key'), body.get('folder_check')
+    key, folder_check = body.get('key'), body.get('folder_check')
+    project_name = functions.project_definer(body.get('filename'), user)
     try:
         if key == 'getProjects': # List the projects that doesn't have a folder output
             project = [p.name for p in os.scandir(PROJECT_STATIC_ROOT) if p.is_dir()]
@@ -270,10 +277,10 @@ async def get_source(request: Request):
 
 # Save observations data to project
 @router.post("/save_obs")
-async def save_obs(request: Request):
+async def save_obs(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name, file_name = body.get('projectName'), body.get('fileName')
-    data, key = body.get('data'), body.get('key')
+    project_name = functions.project_definer(body.get('projectName'), user)
+    data, key, file_name = body.get('data'), body.get('key'), body.get('fileName')
     path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
     redis = request.app.state.redis
     lock = redis.lock(f"{project_name}:save_obs:{file_name}", timeout=10)
@@ -299,10 +306,10 @@ async def save_obs(request: Request):
 
 # Save source to CSV file
 @router.post("/save_source")
-async def save_source(request: Request):
+async def save_source(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name, source_name = body.get('projectName'), body.get('nameSource')
-    lat, lon, data = body.get('lat'), body.get('lon'), body.get('data')
+    project_name = functions.project_definer(body.get('projectName'), user)
+    lat, lon, data, source_name = body.get('lat'), body.get('lon'), body.get('data'), body.get('nameSource')
     redis = request.app.state.redis
     lock = redis.lock(f"{project_name}:save_source:{source_name}", timeout=10)
     path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
@@ -350,9 +357,9 @@ async def save_source(request: Request):
 
 # Get list of source from .ext file
 @router.post("/init_source")
-async def init_source(request: Request):
+async def init_source(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name, key = body.get('projectName'), body.get('key')
+    project_name, key = functions.project_definer(body.get('projectName'), user), body.get('key')
     path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input", "FlowFM.ext")
     if os.path.exists(path):
         with open(path, encoding="utf-8") as f:
@@ -392,9 +399,9 @@ async def init_source(request: Request):
 
 # Save meteo data to project
 @router.post("/save_meteo")
-async def save_meteo(request: Request):
+async def save_meteo(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name, data = body.get('projectName'), body.get('data')
+    project_name, data = functions.project_definer(body.get('projectName'), user), body.get('data')
     content = 'QUANTITY=humidity_airtemperature_cloudiness_solarradiation\n' + \
             'FILENAME=FlowFM_meteo.tim\n' + 'FILETYPE=1\n' + 'METHOD=1\n' + 'OPERAND=O'
     # Time difference in minutes
@@ -403,9 +410,9 @@ async def save_meteo(request: Request):
 
 # Save meteo data to project
 @router.post("/save_weather")
-async def save_weather(request: Request):
+async def save_weather(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name, data = body.get('projectName'), body.get('data')
+    project_name, data = functions.project_definer(body.get('projectName'), user), body.get('data')
     content = 'QUANTITY=windxy\n' + 'FILENAME=windxy.tim\n' + 'FILETYPE=2\n' + 'METHOD=1\n' + 'OPERAND=+'
     # Time difference in minutes
     status, message = functions.contentWriter(project_name, "windxy.tim", data, content, 'min')

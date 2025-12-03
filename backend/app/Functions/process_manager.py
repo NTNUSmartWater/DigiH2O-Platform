@@ -1,5 +1,5 @@
 import os, json, re, requests, math, asyncio, traceback, subprocess, msgpack
-from fastapi import APIRouter, Request, File, UploadFile, Form
+from fastapi import APIRouter, Request, File, UploadFile, Form, Depends
 from Functions import functions
 from shapely.geometry import mapping
 from fastapi.responses import JSONResponse
@@ -63,11 +63,12 @@ async def process_internal(query: str, key: str, redis, project_cache, project_n
     return message, data
 
 @router.post("/process_data")
-async def process_data(request: Request):
+async def process_data(request: Request, user=Depends(functions.basic_auth)):
     # Get body data
     body = await request.json()
     query, key = body.get('query'), body.get('key')
-    redis, project_name = request.app.state.redis, body.get('projectName')
+    project_name = functions.project_definer(body.get('projectName'), user)
+    redis = request.app.state.redis
     project_cache = request.app.state.project_cache.setdefault(project_name)
     lock = redis.lock(f"{project_name}:{key}", timeout=10)
     try:
@@ -82,10 +83,10 @@ async def process_data(request: Request):
 
 # Load general dynamic data
 @router.post("/load_general_dynamic")
-async def load_general_dynamic(request: Request):
+async def load_general_dynamic(request: Request, user=Depends(functions.basic_auth)):
     # Get body data
     body = await request.json()
-    query, key, project_name = body.get('query'), body.get('key'), body.get('projectName')
+    query, key, project_name = body.get('query'), body.get('key'), functions.project_definer(body.get('projectName'), user)
     redis, dynamic_cache_key = request.app.state.redis, f"{project_name}:general_cache"    
     project_cache = request.app.state.project_cache.setdefault(project_name)
     if not project_cache: return JSONResponse({"status": "error", "message": "Project not initialized."})
@@ -152,9 +153,9 @@ async def load_general_dynamic(request: Request):
 
 # Load vector dynamic data
 @router.post("/load_vector_dynamic")
-async def load_vector_dynamic(request: Request):
+async def load_vector_dynamic(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    query, key, project_name = body.get('query'), body.get('key'), body.get('projectName')
+    query, key, project_name = body.get('query'), body.get('key'), functions.project_definer(body.get('projectName'), user)
     redis, vector_cache_key = request.app.state.redis, f"{project_name}:vector_cache"
     project_cache = request.app.state.project_cache.setdefault(project_name)
     if not project_cache: return JSONResponse({"status": "error", "message": "Project not initialized."})
@@ -194,15 +195,15 @@ async def load_vector_dynamic(request: Request):
 
 # Select meshes based on ids
 @router.post("/select_meshes")
-async def select_meshes(request: Request):    
+async def select_meshes(request: Request, user=Depends(functions.basic_auth)):    
     body = await request.json()
     key, query, idx = body.get('key'), body.get('query'), body.get('idx')
-    project_name, points = body.get('projectName'), body.get('points')
+    project_name, points = functions.project_definer(body.get('projectName'), user), body.get('points')
     redis, mesh_cache_key = request.app.state.redis, f"{project_name}:mesh_cache"
     project_cache = request.app.state.project_cache.setdefault(project_name)
     if not project_cache: return JSONResponse({"status": "error", "message": "Project not initialized."})
     hyd_map, waq_map = project_cache.get("hyd_map"), project_cache.get("waq_map")
-    lock = redis.lock(f"{project_name}:select_meshes", timeout=20)
+    extend_task, lock = None, redis.lock(f"{project_name}:select_meshes", timeout=20)
     try:
         async with lock:
             extend_task = asyncio.create_task(functions.auto_extend(lock))
@@ -264,10 +265,10 @@ async def select_meshes(request: Request):
 
 # Working with thermocline plots
 @router.post("/select_thermocline")
-async def select_thermocline(request: Request):
+async def select_thermocline(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
     key, query, typ = body.get('key'), body.get('query'), body.get('type')
-    project_name, idx = body.get('projectName'), body.get('idx')
+    project_name, idx = functions.project_definer(body.get('projectName'), user), body.get('idx')
     redis, thermo_cache_key = request.app.state.redis, f"{project_name}:thermocline_cache"
     project_cache = request.app.state.project_cache.setdefault(project_name)
     hyd_map, waq_map = project_cache.get("hyd_map"), project_cache.get("waq_map")
@@ -320,10 +321,10 @@ async def select_thermocline(request: Request):
 
 # Read grid
 @router.post("/open_grid")
-async def open_grid(request: Request):
+async def open_grid(request: Request, user=Depends(functions.basic_auth)):
     # Get body data
     body = await request.json()
-    project_name, grid_name = body.get('projectName'), body.get('gridName')
+    project_name, grid_name = functions.project_definer(body.get('projectName'), user), body.get('gridName')
     path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input", grid_name)
     def load_grid(path):
         temp_grid = xr.open_dataset(path, chunks={})
@@ -342,9 +343,9 @@ async def open_grid(request: Request):
     return JSONResponse({"status": status, "message": message, "content": data})
 
 @router.post("/initiate_options")
-async def initiate_options(request: Request):
+async def initiate_options(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    key, project_name = body.get('key'), body.get('projectName')
+    key, project_name = body.get('key'), functions.project_definer(body.get('projectName'), user)
     redis = request.app.state.redis
     lock = redis.lock(f"{project_name}:initiate_options", timeout=10)
     try:
@@ -372,10 +373,11 @@ async def initiate_options(request: Request):
 
 # Upload file from local computer to server
 @router.post("/upload_data")
-async def upload_data(file: UploadFile = File(...), 
-        projectName: str = Form(...), gridName: str = Form(...)):
+async def upload_data(file: UploadFile = File(...), projectName: str = Form(...),
+                      gridName: str = Form(...), user=Depends(functions.basic_auth)):
     try:
-        file_path = os.path.join(PROJECT_STATIC_ROOT, projectName, "input", gridName)
+        project_name = functions.project_definer(projectName, user)
+        file_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input", gridName)
         with open(file_path, "wb") as f:
             while True:
                 chunk = await file.read(1024 * 1024)
@@ -391,9 +393,9 @@ async def upload_data(file: UploadFile = File(...),
     
 # Update boundary conditions
 @router.post("/update_boundary")
-async def update_boundary(request: Request):
+async def update_boundary(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name, subBoundaryName = body.get('projectName'), body.get('subBoundaryName')
+    project_name, subBoundaryName = functions.project_definer(body.get('projectName'), user), body.get('subBoundaryName')
     boundary_name, data_boundary = body.get('boundaryName'), body.get('boundaryData')
     boundary_type, data_sub = body.get('boundaryType'), body.get('subBoundaryData')
     if boundary_type == 'Contaminant': unit = '-'; quantity = 'tracerbndContaminant'
@@ -473,9 +475,9 @@ async def update_boundary(request: Request):
 
 # View boundary conditions
 @router.post("/view_boundary")
-async def view_boundary(request: Request):
+async def view_boundary(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name, boundary_type = body.get('projectName'), body.get('boundaryType')
+    project_name, boundary_type = functions.project_definer(body.get('projectName'), user), body.get('boundaryType')
     try:
         path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
         # Read file
@@ -492,9 +494,9 @@ async def view_boundary(request: Request):
 
 # Delete boundary conditions
 @router.post("/delete_boundary")
-async def delete_boundary(request: Request):
+async def delete_boundary(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name, boundary_name = body.get('projectName'), body.get('boundaryName')
+    project_name, boundary_name = functions.project_definer(body.get('projectName'), user), body.get('boundaryName')
     try:
         path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
         water_lelvel_path = os.path.join(path, "WaterLevel.bc")
@@ -523,9 +525,9 @@ async def delete_boundary(request: Request):
 
 # Check boundary conditions
 @router.post("/check_condition")
-async def check_condition(request: Request):
+async def check_condition(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name, force_name = body.get('projectName'), body.get('forceName')
+    project_name, force_name = functions.project_definer(body.get('projectName'), user), body.get('forceName')
     path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
     status, ext_path = 'error', os.path.join(path, force_name)
     if os.path.exists(ext_path): status = 'ok'
@@ -533,12 +535,12 @@ async def check_condition(request: Request):
 
 # Create MDU file
 @router.post("/generate_mdu")
-async def generate_mdu(request: Request):
+async def generate_mdu(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
     params = dict(body.get('params'))
     try:
         status, message = 'ok', f"Project '{project_name}' created successfully!"
-        project_name = params['project_name']
+        project_name = functions.project_definer(params['projectName'], user)
         # Create MDU file
         project_path = os.path.join(PROJECT_STATIC_ROOT, project_name, 'input')
         mdu_path = os.path.join(STATIC_DIR_BACKEND, 'samples', 'MDUFile.mdu')
