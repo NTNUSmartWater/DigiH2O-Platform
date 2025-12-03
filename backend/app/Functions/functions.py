@@ -15,12 +15,16 @@ ALLOWED_USERS = json.load(open(ALLOWED_USERS_PATH))
 
 def basic_auth(credentials: HTTPBasicCredentials=Depends(security)):
     username, password = credentials.username, credentials.password
+    if username == "demo": return 'demo'
     if username not in ALLOWED_USERS or ALLOWED_USERS[username] != password:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authorized", headers={"WWW-Authenticate": "Basic"}
         )
     return username
+
+def project_definer(old_name, username='demo'):
+    return f"{old_name}/{username}" if username!='demo' else old_name
 
 
 def remove_readonly(func, path, excinfo):
