@@ -46,11 +46,11 @@ const waqProgressText = () => document.getElementById('progress-text');
 const mapContainer = () => map.getContainer();
 
 initializeMap(); baseMapButtonFunctionality();
-projectChecker(); initializeMenu();
-updateEvents(); plotEvents(); openDemoProject();
+projectChecker(); initializeMenu(); updateEvents(); plotEvents(); 
+await projectChecker('demo');
 
-async function openDemoProject() { 
-    await projectChecker('demo', ['FlowFM_his.zarr', 'FlowFM_map.zarr', 'Cadmium_his.zarr', 'Cadmium_map.zarr']);
+async function openDemoProject(name='demo', params=['FlowFM_his.zarr', 'FlowFM_map.zarr', 'Cadmium_his.zarr', 'Cadmium_map.zarr']) { 
+    await projectChecker(name, params);
     // Load temperature dynamic map
     const query = '|-1', key = 'temp_multi_dynamic', titleColorbar = 'Temperature (°C)';
     const colorbarKey = 'Layer: Average temperature';
@@ -94,9 +94,10 @@ async function projectChecker(name=null, params=null) {
     const subtance = document.getElementById('substance-window');
     if (subtance.style.display !== 'none') subtance.style.display = 'none';
     setState({projectName: name}); projectTitle().textContent = `Project: ${name}`;
+    if (name === 'demo') { openDemoProject(); return; }
     startLoading('Reading Simulation Outputs and Setting up Database.\nThis takes a while (especially the first time). Please wait...');
     const data = await sendQuery('setup_database', {projectName: name, params: params});
-    if (data.status === "error") { alert(data.message); location.reload(); }
+    if (data.status === "error") { alert(data.message); location.reload(); return; }
     showLeafletMap();
 }
 
