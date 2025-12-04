@@ -88,8 +88,12 @@ async def load_general_dynamic(request: Request, user=Depends(functions.basic_au
     body = await request.json()
     query, key, project_name = body.get('query'), body.get('key'), functions.project_definer(body.get('projectName'), user)
     redis, dynamic_cache_key = request.app.state.redis, f"{project_name}:general_cache"    
+    if user == 'admin': 
+        params = ['FlowFM_his.zarr', 'FlowFM_map.zarr', 'Cadmium_his.zarr', 'Cadmium_map.zarr']
+        status, message = await functions.database_definer(request, project_name, params, redis)
+        if status != 'ok': return JSONResponse({"status": status, "message":message})
     project_cache = request.app.state.project_cache.setdefault(project_name)
-    if not project_cache: return JSONResponse({"status": "error", "message": "Project not initialized."})
+    if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory."})
     hyd_his, hyd_map = project_cache.get("hyd_his"), project_cache.get("hyd_map")
     waq_his, waq_map = project_cache.get("waq_his"), project_cache.get("waq_map")
     if not any([hyd_his, hyd_map, waq_his, waq_map]): return JSONResponse({"status": "error", "message": "Project not initialized."})
@@ -158,7 +162,7 @@ async def load_vector_dynamic(request: Request, user=Depends(functions.basic_aut
     query, key, project_name = body.get('query'), body.get('key'), functions.project_definer(body.get('projectName'), user)
     redis, vector_cache_key = request.app.state.redis, f"{project_name}:vector_cache"
     project_cache = request.app.state.project_cache.setdefault(project_name)
-    if not project_cache: return JSONResponse({"status": "error", "message": "Project not initialized."})
+    if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory."})
     try:
         layer_reverse_raw = await redis.hget(project_name, "layer_reverse_hyd")
         layer_reverse = msgpack.unpackb(layer_reverse_raw, raw=False)
@@ -201,7 +205,7 @@ async def select_meshes(request: Request, user=Depends(functions.basic_auth)):
     project_name, points = functions.project_definer(body.get('projectName'), user), body.get('points')
     redis, mesh_cache_key = request.app.state.redis, f"{project_name}:mesh_cache"
     project_cache = request.app.state.project_cache.setdefault(project_name)
-    if not project_cache: return JSONResponse({"status": "error", "message": "Project not initialized."})
+    if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory."})
     hyd_map, waq_map = project_cache.get("hyd_map"), project_cache.get("waq_map")
     extend_task, lock = None, redis.lock(f"{project_name}:select_meshes", timeout=20)
     try:
