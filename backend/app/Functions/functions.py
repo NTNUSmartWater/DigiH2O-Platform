@@ -1177,7 +1177,7 @@ def contentWriter(project_name: str, filename: str, data: list, content: str, un
     try:
         path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
         # Write weather.tim file
-        with open(os.path.normpath(os.path.join(path, filename), 'w')) as f:
+        with open(os.path.normpath(os.path.join(path, filename)), 'w') as f:
             for row in data:
                 if unit == 'sec': row[0] = int(row[0]/1000)
                 elif unit == 'min': row[0] = int(row[0]/(1000*60))
@@ -1200,7 +1200,7 @@ def contentWriter(project_name: str, filename: str, data: list, content: str, un
         else:
             with open(ext_path, 'w') as f:
                 f.write(f"\n{content}\n")
-        status, message = 'ok', f"\n\nData is saved successfully."
+        status, message = 'ok', "Data is saved successfully."
     except Exception as e:
         status, message = 'error', f"Error: {str(e)}"
     return status, message
@@ -1240,9 +1240,8 @@ def postProcess(directory: str) -> dict:
         if not os.path.exists(DFM_OUTPUT_folder):
             return {'status': 'error', 'message': 'No output folder found.'}
         select_files = ['FlowFM.dia', 'FlowFM_his.nc', 'FlowFM_map.nc']
-        found_files = [f for f in os.listdir(DFM_OUTPUT_folder) 
-                       if (os.path.isfile(os.path.normpath(os.path.join(DFM_OUTPUT_folder, f))) and f in select_files)]
-        if not found_files: return {'status': 'error', 'message': 'No required files found in the output folder.'}
+        found_files = [f for f in os.listdir(DFM_OUTPUT_folder) if f in select_files]
+        if len(found_files) == 0: return {'status': 'error', 'message': 'No required files found in the output folder.'}
         # Convert .nc files to .zarr and save to output_HYD_path
         for f in found_files:
             if f.endswith('.nc'):
@@ -1252,9 +1251,9 @@ def postProcess(directory: str) -> dict:
                 ds.close()
             else: shutil.copy(os.path.normpath(os.path.join(DFM_OUTPUT_folder, f)), output_HYD_path)
         # Clean DFM_OUTPUT folder
-        shutil.rmtree(DFM_OUTPUT_folder, onerror=remove_readonly)
+        if os.path.exists(DFM_OUTPUT_folder): shutil.rmtree(DFM_OUTPUT_folder, onerror=remove_readonly)
         return {'status': 'ok', 'message': 'Data is saved successfully.'}
-    except Exception as e: return {'status': 'error', 'message': {str(e)}}
+    except Exception as e: return {'status': 'error', 'message': str(e)}
 
 def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
     """

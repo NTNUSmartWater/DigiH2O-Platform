@@ -256,7 +256,7 @@ function updateEvents() {
                 // Create new hyd project
                 projectChecker();
                 iframeInit("new_HYD_project", projectSetting(), projectSettingHeader(), 
-                    projectSettingContent(), "Create a new Hydrodynamic project");
+                    projectSettingContent(), "Create/Modify/Delete a new Hydrodynamic Scenario");
             } else if (name === 'run-hyd-simulation') {
                 // Run hyd simulation
                 projectChecker();
