@@ -1,7 +1,7 @@
 import os, subprocess, asyncio, re, shutil
 import pandas as pd, numpy as np, xarray as xr
 from fastapi import APIRouter, Request, WebSocket
-from config import PROJECT_STATIC_ROOT, DELFT_PATH, WINDOWS_AGENT_URL
+from config import PROJECT_STATIC_ROOT, DELFT_PATH
 from fastapi.responses import JSONResponse
 from datetime import datetime, timezone
 from Functions import wq_functions
@@ -9,7 +9,6 @@ from starlette.websockets import WebSocketDisconnect
 
 router = APIRouter()
 processes = {}
-
 
 def path_process(full_path:str, head:int=3, tail:int=2):
     parts  = full_path.split('/')
@@ -52,7 +51,8 @@ async def wq_time(request: Request):
     loads = [x[0] for x in load_data]
     times = [x[1] for x in time_data]
     if not any(x in times for x in loads):
-        return JSONResponse({"status": 'error', "message": 'Error: No Location/Substance found in the table.'})
+        return JSONResponse({"status": 'error', 
+            "message": 'Error: No Location found in the table.\nThe field "Location" has to be defined in the table "List of Loads".'})
     try:
         # Read file and prepare data
         time_data = np.array(time_data)
@@ -64,7 +64,7 @@ async def wq_time(request: Request):
         # Structure data
         groups = df.groupby(['source'])
         if len(groups) == 0: return JSONResponse({"status": 'error', "content": data,
-                "message": 'The inputed time-series data No Location/Substance found in the table.'})
+                "message": 'The inputed time-series data is not found in the table.'})
         result = []
         for name, group in groups:
             if (len(group) == 0 or name[0] not in loads): continue

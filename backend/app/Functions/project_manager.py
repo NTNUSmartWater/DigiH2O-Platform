@@ -1,4 +1,4 @@
-import os, shutil, subprocess, re, json
+import os, shutil, subprocess, re
 import asyncio, traceback
 import numpy as np
 from fastapi import APIRouter, Request, Depends
@@ -78,7 +78,7 @@ async def delete_project(request: Request, user=Depends(functions.basic_auth)):
     try:
         async with lock:
             # Optional: auto-extend lock if deletion may take long
-            extend_task = asyncio.create_task(functions.extend_lock(lock))
+            extend_task = asyncio.create_task(functions.auto_extend(lock))
             if not os.path.exists(project_folder): 
                 return JSONResponse({"status": 'error', "message": f"Project '{project_name}' does not exist."})
             try:
@@ -239,6 +239,7 @@ async def save_source(request: Request, user=Depends(functions.basic_auth)):
                 for row in data:
                     try: t = float(row[0])/(1000.0*60.0)
                     except Exception: t = 0
+                    t = int(t)
                     values = [str(t)] + [str(r) for r in row[1:]]
                     f.write('  '.join(values) + '\n')
             return JSONResponse({"status": 'ok', "message": f"Source '{source_name}' saved successfully."})

@@ -28,9 +28,15 @@ export function copyPaste(table, nCols){
 }
 
 export function fillTable(data2D, table, clear=true){
-    const numRows = data2D.length;
-    const numCols = data2D[0].length;
     let tbody = table.querySelector("tbody");
+    // Remove empty rows
+    const existingRows = Array.from(tbody.querySelectorAll("tr"));
+    existingRows.forEach(row => {
+        const inputs = Array.from(row.querySelectorAll("input"));
+        const isEmptyRow = inputs.length > 0 && inputs.every(inp => inp.value.trim() === "");
+        if (isEmptyRow) row.remove();
+    });
+    // Remove entire table if clear is true
     if (clear) {
         // Delete old table
         const newTbody = document.createElement("tbody");
@@ -38,6 +44,8 @@ export function fillTable(data2D, table, clear=true){
         tbody = newTbody;
     }
     // Add new rows to table
+    const numRows = data2D.length;
+    const numCols = data2D[0].length;
     for (let i = 0; i < numRows; i++) {
         const row = document.createElement("tr");
         for (let j = 0; j < numCols; j++) {

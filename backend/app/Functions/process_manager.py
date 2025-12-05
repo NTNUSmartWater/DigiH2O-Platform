@@ -404,8 +404,9 @@ async def update_boundary(request: Request, user=Depends(functions.basic_auth)):
     boundary_type, data_sub = body.get('boundaryType'), body.get('subBoundaryData')
     if boundary_type == 'Contaminant': unit = '-'; quantity = 'tracerbndContaminant'
     else: unit = 'm'; quantity = 'waterlevelbnd'
+    ref_date = '1970-01-01 00:00:00'
     # Parse date
-    config = {'sub_boundary': subBoundaryName, 'boundary_type': quantity, 'unit': unit}
+    config = {'sub_boundary': subBoundaryName, 'boundary_type': quantity, 'unit': unit, 'ref_date': ref_date}
     temp_file = os.path.normpath(os.path.join(STATIC_DIR_BACKEND, 'samples', 'BC.bc'))
     try:
         temp, bc = [], [boundary_name]
@@ -461,7 +462,7 @@ async def update_boundary(request: Request, user=Depends(functions.basic_auth)):
             else: parts.append(update_content)                
             with open(file_path, 'w', encoding="utf-8") as file:
                 joined_parts = '\n\n'.join(parts)
-                file.write(f"\n{joined_parts}\n")
+                file.write(joined_parts)
                 file.flush()
                 os.fsync(file.fileno())
         else:
