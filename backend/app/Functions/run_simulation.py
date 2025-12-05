@@ -19,7 +19,7 @@ async def check_folder(request: Request):
     body = await request.json()
     project_name, folder = body.get('projectName'), body.get('folder', [])
     if isinstance(folder, str): folder = [folder]
-    path = os.path.join(PROJECT_STATIC_ROOT, project_name, *folder)
+    path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, *folder))
     status = 'ok' if os.path.exists(path) else 'error'
     return JSONResponse({"status": status})
 
@@ -29,7 +29,7 @@ async def check_sim_status_hyd(request: Request):
     body = await request.json()
     project_name = body.get("projectName")
     info = processes.get(project_name)
-    log_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt")
+    log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt"))
     if info:
         # Read log file
         logs = []
@@ -53,14 +53,14 @@ async def start_sim_hyd(request: Request):
     # Check if simulation already running
     if project_name in processes and processes[project_name]["status"] == "running":
         return JSONResponse({"status": "error", "message": "Simulation is already running."})
-    path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
-    mdu_path = os.path.join(path, "FlowFM.mdu")
-    bat_path = os.path.join(DELFT_PATH, "dflowfm/scripts/run_dflowfm.bat")
+    path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
+    mdu_path = os.path.normpath(os.path.join(path, "FlowFM.mdu"))
+    bat_path = os.path.normpath(os.path.join(DELFT_PATH, "dflowfm/scripts/run_dflowfm.bat"))
     # Check if file exists
     if not os.path.exists(mdu_path): return JSONResponse({"status": "error", "message": "MDU file not found."})
     if not os.path.exists(bat_path): return JSONResponse({"status": "error", "message": "Executable file not found."})
     # Remove old log
-    log_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt")
+    log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt"))
     if os.path.exists(log_path): os.remove(log_path)
     percent_re = re.compile(r'(?P<percent>\d{1,3}(?:\.\d+)?)\s*%')
     time_re = re.compile(r'(?P<tt>\d+d\s+\d{1,2}:\d{2}:\d{2})')
@@ -126,8 +126,7 @@ async def start_sim_hyd(request: Request):
 @router.websocket("/sim_progress_hyd/{project_name}")
 async def sim_progress_hyd(websocket: WebSocket, project_name: str):
     await websocket.accept()
-    log_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt")
-    last_pos = 0
+    log_path, last_pos = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt")), 0
     try:
         while True:
             info = processes.get(project_name)

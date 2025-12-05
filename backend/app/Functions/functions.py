@@ -90,7 +90,7 @@ async def load_dataset_cached(project_cache, key, dm, dir_path, filename):
     """
     if key in project_cache: return project_cache[key]
     if not filename: return None
-    path = os.path.join(dir_path, filename)
+    path = os.path.normpath(os.path.join(dir_path, filename))
     if not os.path.exists(path): return None
     ds = dm.get(path)
     project_cache[key] = ds
@@ -117,10 +117,10 @@ async def database_definer(request, project_name, params, redis):
         async with lock:
             extend_task = asyncio.create_task(auto_extend(lock, interval=10))
             # Create project entry
-            project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
-            output_dir = os.path.join(project_folder, "output")
-            config_dir = os.path.join(output_dir, "config")
-            hyd_dir, waq_dir = os.path.join(output_dir, 'HYD'), os.path.join(output_dir, 'WAQ')
+            project_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name))
+            output_dir = os.path.normpath(os.path.join(project_folder, "output"))
+            config_dir = os.path.normpath(os.path.join(output_dir, "config"))
+            hyd_dir, waq_dir = os.path.normpath(os.path.join(output_dir, 'HYD'), os.path.join(output_dir, 'WAQ'))
             os.makedirs(config_dir, exist_ok=True)
             project_cache_dict = getattr(request.app.state, "project_cache", None)
             if project_cache_dict is None:
@@ -134,7 +134,7 @@ async def database_definer(request, project_name, params, redis):
             waq_his = await load_dataset_cached(project_cache, 'waq_his', dm, waq_dir, params[2])
             waq_map = await load_dataset_cached(project_cache, 'waq_map', dm, waq_dir, params[3])
             # Load or init config
-            config_path = os.path.join(config_dir, 'config.json')
+            config_path = os.path.normpath(os.path.join(config_dir, 'config.json'))
             if os.path.exists(config_path) and os.path.getsize(config_path) > 0:
                 print('Config already exists. Loading...')
                 with open(config_path) as f:
@@ -153,7 +153,7 @@ async def database_definer(request, project_name, params, redis):
                 grid = unstructuredGridCreator(hyd_map)
                 project_cache['grid'] = grid
                 # Get number of layers
-                layer_path = os.path.join(config_dir, 'layers_hyd.json')
+                layer_path = os.path.normpath(os.path.join(config_dir, 'layers_hyd.json'))
                 if os.path.exists(layer_path):
                     with open(layer_path) as f:
                         layer_reverse_hyd = json.load(f)
@@ -163,7 +163,7 @@ async def database_definer(request, project_name, params, redis):
                         json.dump(layer_reverse_hyd, f)
             if waq_map:
                 print('Creating grid and layers for water quality simulation...')
-                layer_path = os.path.join(config_dir, 'layers_waq.json')
+                layer_path = os.path.normpath(os.path.join(config_dir, 'layers_waq.json'))
                 if os.path.exists(layer_path):
                     with open(layer_path) as f:
                         layer_reverse_waq = json.load(f)
@@ -178,7 +178,7 @@ async def database_definer(request, project_name, params, redis):
                 config["hyd"], config["meta"]["hyd_scanned"] = hyd_vars, True
             # Get WAQ model
             temp = params[2].replace('_his.zarr', '') if params[2] != '' else params[3].replace('_map.zarr', '')
-            model_path, waq_model, obs = os.path.join(waq_dir, f'{temp}.json'), '', {}
+            model_path, waq_model, obs = os.path.normpath(os.path.join(waq_dir, f'{temp}.json')), '', {}
             if os.path.exists(model_path):
                 print('Loading WAQ model...')
                 with open(model_path) as f:
@@ -1175,16 +1175,16 @@ def contentWriter(project_name: str, filename: str, data: list, content: str, un
         The status and message
     """
     try:
-        path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
+        path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
         # Write weather.tim file
-        with open(os.path.join(path, filename), 'w') as f:
+        with open(os.path.normpath(os.path.join(path, filename), 'w')) as f:
             for row in data:
                 if unit == 'sec': row[0] = int(row[0]/1000)
                 elif unit == 'min': row[0] = int(row[0]/(1000*60))
                 temp = '  '.join([str(r) for r in row])
                 f.write(f"{temp}\n")
         # Add weather data to FlowFM.ext file
-        ext_path = os.path.join(path, "FlowFM.ext")
+        ext_path = os.path.normpath(os.path.join(path, "FlowFM.ext"))
         if os.path.exists(ext_path):
             with open(ext_path, encoding="utf-8") as f:
                 update_content = f.read()
@@ -1221,41 +1221,36 @@ def postProcess(directory: str) -> dict:
     """
     try:
         parent_path = os.path.dirname(directory)
-        output_folder = os.path.join(parent_path, 'output')
+        output_folder = os.path.normpath(os.path.join(parent_path, 'output'))
         os.makedirs(output_folder, exist_ok=True)
-        output_HYD_path = os.path.join(output_folder, 'HYD')
+        output_HYD_path = os.path.normpath(os.path.join(output_folder, 'HYD'))
         # Create the directory output_HYD_path
         os.makedirs(output_HYD_path, exist_ok=True)
-        print(parent_path, output_folder, output_HYD_path)
-
-        os.makedirs(output_HYD_path, exist_ok=True)
-        subdirs = [d for d in os.listdir(directory) if os.path.isdir(os.path.join(directory, d))]
+        subdirs = [d for d in os.listdir(directory) if os.path.isdir(os.path.normpath(os.path.join(directory, d)))]
         if not subdirs: return {'status': 'error', 'message': f'No simulation output folders found: {subdirs}.'}
-        
-        
         # Copy folder DFM_DELWAQ to the parent directory
-        DFM_DELWAQ_from = os.path.join(directory, 'DFM_DELWAQ')
-        DFM_DELWAQ_to = os.path.join(parent_path, 'DFM_DELWAQ')
+        DFM_DELWAQ_from = os.path.normpath(os.path.join(directory, 'DFM_DELWAQ'))
+        DFM_DELWAQ_to = os.path.normpath(os.path.join(parent_path, 'DFM_DELWAQ'))
         if os.path.exists(DFM_DELWAQ_to): shutil.rmtree(DFM_DELWAQ_to, onerror=remove_readonly)
         if os.path.exists(DFM_DELWAQ_from):
             shutil.copytree(DFM_DELWAQ_from, DFM_DELWAQ_to)
             shutil.rmtree(DFM_DELWAQ_from, onerror=remove_readonly)
         # Copy files to the directory output
-        DFM_OUTPUT_folder = os.path.join(directory, 'DFM_OUTPUT')
+        DFM_OUTPUT_folder = os.path.normpath(os.path.join(directory, 'DFM_OUTPUT'))
         if not os.path.exists(DFM_OUTPUT_folder):
             return {'status': 'error', 'message': 'No output folder found.'}
         select_files = ['FlowFM.dia', 'FlowFM_his.nc', 'FlowFM_map.nc']
         found_files = [f for f in os.listdir(DFM_OUTPUT_folder) 
-                       if (os.path.isfile(os.path.join(DFM_OUTPUT_folder, f)) and f in select_files)]
+                       if (os.path.isfile(os.path.normpath(os.path.join(DFM_OUTPUT_folder, f))) and f in select_files)]
         if not found_files: return {'status': 'error', 'message': 'No required files found in the output folder.'}
         # Convert .nc files to .zarr and save to output_HYD_path
         for f in found_files:
             if f.endswith('.nc'):
-                ds = xr.open_dataset(os.path.join(DFM_OUTPUT_folder, f), chunks={'time': 1})
-                zarr_path = os.path.join(output_HYD_path, f.replace('.nc', '.zarr'))
+                ds = xr.open_dataset(os.path.normpath(os.path.join(DFM_OUTPUT_folder, f)), chunks={'time': 1})
+                zarr_path = os.path.normpath(os.path.join(output_HYD_path, f.replace('.nc', '.zarr')))
                 ds.to_zarr(zarr_path, mode='w', consolidated=True)
                 ds.close()
-            else: shutil.copy(os.path.join(DFM_OUTPUT_folder, f), output_HYD_path)
+            else: shutil.copy(os.path.normpath(os.path.join(DFM_OUTPUT_folder, f)), output_HYD_path)
         # Clean DFM_OUTPUT folder
         shutil.rmtree(DFM_OUTPUT_folder, onerror=remove_readonly)
         return {'status': 'ok', 'message': 'Data is saved successfully.'}

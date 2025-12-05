@@ -35,7 +35,7 @@ async def select_hyd(request: Request):
     body = await request.json()
     project_name = body.get('projectName')
     folder = [PROJECT_STATIC_ROOT, project_name, "DFM_DELWAQ", 'FlowFM.hyd']
-    path = os.path.join(*folder)
+    path = os.path.normpath(os.path.join(*folder))
     status, data = 'error', None
     message = f"Error: Cannot find .hyd file in project '{project_name}'.\nPlease run a hydrodynamic simulation first."
     if os.path.exists(path):
@@ -126,17 +126,17 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
         key, file_name, time_data, usefors = body['key'], body['folderName'], body['timeTable'], body['usefors']
         t_start = datetime.fromtimestamp(int(body['startTime']/1000.0), tz=timezone.utc)
         t_stop = datetime.fromtimestamp(int(body['stopTime']/1000.0), tz=timezone.utc)
-        hyd_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "DFM_DELWAQ", body['hydName'])
+        hyd_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "DFM_DELWAQ", body['hydName']))
         hyd_folder = os.path.dirname(hyd_path)
-        sal_path, attr_path = os.path.join(hyd_folder, body['salPath']), os.path.join(hyd_folder, body['attrPath'])
-        vol_path, ptr_path = os.path.join(hyd_folder, body['volPath']), os.path.join(hyd_folder, body['ptrPath'])
-        area_path, flow_path = os.path.join(hyd_folder, body['areaPath']), os.path.join(hyd_folder, body['flowPath'])
-        length_path, srf_path = os.path.join(hyd_folder, body['lengthPath']), os.path.join(hyd_folder, body['srfPath'])
-        vdf_path, tem_path = os.path.join(hyd_folder, body['vdfPath']), os.path.join(hyd_folder, body['temPath'])
-        wq_folder = os.path.join(PROJECT_STATIC_ROOT, project_name, "WAQ")
+        sal_path, attr_path = os.path.normpath(os.path.join(hyd_folder, body['salPath'])), os.path.normpath(os.path.join(hyd_folder, body['attrPath']))
+        vol_path, ptr_path = os.path.normpath(os.path.join(hyd_folder, body['volPath'])), os.path.normpath(os.path.join(hyd_folder, body['ptrPath']))
+        area_path, flow_path = os.path.normpath(os.path.join(hyd_folder, body['areaPath'])), os.path.normpath(os.path.join(hyd_folder, body['flowPath']))
+        length_path, srf_path = os.path.normpath(os.path.join(hyd_folder, body['lengthPath'])), os.path.normpath(os.path.join(hyd_folder, body['srfPath']))
+        vdf_path, tem_path = os.path.normpath(os.path.join(hyd_folder, body['vdfPath'])), os.path.normpath(os.path.join(hyd_folder, body['temPath']))
+        wq_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "WAQ"))
         os.makedirs(wq_folder, exist_ok=True)
         # Clear data if exists
-        output_folder = os.path.join(wq_folder, file_name)
+        output_folder = os.path.normpath(os.path.join(wq_folder, file_name))
         if os.path.exists(output_folder): shutil.rmtree(output_folder, ignore_errors=True)
         os.makedirs(output_folder, exist_ok=True)
         parameters = {'hyd_path': hyd_path, "t_start": t_start, "t_stop": t_stop, 'sal_path': sal_path,
@@ -148,16 +148,16 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
             'n_layers': body['nLayers'], 'sources': body['sources'], 'loads_data': body['loadsData'],
             'vdf_path': vdf_path, 'tem_path': tem_path, 'initial_list': body['initialList'], 'initial_set': body['initial'].split('\n')
         }
-        includes_folder = os.path.join(output_folder, "includes_deltashell")
+        includes_folder = os.path.normpath(os.path.join(output_folder, "includes_deltashell"))
         os.makedirs(includes_folder, exist_ok=True)
-        table_folder = os.path.join(includes_folder, "load_data_tables")
+        table_folder = os.path.normpath(os.path.join(includes_folder, "load_data_tables"))
         os.makedirs(table_folder, exist_ok=True)
         # Write *.tbl file
-        tbl_path = os.path.join(table_folder, f"{file_name}.tbl")
+        tbl_path = os.path.normpath(os.path.join(table_folder, f"{file_name}.tbl"))
         with open(tbl_path, 'w', encoding='ascii', newline='\n') as f:
             f.write(time_data)
         # Write *.usefors file
-        usefor_path = os.path.join(table_folder, f"{file_name}.usefors")
+        usefor_path = os.path.normpath(os.path.join(table_folder, f"{file_name}.usefors"))
         with open(usefor_path, 'w', encoding='ascii', newline='\n') as f:
             f.write(usefors)
         # Prepare external inputs
@@ -182,7 +182,7 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
                 processes[project_name]["status"] = "finished"
                 return
         # Add dll path
-        dll_path = os.path.join(DELFT_PATH, 'share/bin')
+        dll_path = os.path.normpath(os.path.join(DELFT_PATH, 'share/bin'))
         os.environ["PATH"] += os.pathsep + dll_path
         # Run Simulation and get output
         inp_name = os.path.basename(inp_file)
@@ -210,18 +210,18 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
         # Move WAQ output files to output folder
         await websocket.send_json({'status': "Reorganizing output files ..."})
         try:
-            output_dir = os.path.join(PROJECT_STATIC_ROOT, project_name, "output")
+            output_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "output"))
             if not os.path.exists(output_dir): os.makedirs(output_dir)
-            output_WAQ_dir = os.path.join(output_dir, 'WAQ')
+            output_WAQ_dir = os.path.normpath(os.path.join(output_dir, 'WAQ'))
             if not os.path.exists(output_WAQ_dir): os.makedirs(output_WAQ_dir)
             for suffix in ["_his.nc", "_map.nc", ".json"]:
                 filename = f"{file_name}{suffix}"
-                src = os.path.join(output_folder, filename)
+                src = os.path.normpath(os.path.join(output_folder, filename))
                 if os.path.exists(src):
-                    if suffix == ".json": shutil.copy(src, os.path.join(output_WAQ_dir, filename))
+                    if suffix == ".json": shutil.copy(src, os.path.normpath(os.path.join(output_WAQ_dir, filename)))
                     else: # Convert .nc files to .zarr
                         ds = xr.open_dataset(src, chunks={'nTimesDlwq': 1})
-                        zarr_path = os.path.join(output_WAQ_dir, filename.replace('.nc', '.zarr'))
+                        zarr_path = os.path.normpath(os.path.join(output_WAQ_dir, filename.replace('.nc', '.zarr')))
                         ds.to_zarr(zarr_path, mode='w', consolidated=True)
                         ds.close()
             # Delete folder

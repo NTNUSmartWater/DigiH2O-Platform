@@ -14,7 +14,7 @@ async def process_internal(query: str, key: str, redis, project_cache, project_n
     # Internal function to process data
     message = ''
     if key == 'summary':
-        dia_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "HYD", "FlowFM.dia")
+        dia_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "HYD", "FlowFM.dia"))
         hyd_his, waq_his = project_cache.get("hyd_his"), project_cache.get("waq_his")
         data = functions.getSummary(dia_path, [hyd_his, waq_his])
     elif key == 'hyd_station':
@@ -329,7 +329,7 @@ async def open_grid(request: Request, user=Depends(functions.basic_auth)):
     # Get body data
     body = await request.json()
     project_name, grid_name = functions.project_definer(body.get('projectName'), user), body.get('gridName')
-    path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input", grid_name)
+    path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input", grid_name))
     def load_grid(path):
         temp_grid = xr.open_dataset(path, chunks={})
         return functions.unstructuredGridCreator(temp_grid).dissolve()
@@ -381,7 +381,7 @@ async def upload_data(file: UploadFile = File(...), projectName: str = Form(...)
                       gridName: str = Form(...), user=Depends(functions.basic_auth)):
     try:
         project_name = functions.project_definer(projectName, user)
-        file_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input", gridName)
+        file_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input", gridName))
         with open(file_path, "wb") as f:
             while True:
                 chunk = await file.read(1024 * 1024)
@@ -406,16 +406,16 @@ async def update_boundary(request: Request, user=Depends(functions.basic_auth)):
     else: unit = 'm'; quantity = 'waterlevelbnd'
     # Parse date
     config = {'sub_boundary': subBoundaryName, 'boundary_type': quantity, 'unit': unit}
-    temp_file = os.path.join(STATIC_DIR_BACKEND, 'samples', 'BC.bc')
+    temp_file = os.path.normpath(os.path.join(STATIC_DIR_BACKEND, 'samples', 'BC.bc'))
     try:
         temp, bc = [], [boundary_name]
         for row in data_sub:
             row[0] = int(row[0]/1000.0); temp.append(row)
         lines = [f"{int(x)}  {y}" for x, y in temp]
         config['data'] = '\n'.join(lines)
-        path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
+        path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
         # Write new format boundary file (*_bnd.ext)
-        ext_path = os.path.join(path, "FlowFM_bnd.ext")
+        ext_path = os.path.normpath(os.path.join(path, "FlowFM_bnd.ext"))
         file_content = '[boundary]\n' + f'quantity={quantity}\n' + f'locationFile={boundary_name}.pli\n' + \
             f'forcingFile={boundary_type}.bc\n' + 'returnTime=0.0000000e+000'
         if os.path.exists(ext_path):
@@ -438,7 +438,7 @@ async def update_boundary(request: Request, user=Depends(functions.basic_auth)):
                 file.flush()
                 os.fsync(file.fileno())
         # Write boundary file (*.pli)
-        boundary_file = os.path.join(path, f"{boundary_name}.pli")
+        boundary_file = os.path.normpath(os.path.join(path, f"{boundary_name}.pli"))
         bc.append(f'    {len(data_boundary)}    2')
         for row in data_boundary:
             temp = f'{row[2]}    {row[1]}    {row[0]}'
@@ -448,7 +448,7 @@ async def update_boundary(request: Request, user=Depends(functions.basic_auth)):
             file.flush()
             os.fsync(file.fileno())
         # Write boundary conditions file
-        file_path = os.path.join(path, f"{boundary_type}.bc")
+        file_path = os.path.normpath(os.path.join(path, f"{boundary_type}.bc"))
         update_content = functions.fileWriter(temp_file, config)
         if os.path.exists(file_path):
             with open(file_path, encoding="utf-8") as f:
@@ -483,9 +483,9 @@ async def view_boundary(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
     project_name, boundary_type = functions.project_definer(body.get('projectName'), user), body.get('boundaryType')
     try:
-        path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
+        path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
         # Read file
-        with open(os.path.join(path, f"{boundary_type}.bc"), 'r') as f:
+        with open(os.path.normpath(os.path.join(path, f"{boundary_type}.bc")), 'r') as f:
             data = ''.join(f.readlines())
         status, message = 'ok', ""
     except FileNotFoundError:
@@ -502,11 +502,11 @@ async def delete_boundary(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
     project_name, boundary_name = functions.project_definer(body.get('projectName'), user), body.get('boundaryName')
     try:
-        path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
-        water_lelvel_path = os.path.join(path, "WaterLevel.bc")
-        contaminant_path = os.path.join(path, "Contaminant.bc")
-        boundary_path = os.path.join(path, f"{boundary_name}.pli")
-        ext_path = os.path.join(path, "FlowFM_bnd.ext")
+        path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
+        water_lelvel_path = os.path.normpath(os.path.join(path, "WaterLevel.bc"))
+        contaminant_path = os.path.normpath(os.path.join(path, "Contaminant.bc"))
+        boundary_path = os.path.normpath(os.path.join(path, f"{boundary_name}.pli"))
+        ext_path = os.path.normpath(os.path.join(path, "FlowFM_bnd.ext"))
         # Delete file
         status, message = 'ok', ""
         if os.path.exists(boundary_path):
@@ -532,8 +532,8 @@ async def delete_boundary(request: Request, user=Depends(functions.basic_auth)):
 async def check_condition(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
     project_name, force_name = functions.project_definer(body.get('projectName'), user), body.get('forceName')
-    path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
-    status, ext_path = 'error', os.path.join(path, force_name)
+    path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
+    status, ext_path = 'error', os.path.normpath(os.path.join(path, force_name))
     if os.path.exists(ext_path): status = 'ok'
     return JSONResponse({"status": status})
 
@@ -546,11 +546,11 @@ async def generate_mdu(request: Request, user=Depends(functions.basic_auth)):
         project_name = functions.project_definer(params['project_name'], user)
         status, message = 'ok', f"Project '{project_name}' created successfully!"
         # Create MDU file
-        project_path = os.path.join(PROJECT_STATIC_ROOT, project_name, 'input')
-        mdu_path = os.path.join(STATIC_DIR_BACKEND, 'samples', 'MDUFile.mdu')
+        project_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'input'))
+        mdu_path = os.path.normpath(os.path.join(STATIC_DIR_BACKEND, 'samples', 'MDUFile.mdu'))
         file_content = functions.fileWriter(mdu_path, params)
         # Write file
-        with open(os.path.join(project_path, 'FlowFM.mdu'), 'w') as file:
+        with open(os.path.normpath(os.path.join(project_path, 'FlowFM.mdu')), 'w') as file:
             file.write(file_content)
     except Exception as e:
         print('/generate_mdu:\n==============')

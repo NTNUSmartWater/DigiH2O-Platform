@@ -17,9 +17,9 @@ async def reset_config(request: Request, user=Depends(functions.basic_auth)):
     try:
         async with lock:
             # Reset project data in Redis
-            folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
+            folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name))
             if not os.path.exists(folder): return JSONResponse({"message": "Project folder doesn't exist."})
-            config_dir = os.path.join(folder, "output", "config")
+            config_dir = os.path.normpath(os.path.join(folder, "output", "config"))
             if not os.path.exists(config_dir): return JSONResponse({"message": "Configuration folder doesn't exist."})
             try:
                 shutil.rmtree(config_dir, onerror=functions.remove_readonly)
@@ -42,7 +42,7 @@ async def setup_new_project(request: Request, user=Depends(functions.basic_auth)
 
 
 
-    project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
+    project_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name))
     # Check if project already exists
     if os.path.exists(project_folder):
         return JSONResponse({"status": 'ok', "message": f"Project '{project_name}' already exists."})
@@ -50,7 +50,7 @@ async def setup_new_project(request: Request, user=Depends(functions.basic_auth)
         # Create project directories
         os.makedirs(body.get('projectName'), exist_ok=True)
         os.makedirs(project_folder, exist_ok=True)
-        os.makedirs(os.path.join(project_folder, "input"), exist_ok=True)
+        os.makedirs(os.path.normpath(os.path.join(project_folder, "input")), exist_ok=True)
         status, message = 'ok', f"Project '{project_name}' created successfully!"
     except Exception as e:
         print('/setup_new_project:\n==============')
@@ -74,7 +74,7 @@ async def delete_project(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
     redis, project_name = request.app.state.redis, functions.project_definer(body.get('projectName'), user)
     lock = redis.lock(f"{project_name}:delete_project", timeout=10)
-    project_folder, extend_task = os.path.join(PROJECT_STATIC_ROOT, project_name), None
+    project_folder, extend_task = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name)), None
     try:
         async with lock:
             # Optional: auto-extend lock if deletion may take long
@@ -114,12 +114,12 @@ async def select_project(request: Request, user=Depends(functions.basic_auth)):
     try:
         if key == 'getProjects': # List the projects that doesn't have a folder output
             project = [p.name for p in os.scandir(PROJECT_STATIC_ROOT) if p.is_dir()]
-            project = [p for p in project if os.path.exists(os.path.join(PROJECT_STATIC_ROOT, p, folder_check))]
+            project = [p for p in project if os.path.exists(os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, p, folder_check)))]
             data = sorted(project)
         elif key == 'getFiles': # List the files
-            project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
-            hyd_folder = os.path.join(project_folder, "output", 'HYD')
-            waq_folder = os.path.join(project_folder, "output", 'WAQ')
+            project_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name))
+            hyd_folder = os.path.normpath(os.path.join(project_folder, "output", 'HYD'))
+            waq_folder = os.path.normpath(os.path.join(project_folder, "output", 'WAQ'))
             hyd_files, waq_files = [], []
             if os.path.exists(hyd_folder):
                 hyd_files = [f for f in os.listdir(hyd_folder) if f.endswith(".zarr")]
@@ -139,7 +139,7 @@ async def select_project(request: Request, user=Depends(functions.basic_auth)):
 @router.post("/get_files")
 async def get_files():
     try:
-        path = os.path.join(STATIC_DIR_BACKEND, 'samples', 'sources')
+        path = os.path.normpath(os.path.join(STATIC_DIR_BACKEND, 'samples', 'sources'))
         files = [f for f in os.listdir(path) if f.endswith(".csv")]
         data = [f.replace('.csv', '') for f in files]
         status, message = 'ok', 'Files loaded successfully.'
@@ -153,8 +153,8 @@ async def get_source(request: Request):
     body = await request.json()
     filename = body.get('filename')
     try:
-        path = os.path.join(STATIC_DIR_BACKEND, 'samples', 'sources')
-        with open(os.path.join(path, f"{filename}.csv"), 'r') as f:
+        path = os.path.normpath(os.path.join(STATIC_DIR_BACKEND, 'samples', 'sources'))
+        with open(os.path.normpath(os.path.join(path, f"{filename}.csv")), 'r') as f:
             lines = f.readlines()
         first_row = lines[0].strip().split(',')
         latitude, longitude = first_row[0], first_row[1]
@@ -171,11 +171,11 @@ async def save_obs(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
     project_name = functions.project_definer(body.get('projectName'), user)
     data, key, file_name = body.get('data'), body.get('key'), body.get('fileName')
-    path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
+    path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
     redis = request.app.state.redis
     lock = redis.lock(f"{project_name}:save_obs:{file_name}", timeout=10)
     def write_file(path, file_name, data, key):
-        with open(os.path.join(path, file_name), 'w', encoding="utf-8") as f:
+        with open(os.path.normpath(os.path.join(path, file_name)), 'w', encoding="utf-8") as f:
             if key == 'obs':
                 for line in data:
                     f.write(f"{line[2]}  {line[1]}  '{line[0]}'\n")
@@ -202,14 +202,14 @@ async def save_source(request: Request, user=Depends(functions.basic_auth)):
     lat, lon, data, source_name = body.get('lat'), body.get('lon'), body.get('data'), body.get('nameSource')
     redis = request.app.state.redis
     lock = redis.lock(f"{project_name}:save_source:{source_name}", timeout=10)
-    path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
+    path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
     try:
         async with lock:
             os.makedirs(path, exist_ok=True)
             update_content = 'QUANTITY=discharge_salinity_temperature_sorsin\n' + \
                 f'FILENAME={source_name}.pli\n' + 'FILETYPE=9\n' + 'METHOD=1\n' + 'OPERAND=O\n' + 'AREA=1'
             # Write old format boundary file (*.ext)
-            ext_path = os.path.join(path, "FlowFM.ext")
+            ext_path = os.path.normpath(os.path.join(path, "FlowFM.ext"))
             if os.path.exists(ext_path):
                 with open(ext_path, encoding="utf-8") as f:
                     content = f.read()
@@ -228,13 +228,13 @@ async def save_source(request: Request, user=Depends(functions.basic_auth)):
             with open(ext_path, 'w', encoding="utf-8") as f:
                 f.write(new_content.strip() + "\n")
             # Write .pli file
-            pli_path = os.path.join(path, f"{source_name}.pli")
+            pli_path = os.path.normpath(os.path.join(path, f"{source_name}.pli"))
             with open(pli_path, 'w', encoding="utf-8") as f:
                 f.write(f'{source_name}\n')
                 f.write('    1    2\n')
                 f.write(f"{lon}  {lat}\n")
             # Write .tim file
-            tim_path = os.path.join(path, f"{source_name}.tim")
+            tim_path = os.path.normpath(os.path.join(path, f"{source_name}.tim"))
             with open(tim_path, 'w', encoding="utf-8") as f:
                 for row in data:
                     try: t = float(row[0])/(1000.0*60.0)
@@ -250,7 +250,7 @@ async def save_source(request: Request, user=Depends(functions.basic_auth)):
 async def init_source(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
     project_name, key = functions.project_definer(body.get('projectName'), user), body.get('key')
-    path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input", "FlowFM.ext")
+    path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input", "FlowFM.ext"))
     if os.path.exists(path):
         with open(path, encoding="utf-8") as f:
             content = f.read()
@@ -266,12 +266,12 @@ async def init_source(request: Request, user=Depends(functions.basic_auth)):
             item_remove = [p for p in lts if p not in check]
             if len(item_remove) > 0:
                 item_remove = item_remove[0]
-                temp_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
+                temp_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
                 for part in parts:
                     if item_remove in part:
                         parts.remove(part)
-                        pli_path = os.path.join(temp_path, f"{item_remove}.pli")
-                        tim_path = os.path.join(temp_path, f"{item_remove}.tim")
+                        pli_path = os.path.normpath(os.path.join(temp_path, f"{item_remove}.pli"))
+                        tim_path = os.path.normpath(os.path.join(temp_path, f"{item_remove}.tim"))
                         if os.path.exists(pli_path): os.remove(pli_path)
                         if os.path.exists(tim_path): os.remove(tim_path)
             with open(path, 'w', encoding="utf-8") as file:
