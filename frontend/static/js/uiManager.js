@@ -47,7 +47,7 @@ const mapContainer = () => map.getContainer();
 
 initializeMap(); baseMapButtonFunctionality();
 projectChecker(); initializeMenu(); updateEvents(); plotEvents(); 
-await projectChecker('demo');
+// await projectChecker('demo');
 
 async function openDemoProject(name='demo', params=['FlowFM_his.zarr', 'FlowFM_map.zarr', 'Cadmium_his.zarr', 'Cadmium_map.zarr']) { 
     await projectChecker(name, params);
@@ -150,6 +150,10 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
     objContent.appendChild(newIframe);
     objHeader.childNodes[0].nodeValue = title;
     objWindow.style.display = 'flex';
+    // Clear map
+    map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
+    timeControl().style.display = 'none'; colorbar_container().style.display = 'none';
+    colorbar_vector_container().style.display = 'none';
 }
 
 function updateEvents() {
@@ -252,7 +256,7 @@ function updateEvents() {
                 // Create new hyd project
                 projectChecker();
                 iframeInit("new_HYD_project", projectSetting(), projectSettingHeader(), 
-                    projectSettingContent(), "Set up a new Hydrodynamic project");
+                    projectSettingContent(), "Create a new Hydrodynamic project");
             } else if (name === 'run-hyd-simulation') {
                 // Run hyd simulation
                 projectChecker();

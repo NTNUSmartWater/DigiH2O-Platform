@@ -1222,20 +1222,24 @@ def postProcess(directory: str) -> dict:
     try:
         parent_path = os.path.dirname(directory)
         output_folder = os.path.join(parent_path, 'output')
-        os.makedirs(output_folder, exist_ok=True) if not os.path.exists(output_folder) else shutil.rmtree(output_folder, onexc=remove_readonly)
+        os.makedirs(output_folder, exist_ok=True)
         output_HYD_path = os.path.join(output_folder, 'HYD')
         # Create the directory output_HYD_path
-        if os.path.exists(output_HYD_path): shutil.rmtree(output_HYD_path, onexc=remove_readonly)
+        os.makedirs(output_HYD_path, exist_ok=True)
+        print(parent_path, output_folder, output_HYD_path)
+
         os.makedirs(output_HYD_path, exist_ok=True)
         subdirs = [d for d in os.listdir(directory) if os.path.isdir(os.path.join(directory, d))]
-        if not subdirs: return {'status': 'error', 'message': 'No simulation output folders found.'}
+        if not subdirs: return {'status': 'error', 'message': f'No simulation output folders found: {subdirs}.'}
+        
+        
         # Copy folder DFM_DELWAQ to the parent directory
         DFM_DELWAQ_from = os.path.join(directory, 'DFM_DELWAQ')
         DFM_DELWAQ_to = os.path.join(parent_path, 'DFM_DELWAQ')
-        if os.path.exists(DFM_DELWAQ_to): shutil.rmtree(DFM_DELWAQ_to, onexc=remove_readonly)
+        if os.path.exists(DFM_DELWAQ_to): shutil.rmtree(DFM_DELWAQ_to, onerror=remove_readonly)
         if os.path.exists(DFM_DELWAQ_from):
             shutil.copytree(DFM_DELWAQ_from, DFM_DELWAQ_to)
-            shutil.rmtree(DFM_DELWAQ_from, onexc=remove_readonly)
+            shutil.rmtree(DFM_DELWAQ_from, onerror=remove_readonly)
         # Copy files to the directory output
         DFM_OUTPUT_folder = os.path.join(directory, 'DFM_OUTPUT')
         if not os.path.exists(DFM_OUTPUT_folder):
@@ -1253,7 +1257,7 @@ def postProcess(directory: str) -> dict:
                 ds.close()
             else: shutil.copy(os.path.join(DFM_OUTPUT_folder, f), output_HYD_path)
         # Clean DFM_OUTPUT folder
-        shutil.rmtree(DFM_OUTPUT_folder, onexc=remove_readonly)
+        shutil.rmtree(DFM_OUTPUT_folder, onerror=remove_readonly)
         return {'status': 'ok', 'message': 'Data is saved successfully.'}
     except Exception as e: return {'status': 'error', 'message': {str(e)}}
 

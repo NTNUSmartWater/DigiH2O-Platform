@@ -88,10 +88,10 @@ async def load_general_dynamic(request: Request, user=Depends(functions.basic_au
     body = await request.json()
     query, key, project_name = body.get('query'), body.get('key'), functions.project_definer(body.get('projectName'), user)
     redis, dynamic_cache_key = request.app.state.redis, f"{project_name}:general_cache"    
-    if user == 'admin': 
-        params = ['FlowFM_his.zarr', 'FlowFM_map.zarr', 'Cadmium_his.zarr', 'Cadmium_map.zarr']
-        status, message = await functions.database_definer(request, project_name, params, redis)
-        if status != 'ok': return JSONResponse({"status": status, "message":message})
+    # if user == 'admin': 
+    #     params = ['FlowFM_his.zarr', 'FlowFM_map.zarr', 'Cadmium_his.zarr', 'Cadmium_map.zarr']
+    #     status, message = await functions.database_definer(request, project_name, params, redis)
+    #     if status != 'ok': return JSONResponse({"status": status, "message":message})
     project_cache = request.app.state.project_cache.setdefault(project_name)
     if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory."})
     hyd_his, hyd_map = project_cache.get("hyd_his"), project_cache.get("hyd_map")
@@ -543,8 +543,8 @@ async def generate_mdu(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
     params = dict(body.get('params'))
     try:
+        project_name = functions.project_definer(params['project_name'], user)
         status, message = 'ok', f"Project '{project_name}' created successfully!"
-        project_name = functions.project_definer(params['projectName'], user)
         # Create MDU file
         project_path = os.path.join(PROJECT_STATIC_ROOT, project_name, 'input')
         mdu_path = os.path.join(STATIC_DIR_BACKEND, 'samples', 'MDUFile.mdu')

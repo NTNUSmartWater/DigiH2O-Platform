@@ -502,11 +502,11 @@ function updateOption(){
             temperature, initWaterLevel, initSalinity, initTemperature , outputHis, hisInterval, hisStart, 
             hisStop, outputMap, mapInterval, mapStart, mapStop, outputWQ, wqInterval, wqStart, wqStop, 
             outputRestart, rtsInterval, rtsStart, rtsStop, sttInterval, timingInterval };
-        saveProject(elements); 
+        await saveProject(elements); 
     });
 }
 
-function initializeProject(){
+async function initializeProject(){
     // Update project name
     projectName().addEventListener('click', () => {
         if (projects().children.length === 0) {
@@ -521,6 +521,7 @@ function initializeProject(){
         }
         projects().style.display = "block";
     });
+    
     projectName().addEventListener('input', (e) => { 
         const value = e.target.value.trim();
         if (value === '') {
@@ -544,5 +545,5 @@ function initializeProject(){
     });
 }
 
-await getProjectList(); initializeProject();
+await getProjectList(); await initializeProject();
 setupTabs(document); updateOption();
