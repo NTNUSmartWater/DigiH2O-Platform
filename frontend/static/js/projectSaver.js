@@ -19,15 +19,16 @@ export async function saveProject(elements) {
         temperature, initWaterLevel, initSalinity, initTemperature , outputHis, hisInterval, hisStart, 
         hisStop, outputMap, mapInterval, mapStart, mapStop, outputWQ, wqInterval, wqStart, wqStop, 
         outputRestart, rtsInterval, rtsStart, rtsStop, sttInterval, timingInterval } = elements;
-    sendQuery('save_obs', {projectName: projectName().value.trim()});
+    // Get project name
+    const name = projectName().value.trim();
+    if (name === '') { alert('Please check project name.'); return; }   
+    console.log('Saving project...', name); 
+    sendQuery('save_obs', {projectName: name});
     let data = new Map();
+    data.set('project_name', name);
     // Get time
     const formatted = new Date().toISOString().slice(0,19).replace('T',' ');
     data.set('gen_date', formatted);
-    // Get project name
-    const name = projectName().value.trim();
-    if (name === '') { alert('Please check project name.'); return; }
-    data.set('project_name', name);
     // Check latitude
     const lat = latitude().value;
     if (!lat || lat === '') { alert('Please check latitude.'); return; }
