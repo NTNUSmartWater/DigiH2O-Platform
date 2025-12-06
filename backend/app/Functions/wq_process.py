@@ -7,8 +7,7 @@ from datetime import datetime, timezone
 from Functions import wq_functions
 from starlette.websockets import WebSocketDisconnect
 
-router = APIRouter()
-processes = {}
+router, processes = APIRouter(), {}
 
 def path_process(full_path:str, head:int=3, tail:int=2):
     parts  = full_path.split('/')
@@ -35,37 +34,31 @@ async def select_hyd(request: Request):
     project_name = body.get('projectName')
     folder = [PROJECT_STATIC_ROOT, project_name, "DFM_DELWAQ", 'FlowFM.hyd']
     path = os.path.normpath(os.path.join(*folder))
-    status, data = 'error', None
-    message = f"Error: Cannot find .hyd file in project '{project_name}'.\nPlease run a hydrodynamic simulation first."
     if os.path.exists(path):
-        # Read file
-        data = wq_functions.hydReader(path)
-        status, message = 'ok', ""
-    return JSONResponse({"status": status, "message": message, "content": data})
+        return JSONResponse({"status": 'ok', "content": wq_functions.hydReader(path)})
+    message = f"Error: Cannot find .hyd file in project '{project_name}'.\nPlease run a hydrodynamic simulation first."
+    return JSONResponse({"status": 'error', "message": message})
 
 @router.post("/wq_time")
 async def wq_time(request: Request):
-    body = await request.json()
-    load_data, time_data, key, folder = body.get('loadsData'), body.get('timeData'), body.get('key'), body.get('folderName')
-    # Check whether the location in time-series is in the load data
-    loads = [x[0] for x in load_data]
-    times = [x[1] for x in time_data]
-    if not any(x in times for x in loads):
-        return JSONResponse({"status": 'error', 
-            "message": 'Error: No Location found in the table.\nThe field "Location" has to be defined in the table "List of Loads".'})
     try:
+        body = await request.json()
+        load_data, time_data, key, folder = body.get('loadsData'), body.get('timeData'), body.get('key'), body.get('folderName')
+        # Check whether the location in time-series is in the load data
+        loads, times = [x[0] for x in load_data], [x[1] for x in time_data]
+        if not any(x in times for x in loads):
+            return JSONResponse({"status": 'error', 
+                "message": 'Error: No Location found in the table.\nThe field "Location" has to be defined in the table "List of Loads".'})        
         # Read file and prepare data
         time_data = np.array(time_data)
         idx = [datetime.fromtimestamp(int(x)/1000.0, tz=timezone.utc) for x in time_data[:, 0]]
         df = pd.DataFrame(time_data[:, 1:], index=idx, columns=['source', 'substance', 'value'])
         # Sort data
         df = df.sort_index(ascending=True)
-        status, message, data = 'ok', "", None
         # Structure data
-        groups = df.groupby(['source'])
-        if len(groups) == 0: return JSONResponse({"status": 'error', "content": data,
+        groups, result = df.groupby(['source']), []
+        if len(groups) == 0: return JSONResponse({"status": 'error',
                 "message": 'The inputed time-series data is not found in the table.'})
-        result = []
         for name, group in groups:
             if (len(group) == 0 or name[0] not in loads): continue
             gr_substance = [x[0][0] for x in group.groupby(['substance'])]
@@ -96,10 +89,9 @@ async def wq_time(request: Request):
             lst = [' '.join(x) for x in lst]
             temp += lst
             result.append('\n'.join(temp))
-        status, message, data, to_ = 'ok', "", '\n\n\n'.join(result), gr_substance
+        return JSONResponse({"status": 'ok',"content": '\n\n\n'.join(result), "froms": from_, "tos": gr_substance})
     except Exception as e:
-        status, message, data, from_, to_ = 'error', f"Error: {str(e)}", None, None, None
-    return JSONResponse({"status": status, "message": message, "content": data, "froms": from_, "tos": to_})
+        return JSONResponse({"status": 'error', "message":  f"Error: {str(e)}"})
 
 # Check if simulation is running
 @router.post("/check_sim_status_waq")
@@ -116,13 +108,13 @@ async def check_sim_status_waq(request: Request):
 
 @router.websocket("/sim_progress_waq/{project_name}")
 async def sim_progress_waq(websocket: WebSocket, project_name: str):
-    await websocket.accept()
+    await websocket.accept()        
+    body = await websocket.receive_json()
+    if project_name in processes and processes[project_name]["status"] == "running":
+        await websocket.send_json({"error": "Simulation for this project is already running."})
+        return
+    processes[project_name] = {"progress": 0, "logs": [], "status": "running", "process": None, "stopped": False}
     try:
-        body = await websocket.receive_json()
-        if project_name in processes and processes[project_name]["status"] == "running":
-            await websocket.send_json({"error": "Simulation for this project is already running."})
-            return
-        processes[project_name] = {"progress": 0, "logs": [], "status": "running", "process": None, "stopped": False}
         key, file_name, time_data, usefors = body['key'], body['folderName'], body['timeTable'], body['usefors']
         t_start = datetime.fromtimestamp(int(body['startTime']/1000.0), tz=timezone.utc)
         t_stop = datetime.fromtimestamp(int(body['stopTime']/1000.0), tz=timezone.utc)
@@ -224,8 +216,9 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
                         zarr_path = os.path.normpath(os.path.join(output_WAQ_dir, filename.replace('.nc', '.zarr')))
                         ds.to_zarr(zarr_path, mode='w', consolidated=True)
                         ds.close()
+                        os.remove(src) # Delete .nc files
             # Delete folder
-            shutil.rmtree(wq_folder, ignore_errors=True)
+            if os.path.exists(wq_folder): shutil.rmtree(wq_folder, ignore_errors=True)
         except Exception as e: await websocket.send_json({'status': str(e)})
         processes[project_name]["status"] = "finished"
         await websocket.send_json({'status': "Simulation completed successfully."})
@@ -240,8 +233,8 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
 async def subprocessRunner(cmd, cwd, websocket, project_name, progress_regex=None, stop_on_error=None):
     process = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, cwd=cwd)
-    processes[project_name]["process"], success = process, False
     try:
+        processes[project_name]["process"], success = process, False
         while True:
             # Check if simulation is stopped
             if processes[project_name]["status"] == "stopped":

@@ -103,8 +103,8 @@ async def start_sim_hyd(request: Request):
                 process.wait()
                 status = processes[project_name]["status"]
                 if status != "error":
-                    processes[project_name]["status"] = "finished"
                     try:
+                        processes[project_name]["status"] = "finished"
                         post_result = functions.postProcess(path)
                         msg = f"[FINISHED] {post_result['message']}" if post_result["status"] == "ok" else f"[ERROR] {post_result['message']}"
                         append_log(log_path, msg)
@@ -114,9 +114,9 @@ async def start_sim_hyd(request: Request):
         threading.Thread(target=stream_logs, daemon=True).start()
         return JSONResponse({"status": "ok", "message": f"Simulation {project_name} started on Windows host."})
     else: # Run the process on docker
-        payload = {"action": "run_hyd", "bat_path": bat_path, "mdu_path": mdu_path, "project_name": project_name, 
-                   "log_path": log_path, "cwd_path": path, "percent_re": str(percent_re), "time_re": str(time_re)}
         try:
+            payload = {"action": "run_hyd", "bat_path": bat_path, "mdu_path": mdu_path, "project_name": project_name, 
+                   "log_path": log_path, "cwd_path": path, "percent_re": str(percent_re), "time_re": str(time_re)}
             res = requests.post(WINDOWS_AGENT_URL, json=payload, timeout=10)
             res.raise_for_status()
             return JSONResponse({"status": "ok", "message": f"Simulation {project_name} started (via Windows Agent)."})
@@ -125,9 +125,9 @@ async def start_sim_hyd(request: Request):
 
 @router.websocket("/sim_progress_hyd/{project_name}")
 async def sim_progress_hyd(websocket: WebSocket, project_name: str):
-    await websocket.accept()
-    log_path, last_pos = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt")), 0
     try:
+        await websocket.accept()
+        log_path, last_pos = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt")), 0        
         while True:
             info = processes.get(project_name)
             if not info:
