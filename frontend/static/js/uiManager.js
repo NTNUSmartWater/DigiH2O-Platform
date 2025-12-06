@@ -46,8 +46,8 @@ const waqProgressText = () => document.getElementById('progress-text');
 const mapContainer = () => map.getContainer();
 
 initializeMap(); baseMapButtonFunctionality();
-projectChecker(); initializeMenu(); updateEvents(); plotEvents(); 
-// await projectChecker('demo');
+projectChecker(); initializeMenu(); updateEvents(); 
+plotEvents(); openDemoProject();
 
 async function openDemoProject(name='demo', params=['FlowFM_his.zarr', 'FlowFM_map.zarr', 'Cadmium_his.zarr', 'Cadmium_map.zarr']) { 
     await projectChecker(name, params);
@@ -94,7 +94,7 @@ async function projectChecker(name=null, params=null) {
     const subtance = document.getElementById('substance-window');
     if (subtance.style.display !== 'none') subtance.style.display = 'none';
     setState({projectName: name}); projectTitle().textContent = `Project: ${name}`;
-    if (name === 'demo') { openDemoProject(); return; }
+    // if (name === 'demo') { openDemoProject(); return; }
     startLoading('Reading Simulation Outputs and Setting up Database.\nThis takes a while (especially the first time). Please wait...');
     const data = await sendQuery('setup_database', {projectName: name, params: params});
     if (data.status === "error") { alert(data.message); location.reload(); return; }
