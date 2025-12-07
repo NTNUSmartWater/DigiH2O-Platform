@@ -82,7 +82,7 @@ async def start_sim_hyd(request: Request):
                     if not line: continue
                     append_log(log_path, line)
                     # Catch error messages
-                    if "forrtl:" in line.lower():
+                    if "forrtl:" in line.lower() or "error" in line.lower():
                         processes[project_name]["status"] = "error"
                         append_log(log_path, f"[ERROR] {line}")
                         try: process.kill()

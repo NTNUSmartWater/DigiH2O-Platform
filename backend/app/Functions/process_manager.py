@@ -347,27 +347,28 @@ async def open_grid(request: Request):
     return JSONResponse({"status": status, "message": message, "content": data})
 
 @router.post("/initiate_options")
-async def initiate_options(request: Request):
+async def initiate_options(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
-        key, project_name = body.get('key'), body.get('projectName')
-        redis, data = request.app.state.redis, []
+        project_name = functions.project_definer(body.get('projectName'), user)
+        key, data, redis = body.get('key'), [], request.app.state.redis
         lock = redis.lock(f"{project_name}:initiate_options", timeout=10)
         async with lock:
-            if key == 'vector': data = functions.getVectorNames()
-            elif key == 'layer_hyd':
-                layer_reverse_raw = await redis.hget(project_name, "layer_reverse_hyd")
-                layer_reverse = msgpack.unpackb(layer_reverse_raw, raw=False)
-                if layer_reverse: data = [(idx, value) for idx, value in layer_reverse.items()]
-            elif key == 'sigma_waq':
-                layer_reverse_raw = await redis.hget(project_name, "layer_reverse_waq")
-                layer_reverse = msgpack.unpackb(layer_reverse_raw, raw=False)
-                if layer_reverse: data = [(idx, value) for idx, value in layer_reverse.items()]
-            elif key == 'thermocline_waq':
-                config_raw = await redis.hget(project_name, "config")
-                config = msgpack.unpackb(config_raw, raw=False)
-                item = [x for x in config.keys() if x.startswith('waq_map_') and x.endswith('_selector')]
-                if len(item) > 0: data = config[item[0]]
+            if user == 'admin':
+                if key == 'vector': data = functions.getVectorNames()
+                elif key == 'layer_hyd':
+                    layer_reverse_raw = await redis.hget(project_name, "layer_reverse_hyd")
+                    layer_reverse = msgpack.unpackb(layer_reverse_raw, raw=False)
+                    if layer_reverse: data = [(idx, value) for idx, value in layer_reverse.items()]
+                elif key == 'sigma_waq':
+                    layer_reverse_raw = await redis.hget(project_name, "layer_reverse_waq")
+                    layer_reverse = msgpack.unpackb(layer_reverse_raw, raw=False)
+                    if layer_reverse: data = [(idx, value) for idx, value in layer_reverse.items()]
+                elif key == 'thermocline_waq':
+                    config_raw = await redis.hget(project_name, "config")
+                    config = msgpack.unpackb(config_raw, raw=False)
+                    item = [x for x in config.keys() if x.startswith('waq_map_') and x.endswith('_selector')]
+                    if len(item) > 0: data = config[item[0]]
             return JSONResponse({"status": 'ok', "content": data})
     except Exception as e:
         print('/initiate_options:\n==============')

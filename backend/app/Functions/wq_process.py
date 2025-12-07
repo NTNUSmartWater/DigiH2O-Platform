@@ -231,22 +231,22 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
             processes.pop(project_name, None)
 
 async def subprocessRunner(cmd, cwd, websocket, project_name, progress_regex=None, stop_on_error=None):
-    process = await asyncio.create_subprocess_exec(
-        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, cwd=cwd)
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=cwd, bufsize=1,
+                                universal_newlines=True, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+    processes[project_name]["process"], success = process, False
     try:
-        processes[project_name]["process"], success = process, False
         while True:
             # Check if simulation is stopped
             if processes[project_name]["status"] == "stopped":
-                process.kill()
-                await websocket.send_json({"status": "Simulation stopped."})
+                res = kill_process(process)
+                await websocket.send_json({"status": res["message"]})                
                 return False
-            line = await process.stdout.readline()
+            line = process.stdout.readline()
             if not line:
-                if process.returncode is not None: break
-                await asyncio.sleep(0.05)
+                if process.poll() is not None: break
+                await asyncio.sleep(0.1)
                 continue
-            line = line.decode().strip()
+            line = line.strip()
             if not line: continue
             print("[OUT]", line)
             # Check for progress
@@ -260,10 +260,55 @@ async def subprocessRunner(cmd, cwd, websocket, project_name, progress_regex=Non
             if stop_on_error and stop_on_error in line:
                 if "ERROR in GMRES" in line: await websocket.send_json({"error": "GMRES solver failed.\nConsider increasing the maximum number of iterations."})
                 await websocket.send_json({"error": f"Error detected: {line}"})
+                kill_process(process)
                 processes[project_name]["status"] = "error"
-                process.kill()
                 return False
             if "Normal end" in line: success = True
-        return success
+        for line in process.stdout:
+            if not line.strip(): continue
+            print("[ERR]", line.strip())
+            await websocket.send_json({"error": line.strip()}) 
     finally:
-        if process.returncode is None: process.kill()
+        process.stdout.close()
+        try: process.wait(timeout=3)
+        except subprocess.TimeoutExpired: kill_process(process)
+        if process.poll() is None: kill_process(process)
+    return success
+
+# async def subprocessRunner(cmd, cwd, websocket, project_name, progress_regex=None, stop_on_error=None):
+#     process = await asyncio.create_subprocess_exec(
+#         *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, cwd=cwd)
+#     try:
+#         processes[project_name]["process"], success = process, False
+#         while True:
+#             # Check if simulation is stopped
+#             if processes[project_name]["status"] == "stopped":
+#                 process.kill()
+#                 await websocket.send_json({"status": "Simulation stopped."})
+#                 return False
+#             line = await process.stdout.readline()
+#             if not line:
+#                 if process.returncode is not None: break
+#                 await asyncio.sleep(0.05)
+#                 continue
+#             line = line.decode().strip()
+#             if not line: continue
+#             print("[OUT]", line)
+#             # Check for progress
+#             if progress_regex:
+#                 match = progress_regex.search(line)
+#                 if match:
+#                     percent = float(match.group(1))
+#                     processes[project_name]["progress"] = percent
+#                     await websocket.send_json({"progress": percent})     
+#             # Check special errors
+#             if stop_on_error and stop_on_error in line:
+#                 if "ERROR in GMRES" in line: await websocket.send_json({"error": "GMRES solver failed.\nConsider increasing the maximum number of iterations."})
+#                 await websocket.send_json({"error": f"Error detected: {line}"})
+#                 processes[project_name]["status"] = "error"
+#                 process.kill()
+#                 return False
+#             if "Normal end" in line: success = True
+#         return success
+#     finally:
+#         if process.returncode is None: process.kill()
