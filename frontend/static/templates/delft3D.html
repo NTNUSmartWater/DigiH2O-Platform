@@ -11,7 +11,7 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
         <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
         <!-- My styles -->
-        <link rel="stylesheet" href="/static_frontend/css/temp_style.css?v=003">
+        <link rel="stylesheet" href="/static_frontend/css/temp_style.css?v=001">
         <link rel="stylesheet" href="/static_frontend/css/temp_menu.css?v=001">
         <!-- Favicon -->
         <link rel="icon" type="image/png" href="/static_backend/images/Logo.png">
@@ -21,12 +21,12 @@
         <header class="header">
             <nav class="nav">
                 <ul class="nav-left">
-                    <li><a class="menu" data-info="0|projectMenu.html" id="projectMenu">Project Management</a></li>
+                    <li><a class="menu" data-info="0|projectMenu.html|mainMenu" id="projectMenu">Project Management</a></li>
                     <li style="border-left:3px solid #d5d4dd; margin-left:5px; padding-left:5px;">
-                        <a class="menu" data-info="1|generalOptions.html" id="generalMenu">General Options</a>
+                        <a class="menu" data-info="1|generalOptions.html|subMenu" id="generalMenu">General Options</a>
                     </li>
-                    <li><a class="menu" data-info="2|timeSeries.html" id="timeSeriesMenu">Time-series Measurements</a></li>
-                    <li><a class="menu" data-info="3|spatialMap.html" id="spatialMenu">Spatial Map</a></li>
+                    <li><a class="menu" data-info="2|timeSeries.html|subMenu" id="timeSeriesMenu">Time-series Measurements</a></li>
+                    <li><a class="menu" data-info="3|spatialMap.html|subMenu" id="spatialMenu">Spatial Map</a></li>
                 </ul>
                 <ul class="nav-middle">
                     <span id="projectTitle"></span>
@@ -138,9 +138,13 @@
             <div id="project-open-window-content"></div>
         </div>
         <!-- Add a floating window for substance selector -->
-        <div id="substance-window">
-            <div id="substance-window-header">Substance<span id="substance-window-close">×</span></div>
-            <div id="substance-window-content"></div>
+        <div id="substance-window-his">
+            <div id="substance-window-header-his">Substance - Time Series<span id="substance-window-his-close">×</span></div>
+            <div id="substance-window-content-his"></div>
+        </div>
+        <div id="substance-window-map">
+            <div id="substance-window-header-map">Substance - Spatial Map<span id="substance-window-map-close">×</span></div>
+            <div id="substance-window-content-map"></div>
         </div>
         <!-- Add a floating window for new hydrological model -->
         <div id="projectWindow">

@@ -4,13 +4,13 @@ import { startLoading, showLeafletMap, map } from './mapManager.js';
 import { plotChart, plotEvents, drawChart, plotWindow, thermoclinePlotter } from './chartManager.js';
 import { timeControl, colorbar_container, colorbar_vector_container, plot2DMapDynamic } from "./map2DManager.js";
 import { generalOptionsManager, summaryWindow } from './generalOptionManager.js';
-import { spatialMapManager } from './spatialMapManager.js';
+import { spatialMapManager, substanceWindowHis, substanceWindowMap } from './spatialMapManager.js';
 import { sendQuery } from './tableManager.js';
 import { getState, resetState, setState } from './constants.js';
 
 let pickerState = { location: false, point: false, crosssection: false, boundary: false, source: false },
     cachedMenus = {}, markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [],
-    pathLineBoundary = null, ws = null, currentProject = null, gridLayer = null, timeOut = null,
+    pathLineBoundary = null, ws = null, currentProject = null, gridLayer = null, timeOut = null, checkOutput = false,
     markersCrosssection = [], crosssectionContainer = [], pathLineCrosssection = null, hideTimeout = null;
 
 const popupMenu = () => document.getElementById('popup-menu');
@@ -26,10 +26,11 @@ const projectOpenWindow = () => document.getElementById('project-open-window');
 const projectOpenWindowHeader = () => document.getElementById('project-open-window-header');
 const projectOpenWindowContent = () => document.getElementById('project-open-window-content');
 const projectOpenCloseBtn = () => document.getElementById('project-open-window-close');
-const substanceWindow = () => document.getElementById('substance-window');
-const substanceWindowHeader = () => document.getElementById('substance-window-header');
-const substanceWindowContent = () => document.getElementById('substance-window-content');
-const substanceWindowCloseBtn = () => document.getElementById('substance-window-close');
+const substanceWindowHeaderHis = () => document.getElementById('substance-window-header-his');
+const substanceWindowContentHis = () => document.getElementById('substance-window-content-his');
+const substanceWindowCloseBtnHis = () => document.getElementById('substance-window-his-close');
+const substanceWindowHeaderMap = () => document.getElementById('substance-window-header-map');
+const substanceWindowCloseBtnMap = () => document.getElementById('substance-window-map-close');
 const projectSetting = () => document.getElementById('projectWindow');
 const projectSettingHeader = () => document.getElementById('projectWindowHeader');
 const projectSettingContent = () => document.getElementById('projectWindowContent');
@@ -45,9 +46,15 @@ const waqProgressbar = () => document.getElementById('progressbar');
 const waqProgressText = () => document.getElementById('progress-text');
 const mapContainer = () => map.getContainer();
 
-initializeMap(); baseMapButtonFunctionality();
-projectChecker(); initializeMenu(); updateEvents(); 
-plotEvents(); openDemoProject();
+initializeMap(); baseMapButtonFunctionality(); plotEvents();
+projectChecker(); initializeMenu(); updateEvents(); await login();
+
+async function login() {
+    const data = await sendQuery('auth_check', {});
+    if (data.user === 'admin') { openDemoProject('demo');}
+    else { projectChecker(data.user); }
+    checkOutput = data.output==='ok'; initializeMenu();
+}
 
 async function openDemoProject(name='demo', params=['FlowFM_his.zarr', 'FlowFM_map.zarr', 'Cadmium_his.zarr', 'Cadmium_map.zarr']) { 
     await projectChecker(name, params);
@@ -57,10 +64,26 @@ async function openDemoProject(name='demo', params=['FlowFM_his.zarr', 'FlowFM_m
     plot2DMapDynamic(false, query, key, titleColorbar, colorbarKey);
 }
 
+function refresh() {
+    // Close windows if open
+    if (summaryWindow().style.display !== 'none') summaryWindow().style.display = 'none';
+    if (waqWindow().style.display !== 'none') waqWindow().style.display = 'none';
+    if (plotWindow().style.display !== 'none') plotWindow().style.display = 'none';
+    if (substanceWindowHis().style.display !== 'none') substanceWindowHis().style.display = 'none';
+}
+
+function hideMap() {
+    // Clear map
+    map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
+    timeControl().style.display = 'none'; colorbar_container().style.display = 'none';
+    colorbar_vector_container().style.display = 'none';
+    if (substanceWindowMap().style.display !== 'none') substanceWindowMap().style.display = 'none';
+}
+
 // ============================ Functions ============================
 async function showPopupMenu(projectName, id, htmlFile) {
     try {
-        let html;
+        refresh(); let html;
         if (cachedMenus[htmlFile]) html = cachedMenus[htmlFile];
         else {
             const response = await fetch(`/load_popupMenu?htmlFile=${htmlFile}&project_name=${projectName}`);
@@ -79,22 +102,11 @@ async function projectChecker(name=null, params=null) {
     cachedMenus = {}; // Clear cache of menus for new project
     const projectMenu = document.querySelectorAll('.menu');
     projectMenu.forEach(menu => { menu.style.display = (name===null)?'none':'block'; });
-    const project = document.querySelector('.menu[data-info="0|projectMenu.html"]');
+    const project = document.querySelector('.menu[id="projectMenu"]');
     project.style.display = 'block'; projectTitle().textContent = '';
-    // Clear map
-    map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
-    resetState();  // Reset variables
-    if (name === null) return;
-    // Close windows if open
-    if (summaryWindow().style.display !== 'none') summaryWindow().style.display = 'none';
-    if (waqWindow().style.display !== 'none') waqWindow().style.display = 'none';
-    if (plotWindow().style.display !== 'none') plotWindow().style.display = 'none';
-    timeControl().style.display = 'none'; colorbar_container().style.display = 'none';
-    colorbar_vector_container().style.display = 'none';
-    const subtance = document.getElementById('substance-window');
-    if (subtance.style.display !== 'none') subtance.style.display = 'none';
+    refresh(); if (name === null) return;
+    hideMap(); resetState();  // Reset variables
     setState({projectName: name}); projectTitle().textContent = `Project: ${name}`;
-    // if (name === 'demo') { openDemoProject(); return; }
     startLoading('Reading Simulation Outputs and Setting up Database.\nThis takes a while (especially the first time). Please wait...');
     const data = await sendQuery('setup_database', {projectName: name, params: params});
     if (data.status === "error") { alert(data.message); location.reload(); return; }
@@ -102,9 +114,20 @@ async function projectChecker(name=null, params=null) {
 }
 
 async function initializeMenu(){
+    if (checkOutput) {
+        document.querySelectorAll('a.menu').forEach(el => {
+            if (el.dataset.info?.endsWith('|subMenu')) el.style.display = 'block';
+        });
+    } else {
+        document.querySelectorAll('a.menu').forEach(el => {
+            if (el.dataset.info?.endsWith('|subMenu')) el.style.display = 'none';
+        });
+    }
+    document.getElementById('projectTitle').style.display = checkOutput ? 'block' : 'none';
+    console.log(checkOutput);
     // Work with pupup menu
-    document.querySelectorAll('.nav ul li a').forEach(link => {
-        link.addEventListener('click', async(event) => {
+    document.querySelectorAll('.nav ul li a:not([style*="display: none"])').forEach(link => {
+        link.onclick = async(event) => {
             event.stopPropagation(); event.preventDefault();
             const rect = link.getBoundingClientRect();
             const pm = popupMenu();
@@ -112,14 +135,14 @@ async function initializeMenu(){
             const info = link.dataset.info;
             if (info === 'home') { history.back(); return; }
             if (info === 'help') { contactInformation(); return;}
-            const [id, htmlFile] = info.split('|');
+            const [id, htmlFile, _] = info.split('|');
             startLoading('Getting Information. Please wait...');
             await showPopupMenu(getState().projectName, id, htmlFile);
             showLeafletMap();
             pm.style.top = `${rect.bottom + 15 + window.scrollY}px`;
             pm.style.left = `${rect.left + window.scrollX}px`;
             pm.classList.add('show');
-        });
+        };
     })
 }
 
@@ -149,11 +172,7 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
     newIframe.src = `/${scr}`;
     objContent.appendChild(newIframe);
     objHeader.childNodes[0].nodeValue = title;
-    objWindow.style.display = 'flex';
-    // Clear map
-    map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
-    timeControl().style.display = 'none'; colorbar_container().style.display = 'none';
-    colorbar_vector_container().style.display = 'none';
+    objWindow.style.display = 'flex'; hideMap();
 }
 
 function updateEvents() {
@@ -505,20 +524,19 @@ function updateEvents() {
     // Move window
     moveWindow(contactInfo, contactInfoHeader); moveWindow(projectOpenWindow, projectOpenWindowHeader);
     moveWindow(projectSetting, projectSettingHeader); moveWindow(simulationWindow, simulationHeader);
-    moveWindow(substanceWindow, substanceWindowHeader); moveWindow(waqWindow, waqWindowHeader);
+    moveWindow(substanceWindowHis, substanceWindowHeaderHis); moveWindow(waqWindow, waqWindowHeader);
+    moveWindow(substanceWindowMap, substanceWindowHeaderMap); moveWindow(waqWindow, waqWindowHeader);
     // Close windows
-    substanceWindowCloseBtn().addEventListener('click', () => { 
-        substanceWindow().style.display = 'none'; plotWindow().style.display = 'none';
-        map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
-        timeControl().style.display = 'none'; colorbar_container().style.display = 'none';
-        colorbar_vector_container().style.display = 'none';
+    substanceWindowCloseBtnHis().addEventListener('click', () => { 
+        substanceWindowHis().style.display = 'none'; plotWindow().style.display = 'none';
+    });
+    substanceWindowCloseBtnMap().addEventListener('click', () => { 
+        substanceWindowMap().style.display = 'none'; plotWindow().style.display = 'none'; hideMap();
     });
     contactInfoCloseBtn().addEventListener('click', () => { contactInfo().style.display = 'none'; });
     projectOpenCloseBtn().addEventListener('click', () => { projectOpenWindow().style.display = 'none'; });
     projectSettingCloseBtn().addEventListener('click', () => { 
-        // Clear map
-        map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
-        projectSetting().style.display = 'none'; 
+        hideMap(); projectSetting().style.display = 'none'; 
     });
     simulationCloseBtn().addEventListener('click', () => { simulationWindow().style.display = 'none'; });
     waqCloseBtn().addEventListener('click', () => { waqWindow().style.display = 'none'; });
@@ -634,24 +652,24 @@ function timeSeriesManager() {
     // Process water quality selector
     document.querySelectorAll('.waq_his').forEach(item => {
         item.addEventListener('click', async() => {
+            substanceWindowMap().style.display = 'none';
             const query = item.dataset.info;
             const data = await sendQuery('process_data', {query: query, 
                 key: 'substance_check', projectName: getState().projectName});
-            if (data.status === "error") {alert(data.message); substanceWindow().style.display = 'none'; return;}
-            substanceWindowContent().innerHTML = '';
+            if (data.status === "error") {alert(data.message); substanceWindowHis().style.display = 'none'; return;}
+            substanceWindowContentHis().innerHTML = ''; substanceWindowHis().style.display = 'flex';
             // Add content
-            substanceWindowContent().innerHTML = data.message.map((substance, i) => 
-                `<label for="${substance}"><input type="radio" name="waq-substance" id="${substance}"
+            substanceWindowContentHis().innerHTML = data.message.map((substance, i) => 
+                `<label for="his-${substance}"><input type="radio" name="waq-substance-his" id="his-${substance}"
                     value="${data.content[i]}" ${i === 0 ? 'checked' : ''}>${data.content[i]}</label>`).join('');
-            substanceWindow().style.display = 'flex';
-            plotChart(data.message[0], 'substance', `Substance: ${data.content[0]}`, 'Time', data.content[0]);
+            hideMap(); plotChart(data.message[0], 'substance', `Substance: ${data.content[0]}`, 'Time', data.content[0]);
         });
     });
     // Listen to substance selection
-    substanceWindowContent().addEventListener('change', (e) => {
-        if (e.target && e.target.name === "waq-substance") {
+    substanceWindowContentHis().addEventListener('change', (e) => {
+        if (e.target && e.target.name === "waq-substance-his") {
             const id = e.target.id, value = e.target.value;
-            plotChart(id, 'substance', `Substance: ${value}`, 'Time', value);
+            hideMap(); plotChart(id.replace('his-', ''), 'substance', `Substance: ${value}`, 'Time', value);
         }
     });
 }
