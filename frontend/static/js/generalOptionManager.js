@@ -4,6 +4,8 @@ import { plotChart, plotProfileSingleLayer, plotProfileMultiLayer } from "./char
 import { getState, setState } from "./constants.js";
 import { startLoading, showLeafletMap, map, L, ZOOM } from "./mapManager.js";
 import { sendQuery } from './tableManager.js';
+import { timeControl, colorbar_container, colorbar_vector_container } from "./map2DManager.js";
+
 
 export const summaryWindow = () => document.getElementById("summaryWindow");
 const summaryHeader = () => document.getElementById("summaryHeader");
@@ -23,6 +25,14 @@ const thermoclineWAQ = () => document.getElementById('waq-thermocline-selector')
 const configReset = () => document.getElementById('reset-config');
 
 let Dragging = false, pathLine = null, selectedMarkers = [], pointContainer = [], marker = null;
+
+function hideMap() {
+    // Clear map
+    map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
+    if (timeControl().style.display !== 'none') timeControl().style.display = 'none'; 
+    if (colorbar_container().style.display !== 'none') colorbar_container().style.display = 'none';
+    if (colorbar_vector_container().style.display !== 'none') colorbar_vector_container().style.display = 'none';
+}
 
 function checkUpdater(setLayer, objCheckbox, checkFunction){
     objCheckbox.checked = getState()[setLayer] !== null;
@@ -58,6 +68,7 @@ export function generalOptionsManager(projectName){
     })
     // Plot thermocline for water quality
     waqSelector().addEventListener('click', () => {
+        hideMap();
         const item = document.getElementById('thermocline-row');
         if (item) {
             item.style.display = item.style.display === 'none' ? 'block' : 'none';
@@ -70,7 +81,7 @@ export function generalOptionsManager(projectName){
         if (selected === '') { window.parent.postMessage({type: 'thermoclineGridClear'}, '*'); return; };
         setState({isThemocline: true}); if (getState().isPathQuery) { deActivePathQuery(); }
         const titleX = thermoclineWAQ().options[thermoclineWAQ().selectedIndex].text;
-        const chartTitle = 'Thermocline for Water Quality Simulation';
+        const chartTitle = 'Vertical Profile for Water Quality Simulation';
         const key = 'thermocline_waq', query = `mesh2d_${selected}`;
         window.parent.postMessage({type: 'thermoclineGrid', key: key, query: query,
             titleX: titleX, titleY: titleY, chartTitle: chartTitle, 

@@ -1,6 +1,8 @@
 import { fillTable, getDataFromTable, addRowToTable, removeRowFromTable, deleteTable, copyPaste } from "./tableManager.js";
 import { csvUploader, mapPicker, renderProjects, pointUpdate, updateTable, plotTable, sendQuery } from "./tableManager.js";
 import { saveProject, timeStepCalculator } from "./projectSaver.js";
+import { getState } from "./constants.js";
+import { loadList } from "./utils.js";
 
 const sectionDescription = () => document.getElementById('desription-tab');
 const sectionTab = () => document.getElementById('parent-tab');
@@ -195,11 +197,8 @@ function setupTabs(root) {
 }
 
 async function getProjectList(){
-    const data = await sendQuery('select_project', {filename: '', key: 'getProjects', folder_check: ''});
-    if (data.status === "ok") {
-        // Remove demo from the list
-        projectList = data.content.filter(p => p !== 'demo');
-    }
+    const data = await loadList(getState().projectName, 'getProjects', 'input');
+    if (data.status === "ok") {projectList = data.content;} else {projectList = [];}
 }
 function sourceChange(target){
     const check = target.checked;
@@ -245,8 +244,8 @@ function updateOption(){
     csvUploader(meteoUpload(), meteoTable(), 5);
     csvUploader(weatherCSVUpload(), weatherTable(), 3);
     // Upload file to server
-    gridPath().addEventListener('change', () => {
-        fileUploader(gridPath(), projectName().value, 'FlowFM_net.nc')
+    gridPath().addEventListener('change', async() => {
+        await fileUploader(gridPath(), projectName().value, 'FlowFM_net.nc')
         window.parent.postMessage({type: 'showGrid', projectName: projectName().value, 
             gridName: 'FlowFM_net.nc', message: 'Uploading grid to project...'}, '*');
     });
@@ -511,7 +510,8 @@ function updateOption(){
 
 async function initializeProject(){
     // Update project name
-    projectName().addEventListener('click', () => {
+    projectName().addEventListener('click', async () => {
+        await getProjectList()
         if (projectList.length === 0) return;
         if (projects().children.length === 0) {
             projectList.forEach(p => {

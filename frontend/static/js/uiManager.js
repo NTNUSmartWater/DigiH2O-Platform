@@ -10,7 +10,7 @@ import { getState, resetState, setState } from './constants.js';
 
 let pickerState = { location: false, point: false, crosssection: false, boundary: false, source: false },
     cachedMenus = {}, markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [],
-    pathLineBoundary = null, ws = null, currentProject = null, gridLayer = null, timeOut = null, checkOutput = false,
+    pathLineBoundary = null, ws = null, currentProject = null, gridLayer = null, timeOut = null, userName = false,
     markersCrosssection = [], crosssectionContainer = [], pathLineCrosssection = null, hideTimeout = null;
 
 const popupMenu = () => document.getElementById('popup-menu');
@@ -46,17 +46,16 @@ const waqProgressbar = () => document.getElementById('progressbar');
 const waqProgressText = () => document.getElementById('progress-text');
 const mapContainer = () => map.getContainer();
 
-initializeMap(); baseMapButtonFunctionality(); plotEvents();
-projectChecker(); initializeMenu(); updateEvents(); await login();
+initializeMap(); baseMapButtonFunctionality(); plotEvents(); initializeMenu();
+projectChecker(); initializeMenu(); updateEvents(); openDemoProject('demo');
+await login();
 
 async function login() {
     const data = await sendQuery('auth_check', {});
-    if (data.user === 'admin') { openDemoProject('demo');}
-    else { projectChecker(data.user); }
-    checkOutput = data.output==='ok'; initializeMenu();
+    if (data.user==='admin') { userName = ''; } else { userName = `${data.user}/`; }
 }
 
-async function openDemoProject(name='demo', params=['FlowFM_his.zarr', 'FlowFM_map.zarr', 'Cadmium_his.zarr', 'Cadmium_map.zarr']) { 
+async function openDemoProject(name='demo', params=['FlowFM_his.nc', 'FlowFM_map.nc', 'Cadmium_his.nc', 'Cadmium_map.nc']) { 
     await projectChecker(name, params);
     // Load temperature dynamic map
     const query = '|-1', key = 'temp_multi_dynamic', titleColorbar = 'Temperature (°C)';
@@ -101,12 +100,12 @@ async function showPopupMenu(projectName, id, htmlFile) {
 async function projectChecker(name=null, params=null) {
     cachedMenus = {}; // Clear cache of menus for new project
     const projectMenu = document.querySelectorAll('.menu');
-    projectMenu.forEach(menu => { menu.style.display = (name===null)?'none':'block'; });
+    projectMenu.forEach(menu => { menu.style.display = 'block'; });
     const project = document.querySelector('.menu[id="projectMenu"]');
+    if (name === null) return;    
     project.style.display = 'block'; projectTitle().textContent = '';
-    refresh(); if (name === null) return;
-    hideMap(); resetState();  // Reset variables
-    setState({projectName: name}); projectTitle().textContent = `Project: ${name}`;
+    refresh(); hideMap(); resetState(); await login();  // Reset variables
+    setState({projectName: name}); projectTitle().textContent = `Project: ${userName}${name}`;
     startLoading('Reading Simulation Outputs and Setting up Database.\nThis takes a while (especially the first time). Please wait...');
     const data = await sendQuery('setup_database', {projectName: name, params: params});
     if (data.status === "error") { alert(data.message); location.reload(); return; }
@@ -114,17 +113,6 @@ async function projectChecker(name=null, params=null) {
 }
 
 async function initializeMenu(){
-    if (checkOutput) {
-        document.querySelectorAll('a.menu').forEach(el => {
-            if (el.dataset.info?.endsWith('|subMenu')) el.style.display = 'block';
-        });
-    } else {
-        document.querySelectorAll('a.menu').forEach(el => {
-            if (el.dataset.info?.endsWith('|subMenu')) el.style.display = 'none';
-        });
-    }
-    document.getElementById('projectTitle').style.display = checkOutput ? 'block' : 'none';
-    console.log(checkOutput);
     // Work with pupup menu
     document.querySelectorAll('.nav ul li a:not([style*="display: none"])').forEach(link => {
         link.onclick = async(event) => {
@@ -429,7 +417,7 @@ function updateEvents() {
             startLoading(event.data.message);
             const name = event.data.projectName, gridName = event.data.gridName;
             const data = await sendQuery('open_grid', {projectName: name, gridName: gridName});
-            if (data.status === "error") {alert(data.message); return;}
+            if (data.status === "error") {alert(data.message); ; return;}
             // Show the grid on the map
             if (gridLayer) map.removeLayer(gridLayer); gridLayer = null;
             gridLayer = L.geoJSON(data.content, {style: {color: 'black', weight: 1}}).addTo(map);
