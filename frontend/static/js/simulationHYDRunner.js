@@ -51,6 +51,7 @@ function statusUpdate(info, barObject, textObject) {
         textObject().innerText = `Completed: ${percent}% [Used: ${time_used} → Left: ${time_left}]`;
         barObject().value = percent;
     }
+    if (info.startsWith("[POSTPROCESS]")) textObject().innerText = info.replace('[POSTPROCESS]','');
     if (info.startsWith("[FINISHED]")) textObject().innerText = info.replace('[FINISHED]','');
     return true;
 }

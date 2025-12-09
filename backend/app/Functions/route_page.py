@@ -1,12 +1,12 @@
 import os, msgpack
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from app.config import STATIC_DIR_FRONTEND, STATIC_DIR_BACKEND
 from Functions import functions
 
 router = APIRouter()
-templates = Jinja2Templates(directory=os.path.join(STATIC_DIR_FRONTEND, "templates"))
+templates = Jinja2Templates(directory=os.path.normpath(os.path.join(STATIC_DIR_FRONTEND, "templates")))
 
 # ==================== Routes ====================
 # Home page
@@ -19,7 +19,7 @@ def home(request: Request):
 @router.get("/visualization")
 def visualization(request: Request):
     template_file = "delft3D.html"
-    template_path = os.path.join(STATIC_DIR_FRONTEND, "templates", template_file)
+    template_path = os.path.normpath(os.path.join(STATIC_DIR_FRONTEND, "templates", template_file))
     if not os.path.exists(template_path): 
         return templates.TemplateResponse("error.html",
             {"request": request, "message": "File not found."})
@@ -32,15 +32,15 @@ def load_contact(request: Request):
 
 # Load popup menu
 @router.get("/load_popupMenu", response_class=HTMLResponse)
-async def load_popupMenu(request: Request, htmlFile: str, project_name: str = None):
+async def load_popupMenu(request: Request, htmlFile: str, project_name: str = None, user=Depends(functions.basic_auth)):
     # Show project menu, read config from Redis
     if htmlFile == 'projectMenu.html':
         return templates.TemplateResponse(htmlFile, {"request": request})
     if not project_name:
         return HTMLResponse(f"<p>Project '{project_name}' not found</p>", status_code=404)
     # Acquire Redis lock to prevent race condition
-    redis = request.app.state.redis
-    path = os.path.join(STATIC_DIR_FRONTEND, "templates", htmlFile)
+    redis, project_name = request.app.state.redis, functions.project_definer(project_name, user)
+    path = os.path.normpath(os.path.join(STATIC_DIR_FRONTEND, "templates", htmlFile))
     if not os.path.exists(path):
         return HTMLResponse(f"<p>Popup menu template not found</p>", status_code=404)
     # Get config from Redis, if not found scan files to get variables
@@ -100,4 +100,4 @@ def grid_generation(request: Request):
 # Load favicon
 @router.get("/favicon.ico")
 def favicon():
-    return FileResponse(os.path.join(STATIC_DIR_BACKEND, "images", "Logo.png"))
+    return FileResponse(os.path.normpath(os.path.join(STATIC_DIR_BACKEND, "images", "Logo.png")))

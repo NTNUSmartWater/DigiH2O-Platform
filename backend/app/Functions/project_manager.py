@@ -1,26 +1,31 @@
-
-import os, shutil, subprocess, re, json
-import asyncio, traceback, msgpack
+import os, shutil, subprocess, re, json, msgpack
+import asyncio, traceback
 import numpy as np
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
 from Functions import functions
 from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND
 
 router = APIRouter()
 
+@router.post("/auth_check")
+async def auth_check(user=Depends(functions.basic_auth)):
+    output = 'ok' if user == 'admin' else 'error'
+    return {"user": user, "output": output}
+
 # Remove folder configuration
 @router.post("/reset_config")
-async def reset_config(request: Request):
-    body = await request.json()
-    redis, project_name = request.app.state.redis, body.get("projectName")
-    lock = redis.lock(f"{project_name}:reset_config", timeout=20)
+async def reset_config(request: Request, user=Depends(functions.basic_auth)):
     try:
+        body = await request.json()
+        project_name = functions.project_definer(body.get('projectName'), user)
+        redis = request.app.state.redis
+        lock = redis.lock(f"{project_name}:reset_config", timeout=20)        
         async with lock:
             # Reset project data in Redis
-            folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
+            folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name))
             if not os.path.exists(folder): return JSONResponse({"message": "Project folder doesn't exist."})
-            config_dir = os.path.join(folder, "output", "config")
+            config_dir = os.path.normpath(os.path.join(folder, "output", "config"))
             if not os.path.exists(config_dir): return JSONResponse({"message": "Configuration folder doesn't exist."})
             try:
                 shutil.rmtree(config_dir, onerror=functions.remove_readonly)
@@ -36,18 +41,20 @@ async def reset_config(request: Request):
 
 # Create a new project with necessary folders
 @router.post("/setup_new_project")
-async def setup_new_project(request: Request):
-    body = await request.json()
-    project_name = body.get('projectName')
-    project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
-    # Check if project already exists
-    if os.path.exists(project_folder):
-        return JSONResponse({"status": 'ok', "message": f"Project '{project_name}' already exists."})
+async def setup_new_project(request: Request, user=Depends(functions.basic_auth)):
     try:
+        body = await request.json()
+        project_name = functions.project_definer(body.get('projectName'), user)
+        project_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name))
+        name = project_name if '/' not in project_name else project_name.split('/')[1]
+        # Check if project already exists
+        if os.path.exists(project_folder):
+            return JSONResponse({"status": 'ok', "message": f"Project '{name}' already exists."})        
         # Create project directories
+        os.makedirs(body.get('projectName'), exist_ok=True)
         os.makedirs(project_folder, exist_ok=True)
-        os.makedirs(os.path.join(project_folder, "input"), exist_ok=True)
-        status, message = 'ok', f"Project '{project_name}' created successfully!"
+        os.makedirs(os.path.normpath(os.path.join(project_folder, "input")), exist_ok=True)
+        status, message = 'ok', f"Project '{name}' created successfully!"
     except Exception as e:
         print('/setup_new_project:\n==============')
         traceback.print_exc()
@@ -56,19 +63,24 @@ async def setup_new_project(request: Request):
 
 # Set up the database depending on the project
 @router.post("/setup_database")
-async def setup_database(request: Request):
-    body = await request.json()
-    project_name, params = body.get('projectName'), body.get('params')
-    redis = request.app.state.redis
-    lock = redis.lock(f"{project_name}:setup_database", timeout=300)
+async def setup_database(request: Request, user=Depends(functions.basic_auth)):
     try:
+        body = await request.json()
+        project_name = functions.project_definer(body.get('projectName'), user)
+        redis, params = request.app.state.redis, body.get('params')
+        extend_task, lock = None, redis.lock(f"{project_name}:setup_database", timeout=300)
         async with lock:
             extend_task = asyncio.create_task(functions.auto_extend(lock, interval=10))
-            # Create project entry
-            project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
-            output_dir = os.path.join(project_folder, "output")
-            config_dir = os.path.join(output_dir, "config")
-            hyd_dir, waq_dir = os.path.join(output_dir, 'HYD'), os.path.join(output_dir, 'WAQ')
+            project_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name))
+            demo_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, 'demo'))
+            if user != 'admin':
+                if not os.path.exists(project_folder): 
+                    os.makedirs(project_folder, exist_ok=True)
+                    shutil.copytree(demo_folder, project_folder, dirs_exist_ok=True)
+            output_dir = os.path.normpath(os.path.join(project_folder, "output"))
+            config_dir = os.path.normpath(os.path.join(output_dir, "config"))
+            hyd_dir = os.path.normpath(os.path.join(output_dir, 'HYD'))
+            waq_dir = os.path.normpath(os.path.join(output_dir, 'WAQ'))
             os.makedirs(config_dir, exist_ok=True)
             project_cache_dict = getattr(request.app.state, "project_cache", None)
             if project_cache_dict is None:
@@ -82,7 +94,7 @@ async def setup_database(request: Request):
             waq_his = await functions.load_dataset_cached(project_cache, 'waq_his', dm, waq_dir, params[2])
             waq_map = await functions.load_dataset_cached(project_cache, 'waq_map', dm, waq_dir, params[3])
             # Load or init config
-            config_path = os.path.join(config_dir, 'config.json')
+            config_path = os.path.normpath(os.path.join(config_dir, 'config.json'))
             if os.path.exists(config_path) and os.path.getsize(config_path) > 0:
                 print('Config already exists. Loading...')
                 config = json.loads(open(config_path).read())
@@ -99,36 +111,32 @@ async def setup_database(request: Request):
                 grid = functions.unstructuredGridCreator(hyd_map)
                 project_cache['grid'] = grid
                 # Get number of layers
-                layer_path = os.path.join(config_dir, 'layers_hyd.json')
-                if os.path.exists(layer_path):
-                    layer_reverse_hyd = json.load(open(layer_path))
-                else:
+                layer_path = os.path.normpath(os.path.join(config_dir, 'layers_hyd.json'))
+                if not os.path.exists(layer_path):
                     layer_reverse_hyd = functions.layerCounter(hyd_map, 'hyd')
-                    json.dump(layer_reverse_hyd, open(layer_path, "w"))
+                    json.dump(layer_reverse_hyd, open(layer_path, "w"))                    
+                else: layer_reverse_hyd = json.load(open(layer_path))
             if waq_map:
                 print('Creating grid and layers for water quality simulation...')
-                layer_path = os.path.join(config_dir, 'layers_waq.json')
-                if os.path.exists(layer_path):
-                    layer_reverse_waq = json.load(open(layer_path))
-                else:
+                layer_path = os.path.normpath(os.path.join(config_dir, 'layers_waq.json'))
+                if not os.path.exists(layer_path):
                     layer_reverse_waq = functions.layerCounter(waq_map, 'waq')
-                    json.dump(layer_reverse_waq, open(layer_path, "w"))
+                    json.dump(layer_reverse_waq, open(layer_path, "w"))                    
+                else: layer_reverse_waq = json.load(open(layer_path))
             # Lazy scan HYD variables only once
             if (hyd_map or hyd_his) and not config['meta']['hyd_scanned']:
                 print('Scanning HYD variables...')
                 hyd_vars = functions.getVariablesNames([hyd_his, hyd_map], 'hyd')
                 config["hyd"], config["meta"]["hyd_scanned"] = hyd_vars, True
             # Get WAQ model
-            temp = params[2].replace('_his.zarr', '') if params[2] != '' else params[3].replace('_map.zarr', '')
-            model_path, waq_model, obs = os.path.join(waq_dir, f'{temp}.json'), '', {}
+            temp = params[2].replace('_his.nc', '') if params[2] != '' else params[3].replace('_map.nc', '')
+            model_path, waq_model, obs = os.path.normpath(os.path.join(waq_dir, f'{temp}.json')), '', {}
             if os.path.exists(model_path):
                 print('Loading WAQ model...')
                 temp_data = json.load(open(model_path))
                 waq_model = temp_data['model_type']
-                if 'wq_obs' in temp_data: 
-                    config['wq_obs'], obs['wq_obs'] = True, temp_data['wq_obs']
-                if 'wq_loads' in temp_data:
-                    config['wq_loads'], obs['wq_loads'] = True, temp_data['wq_loads']
+                if 'wq_obs' in temp_data: config['wq_obs'], obs['wq_obs'] = True, temp_data['wq_obs']
+                if 'wq_loads' in temp_data: config['wq_loads'], obs['wq_loads'] = True, temp_data['wq_loads']
             if (waq_his or waq_map) and waq_model == '':
                 return JSONResponse({"status": 'error', "message": "Some WAQ-related parameters are missing.\nConsider running the model again."})  
             # Lazy scan WAQ
@@ -158,6 +166,7 @@ async def setup_database(request: Request):
                 "waq_obs": msgpack.packb(obs, use_bin_type=True), "waq_model": waq_model
             }
             # Save to Redis
+            await redis.delete(project_name)
             await redis.hset(project_name, mapping=redis_mapping)
             print('Configuration loaded successfully.')
             return JSONResponse({"status": 'ok'})
@@ -169,19 +178,21 @@ async def setup_database(request: Request):
         if extend_task:
             extend_task.cancel()
             try: await extend_task
-            except asyncio.CancelledError: pass 
+            except asyncio.CancelledError: pass
 
 # Delete a project
 @router.post("/delete_project")
-async def delete_project(request: Request):
-    body = await request.json()
-    redis, project_name = request.app.state.redis, body.get("projectName")
-    lock = redis.lock(f"{project_name}:delete_project", timeout=10)
-    project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
+async def delete_project(request: Request, user=Depends(functions.basic_auth)):
     try:
+        body = await request.json()
+        project_name = functions.project_definer(body.get('projectName'), user)
+        redis = request.app.state.redis
+        name = project_name if '/' not in project_name else project_name.split('/')[-1]
+        lock = redis.lock(f"{project_name}:delete_project", timeout=10)
+        project_folder, extend_task = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name)), None        
         async with lock:
             # Optional: auto-extend lock if deletion may take long
-            extend_task = asyncio.create_task(functions.extend_lock(lock))
+            extend_task = asyncio.create_task(functions.auto_extend(lock))
             if not os.path.exists(project_folder): 
                 return JSONResponse({"status": 'error', "message": f"Project '{project_name}' does not exist."})
             try:
@@ -189,11 +200,11 @@ async def delete_project(request: Request):
                 # Optional: remove project cache in app.state if exists
                 if hasattr(request.app.state, "project_cache"):
                     request.app.state.project_cache.pop(project_name, None)
-                return JSONResponse({"status": "ok", "message": f"Project '{project_name}' was deleted successfully."})
+                return JSONResponse({"status": "ok", "message": f"Project '{name}' was deleted successfully."})
             except PermissionError as e:
                 try:
                     subprocess.run(['rmdir', '/s', '/q', project_folder], shell=True, check=True)
-                    return JSONResponse({"status": "ok", "message": f"Project '{project_name}' was deleted successfully."})
+                    return JSONResponse({"status": "ok", "message": f"Project '{name}' was deleted successfully."})
                 except subprocess.CalledProcessError as e2:
                     return JSONResponse({"status": "error", "message": f"Error: {str(e2)}"})
             except Exception as e:
@@ -210,22 +221,23 @@ async def delete_project(request: Request):
 
 # Open a project
 @router.post("/select_project")
-async def select_project(request: Request):
-    body = await request.json()
-    project_name, key, folder_check = body.get('filename'), body.get('key'), body.get('folder_check')
+async def select_project(request: Request, user=Depends(functions.basic_auth)):
     try:
-        if key == 'getProjects': # List the projects that doesn't have a folder output
-            project = [p.name for p in os.scandir(PROJECT_STATIC_ROOT) if p.is_dir()]
-            project = [p for p in project if os.path.exists(os.path.join(PROJECT_STATIC_ROOT, p, folder_check))]
+        body = await request.json()
+        key, folder_check = body.get('key'), body.get('folder_check')
+        project_name = functions.project_definer(body.get('filename'), user)
+        if key == 'getProjects': # List the projects in a folder that contains the "folder_check"
+            project = [p.name for p in os.scandir(os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name))) if p.is_dir()]
+            project = [p for p in project if os.path.exists(os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, p, folder_check)))]
             data = sorted(project)
         elif key == 'getFiles': # List the files
-            project_folder = os.path.join(PROJECT_STATIC_ROOT, project_name)
-            hyd_folder = os.path.join(project_folder, "output", 'HYD')
-            waq_folder = os.path.join(project_folder, "output", 'WAQ')
+            project_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name))
+            hyd_folder = os.path.normpath(os.path.join(project_folder, "output", 'HYD'))
+            waq_folder = os.path.normpath(os.path.join(project_folder, "output", 'WAQ'))
             hyd_files, waq_files = [], []
             if os.path.exists(hyd_folder):
-                hyd_files = [f for f in os.listdir(hyd_folder) if f.endswith(".zarr")]
-                hyd_files = set([f.replace('_his.zarr', '').replace('_map.zarr', '') for f in hyd_files])
+                hyd_files = [f for f in os.listdir(hyd_folder) if f.endswith(".nc")]
+                hyd_files = set([f.replace('_his.nc', '').replace('_map.nc', '') for f in hyd_files])
             if os.path.exists(waq_folder):
                 waq_files = [f for f in os.listdir(waq_folder) if f.endswith(".json")]
                 waq_files = set([f.replace('.json', '') for f in waq_files])
@@ -241,7 +253,7 @@ async def select_project(request: Request):
 @router.post("/get_files")
 async def get_files():
     try:
-        path = os.path.join(STATIC_DIR_BACKEND, 'samples', 'sources')
+        path = os.path.normpath(os.path.join(STATIC_DIR_BACKEND, 'samples', 'sources'))
         files = [f for f in os.listdir(path) if f.endswith(".csv")]
         data = [f.replace('.csv', '') for f in files]
         status, message = 'ok', 'Files loaded successfully.'
@@ -252,11 +264,11 @@ async def get_files():
 # Get a list of sources from CSV file in sample folder
 @router.post("/get_source")
 async def get_source(request: Request):
-    body = await request.json()
-    filename = body.get('filename')
     try:
-        path = os.path.join(STATIC_DIR_BACKEND, 'samples', 'sources')
-        with open(os.path.join(path, f"{filename}.csv"), 'r') as f:
+        body = await request.json()
+        filename = body.get('filename')        
+        path = os.path.normpath(os.path.join(STATIC_DIR_BACKEND, 'samples', 'sources'))
+        with open(os.path.normpath(os.path.join(path, f"{filename}.csv")), 'r') as f:
             lines = f.readlines()
         first_row = lines[0].strip().split(',')
         latitude, longitude = first_row[0], first_row[1]
@@ -269,26 +281,26 @@ async def get_source(request: Request):
 
 # Save observations data to project
 @router.post("/save_obs")
-async def save_obs(request: Request):
-    body = await request.json()
-    project_name, file_name = body.get('projectName'), body.get('fileName')
-    data, key = body.get('data'), body.get('key')
-    path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
-    redis = request.app.state.redis
-    lock = redis.lock(f"{project_name}:save_obs:{file_name}", timeout=10)
-    def write_file(path, file_name, data, key):
-        with open(os.path.join(path, file_name), 'w', encoding="utf-8") as f:
-            if key == 'obs':
-                for line in data:
-                    f.write(f"{line[2]}  {line[1]}  '{line[0]}'\n")
-            elif key == 'crs':
-                name = file_name.replace('_crs.pli', '')
-                data = np.array(data)
-                f.write(f"{name}\n")
-                f.write(f"    {data.shape[0]}    2\n")
-                for line in data:
-                    f.write(f"{line[2]}  {line[1]}  {line[0]}\n")
+async def save_obs(request: Request, user=Depends(functions.basic_auth)):
     try:
+        body = await request.json()
+        project_name = functions.project_definer(body.get('projectName'), user)
+        data, key, file_name = body.get('data'), body.get('key'), body.get('fileName')
+        path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
+        redis = request.app.state.redis
+        lock = redis.lock(f"{project_name}:save_obs:{file_name}", timeout=10)
+        def write_file(path, file_name, data, key):
+            with open(os.path.normpath(os.path.join(path, file_name)), 'w', encoding="utf-8") as f:
+                if key == 'obs':
+                    for line in data:
+                        f.write(f"{line[2]}  {line[1]}  '{line[0]}'\n")
+                elif key == 'crs':
+                    name = file_name.replace('_crs.pli', '')
+                    data = np.array(data)
+                    f.write(f"{name}\n")
+                    f.write(f"    {data.shape[0]}    2\n")
+                    for line in data:
+                        f.write(f"{line[2]}  {line[1]}  {line[0]}\n")
         async with lock:
             await asyncio.to_thread(write_file, path, file_name, data, key)
             status, message = 'ok', 'Observations saved successfully.'
@@ -298,20 +310,20 @@ async def save_obs(request: Request):
 
 # Save source to CSV file
 @router.post("/save_source")
-async def save_source(request: Request):
-    body = await request.json()
-    project_name, source_name = body.get('projectName'), body.get('nameSource')
-    lat, lon, data = body.get('lat'), body.get('lon'), body.get('data')
-    redis = request.app.state.redis
-    lock = redis.lock(f"{project_name}:save_source:{source_name}", timeout=10)
-    path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
+async def save_source(request: Request, user=Depends(functions.basic_auth)):
     try:
+        body = await request.json()
+        project_name = functions.project_definer(body.get('projectName'), user)
+        lat, lon, data, source_name = body.get('lat'), body.get('lon'), body.get('data'), body.get('nameSource')
+        redis = request.app.state.redis
+        lock = redis.lock(f"{project_name}:save_source:{source_name}", timeout=10)
+        path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))        
         async with lock:
             os.makedirs(path, exist_ok=True)
             update_content = 'QUANTITY=discharge_salinity_temperature_sorsin\n' + \
                 f'FILENAME={source_name}.pli\n' + 'FILETYPE=9\n' + 'METHOD=1\n' + 'OPERAND=O\n' + 'AREA=1'
             # Write old format boundary file (*.ext)
-            ext_path = os.path.join(path, "FlowFM.ext")
+            ext_path = os.path.normpath(os.path.join(path, "FlowFM.ext"))
             if os.path.exists(ext_path):
                 with open(ext_path, encoding="utf-8") as f:
                     content = f.read()
@@ -330,17 +342,18 @@ async def save_source(request: Request):
             with open(ext_path, 'w', encoding="utf-8") as f:
                 f.write(new_content.strip() + "\n")
             # Write .pli file
-            pli_path = os.path.join(path, f"{source_name}.pli")
+            pli_path = os.path.normpath(os.path.join(path, f"{source_name}.pli"))
             with open(pli_path, 'w', encoding="utf-8") as f:
                 f.write(f'{source_name}\n')
                 f.write('    1    2\n')
                 f.write(f"{lon}  {lat}\n")
             # Write .tim file
-            tim_path = os.path.join(path, f"{source_name}.tim")
+            tim_path = os.path.normpath(os.path.join(path, f"{source_name}.tim"))
             with open(tim_path, 'w', encoding="utf-8") as f:
                 for row in data:
                     try: t = float(row[0])/(1000.0*60.0)
                     except Exception: t = 0
+                    t = int(t)
                     values = [str(t)] + [str(r) for r in row[1:]]
                     f.write('  '.join(values) + '\n')
             return JSONResponse({"status": 'ok', "message": f"Source '{source_name}' saved successfully."})
@@ -349,10 +362,10 @@ async def save_source(request: Request):
 
 # Get list of source from .ext file
 @router.post("/init_source")
-async def init_source(request: Request):
+async def init_source(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name, key = body.get('projectName'), body.get('key')
-    path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input", "FlowFM.ext")
+    project_name, key = functions.project_definer(body.get('projectName'), user), body.get('key')
+    path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input", "FlowFM.ext"))
     if os.path.exists(path):
         with open(path, encoding="utf-8") as f:
             content = f.read()
@@ -368,12 +381,12 @@ async def init_source(request: Request):
             item_remove = [p for p in lts if p not in check]
             if len(item_remove) > 0:
                 item_remove = item_remove[0]
-                temp_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
+                temp_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
                 for part in parts:
                     if item_remove in part:
                         parts.remove(part)
-                        pli_path = os.path.join(temp_path, f"{item_remove}.pli")
-                        tim_path = os.path.join(temp_path, f"{item_remove}.tim")
+                        pli_path = os.path.normpath(os.path.join(temp_path, f"{item_remove}.pli"))
+                        tim_path = os.path.normpath(os.path.join(temp_path, f"{item_remove}.tim"))
                         if os.path.exists(pli_path): os.remove(pli_path)
                         if os.path.exists(tim_path): os.remove(tim_path)
             with open(path, 'w', encoding="utf-8") as file:
@@ -391,9 +404,9 @@ async def init_source(request: Request):
 
 # Save meteo data to project
 @router.post("/save_meteo")
-async def save_meteo(request: Request):
+async def save_meteo(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name, data = body.get('projectName'), body.get('data')
+    project_name, data = functions.project_definer(body.get('projectName'), user), body.get('data')
     content = 'QUANTITY=humidity_airtemperature_cloudiness_solarradiation\n' + \
             'FILENAME=FlowFM_meteo.tim\n' + 'FILETYPE=1\n' + 'METHOD=1\n' + 'OPERAND=O'
     # Time difference in minutes
@@ -402,9 +415,9 @@ async def save_meteo(request: Request):
 
 # Save meteo data to project
 @router.post("/save_weather")
-async def save_weather(request: Request):
+async def save_weather(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name, data = body.get('projectName'), body.get('data')
+    project_name, data = functions.project_definer(body.get('projectName'), user), body.get('data')
     content = 'QUANTITY=windxy\n' + 'FILENAME=windxy.tim\n' + 'FILETYPE=2\n' + 'METHOD=1\n' + 'OPERAND=+'
     # Time difference in minutes
     status, message = functions.contentWriter(project_name, "windxy.tim", data, content, 'min')

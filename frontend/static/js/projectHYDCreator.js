@@ -1,11 +1,15 @@
 import { fillTable, getDataFromTable, addRowToTable, removeRowFromTable, deleteTable, copyPaste } from "./tableManager.js";
 import { csvUploader, mapPicker, renderProjects, pointUpdate, updateTable, plotTable, sendQuery } from "./tableManager.js";
 import { saveProject, timeStepCalculator } from "./projectSaver.js";
+import { getState } from "./constants.js";
+import { loadList } from "./utils.js";
 
 const sectionDescription = () => document.getElementById('desription-tab');
 const sectionTab = () => document.getElementById('parent-tab');
 const projects = () => document.getElementById("project-list");
+const projectName = () => document.getElementById('project-name');
 const projectCreator = () => document.getElementById('create-project-button');
+const projectRemover = () => document.getElementById('remove-project-button');
 const saveProjectBtn = () => document.getElementById('complete-button');
 const getLocation = () => document.getElementById('location-picker');
 const userTimestepDate = () => document.getElementById('user-time-step-date');
@@ -72,7 +76,6 @@ const statisticDate = () => document.getElementById('statistic-output-interval-d
 const statisticTime = () => document.getElementById('statistic-output-interval-time');
 const timingDate = () => document.getElementById('timing-statistic-output-interval-date');
 const timingTime = () => document.getElementById('timing-statistic-output-interval-time');
-const projectName = () => document.getElementById('project-name');
 const latitude = () => document.getElementById('latitude');
 const nLayers = () => document.getElementById('n-layer');
 const gridPath = () => document.getElementById('unstructured-grid');
@@ -194,8 +197,8 @@ function setupTabs(root) {
 }
 
 async function getProjectList(){
-    const data = await sendQuery('select_project', {filename: '', key: 'getProjects', folder_check: ''});
-    if (data.status === "ok") projectList = data.content;
+    const data = await loadList(getState().projectName, 'getProjects', 'input');
+    if (data.status === "ok") {projectList = data.content;} else {projectList = [];}
 }
 function sourceChange(target){
     const check = target.checked;
@@ -241,8 +244,8 @@ function updateOption(){
     csvUploader(meteoUpload(), meteoTable(), 5);
     csvUploader(weatherCSVUpload(), weatherTable(), 3);
     // Upload file to server
-    gridPath().addEventListener('change', () => {
-        fileUploader(gridPath(), projectName().value, 'FlowFM_net.nc')
+    gridPath().addEventListener('change', async() => {
+        await fileUploader(gridPath(), projectName().value, 'FlowFM_net.nc')
         window.parent.postMessage({type: 'showGrid', projectName: projectName().value, 
             gridName: 'FlowFM_net.nc', message: 'Uploading grid to project...'}, '*');
     });
@@ -304,7 +307,7 @@ function updateOption(){
         obsPointName().value = ''; obsPointLatitude().value = ''; obsPointLongitude().value = '';
     });
     // Add a new row to the table
-    obsPointAddRow().addEventListener('click', () => addRowToTable(obsPointTable(), ['PointName', 'PointLatitude', 'PointLongitude']));
+    obsPointAddRow().addEventListener('click', () => addRowToTable(obsPointTable(), ['Name', 'Latitude', 'Longitude']));
     boundaryAddRow().addEventListener('click', () => addRowToTable(boundaryEditTable(), ['YYYY-MM-DD HH:MM:SS', 'Value']));
     weatherAddRow().addEventListener('click', () => addRowToTable(weatherTable(), ['YYYY-MM-DD HH:MM:SS', 'Magnitude', 'Direction']));
 
@@ -315,7 +318,7 @@ function updateOption(){
     });
     // Event when user change radio button for observation points
     pointUpdate(document.getElementById('observation-point-new'), obsPointTable(),
-        false, ["PointName", "PointLatitude", "PointLongitude"]);
+        false, ["Name", "Latitude", "Longitude"]);
     pointUpdate(document.getElementById('observation-point-exist'), 
         obsPointTable(), true, [obsPointName(), obsPointLatitude(), obsPointLongitude()]);
     // Update observation point on map
@@ -351,8 +354,7 @@ function updateOption(){
         const content = {projectName: nameProject, boundaryName: nameBoundary, boundaryData: boundaryData.rows,
             subBoundaryName: subBoundary, boundaryType: boundaryType, subBoundaryData: subBoundaryData.rows}
         const data = await sendQuery('update_boundary', content);
-        alert(data.message);
-        boundarySelectorView().value = '';
+        alert(data.message); boundarySelectorView().value = '';
         boundaryViewContainer().style.display = 'none'; boundaryText().value = '';
     });
     // View boundary condition
@@ -502,13 +504,15 @@ function updateOption(){
             temperature, initWaterLevel, initSalinity, initTemperature , outputHis, hisInterval, hisStart, 
             hisStop, outputMap, mapInterval, mapStart, mapStop, outputWQ, wqInterval, wqStart, wqStop, 
             outputRestart, rtsInterval, rtsStart, rtsStop, sttInterval, timingInterval };
-        saveProject(elements); 
+        await saveProject(elements); 
     });
 }
 
-function initializeProject(){
+async function initializeProject(){
     // Update project name
-    projectName().addEventListener('click', () => {
+    projectName().addEventListener('click', async () => {
+        await getProjectList()
+        if (projectList.length === 0) return;
         if (projects().children.length === 0) {
             projectList.forEach(p => {
                 const li = document.createElement("li");
@@ -521,6 +525,7 @@ function initializeProject(){
         }
         projects().style.display = "block";
     });
+    
     projectName().addEventListener('input', (e) => { 
         const value = e.target.value.trim();
         if (value === '') {
@@ -535,14 +540,23 @@ function initializeProject(){
     // Create new project
     projectCreator().addEventListener('click', () => {
         const name = projectName().value.trim();
-        if (!name || name.trim() === '') { alert('Please define project name.'); return; }
+        if (!name || name.trim() === '') { alert('Please define scenario name.'); return; }
         window.parent.postMessage({type: 'projectPreparation', name: name}, '*')
         // Show tabs
         sectionTab().style.display = "block"; sectionDescription().style.display = "none";
         // Get source data if exist
         updateTable(sourceRemoveTable(), sourceSelectorRemove(), name);
     });
+    // Delete project
+    projectRemover().addEventListener('click', async () => {
+        // Ask for confirmation
+        if (!confirm('Are you sure you want to delete this scenario?')) { return; }
+        const name = projectName().value.trim();
+        if (!name || name.trim() === '') { alert('Please define scenario.'); return; }
+        const data = await sendQuery('delete_project', {projectName: name});
+        alert(data.message); projectList = []; projectName().value = ''; await getProjectList();
+    });
 }
 
-await getProjectList(); initializeProject();
+await getProjectList(); await initializeProject();
 setupTabs(document); updateOption();

@@ -126,10 +126,10 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
         The path to the config file for the water quality simulation.
     """
     try:
-        inp_path = os.path.join(output_folder, f'{parameters["folder_name"]}.inp')
-        sample_path = os.path.join(STATIC_DIR_BACKEND, 'samples', 'waq')
+        inp_path = os.path.normpath(os.path.join(output_folder, f'{parameters["folder_name"]}.inp'))
+        sample_path = os.path.normpath(os.path.join(STATIC_DIR_BACKEND, 'samples', 'waq'))
         params_INP, params_INC, model_type = {}, {}, {"model_type": key}
-        grid_path = os.path.join(os.path.dirname(parameters['hyd_path']), 'FlowFM_waqgeom.nc')
+        grid_path = os.path.normpath(os.path.join(os.path.dirname(parameters['hyd_path']), 'FlowFM_waqgeom.nc'))
         data = xr.open_dataset(grid_path, chunks={'time': 1}, decode_times=False)
         grid = functions.unstructuredGridCreator(data)
         data.close()
@@ -160,7 +160,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
             f'{start} {stop} {parameters["t_step2"]} ;  start, stop and step for his output'
         ]
         # Prepare for the config file B3_ugrid
-        ugrid_path = os.path.join(os.path.dirname(parameters['hyd_path']), 'FlowFM_waqgeom.nc')
+        ugrid_path = os.path.normpath(os.path.join(os.path.dirname(parameters['hyd_path']), 'FlowFM_waqgeom.nc'))
         temp_ugrid = ugrid_path.replace(os.sep, "/")
         params_INC['B3_ugrid'] = f"UGRID '{temp_ugrid}'"
         # Prepare for the config file B3_nrofseg
@@ -212,7 +212,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
         for load in n_loads:
             params_INC['B6_loads_aliases'].append(f"USEDATA_ITEM '{load[0]}' FORITEM\n'{load[0]}'")
         # Prepare for the config file B6_loads_data
-        tbl_path = os.path.join(output_folder, 'includes_deltashell', 'load_data_tables', f'{parameters["folder_name"]}.tbl')
+        tbl_path = os.path.normpath(os.path.join(output_folder, 'includes_deltashell', 'load_data_tables', f'{parameters["folder_name"]}.tbl'))
         temp_btl = tbl_path.replace(os.sep, "/")
         params_INC['B6_loads_data'] = f"INCLUDE '{temp_btl}'"
         # Prepare for the config file B7_functions, B7_dispersion
@@ -248,7 +248,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
         # *************************** Simple oxygen model ***************************
         if key == 'simple-oxygen':
             # Get data for B1_sublist variable
-            with open(os.path.join(sample_path, 'B1_simple_oxygen.inc'), 'r') as f:
+            with open(os.path.normpath(os.path.join(sample_path, 'B1_simple_oxygen.inc')), 'r') as f:
                 params_INC['B1_sublist'] = f.read()
             # Prepare for the config file B7_processes
             params_INC['B7_processes'], processes = [], ['Nitrif_NH4', 'BODCOD', 'RearOXY', 'SedOXYDem', 'PosOXY',
@@ -275,7 +275,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
         # *************************** Tracer metals model ***************************
         elif key == 'tracer-metals':
             # Get data for B1_sublist variable
-            with open(os.path.join(sample_path, 'B1_tracer_metals.inc'), 'r') as f:
+            with open(os.path.normpath(os.path.join(sample_path, 'B1_tracer_metals.inc')), 'r') as f:
                 params_INC['B1_sublist'] = f.read()
             # Prepare for the config file B7_processes
             params_INC['B7_processes'], processes = [], ['HydDuflow', 'Metal']
@@ -314,7 +314,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
                 params_INC['B9_Mapvar'].append(f"'{item}'")
         elif key == 'oxygen-bod-water':
             # Get data for B1_sublist variable
-            with open(os.path.join(sample_path, 'B1_bod_water.inc'), 'r') as f:
+            with open(os.path.normpath(os.path.join(sample_path, 'B1_bod_water.inc')), 'r') as f:
                 params_INC['B1_sublist'] = f.read()
             # Prepare for the config file B7_processes
             params_INC['B7_processes'], processes = [], ['RearOXY', 'BODCOD', 'DynDepth', 'SaturOXY', 'TotDepth', 'Veloc']
@@ -339,7 +339,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
                 params_INC['B9_Mapvar'].append(f"'{item}'")
         elif key == 'cadmium':
             # Get data for B1_sublist variable
-            with open(os.path.join(sample_path, 'B1_cadmium.inc'), 'r') as f:
+            with open(os.path.normpath(os.path.join(sample_path, 'B1_cadmium.inc')), 'r') as f:
                 params_INC['B1_sublist'] = f.read()
             # Prepare for the config file B7_processes
             params_INC['B7_processes'], processes = [], ['Compos', 'Sed_IM1', 'S12TraIM1', 'S1_Comp', 'Sed_Cd', 'S12TraCd', 'CalTau', 'DynDepth',
@@ -362,7 +362,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
                 params_INC['B9_Mapvar'].append(f"'{item}'")
         elif key == 'eutrophication':
             # Get data for B1_sublist variable
-            with open(os.path.join(sample_path, 'B1_eu_1a.inc'), 'r') as f:
+            with open(os.path.normpath(os.path.join(sample_path, 'B1_eu_1a.inc')), 'r') as f:
                 params_INC['B1_sublist'] = f.read()
             # Prepare for the config file B7_processes
             params_INC['B7_processes'], processes = [], ['HydDuflow', 'Eutr1a']
@@ -387,7 +387,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
                 params_INC['B9_Mapvar'].append(f"'{item}'")
         elif key == 'conservative-tracers':
             # Get data for B1_sublist variable
-            with open(os.path.join(sample_path, 'B1_conservative.inc'), 'r') as f:
+            with open(os.path.normpath(os.path.join(sample_path, 'B1_conservative.inc')), 'r') as f:
                 params_INC['B1_sublist'] = f.read()
             # Prepare for the config file B7_processes
             params_INC['B7_processes'], processes = [], ['Age1', 'Age2', 'Age3']
@@ -409,7 +409,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
                 params_INC['B9_Mapvar'].append(f"'{item}'")
         elif key == 'suspend-sediment':
             # Get data for B1_sublist variable
-            with open(os.path.join(sample_path, 'B1_suspend_sediment.inc'), 'r') as f:
+            with open(os.path.normpath(os.path.join(sample_path, 'B1_suspend_sediment.inc')), 'r') as f:
                 params_INC['B1_sublist'] = f.read()
             # Prepare for the config file B7_processes
             params_INC['B7_processes'], processes = [], ['Compos', 'Sed_IM1', 'S12TraIM1', 'S1_Comp', 'Sed_IM2',
@@ -432,7 +432,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
                 params_INC['B9_Mapvar'].append(f"'{item}'")
         elif key == 'coliform':
             # Get data for B1_sublist variable
-            with open(os.path.join(sample_path, 'B1_coliform.inc'), 'r') as f:
+            with open(os.path.normpath(os.path.join(sample_path, 'B1_coliform.inc')), 'r') as f:
                 params_INC['B1_sublist'] = f.read()
             # Prepare for the config file B7_processes
             params_INC['B7_processes'], processes = [], ['EColiMrt', 'Salinchlor', 'CalcRadDay', 'DynDepth']
@@ -457,129 +457,129 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
         # Write .inc files
         # ######################## Block 1 ########################
         # Write file B1_t0.inc
-        with open(os.path.join(includes_folder, 'B1_t0.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B1_t0.inc')), 'w', encoding='utf-8') as f:
             f.write(f"'T0: {params_INC['t0']}  (scu= {params_INC['t0_scu']:7d}s)'")
         # Write file B1_sublist.inc
-        with open(os.path.join(includes_folder, 'B1_sublist.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B1_sublist.inc')), 'w', encoding='utf-8') as f:
             f.write(params_INC['B1_sublist'])
         
         # ######################## Block 2 ########################
         # Write file B2_numsettings.inc
-        with open(os.path.join(includes_folder, 'B2_numsettings.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B2_numsettings.inc')), 'w', encoding='utf-8') as f:
             f.write(params_INC['B2_numsettings'])
         # Write file B2_simtimers.inc
-        with open(os.path.join(includes_folder, 'B2_simtimers.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B2_simtimers.inc')), 'w', encoding='utf-8') as f:
             f.write('\n'.join(params_INC['B2_simtimers']))
         # Write file B2_outlocs.inc
-        with open(os.path.join(includes_folder, 'B2_outlocs.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B2_outlocs.inc')), 'w', encoding='utf-8') as f:
             f.write(params_INC['B2_outlocs'])
         # Write file B2_outputtimers.inc
-        with open(os.path.join(includes_folder, 'B2_outputtimers.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B2_outputtimers.inc')), 'w', encoding='utf-8') as f:
             f.write('\n'.join(params_INC['B2_outputtimers']))
         
         # ######################## Block 3 ########################
         # Write file B3_ugrid.inc
-        with open(os.path.join(includes_folder, 'B3_ugrid.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B3_ugrid.inc')), 'w', encoding='utf-8') as f:
             f.write(params_INC['B3_ugrid'])
         # Write file B3_nrofseg.inc
-        with open(os.path.join(includes_folder, 'B3_nrofseg.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B3_nrofseg.inc')), 'w', encoding='utf-8') as f:
             f.write(params_INC['B3_nrofseg'])
         # Write file B3_attributes.inc
-        with open(os.path.join(includes_folder, 'B3_attributes.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B3_attributes.inc')), 'w', encoding='utf-8') as f:
             f.write(params_INC['B3_attributes'])
         # Write file B3_volumes.inc
-        with open(os.path.join(includes_folder, 'B3_volumes.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B3_volumes.inc')), 'w', encoding='utf-8') as f:
             f.write(params_INC['B3_volumes'])
 
         # ######################## Block 4 ########################
         # Write file B4_nrofexch.inc
-        with open(os.path.join(includes_folder, 'B4_nrofexch.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B4_nrofexch.inc')), 'w', encoding='utf-8') as f:
             f.write(params_INC['B4_nrofexch'])
         # Write file B4_pointers.inc
-        with open(os.path.join(includes_folder, 'B4_pointers.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B4_pointers.inc')), 'w', encoding='utf-8') as f:
             f.write(params_INC['B4_pointers'])
         # Write file B4_cdispersion.inc
-        with open(os.path.join(includes_folder, 'B4_cdispersion.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B4_cdispersion.inc')), 'w', encoding='utf-8') as f:
             f.write(params_INC['B4_cdispersion'])
         # Write file B4_area.inc
-        with open(os.path.join(includes_folder, 'B4_area.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B4_area.inc')), 'w', encoding='utf-8') as f:
             f.write(params_INC['B4_area'])
         # Write file B4_flows.inc
-        with open(os.path.join(includes_folder, 'B4_flows.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B4_flows.inc')), 'w', encoding='utf-8') as f:
             f.write(params_INC['B4_flows'])
         # Write file B4_length.inc
-        with open(os.path.join(includes_folder, 'B4_length.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B4_length.inc')), 'w', encoding='utf-8') as f:
             f.write(params_INC['B4_length'])
 
         # ######################## Block 5 ########################
         # Write file B5_boundlist.inc
-        with open(os.path.join(includes_folder, 'B5_boundlist.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B5_boundlist.inc')), 'w', encoding='utf-8') as f:
             f.write('\n'.join(params_INC['B5_boundlist']))
         # Write file B5_boundaliases.inc
-        with open(os.path.join(includes_folder, 'B5_boundaliases.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B5_boundaliases.inc')), 'w', encoding='utf-8') as f:
             f.write(params_INC['B5_boundaliases'])
         # Write file B5_bounddata.inc
-        with open(os.path.join(includes_folder, 'B5_bounddata.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B5_bounddata.inc')), 'w', encoding='utf-8') as f:
             f.write(params_INC['B5_bounddata'])
         
         # ######################## Block 6 ########################
         # Write file B6_loads.inc
-        with open(os.path.join(includes_folder, 'B6_loads.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B6_loads.inc')), 'w', encoding='utf-8') as f:
             f.write('\n'.join(params_INC['B6_loads']))
         # Write file B6_loads_aliases.inc
-        with open(os.path.join(includes_folder, 'B6_loads_aliases.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B6_loads_aliases.inc')), 'w', encoding='utf-8') as f:
             f.write('\n'.join(params_INC['B6_loads_aliases']))
         # Write file B6_loads_data.inc
-        with open(os.path.join(includes_folder, 'B6_loads_data.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B6_loads_data.inc')), 'w', encoding='utf-8') as f:
             f.write(params_INC['B6_loads_data'])
 
         # ######################## Block 7 ########################
         # Write file B7_processes.inc
-        with open(os.path.join(includes_folder, 'B7_processes.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B7_processes.inc')), 'w', encoding='utf-8') as f:
             f.write('\n'.join(params_INC['B7_processes']))
         # Write file B7_constants.inc
-        with open(os.path.join(includes_folder, 'B7_constants.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B7_constants.inc')), 'w', encoding='utf-8') as f:
             f.write('\n'.join(params_INC['B7_constants']))
         # Write file B7_functions.inc
-        with open(os.path.join(includes_folder, 'B7_functions.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B7_functions.inc')), 'w', encoding='utf-8') as f:
             f.write(params_INC['B7_functions'])
         # Write file B7_parameters.inc
-        with open(os.path.join(includes_folder, 'B7_parameters.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B7_parameters.inc')), 'w', encoding='utf-8') as f:
             f.write(params_INC['B7_parameters'])
         # Write file B7_dispersion.inc
-        with open(os.path.join(includes_folder, 'B7_dispersion.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B7_dispersion.inc')), 'w', encoding='utf-8') as f:
             f.write(params_INC['B7_dispersion'])
         # Write file B7_vdiffusion.inc
-        with open(os.path.join(includes_folder, 'B7_vdiffusion.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B7_vdiffusion.inc')), 'w', encoding='utf-8') as f:
             f.write('\n'.join(params_INC['B7_vdiffusion']))
         # Write file B7_segfunctions.inc
-        with open(os.path.join(includes_folder, 'B7_segfunctions.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B7_segfunctions.inc')), 'w', encoding='utf-8') as f:
             f.write('\n'.join(params_INC['B7_segfunctions']))
         # Write file B7_numerical_options.inc
-        with open(os.path.join(includes_folder, 'B7_numerical_options.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B7_numerical_options.inc')), 'w', encoding='utf-8') as f:
             f.write('\n'.join(params_INC['B7_numerical_options']))
 
         # ######################## Block 8 ########################
         # Write file B8_initials.inc
-        with open(os.path.join(includes_folder, 'B8_initials.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B8_initials.inc')), 'w', encoding='utf-8') as f:
             f.write('\n'.join(params_INC['B8_initials']))
 
         # ######################## Block 9 ########################
         # Write file B9_Hisvar.inc
-        with open(os.path.join(includes_folder, 'B9_Hisvar.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B9_Hisvar.inc')), 'w', encoding='utf-8') as f:
             f.write('\n'.join(params_INC['B9_Hisvar']))
         # Write file B9_Mapvar.inc
-        with open(os.path.join(includes_folder, 'B9_Mapvar.inc'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(includes_folder, 'B9_Mapvar.inc')), 'w', encoding='utf-8') as f:
             f.write('\n'.join(params_INC['B9_Mapvar']))
 
         # Write file .inp
         time_step = int(86400/params_INC['t0_scu'])
         params_INP['time_step'] = time_step
         # Open the file and read its contents
-        with open(os.path.join(sample_path, 'INPFile.inp'), 'r') as file:
+        with open(os.path.normpath(os.path.join(sample_path, 'INPFile.inp')), 'r') as file:
             content_inp = file.read()
         # Write file to store model type
-        with open(os.path.join(output_folder, f'{parameters["folder_name"]}.json'), 'w', encoding='utf-8') as f:
+        with open(os.path.normpath(os.path.join(output_folder, f'{parameters["folder_name"]}.json')), 'w', encoding='utf-8') as f:
             json.dump(model_type, f, indent=4)
         # Replace placeholders with actual values
         for key, value in params_INP.items():

@@ -1,12 +1,11 @@
 import os, subprocess, threading, asyncio, re, requests
 from Functions import functions
-from fastapi import APIRouter, Request, WebSocket
+from fastapi import APIRouter, Request, WebSocket, Depends
 from fastapi.responses import JSONResponse
 from config import PROJECT_STATIC_ROOT, DELFT_PATH, WINDOWS_AGENT_URL
 from starlette.websockets import WebSocketDisconnect
 
-router = APIRouter()
-processes = {}
+router, processes = APIRouter(), {}
 
 # Utility: append to file log
 def append_log(log_path, text):
@@ -15,21 +14,22 @@ def append_log(log_path, text):
         f.write(text + "\n")
 
 @router.post("/check_folder")
-async def check_folder(request: Request):
+async def check_folder(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name, folder = body.get('projectName'), body.get('folder', [])
+    project_name = functions.project_definer(body.get('projectName'), user)
+    folder = body.get('folder', [])
     if isinstance(folder, str): folder = [folder]
-    path = os.path.join(PROJECT_STATIC_ROOT, project_name, *folder)
+    path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, *folder))
     status = 'ok' if os.path.exists(path) else 'error'
     return JSONResponse({"status": status})
 
 # Check if simulation is running
 @router.post("/check_sim_status_hyd")
-async def check_sim_status_hyd(request: Request):
+async def check_sim_status_hyd(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name = body.get("projectName")
+    project_name = functions.project_definer(body.get('projectName'), user)
     info = processes.get(project_name)
-    log_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt")
+    log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt"))
     if info:
         # Read log file
         logs = []
@@ -47,20 +47,20 @@ async def check_sim_status_hyd(request: Request):
 
 # Start a hydrodynamic simulation
 @router.post("/start_sim_hyd")
-async def start_sim_hyd(request: Request):
+async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name = body.get("projectName")
+    project_name = functions.project_definer(body.get('projectName'), user)
     # Check if simulation already running
     if project_name in processes and processes[project_name]["status"] == "running":
         return JSONResponse({"status": "error", "message": "Simulation is already running."})
-    path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
-    mdu_path = os.path.join(path, "FlowFM.mdu")
-    bat_path = os.path.join(DELFT_PATH, "dflowfm/scripts/run_dflowfm.bat")
+    path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
+    mdu_path = os.path.normpath(os.path.join(path, "FlowFM.mdu"))
+    bat_path = os.path.normpath(os.path.join(DELFT_PATH, "dflowfm/scripts/run_dflowfm.bat"))
     # Check if file exists
     if not os.path.exists(mdu_path): return JSONResponse({"status": "error", "message": "MDU file not found."})
     if not os.path.exists(bat_path): return JSONResponse({"status": "error", "message": "Executable file not found."})
     # Remove old log
-    log_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt")
+    log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt"))
     if os.path.exists(log_path): os.remove(log_path)
     percent_re = re.compile(r'(?P<percent>\d{1,3}(?:\.\d+)?)\s*%')
     time_re = re.compile(r'(?P<tt>\d+d\s+\d{1,2}:\d{2}:\d{2})')
@@ -82,7 +82,7 @@ async def start_sim_hyd(request: Request):
                     if not line: continue
                     append_log(log_path, line)
                     # Catch error messages
-                    if "forrtl:" in line.lower():
+                    if "forrtl:" in line.lower() or "error" in line.lower():
                         processes[project_name]["status"] = "error"
                         append_log(log_path, f"[ERROR] {line}")
                         try: process.kill()
@@ -103,9 +103,10 @@ async def start_sim_hyd(request: Request):
                 process.wait()
                 status = processes[project_name]["status"]
                 if status != "error":
-                    processes[project_name]["status"] = "finished"
                     try:
+                        processes[project_name]["status"] = "postprocessing"
                         post_result = functions.postProcess(path)
+                        processes[project_name]["status"] = "finished"
                         msg = f"[FINISHED] {post_result['message']}" if post_result["status"] == "ok" else f"[ERROR] {post_result['message']}"
                         append_log(log_path, msg)
                     except Exception as e: append_log(log_path, f"[POSTPROCESS FAILED] {str(e)}")
@@ -114,9 +115,9 @@ async def start_sim_hyd(request: Request):
         threading.Thread(target=stream_logs, daemon=True).start()
         return JSONResponse({"status": "ok", "message": f"Simulation {project_name} started on Windows host."})
     else: # Run the process on docker
-        payload = {"action": "run_hyd", "bat_path": bat_path, "mdu_path": mdu_path, "project_name": project_name, 
-                   "log_path": log_path, "cwd_path": path, "percent_re": str(percent_re), "time_re": str(time_re)}
         try:
+            payload = {"action": "run_hyd", "bat_path": bat_path, "mdu_path": mdu_path, "project_name": project_name, 
+                   "log_path": log_path, "cwd_path": path, "percent_re": str(percent_re), "time_re": str(time_re)}
             res = requests.post(WINDOWS_AGENT_URL, json=payload, timeout=10)
             res.raise_for_status()
             return JSONResponse({"status": "ok", "message": f"Simulation {project_name} started (via Windows Agent)."})
@@ -125,10 +126,16 @@ async def start_sim_hyd(request: Request):
 
 @router.websocket("/sim_progress_hyd/{project_name}")
 async def sim_progress_hyd(websocket: WebSocket, project_name: str):
-    await websocket.accept()
-    log_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt")
-    last_pos = 0
     try:
+        await websocket.accept()
+        auth_header = websocket.headers.get("authorization")
+        user = functions.basic_auth_ws(auth_header)
+        if not user:
+            await websocket.send_text("[ERROR] Unauthorized")
+            await websocket.close(code=1008)
+            return
+        project_name = functions.project_definer(project_name, user)
+        log_path, last_pos = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt")), 0        
         while True:
             info = processes.get(project_name)
             if not info:
@@ -143,7 +150,8 @@ async def sim_progress_hyd(websocket: WebSocket, project_name: str):
                     last_pos = f.tell()
             # Send progress to the client if it has changed
             await websocket.send_text(f"[PROGRESS] {info['progress']:.2f}|{info['real_time_used']}|{info['real_time_left']}")
-            if info["status"] != "running":
+            if info["status"] == "postprocessing": await websocket.send_text(f"[POSTPROCESS] Reorganizing outputs. Please wait...")
+            if info["status"] == "finished":
                 await websocket.send_text(f"[FINISHED] Simulation {info['status']}.")
                 break
             await asyncio.sleep(1)

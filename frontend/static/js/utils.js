@@ -268,3 +268,12 @@ export async function initOptions(comboBox, key) {
     } catch (error) {alert(error);}
     showLeafletMap();
 }
+
+export async function loadList(fileName, key, folder_check = '') {
+    const response = await fetch('/select_project', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({filename: fileName, key: key, folder_check: folder_check})});
+    const data = await response.json();
+    if (data.status === "error") { alert(data.message); return null; }
+    return data;
+}

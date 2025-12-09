@@ -1,15 +1,52 @@
-import shapely, os, re, shutil, stat, asyncio, base64
+import shapely, os, re, shutil, stat, json, asyncio, base64, time
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
 from scipy.interpolate import Rbf
-from config import PROJECT_STATIC_ROOT
+from config import PROJECT_STATIC_ROOT, ALLOWED_USERS_PATH
 from redis.asyncio.lock import Lock
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi import Depends, HTTPException, status
+from zarr.convenience import consolidate_metadata
+
+security = HTTPBasic()
+ALLOWED_USERS = json.load(open(ALLOWED_USERS_PATH))
+
+def basic_auth(credentials: HTTPBasicCredentials=Depends(security)):
+    username, password = credentials.username, credentials.password
+    if username not in ALLOWED_USERS or ALLOWED_USERS[username] != password:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authorized", headers={"WWW-Authenticate": "Basic"}
+        )
+    return username
+
+def basic_auth_ws(auth_header: str):
+    if not auth_header or not auth_header.startswith("Basic "): return None
+    token = auth_header.split(" ")[1]
+    try:
+        decoded = base64.b64decode(token).decode("utf-8")
+        username, password = decoded.split(":", 1)
+    except Exception: return None
+    if username not in ALLOWED_USERS or ALLOWED_USERS[username] != password: return None
+    return username
+
+def project_definer(old_name, username='admin'):
+    return f'{username}/{old_name}' if username!='admin' else 'demo'
 
 def remove_readonly(func, path, excinfo):
     # Change the readonly bit, but not the file contents
     os.chmod(path, stat.S_IWRITE)
     func(path)
+
+def safe_remove(path, retries=10, delay=1):
+    for _ in range(retries):
+        try:
+            os.remove(path)
+            return
+        except PermissionError:
+            time.sleep(delay)
+    raise Exception(f"Cannot delete file: {path}")
 
 async def auto_extend(lock: Lock, interval: int = 10):
     """
@@ -67,9 +104,8 @@ async def load_dataset_cached(project_cache, key, dm, dir_path, filename):
     """
     Load dataset from DatasetManager once per project and cache in memory.
     """
-    if key in project_cache: return project_cache[key]
-    if not filename: return None
-    path = os.path.join(dir_path, filename)
+    if project_cache is None or not filename: return None
+    path = os.path.normpath(os.path.join(dir_path, filename))
     if not os.path.exists(path): return None
     ds = dm.get(path)
     project_cache[key] = ds
@@ -195,7 +231,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
     Parameters:
     ----------
     Out_files: list
-        The list of the *.zarr files (in xr.Dataset format).
+        The list of the *.nc files (in xr.Dataset format).
     model_type: str
         The type of the model used.
 
@@ -367,7 +403,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                 for item in variables:
                     if checkVariables(data, item): result['waq_his_coliform_selector'].append(units[item] if item in units.keys() else item)
                 result['waq_his_coliform'] = True if len(result['waq_his_coliform_selector']) > 0 else False
-                result['wq_his'] = result['waq_his_coliform']
+                result['waq_his'] = result['waq_his_coliform']
         # This is a water quality map file      
         elif ('nTimesDlwq' in data.sizes and any(k in data.sizes for k in ['mesh2d_nNodes', 'mesh2d_nEdges'])):
             print(f'- Checking Water Quality Simulation: Map file...')
@@ -385,6 +421,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                         elements_check = {x[0] for x in result['waq_map_conservative_selector']}
                         if item1 not in elements_check:
                             result['waq_map_conservative_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
+                result['waq_map_conservative_selector'] = list(dict.fromkeys(result['waq_map_conservative_selector']))
                 if len(result['waq_map_conservative_selector']) > 0:
                     result['wq_map'] = result['waq_map_conservative_decay'] = result['thermocline_waq'] = True              
             # 2. Suspended Sediment
@@ -396,6 +433,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                         elements_check = {x[0] for x in result['waq_map_suspended_sediment_selector']}
                         if item1 not in elements_check:
                             result['waq_map_suspended_sediment_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
+                result['waq_map_suspended_sediment_selector'] = list(dict.fromkeys(result['waq_map_suspended_sediment_selector']))
                 if len(result['waq_map_suspended_sediment_selector']) > 0:
                     result['wq_map'] = result['waq_map_suspended_sediment'] = result['thermocline_waq'] = True
             # Prepare data for Chemical option
@@ -408,6 +446,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                         elements_check = {x[0] for x in result['waq_map_simple_oxygen_selector']}
                         if item1 not in elements_check:
                             result['waq_map_simple_oxygen_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
+                result['waq_map_simple_oxygen_selector'] = list(dict.fromkeys(result['waq_map_simple_oxygen_selector']))
                 if len(result['waq_map_simple_oxygen_selector']) > 0:
                     result['wq_map'] = result['waq_map_simple_oxygen'] = result['thermocline_waq'] = True
             # 2. Oxygen and BOD (water phase only)
@@ -419,6 +458,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                         elements_check = {x[0] for x in result['waq_map_oxygen_bod_selector']}
                         if item1 not in elements_check:
                             result['waq_map_oxygen_bod_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
+                result['waq_map_oxygen_bod_selector'] = list(dict.fromkeys(result['waq_map_oxygen_bod_selector']))
                 if len(result['waq_map_oxygen_bod_selector']) > 0:  
                     result['wq_map'] = result['waq_map_oxygen_bod'] = result['thermocline_waq'] = True
             # 3. Cadmium
@@ -430,6 +470,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                         elements_check = {x[0] for x in result['waq_map_cadmium_selector']}
                         if item1 not in elements_check:
                             result['waq_map_cadmium_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
+                result['waq_map_cadmium_selector'] = list(dict.fromkeys(result['waq_map_cadmium_selector']))
                 if len(result['waq_map_cadmium_selector']) > 0:
                     result['wq_map'] = result['waq_map_cadmium'] = result['thermocline_waq'] = True
             # 4. Eutrophication
@@ -441,6 +482,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                         elements_check = {x[0] for x in result['waq_map_eutrophication_selector']}
                         if item1 not in elements_check:
                             result['waq_map_eutrophication_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
+                result['waq_map_eutrophication_selector'] = list(dict.fromkeys(result['waq_map_eutrophication_selector']))
                 if len(result['waq_map_eutrophication_selector']) > 0:
                     result['wq_map'] = result['waq_map_eutrophication'] = result['thermocline_waq'] = True
             # 5. Trace Metals
@@ -452,6 +494,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                         elements_check = {x[0] for x in result['waq_map_trace_metals_selector']}
                         if item1 not in elements_check:
                             result['waq_map_trace_metals_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
+                result['waq_map_trace_metals_selector'] = list(dict.fromkeys(result['waq_map_trace_metals_selector']))
                 if len(result['waq_map_trace_metals_selector']) > 0:
                     result['wq_map'] = result['waq_map_trace_metals'] = result['thermocline_waq'] = True
             # Prepare data for Microbial option
@@ -463,6 +506,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                         elements_check = {x for x in result['waq_map_coliform_selector']}
                         if item1 not in elements_check:
                             result['waq_map_coliform_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
+                result['waq_map_coliform_selector'] = list(dict.fromkeys(result['waq_map_coliform_selector']))
                 if len(result['waq_map_coliform_selector']) > 0:
                     result['wq_map'] = result['waq_map_coliform'] = result['thermocline_waq'] = True
             result['spatial_map'] = result['single_layer'] = result['multi_layer'] = result['wq_map']
@@ -537,7 +581,7 @@ def getSummary(dialog_path: str, Out_files: list) -> list:
     dialog_path: str
         The path of the dialog *.dia file.
     Out_files: list
-        List of _his.zarr files.
+        List of _his.nc files.
 
     Returns:
     -------
@@ -1018,16 +1062,16 @@ def contentWriter(project_name: str, filename: str, data: list, content: str, un
         The status and message
     """
     try:
-        path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
+        path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
         # Write weather.tim file
-        with open(os.path.join(path, filename), 'w') as f:
+        with open(os.path.normpath(os.path.join(path, filename)), 'w') as f:
             for row in data:
                 if unit == 'sec': row[0] = int(row[0]/1000)
                 elif unit == 'min': row[0] = int(row[0]/(1000*60))
                 temp = '  '.join([str(r) for r in row])
                 f.write(f"{temp}\n")
         # Add weather data to FlowFM.ext file
-        ext_path = os.path.join(path, "FlowFM.ext")
+        ext_path = os.path.normpath(os.path.join(path, "FlowFM.ext"))
         if os.path.exists(ext_path):
             with open(ext_path, encoding="utf-8") as f:
                 update_content = f.read()
@@ -1043,7 +1087,7 @@ def contentWriter(project_name: str, filename: str, data: list, content: str, un
         else:
             with open(ext_path, 'w') as f:
                 f.write(f"\n{content}\n")
-        status, message = 'ok', f"\n\nData is saved successfully."
+        status, message = 'ok', "Data is saved successfully."
     except Exception as e:
         status, message = 'error', f"Error: {str(e)}"
     return status, message
@@ -1064,41 +1108,47 @@ def postProcess(directory: str) -> dict:
     """
     try:
         parent_path = os.path.dirname(directory)
-        output_folder = os.path.join(parent_path, 'output')
-        os.makedirs(output_folder, exist_ok=True) if not os.path.exists(output_folder) else shutil.rmtree(output_folder, onexc=remove_readonly)
-        output_HYD_path = os.path.join(output_folder, 'HYD')
+        output_folder = os.path.normpath(os.path.join(parent_path, 'output'))
+        os.makedirs(output_folder, exist_ok=True)
+        output_HYD_path = os.path.normpath(os.path.join(output_folder, 'HYD'))
         # Create the directory output_HYD_path
-        if os.path.exists(output_HYD_path): shutil.rmtree(output_HYD_path, onexc=remove_readonly)
+        if os.path.exists(output_HYD_path): shutil.rmtree(output_HYD_path, onerror=remove_readonly)
         os.makedirs(output_HYD_path, exist_ok=True)
-        subdirs = [d for d in os.listdir(directory) if os.path.isdir(os.path.join(directory, d))]
-        if not subdirs: return {'status': 'error', 'message': 'No simulation output folders found.'}
+        subdirs = [d for d in os.listdir(directory) if os.path.isdir(os.path.normpath(os.path.join(directory, d)))]
+        if not subdirs: return {'status': 'error', 'message': f'No simulation output folders found: {subdirs}.'}
         # Copy folder DFM_DELWAQ to the parent directory
-        DFM_DELWAQ_from = os.path.join(directory, 'DFM_DELWAQ')
-        DFM_DELWAQ_to = os.path.join(parent_path, 'DFM_DELWAQ')
-        if os.path.exists(DFM_DELWAQ_to): shutil.rmtree(DFM_DELWAQ_to, onexc=remove_readonly)
+        DFM_DELWAQ_from = os.path.normpath(os.path.join(directory, 'DFM_DELWAQ'))
+        DFM_DELWAQ_to = os.path.normpath(os.path.join(parent_path, 'DFM_DELWAQ'))
+        if os.path.exists(DFM_DELWAQ_to): shutil.rmtree(DFM_DELWAQ_to, onerror=remove_readonly)
         if os.path.exists(DFM_DELWAQ_from):
             shutil.copytree(DFM_DELWAQ_from, DFM_DELWAQ_to)
-            shutil.rmtree(DFM_DELWAQ_from, onexc=remove_readonly)
+            shutil.rmtree(DFM_DELWAQ_from, onerror=remove_readonly)
         # Copy files to the directory output
-        DFM_OUTPUT_folder = os.path.join(directory, 'DFM_OUTPUT')
+        DFM_OUTPUT_folder = os.path.normpath(os.path.join(directory, 'DFM_OUTPUT'))
         if not os.path.exists(DFM_OUTPUT_folder):
             return {'status': 'error', 'message': 'No output folder found.'}
         select_files = ['FlowFM.dia', 'FlowFM_his.nc', 'FlowFM_map.nc']
-        found_files = [f for f in os.listdir(DFM_OUTPUT_folder) 
-                       if (os.path.isfile(os.path.join(DFM_OUTPUT_folder, f)) and f in select_files)]
-        if not found_files: return {'status': 'error', 'message': 'No required files found in the output folder.'}
-        # Convert .nc files to .zarr and save to output_HYD_path
+        found_files = [f for f in os.listdir(DFM_OUTPUT_folder) if f in select_files]
+        if len(found_files) == 0: return {'status': 'error', 'message': 'No required files found in the output folder.'}
+        # Copy and Remove the outputs
         for f in found_files:
-            if f.endswith('.nc'):
-                ds = xr.open_dataset(os.path.join(DFM_OUTPUT_folder, f), chunks={'time': 1})
-                zarr_path = os.path.join(output_HYD_path, f.replace('.nc', '.zarr'))
-                ds.to_zarr(zarr_path, mode='w', consolidated=True)
-                ds.close()
-            else: shutil.copy(os.path.join(DFM_OUTPUT_folder, f), output_HYD_path)
+            src = os.path.normpath(os.path.join(DFM_OUTPUT_folder, f))
+            shutil.copy2(src, output_HYD_path)
+            safe_remove(src)
+
+            # Convert .nc files to .zarr and save to output_HYD_path
+            # if f.endswith('.nc'):
+            #     ds = xr.open_dataset(os.path.normpath(os.path.join(DFM_OUTPUT_folder, f)), chunks={'time': 1})
+            #     zarr_path = os.path.normpath(os.path.join(output_HYD_path, f.replace('.nc', '.zarr')))
+            #     if os.path.exists(zarr_path): shutil.rmtree(zarr_path, ignore_errors=True)
+            #     ds.to_zarr(zarr_path, mode='w', consolidated=True)
+            #     consolidate_metadata(zarr_path)
+            #     ds.close()
+            # else: shutil.copy(os.path.normpath(os.path.join(DFM_OUTPUT_folder, f)), output_HYD_path)
         # Clean DFM_OUTPUT folder
-        shutil.rmtree(DFM_OUTPUT_folder, onexc=remove_readonly)
+        if os.path.exists(DFM_OUTPUT_folder): shutil.rmtree(DFM_OUTPUT_folder, onerror=remove_readonly)
         return {'status': 'ok', 'message': 'Data is saved successfully.'}
-    except Exception as e: return {'status': 'error', 'message': {str(e)}}
+    except Exception as e: return {'status': 'error', 'message': str(e)}
 
 def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
     """
@@ -1141,7 +1191,7 @@ def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
         # If only one point, use that value for the whole grid cell
         if vals.min() == vals.max(): frame[:, :] = vals.min()
         else:
-            rbf = Rbf(x_idx, y_idx, vals, function='linear')
+            rbf = Rbf(x_idx, y_idx, vals, function='cubic')
             grid_x, grid_y = np.indices(frame.shape)
             frame = rbf(grid_x, grid_y)
     frame[~mask_valid] = np.nan

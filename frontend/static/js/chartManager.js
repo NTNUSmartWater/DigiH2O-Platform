@@ -1,5 +1,5 @@
 import { startLoading, showLeafletMap} from "./mapManager.js";
-import { loadData, interpolateJet, splitLines, getColors, valueFormatter, decodeArray } from "./utils.js";
+import { loadData, interpolateJet, splitLines, getColors, valueFormatter } from "./utils.js";
 import { getState, setState } from "./constants.js";
 import { sendQuery } from "./tableManager.js";
 import { deActivePathQuery, moveWindow } from "./generalOptionManager.js";
@@ -86,7 +86,7 @@ export function plotEvents() {
         const div = chartDivProfile();
         try {
             if (div && div.data) Plotly.purge(div);
-        } catch(e) { console.warn("Plotly purge error:", e); }
+        } catch(e) { alert("Plotly purge error:" + e); }
         // Disconnect resize observer
         if (profileWindow()._resizeObserver) {
             profileWindow()._resizeObserver.disconnect(); 
