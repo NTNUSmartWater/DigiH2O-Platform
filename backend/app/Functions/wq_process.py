@@ -1,11 +1,12 @@
 import os, subprocess, asyncio, re, shutil
-import pandas as pd, numpy as np, xarray as xr
-from fastapi import APIRouter, Request, WebSocket
+import pandas as pd, numpy as np
+from fastapi import APIRouter, Request, WebSocket, Depends
 from config import PROJECT_STATIC_ROOT, DELFT_PATH
 from fastapi.responses import JSONResponse
 from datetime import datetime, timezone
-from Functions import wq_functions
+from Functions import wq_functions, functions
 from starlette.websockets import WebSocketDisconnect
+from zarr.convenience import consolidate_metadata
 
 router, processes = APIRouter(), {}
 
@@ -29,9 +30,9 @@ def kill_process(process):
         return {"status": "error", "message": str(e)}
 
 @router.post("/select_hyd")
-async def select_hyd(request: Request):
+async def select_hyd(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name = body.get('projectName')
+    project_name = functions.project_definer(body.get('projectName'), user)
     folder = [PROJECT_STATIC_ROOT, project_name, "DFM_DELWAQ", 'FlowFM.hyd']
     path = os.path.normpath(os.path.join(*folder))
     if os.path.exists(path):
@@ -95,9 +96,9 @@ async def wq_time(request: Request):
 
 # Check if simulation is running
 @router.post("/check_sim_status_waq")
-async def check_sim_status_waq(request: Request):
+async def check_sim_status_waq(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name = body.get("projectName")
+    project_name = functions.project_definer(body.get('projectName'), user)
     if project_name in processes:
         info = processes[project_name]
         status = "stopped" if info.get("stopped") else info.get("status", "none")
@@ -108,7 +109,14 @@ async def check_sim_status_waq(request: Request):
 
 @router.websocket("/sim_progress_waq/{project_name}")
 async def sim_progress_waq(websocket: WebSocket, project_name: str):
-    await websocket.accept()        
+    await websocket.accept()
+    auth_header = websocket.headers.get("authorization")
+    user = functions.basic_auth_ws(auth_header)
+    if not user:
+        await websocket.send_text("[ERROR] Unauthorized")
+        await websocket.close(code=1008)
+        return
+    project_name = functions.project_definer(project_name, user)    
     body = await websocket.receive_json()
     if project_name in processes and processes[project_name]["status"] == "running":
         await websocket.send_json({"error": "Simulation for this project is already running."})
@@ -209,14 +217,19 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
             for suffix in ["_his.nc", "_map.nc", ".json"]:
                 filename = f"{file_name}{suffix}"
                 src = os.path.normpath(os.path.join(output_folder, filename))
+                dst = os.path.normpath(os.path.join(output_WAQ_dir, filename))
                 if os.path.exists(src):
-                    if suffix == ".json": shutil.copy(src, os.path.normpath(os.path.join(output_WAQ_dir, filename)))
-                    else: # Convert .nc files to .zarr
-                        ds = xr.open_dataset(src, chunks={'nTimesDlwq': 1})
-                        zarr_path = os.path.normpath(os.path.join(output_WAQ_dir, filename.replace('.nc', '.zarr')))
-                        ds.to_zarr(zarr_path, mode='w', consolidated=True)
-                        ds.close()
-                        os.remove(src) # Delete .nc files
+                    shutil.copy2(src, dst)
+                    functions.safe_remove(src)
+                    # if suffix == ".json": shutil.copy(src, os.path.normpath(os.path.join(output_WAQ_dir, filename)))
+                    # else: # Convert .nc files to .zarr
+                    #     ds = xr.open_dataset(src, chunks={'nTimesDlwq': 1})
+                    #     zarr_path = os.path.normpath(os.path.join(output_WAQ_dir, filename.replace('.nc', '.zarr')))
+                    #     if os.path.exists(zarr_path): shutil.rmtree(zarr_path, ignore_errors=True)
+                    #     ds.to_zarr(zarr_path, mode='w', consolidated=False)
+                    #     consolidate_metadata(zarr_path)
+                    #     ds.close()
+                    #     os.remove(src) # Delete .nc files
             # Delete folder
             if os.path.exists(wq_folder): shutil.rmtree(wq_folder, ignore_errors=True)
         except Exception as e: await websocket.send_json({'status': str(e)})
@@ -274,41 +287,3 @@ async def subprocessRunner(cmd, cwd, websocket, project_name, progress_regex=Non
         except subprocess.TimeoutExpired: kill_process(process)
         if process.poll() is None: kill_process(process)
     return success
-
-# async def subprocessRunner(cmd, cwd, websocket, project_name, progress_regex=None, stop_on_error=None):
-#     process = await asyncio.create_subprocess_exec(
-#         *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, cwd=cwd)
-#     try:
-#         processes[project_name]["process"], success = process, False
-#         while True:
-#             # Check if simulation is stopped
-#             if processes[project_name]["status"] == "stopped":
-#                 process.kill()
-#                 await websocket.send_json({"status": "Simulation stopped."})
-#                 return False
-#             line = await process.stdout.readline()
-#             if not line:
-#                 if process.returncode is not None: break
-#                 await asyncio.sleep(0.05)
-#                 continue
-#             line = line.decode().strip()
-#             if not line: continue
-#             print("[OUT]", line)
-#             # Check for progress
-#             if progress_regex:
-#                 match = progress_regex.search(line)
-#                 if match:
-#                     percent = float(match.group(1))
-#                     processes[project_name]["progress"] = percent
-#                     await websocket.send_json({"progress": percent})     
-#             # Check special errors
-#             if stop_on_error and stop_on_error in line:
-#                 if "ERROR in GMRES" in line: await websocket.send_json({"error": "GMRES solver failed.\nConsider increasing the maximum number of iterations."})
-#                 await websocket.send_json({"error": f"Error detected: {line}"})
-#                 processes[project_name]["status"] = "error"
-#                 process.kill()
-#                 return False
-#             if "Normal end" in line: success = True
-#         return success
-#     finally:
-#         if process.returncode is None: process.kill()

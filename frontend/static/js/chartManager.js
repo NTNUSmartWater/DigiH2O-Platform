@@ -86,7 +86,7 @@ export function plotEvents() {
         const div = chartDivProfile();
         try {
             if (div && div.data) Plotly.purge(div);
-        } catch(e) { console.warn("Plotly purge error:", e); }
+        } catch(e) { alert("Plotly purge error:" + e); }
         // Disconnect resize observer
         if (profileWindow()._resizeObserver) {
             profileWindow()._resizeObserver.disconnect(); 

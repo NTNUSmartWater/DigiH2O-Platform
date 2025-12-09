@@ -1,3 +1,5 @@
+import { loadList } from './utils.js';
+
 const projectSelector = () => document.getElementById("project");
 const hydOptions = () => document.getElementById("hyd-option");
 const waqOptions = () => document.getElementById("waq-option");
@@ -37,12 +39,11 @@ async function confirmSelection(){
     if (hydOptions().value === '' && waq === '') { 
         alert('No file selected.\nSelect a Hydrodynamic and/or Water Quality simulation.'); return; }
     if (hydOptions().value !== '') {
-        hydHis = `${hydOptions().value}_his.zarr`; hydMap = `${hydOptions().value}_map.zarr`; }
-    if (waq !== '') { waqHis = `${waq}_his.zarr`; waqMap = `${waq}_map.zarr`; }
+        hydHis = `${hydOptions().value}_his.nc`; hydMap = `${hydOptions().value}_map.nc`; }
+    if (waq !== '') { waqHis = `${waq}_his.nc`; waqMap = `${waq}_map.nc`; }
     const params = [hydHis, hydMap, waqHis, waqMap];
     // Send message and data to parent
-    window.parent.postMessage({type: 'projectConfirmed',
-        project: projectSelector().value, values: params}, '*');
+    window.parent.postMessage({type: 'projectConfirmed', project: projectSelector().value, values: params}, '*');
 }
 
 function projectOption(){
@@ -65,15 +66,6 @@ function projectOption(){
         alert(data.message);
         loadProjectList();
     });    
-}
-
-async function loadList(fileName, key, folder_check = '') {
-    const response = await fetch('/select_project', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({filename: fileName, key: key, folder_check:folder_check})});
-    const data = await response.json();
-    if (data.status === "error") { alert(data.message); return null; }
-    return data;
 }
 
 loadProjectList(); projectOption();

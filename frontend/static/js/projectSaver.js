@@ -22,7 +22,6 @@ export async function saveProject(elements) {
     // Get project name
     const name = projectName().value.trim();
     if (name === '') { alert('Please check project name.'); return; }   
-    console.log('Saving project...', name); 
     sendQuery('save_obs', {projectName: name});
     let data = new Map();
     data.set('project_name', name);
