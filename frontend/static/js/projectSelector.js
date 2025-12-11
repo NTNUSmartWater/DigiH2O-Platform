@@ -39,8 +39,8 @@ async function confirmSelection(){
     if (hydOptions().value === '' && waq === '') { 
         alert('No file selected.\nSelect a Hydrodynamic and/or Water Quality simulation.'); return; }
     if (hydOptions().value !== '') {
-        hydHis = `${hydOptions().value}_his.nc`; hydMap = `${hydOptions().value}_map.nc`; }
-    if (waq !== '') { waqHis = `${waq}_his.nc`; waqMap = `${waq}_map.nc`; }
+        hydHis = `${hydOptions().value}_his.zarr`; hydMap = `${hydOptions().value}_map.zarr`; }
+    if (waq !== '') { waqHis = `${waq}_his.zarr`; waqMap = `${waq}_map.zarr`; }
     const params = [hydHis, hydMap, waqHis, waqMap];
     // Send message and data to parent
     window.parent.postMessage({type: 'projectConfirmed', project: projectSelector().value, values: params}, '*');

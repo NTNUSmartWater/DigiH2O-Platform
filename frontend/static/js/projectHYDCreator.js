@@ -539,9 +539,10 @@ async function initializeProject(){
      });
     // Create new project
     projectCreator().addEventListener('click', () => {
-        const name = projectName().value.trim();
+        const name = projectName().value.trim(); let project = '';
         if (!name || name.trim() === '') { alert('Please define scenario name.'); return; }
-        window.parent.postMessage({type: 'projectPreparation', name: name}, '*')
+        if (name.includes('/')) { project = name.split('/').pop(); } else { project = name; }
+        window.parent.postMessage({type: 'projectPreparation', name: project}, '*')
         // Show tabs
         sectionTab().style.display = "block"; sectionDescription().style.display = "none";
         // Get source data if exist
