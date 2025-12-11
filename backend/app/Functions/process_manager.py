@@ -239,7 +239,7 @@ async def select_meshes(request: Request, user=Depends(functions.basic_auth)):
                 mesh_cache["df"] = df_serialized.to_dict(orient='list')
                 # Compute frame in thread to avoid blocking
                 frame = await asyncio.to_thread(functions.meshProcess, is_hyd, arr, mesh_cache)
-                global_vmin, global_vmax = fnm(np.nanmin(arr)).tolist(), fnm(np.nanmax(arr)).tolist()
+                global_vmin, global_vmax = fnm(np.nanmin(values)).tolist(), fnm(np.nanmax(values)).tolist()
                 vmin, vmax = fnm(np.nanmin(frame)).tolist(), fnm(np.nanmax(frame)).tolist()
                 depths_idx = np.arange(0, frame.shape[0]) if mesh_cache["n_rows"] > 0 else np.arange(0, -frame.shape[0], -1)
                 data = {"timestamps": time_stamps, "distance": np.round(points_arr[:, 0], 0).tolist(), "values": fnm(frame).tolist(), 
@@ -327,10 +327,9 @@ async def open_grid(request: Request, user=Depends(functions.basic_auth)):
         # Get body data
         body = await request.json()
         project_name = functions.project_definer(body.get('projectName'), user)
-        grid_name = body.get('gridName')
-        path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input", grid_name))
+        path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input", body.get('gridName')))
         def load_grid(path):
-            temp_grid = xr.open_dataset(path, chunks={})
+            temp_grid = xr.open_dataset(path, chunks='auto')
             return functions.unstructuredGridCreator(temp_grid).dissolve()
         loop = asyncio.get_event_loop()
         grid = await loop.run_in_executor(None, lambda: load_grid(path))

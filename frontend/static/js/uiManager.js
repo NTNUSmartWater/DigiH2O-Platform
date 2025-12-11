@@ -55,7 +55,7 @@ async function login() {
     if (data.user==='admin') { userName = ''; } else { userName = `${data.user}/`; }
 }
 
-async function openDemoProject(name='demo', params=['FlowFM_his.nc', 'FlowFM_map.nc', 'Cadmium_his.nc', 'Cadmium_map.nc']) { 
+async function openDemoProject(name='demo', params=['FlowFM_his.zarr', 'FlowFM_map.zarr', 'Cadmium_his.zarr', 'Cadmium_map.zarr']) { 
     await projectChecker(name, params);
     // Load temperature dynamic map
     const query = '|-1', key = 'temp_multi_dynamic', titleColorbar = 'Temperature (°C)';
@@ -455,7 +455,7 @@ function updateEvents() {
                                 <button id="saveBtn" 
                                     style="width:100%;padding:4px;background:#007bff;
                                     color:white;border:none;border-radius:4px;cursor:pointer;">
-                                    Plot Thermocline Chart
+                                    Plot Chart
                                 </button>
                             </div>
                         `;

@@ -1,5 +1,5 @@
 import os, subprocess, asyncio, re, shutil
-import pandas as pd, numpy as np
+import pandas as pd, numpy as np, xarray as xr
 from fastapi import APIRouter, Request, WebSocket, Depends
 from config import PROJECT_STATIC_ROOT, DELFT_PATH
 from fastapi.responses import JSONResponse
@@ -137,7 +137,7 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
         os.makedirs(wq_folder, exist_ok=True)
         # Clear data if exists
         output_folder = os.path.normpath(os.path.join(wq_folder, file_name))
-        if os.path.exists(output_folder): shutil.rmtree(output_folder, ignore_errors=True)
+        if os.path.exists(output_folder): shutil.rmtree(output_folder, onerror=functions.remove_readonly)
         os.makedirs(output_folder, exist_ok=True)
         parameters = {'hyd_path': hyd_path, "t_start": t_start, "t_stop": t_stop, 'sal_path': sal_path,
             "maxiter": body['maxiter'], "tolerance": body['tolerance'], "scheme": body['scheme'], 'srf_path': srf_path, 
@@ -215,26 +215,28 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
             output_WAQ_dir = os.path.normpath(os.path.join(output_dir, 'WAQ'))
             if not os.path.exists(output_WAQ_dir): os.makedirs(output_WAQ_dir)
             for suffix in ["_his.nc", "_map.nc", ".json"]:
-                filename = f"{file_name}{suffix}"
-                src = os.path.normpath(os.path.join(output_folder, filename))
-                dst = os.path.normpath(os.path.join(output_WAQ_dir, filename))
+                new_name = f"{file_name}{suffix}"
+                src = os.path.normpath(os.path.join(output_folder, new_name))
                 if os.path.exists(src):
-                    shutil.copy2(src, dst)
+                    # # Using .nc format
+                    # dst = os.path.normpath(os.path.join(output_WAQ_dir, new_name))
+                    # shutil.copy2(src, dst)
+                    
+                    # Using .zarr format
+                    dst = os.path.normpath(os.path.join(output_WAQ_dir, new_name.replace('.nc', '.zarr')))
+                    if suffix != ".json":
+                        tmp_path = dst + "_tmp"
+                        if os.path.exists(tmp_path): shutil.rmtree(tmp_path, onerror=functions.remove_readonly)
+                        with xr.open_dataset(src, chunks='auto') as ds:
+                            ds.to_zarr(tmp_path, mode='w', consolidated=True, compute=True)
+                        os.rename(tmp_path, dst)                      
+                    else: shutil.copy2(src, dst)
                     functions.safe_remove(src)
-                    # if suffix == ".json": shutil.copy(src, os.path.normpath(os.path.join(output_WAQ_dir, filename)))
-                    # else: # Convert .nc files to .zarr
-                    #     ds = xr.open_dataset(src, chunks={'nTimesDlwq': 1})
-                    #     zarr_path = os.path.normpath(os.path.join(output_WAQ_dir, filename.replace('.nc', '.zarr')))
-                    #     if os.path.exists(zarr_path): shutil.rmtree(zarr_path, ignore_errors=True)
-                    #     ds.to_zarr(zarr_path, mode='w', consolidated=False)
-                    #     consolidate_metadata(zarr_path)
-                    #     ds.close()
-                    #     os.remove(src) # Delete .nc files
             # Delete folder
-            if os.path.exists(wq_folder): shutil.rmtree(wq_folder, ignore_errors=True)
+            if os.path.exists(wq_folder): shutil.rmtree(wq_folder, onerror=functions.remove_readonly)
+            processes[project_name]["status"] = "finished"
+            await websocket.send_json({'status': "Simulation completed successfully."})
         except Exception as e: await websocket.send_json({'status': str(e)})
-        processes[project_name]["status"] = "finished"
-        await websocket.send_json({'status': "Simulation completed successfully."})
     except WebSocketDisconnect: pass
     finally:
         if project_name in processes and not processes[project_name].get("stopped", False):
