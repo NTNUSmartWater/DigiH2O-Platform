@@ -555,9 +555,9 @@ async function initializeProject(){
         // Ask for a new name
         const newName = prompt('Please enter a name for the new scenario:');
         if (!newName || newName.trim() === '') { alert('Please define scenario name.'); return; }
-        alert('Cloning a scenario can take a while.\nPlease wait until you get another message.\n\nHit OK to continue.');
+        projectCloner().innerHTML = 'Cloning...';
         const data = await sendQuery('copy_project', {oldName: name, newName: newName});
-        alert(data.message); projectList = []; projectName().value = ''; await getProjectList();
+        alert(data.message); projectList = []; projectName().value = ''; await getProjectList(); projectCloner().innerHTML = 'Clone Scenario';
     })
     // Delete project
     projectRemover().addEventListener('click', async () => {
@@ -565,9 +565,9 @@ async function initializeProject(){
         if (!confirm('Are you sure you want to delete this scenario?')) { return; }
         const name = projectName().value.trim();
         if (!name || name.trim() === '') { alert('Please define scenario.'); return; }
-        alert('Deleting a scenario can take a while.\nPlease wait until you get another message.\n\nHit OK to continue.');
+        projectRemover().innerHTML = 'Deleting...';
         const data = await sendQuery('delete_project', {projectName: name});
-        alert(data.message); projectList = []; projectName().value = ''; await getProjectList();
+        alert(data.message); projectList = []; projectName().value = ''; await getProjectList(); projectRemover().innerHTML = 'Delete Scenario';
     });
 }
 
