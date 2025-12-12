@@ -239,11 +239,10 @@ async def select_meshes(request: Request, user=Depends(functions.basic_auth)):
                 mesh_cache["df"] = df_serialized.to_dict(orient='list')
                 # Compute frame in thread to avoid blocking
                 frame = await asyncio.to_thread(functions.meshProcess, is_hyd, arr, mesh_cache)
-                global_vmin, global_vmax = fnm(np.nanmin(values)).tolist(), fnm(np.nanmax(values)).tolist()
                 vmin, vmax = fnm(np.nanmin(frame)).tolist(), fnm(np.nanmax(frame)).tolist()
                 depths_idx = np.arange(0, frame.shape[0]) if mesh_cache["n_rows"] > 0 else np.arange(0, -frame.shape[0], -1)
-                data = {"timestamps": time_stamps, "distance": np.round(points_arr[:, 0], 0).tolist(), "values": fnm(frame).tolist(), 
-                        "depths": depths_idx.tolist(), "global_minmax": [global_vmin, global_vmax], "local_minmax": [vmin, vmax]}
+                data = {"timestamps": time_stamps, "distance": np.round(points_arr[:, 0], 0).tolist(),
+                        "values": fnm(frame).tolist(), "depths": depths_idx.tolist(), "local_minmax": [vmin, vmax]}
                 await redis.set(mesh_cache_key, msgpack.packb(mesh_cache, use_bin_type=True), ex=600)
             else: # Load next frame
                 raw_cache = await redis.get(mesh_cache_key)
