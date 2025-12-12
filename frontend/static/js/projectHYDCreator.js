@@ -9,6 +9,7 @@ const sectionTab = () => document.getElementById('parent-tab');
 const projects = () => document.getElementById("project-list");
 const projectName = () => document.getElementById('project-name');
 const projectCreator = () => document.getElementById('create-project-button');
+const projectCloner = () => document.getElementById('duplicate-project-button');
 const projectRemover = () => document.getElementById('remove-project-button');
 const saveProjectBtn = () => document.getElementById('complete-button');
 const getLocation = () => document.getElementById('location-picker');
@@ -511,18 +512,17 @@ function updateOption(){
 async function initializeProject(){
     // Update project name
     projectName().addEventListener('click', async () => {
-        await getProjectList()
+        await getProjectList();
         if (projectList.length === 0) return;
-        if (projects().children.length === 0) {
-            projectList.forEach(p => {
-                const li = document.createElement("li");
-                li.textContent = p;
-                li.addEventListener('mousedown', () => {
-                    projectName().value = p; projects().style.display = "none";
-                });
-                projects().appendChild(li);
+        projects().innerHTML = '';
+        projectList.forEach(p => {
+            const li = document.createElement("li");
+            li.textContent = p;
+            li.addEventListener('mousedown', () => {
+                projectName().value = p; projects().style.display = "none";
             });
-        }
+            projects().appendChild(li);
+        })
         projects().style.display = "block";
     });
     
@@ -539,20 +539,33 @@ async function initializeProject(){
      });
     // Create new project
     projectCreator().addEventListener('click', () => {
-        const name = projectName().value.trim();
+        const name = projectName().value.trim(); let project = '';
         if (!name || name.trim() === '') { alert('Please define scenario name.'); return; }
-        window.parent.postMessage({type: 'projectPreparation', name: name}, '*')
+        if (name.includes('/')) { project = name.split('/').pop(); } else { project = name; }
+        window.parent.postMessage({type: 'projectPreparation', name: project}, '*')
         // Show tabs
         sectionTab().style.display = "block"; sectionDescription().style.display = "none";
         // Get source data if exist
         updateTable(sourceRemoveTable(), sourceSelectorRemove(), name);
     });
+    // Copy project
+    projectCloner().addEventListener('click', async () => {
+        const name = projectName().value.trim();
+        if (!name || name.trim() === '') { alert('Please select scenario from the dropdown list first.'); return; }
+        // Ask for a new name
+        const newName = prompt('Please enter a name for the new scenario:');
+        if (!newName || newName.trim() === '') { alert('Please define scenario name.'); return; }
+        alert('Cloning a scenario can take a while.\nPlease wait until you get another message.\n\nHit OK to continue.');
+        const data = await sendQuery('copy_project', {oldName: name, newName: newName});
+        alert(data.message); projectList = []; projectName().value = ''; await getProjectList();
+    })
     // Delete project
     projectRemover().addEventListener('click', async () => {
         // Ask for confirmation
         if (!confirm('Are you sure you want to delete this scenario?')) { return; }
         const name = projectName().value.trim();
         if (!name || name.trim() === '') { alert('Please define scenario.'); return; }
+        alert('Deleting a scenario can take a while.\nPlease wait until you get another message.\n\nHit OK to continue.');
         const data = await sendQuery('delete_project', {projectName: name});
         alert(data.message); projectList = []; projectName().value = ''; await getProjectList();
     });

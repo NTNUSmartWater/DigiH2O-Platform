@@ -45,16 +45,17 @@ async def setup_new_project(request: Request, user=Depends(functions.basic_auth)
     try:
         body = await request.json()
         project_name = functions.project_definer(body.get('projectName'), user)
-        project_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name))
-        name = project_name if '/' not in project_name else project_name.split('/')[1]
+        project_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name))
         # Check if project already exists
-        if os.path.exists(project_folder):
-            return JSONResponse({"status": 'ok', "message": f"Project '{name}' already exists."})        
+        if os.path.exists(project_dir):
+            return JSONResponse({"status": 'ok', "message": f"Project '{body.get('projectName')}' already exists."})
         # Create project directories
-        os.makedirs(body.get('projectName'), exist_ok=True)
-        os.makedirs(project_folder, exist_ok=True)
-        os.makedirs(os.path.normpath(os.path.join(project_folder, "input")), exist_ok=True)
-        status, message = 'ok', f"Project '{name}' created successfully!"
+        user_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, user))
+        if not os.path.exists(user_path): os.makedirs(user_path, exist_ok=True)
+        os.makedirs(project_dir, exist_ok=True)
+        input_dir = os.path.normpath(os.path.join(project_dir, "input"))
+        os.makedirs(input_dir, exist_ok=True)
+        status, message = 'ok', f"Project '{body.get('projectName')}' created successfully!"
     except Exception as e:
         print('/setup_new_project:\n==============')
         traceback.print_exc()
@@ -74,7 +75,8 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
             project_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name))
             demo_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, 'demo'))
             if user != 'admin':
-                if not os.path.exists(project_folder): 
+                if not os.path.exists(project_folder):
+                    print(f"Copying project 'demo' folder to '{project_folder}'")
                     os.makedirs(project_folder, exist_ok=True)
                     shutil.copytree(demo_folder, project_folder, dirs_exist_ok=True)
             output_dir = os.path.normpath(os.path.join(project_folder, "output"))
@@ -129,7 +131,7 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
                 hyd_vars = functions.getVariablesNames([hyd_his, hyd_map], 'hyd')
                 config["hyd"], config["meta"]["hyd_scanned"] = hyd_vars, True
             # Get WAQ model
-            temp = params[2].replace('_his.nc', '') if params[2] != '' else params[3].replace('_map.nc', '')
+            temp = params[2].replace('_his.zarr', '') if params[2] != '' else params[3].replace('_map.zarr', '')
             model_path, waq_model, obs = os.path.normpath(os.path.join(waq_dir, f'{temp}.json')), '', {}
             if os.path.exists(model_path):
                 print('Loading WAQ model...')
@@ -179,6 +181,34 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
             extend_task.cancel()
             try: await extend_task
             except asyncio.CancelledError: pass
+
+# Copy a project
+@router.post("/copy_project")
+async def copy_project(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
+        old_name = functions.project_definer(body.get('oldName'), user)
+        new_name = functions.project_definer(body.get('newName'), user)
+        project_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, old_name))
+        redis = request.app.state.redis
+        extend_task, lock = None, redis.lock(f"{old_name}:copy_project", timeout=200)
+        async with lock:
+            # Optional: auto-extend lock if deletion may take long
+            extend_task = asyncio.create_task(functions.auto_extend(lock))
+            if not os.path.exists(project_folder): 
+                return JSONResponse({"status": 'error', "message": f"Project '{old_name}' does not exist."})
+            shutil.copytree(project_folder, os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, new_name)))
+            return JSONResponse({"message": f"Scenario '{new_name}' was cloned successfully!"})
+    except Exception as e:
+        print('/copy_project:\n==============')
+        traceback.print_exc()
+        return JSONResponse({"message": f"Error: {str(e)}"})
+    finally:
+        if extend_task:
+            extend_task.cancel()
+            try: await extend_task
+            except asyncio.CancelledError: pass
+
 
 # Delete a project
 @router.post("/delete_project")
@@ -236,8 +266,8 @@ async def select_project(request: Request, user=Depends(functions.basic_auth)):
             waq_folder = os.path.normpath(os.path.join(project_folder, "output", 'WAQ'))
             hyd_files, waq_files = [], []
             if os.path.exists(hyd_folder):
-                hyd_files = [f for f in os.listdir(hyd_folder) if f.endswith(".nc")]
-                hyd_files = set([f.replace('_his.nc', '').replace('_map.nc', '') for f in hyd_files])
+                hyd_files = [f for f in os.listdir(hyd_folder) if f.endswith(".zarr")]
+                hyd_files = set([f.replace('_his.zarr', '').replace('_map.zarr', '') for f in hyd_files])
             if os.path.exists(waq_folder):
                 waq_files = [f for f in os.listdir(waq_folder) if f.endswith(".json")]
                 waq_files = set([f.replace('.json', '') for f in waq_files])

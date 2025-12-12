@@ -2,12 +2,11 @@ import shapely, os, re, shutil, stat, json, asyncio, base64, time
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
-from scipy.interpolate import Rbf
+from scipy.interpolate import Rbf, griddata
 from config import PROJECT_STATIC_ROOT, ALLOWED_USERS_PATH
 from redis.asyncio.lock import Lock
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi import Depends, HTTPException, status
-from zarr.convenience import consolidate_metadata
 
 security = HTTPBasic()
 ALLOWED_USERS = json.load(open(ALLOWED_USERS_PATH))
@@ -1133,18 +1132,19 @@ def postProcess(directory: str) -> dict:
         # Copy and Remove the outputs
         for f in found_files:
             src = os.path.normpath(os.path.join(DFM_OUTPUT_folder, f))
-            shutil.copy2(src, output_HYD_path)
-            safe_remove(src)
+            # # Using .nc format
+            # shutil.copy2(src, output_HYD_path)
 
-            # Convert .nc files to .zarr and save to output_HYD_path
-            # if f.endswith('.nc'):
-            #     ds = xr.open_dataset(os.path.normpath(os.path.join(DFM_OUTPUT_folder, f)), chunks={'time': 1})
-            #     zarr_path = os.path.normpath(os.path.join(output_HYD_path, f.replace('.nc', '.zarr')))
-            #     if os.path.exists(zarr_path): shutil.rmtree(zarr_path, ignore_errors=True)
-            #     ds.to_zarr(zarr_path, mode='w', consolidated=True)
-            #     consolidate_metadata(zarr_path)
-            #     ds.close()
-            # else: shutil.copy(os.path.normpath(os.path.join(DFM_OUTPUT_folder, f)), output_HYD_path)
+            # Using .zarr format
+            if f.endswith('.nc'):
+                zarr_path = os.path.normpath(os.path.join(output_HYD_path, f.replace('.nc', '.zarr')))
+                tmp_path = zarr_path + "_tmp"
+                if os.path.exists(tmp_path): shutil.rmtree(tmp_path, onerror=remove_readonly)
+                with xr.open_dataset(src, chunks='auto') as ds:
+                    ds.to_zarr(tmp_path, mode='w', consolidated=True, compute=True)
+                os.rename(tmp_path, zarr_path)
+            else: shutil.copy2(src, output_HYD_path)
+            safe_remove(src)
         # Clean DFM_OUTPUT folder
         if os.path.exists(DFM_OUTPUT_folder): shutil.rmtree(DFM_OUTPUT_folder, onerror=remove_readonly)
         return {'status': 'ok', 'message': 'Data is saved successfully.'}
@@ -1170,7 +1170,8 @@ def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
     """
     cache_copy = cache.copy()
     df, n_rows = pd.DataFrame(cache_copy["df"]), cache_copy["n_rows"]
-    df_depth_rounded = np.array(df["depth"].values, dtype=float)
+    df_depth = np.array(df["depth"].values, dtype=float)
+    df_depth_rounded = abs(np.round(df_depth, 0))
     depth_values = np.array(cache_copy["depth_values"], dtype=float)
     depth_rounded = abs(np.round(depth_values, 0))
     index_map = {int(v): len(depth_rounded)-i-1 for i, v in enumerate(depth_rounded)}
@@ -1180,20 +1181,45 @@ def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
     for i in range(abs(n_rows)):
         mask_depth = ((df['depth'].values <= -i) & (i in depth_rounded))
         row_idx = np.where(mask_depth)[0]
+        # Define value for max row
+        if i in df_depth_rounded:
+            pos_row = np.where(df_depth_rounded == i)[0]
+            best_idx = np.argmax(np.where(depth_rounded <= i)[0])
+            pos_col = int(depth_rounded[best_idx])
+            vals = frame[pos_row, pos_col]
+            if np.isnan(vals).any():
+                temp_vals, pos_col_new = [], int(depth_rounded[best_idx])
+                for idx, v in enumerate(vals):
+                    if np.isnan(v):
+                        count = best_idx-1
+                        while count >= 0:
+                            pos_col_new = int(depth_rounded[count])
+                            new_val = frame[pos_row[idx], pos_col_new]
+                            if not np.isnan(new_val): break
+                            count -= 1
+                    else: new_val = v
+                    temp_vals.append(new_val)
+                temp_vals = np.array(temp_vals)
+            else: temp_vals = vals
+            frame[pos_row, i] = temp_vals
         if len(row_idx) == 0: continue
         if is_hyd: temp = values_filtered[:, index_map[i]]
         else: temp = values_filtered[index_map[i], :]
         frame[row_idx, i] = temp[mask_depth]
-    mask_valid = -np.arange(abs(n_rows))[None, :] >= df_depth_rounded[:, None]
+    frame[:, 0] = frame[:, int(depth_rounded[0])]  # Fill the first column
+    # Interpolate
+    mask_valid = -np.arange(abs(n_rows))[None, :] >= df_depth[:, None]
     x_idx, y_idx = np.where(~np.isnan(frame))
     if len(x_idx) > 0:
         vals = frame[x_idx, y_idx]
         # If only one point, use that value for the whole grid cell
-        if vals.min() == vals.max(): frame[:, :] = vals.min()
-        else:
-            rbf = Rbf(x_idx, y_idx, vals, function='cubic')
-            grid_x, grid_y = np.indices(frame.shape)
-            frame = rbf(grid_x, grid_y)
+        if not (vals.min() == vals.max()):
+            grid_x, grid_y = np.indices(frame.shape)          
+            # rbf = Rbf(x_idx, y_idx, vals, function='cubic')
+            # frame = rbf(grid_x, grid_y)
+            frame = griddata(points=np.column_stack([x_idx, y_idx]), 
+                             values=vals, xi=(grid_x, grid_y), method='cubic')
+        else: frame[:, :] = vals.min()
     frame[~mask_valid] = np.nan
     smoothed_transpose = frame.T
     max_row = np.max(np.where(mask_valid.T)[0])
