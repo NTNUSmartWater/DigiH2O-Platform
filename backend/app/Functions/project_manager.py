@@ -75,7 +75,8 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
             project_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name))
             demo_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, 'demo'))
             if user != 'admin':
-                if not os.path.exists(project_folder): 
+                if not os.path.exists(project_folder):
+                    print(f"Copying project 'demo' folder to '{project_folder}'")
                     os.makedirs(project_folder, exist_ok=True)
                     shutil.copytree(demo_folder, project_folder, dirs_exist_ok=True)
             output_dir = os.path.normpath(os.path.join(project_folder, "output"))
@@ -180,6 +181,34 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
             extend_task.cancel()
             try: await extend_task
             except asyncio.CancelledError: pass
+
+# Copy a project
+@router.post("/copy_project")
+async def copy_project(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
+        old_name = functions.project_definer(body.get('oldName'), user)
+        new_name = functions.project_definer(body.get('newName'), user)
+        project_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, old_name))
+        redis = request.app.state.redis
+        extend_task, lock = None, redis.lock(f"{old_name}:copy_project", timeout=200)
+        async with lock:
+            # Optional: auto-extend lock if deletion may take long
+            extend_task = asyncio.create_task(functions.auto_extend(lock))
+            if not os.path.exists(project_folder): 
+                return JSONResponse({"status": 'error', "message": f"Project '{old_name}' does not exist."})
+            shutil.copytree(project_folder, os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, new_name)))
+            return JSONResponse({"message": f"Scenario '{new_name}' was cloned successfully!"})
+    except Exception as e:
+        print('/copy_project:\n==============')
+        traceback.print_exc()
+        return JSONResponse({"message": f"Error: {str(e)}"})
+    finally:
+        if extend_task:
+            extend_task.cancel()
+            try: await extend_task
+            except asyncio.CancelledError: pass
+
 
 # Delete a project
 @router.post("/delete_project")
