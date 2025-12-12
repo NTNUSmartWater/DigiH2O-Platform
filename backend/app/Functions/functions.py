@@ -2,7 +2,7 @@ import shapely, os, re, shutil, stat, json, asyncio, base64, time
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
-from scipy.interpolate import Rbf
+from scipy.interpolate import Rbf, griddata
 from config import PROJECT_STATIC_ROOT, ALLOWED_USERS_PATH
 from redis.asyncio.lock import Lock
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -1171,7 +1171,7 @@ def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
     cache_copy = cache.copy()
     df, n_rows = pd.DataFrame(cache_copy["df"]), cache_copy["n_rows"]
     df_depth = np.array(df["depth"].values, dtype=float)
-    df_depth_rounded = np.round(abs(df_depth))
+    df_depth_rounded = abs(np.round(df_depth, 0))
     depth_values = np.array(cache_copy["depth_values"], dtype=float)
     depth_rounded = abs(np.round(depth_values, 0))
     index_map = {int(v): len(depth_rounded)-i-1 for i, v in enumerate(depth_rounded)}
@@ -1206,17 +1206,19 @@ def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
         if is_hyd: temp = values_filtered[:, index_map[i]]
         else: temp = values_filtered[index_map[i], :]
         frame[row_idx, i] = temp[mask_depth]
-    
+    frame[:, 0] = frame[:, int(depth_rounded[0])]  # Fill the first column
     # Interpolate
     mask_valid = -np.arange(abs(n_rows))[None, :] >= df_depth[:, None]
     x_idx, y_idx = np.where(~np.isnan(frame))
     if len(x_idx) > 0:
         vals = frame[x_idx, y_idx]
         # If only one point, use that value for the whole grid cell
-        if not (vals.min() == vals.max()): 
-            rbf = Rbf(x_idx, y_idx, vals, function='cubic')
-            grid_x, grid_y = np.indices(frame.shape)
-            frame = rbf(grid_x, grid_y)            
+        if not (vals.min() == vals.max()):
+            grid_x, grid_y = np.indices(frame.shape)          
+            # rbf = Rbf(x_idx, y_idx, vals, function='cubic')
+            # frame = rbf(grid_x, grid_y)
+            frame = griddata(points=np.column_stack([x_idx, y_idx]), 
+                             values=vals, xi=(grid_x, grid_y), method='cubic')
         else: frame[:, :] = vals.min()
     frame[~mask_valid] = np.nan
     smoothed_transpose = frame.T
