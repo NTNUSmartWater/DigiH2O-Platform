@@ -121,7 +121,7 @@ async function initializeMenu(){
             const pm = popupMenu();
             if (pm.classList.contains('show')) pm.classList.remove('show');
             const info = link.dataset.info;
-            if (info === 'home') { history.back(); return; }
+            if (info === 'home') { window.location.href = "https://ntnusmartwater.github.io/"; return; }
             if (info === 'help') { contactInformation(); return;}
             const [id, htmlFile, _] = info.split('|');
             startLoading('Getting Information. Please wait...');
