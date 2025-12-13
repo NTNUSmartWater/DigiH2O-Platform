@@ -1,5 +1,5 @@
 import os, shutil, subprocess, re, json, msgpack
-import asyncio, traceback
+import asyncio, traceback, datetime
 import numpy as np
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
@@ -55,12 +55,186 @@ async def setup_new_project(request: Request, user=Depends(functions.basic_auth)
         os.makedirs(project_dir, exist_ok=True)
         input_dir = os.path.normpath(os.path.join(project_dir, "input"))
         os.makedirs(input_dir, exist_ok=True)
-        status, message = 'ok', f"Project '{body.get('projectName')}' created successfully!"
+        status, message = 'ok', f"Scenario '{body.get('projectName')}' created successfully!"
     except Exception as e:
         print('/setup_new_project:\n==============')
         traceback.print_exc()
         status, message = 'error', f"Error: {str(e)}"
     return JSONResponse({"status": status, "message": message})
+
+# Get parameters for an existing scenario
+@router.post("/get_scenario")
+async def get_scenario(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
+        project_name = functions.project_definer(body.get('projectName'), user)
+        project_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name))
+        in_dir, data = os.path.normpath(os.path.join(project_dir, "input")), {}
+        if os.path.exists(in_dir):
+            mdu_path = os.path.normpath(os.path.join(in_dir, "FlowFM.mdu"))
+            if not os.path.exists(mdu_path):
+                return JSONResponse({"status": 'error', "message": f"Scenario '{body.get('projectName')}' doesn't have an *.mdu file."})
+            with open(mdu_path, 'r', encoding="utf-8") as f:
+                for line in f:
+                    if line.strip().startswith('AngLat'):
+                        parts = line.split("=")
+                        if len(parts) >= 2: data["avgLat"] = parts[1].split("#")[0].strip()
+                    elif line.strip().startswith('NetFile'):
+                        parts = line.split("=")
+                        if len(parts) >= 2: data["gridPath"] = parts[1].split("#")[0].strip()
+                    elif line.strip().startswith('Kmx'):
+                        parts = line.split("=")
+                        if len(parts) >= 2: data["nLayers"] = parts[1].split("#")[0].strip()
+                    elif line.strip().startswith('TStart'):
+                        parts = line.split("=")
+                        if len(parts) >= 2:
+                            val = int(parts[1].split("#")[0].strip())
+                            temp = datetime.datetime.fromtimestamp(val)
+                            data["startDate"] = temp.strftime("%Y-%m-%d %H:%M:%S")
+                    elif line.strip().startswith('TStop'):
+                        parts = line.split("=")
+                        if len(parts) >= 2: 
+                            val = int(parts[1].split("#")[0].strip())
+                            temp = datetime.datetime.fromtimestamp(val)
+                            data["stopDate"] = temp.strftime("%Y-%m-%d %H:%M:%S")
+                    elif line.strip().startswith('ObsFile'):
+                        parts = line.split("=")
+                        if len(parts) >= 2:
+                            obs_path = os.path.normpath(os.path.join(in_dir, parts[1].split("#")[0].strip()))
+                            with open(obs_path, 'r', encoding="utf-8") as f:
+                                lines = f.readlines()
+                            data["obsPointTable"] = [[z.replace("'", ""), y, x] 
+                                for x, y, z in [line.split() for line in lines if len(line.split()) == 3]]
+                    elif line.strip().startswith('CrsFile'):
+                        parts = line.split("=")
+                        if len(parts) >= 2:
+                            crs_path = os.path.normpath(os.path.join(in_dir, parts[1].split("#")[0].strip()))
+                            with open(crs_path, 'r', encoding="utf-8") as f:
+                                lines = f.readlines()
+                            data["crossSectionTable"] = [[z, y, x] 
+                                for x, y, z in [line.split() for line in lines if len(line.split()) == 3]]
+                    elif line.strip().startswith('ExtForceFileNew'):
+                        parts = line.split("=")
+                        if len(parts) >= 2:
+                            boundary_path = os.path.normpath(os.path.join(in_dir, parts[1].split("#")[0].strip()))
+                            boundary, boundary_names, forcing = [], [], []
+                            with open(boundary_path, 'r', encoding="utf-8") as f:
+                                for line1 in f:
+                                    if line1.strip().startswith('locationFile'):
+                                        parts = line1.split("=")
+                                        if len(parts) >= 2 and parts[1] not in boundary_names:
+                                            file_path = os.path.normpath(os.path.join(in_dir, parts[1].replace("\n", "")))
+                                            with open(file_path, 'r', encoding="utf-8") as f:
+                                                line_files = f.readlines()
+                                            boundary.append([[z, y, x] for x, y, z in [line.split() for line in line_files if len(line.split()) == 3]])
+                                            boundary_names.append(parts[1])
+                                    elif line1.strip().startswith('forcingFile'):
+                                        parts = line1.split("=")
+                                        if len(parts) >= 2 and parts[1] not in forcing: forcing.append(parts[1])
+                            data["boundaryTable"] = boundary[0]
+                    elif line.strip().startswith('DtUser'):
+                        parts = line.split("=")
+                        if len(parts) >= 2:
+                            seconds = int(parts[1].split("#")[0].strip())
+                            values = functions.seconds_datetime(seconds)
+                            data["userTimestepDate"], data["userTimestepTime"] = values[0], values[1]
+                    elif line.strip().startswith('DtNodal'):
+                        parts = line.split("=")
+                        if len(parts) >= 2:
+                            seconds = int(parts[1].split("#")[0].strip())
+                            values = functions.seconds_datetime(seconds)
+                            data["nodalTimestepDate"], data["nodalTimestepTime"] = values[0], values[1]
+                    elif line.strip().startswith('HisInterval'):
+                        parts = line.split("=")
+                        if len(parts) >= 2:
+                            temp = parts[1].split("#")[0].strip()
+                            seconds = int(temp.split(" ")[0].strip())
+                            values = functions.seconds_datetime(seconds)
+                            data["hisIntervalDate"], data["hisIntervalTime"] = values[0], values[1]
+                            temp_start = int(temp.split(" ")[1].strip())
+                            temp_stop = int(temp.split(" ")[2].strip())
+                            start = datetime.datetime.fromtimestamp(temp_start)
+                            stop = datetime.datetime.fromtimestamp(temp_stop)
+                            data["hisStart"] = start.strftime("%Y-%m-%d %H:%M:%S")
+                            data["hisStop"] = stop.strftime("%Y-%m-%d %H:%M:%S")
+                    elif line.strip().startswith('MapInterval'):
+                        parts = line.split("=")
+                        if len(parts) >= 2:
+                            temp = parts[1].split("#")[0].strip()
+                            seconds = int(temp.split(" ")[0].strip())
+                            values = functions.seconds_datetime(seconds)
+                            data["mapIntervalDate"], data["mapIntervalTime"] = values[0], values[1]
+                            temp_start = int(temp.split(" ")[1].strip())
+                            temp_stop = int(temp.split(" ")[2].strip())
+                            start = datetime.datetime.fromtimestamp(temp_start)
+                            stop = datetime.datetime.fromtimestamp(temp_stop)
+                            data["mapStart"] = start.strftime("%Y-%m-%d %H:%M:%S")
+                            data["mapStop"] = stop.strftime("%Y-%m-%d %H:%M:%S")
+                    elif line.strip().startswith('WaqInterval'):
+                        parts = line.split("=")
+                        if len(parts) >= 2:
+                            temp = parts[1].split("#")[0].strip()
+                            seconds = int(temp.split(" ")[0].strip())
+                            values = functions.seconds_datetime(seconds)
+                            data["wqIntervalDate"], data["wqIntervalTime"] = values[0], values[1]
+                            temp_start = int(temp.split(" ")[1].strip())
+                            temp_stop = int(temp.split(" ")[2].strip())
+                            start = datetime.datetime.fromtimestamp(temp_start)
+                            stop = datetime.datetime.fromtimestamp(temp_stop)
+                            data["wqStart"] = start.strftime("%Y-%m-%d %H:%M:%S")
+                            data["wqStop"] = stop.strftime("%Y-%m-%d %H:%M:%S")
+                    elif line.strip().startswith('StatsInterval'):
+                        parts = line.split("=")
+                        if len(parts) >= 2:
+                            seconds = int(parts[1].split("#")[0].strip())
+                            values = functions.seconds_datetime(seconds)
+                            data["statisticDate"], data["statisticTime"] = values[0], values[1]
+                    elif line.strip().startswith('TimingsInterval'):
+                        parts = line.split("=")
+                        if len(parts) >= 2:
+                            seconds = int(parts[1].split("#")[0].strip())
+                            values = functions.seconds_datetime(seconds)
+                            data["timingDate"], data["timingTime"] = values[0], values[1]
+                    elif line.strip().startswith('WaterLevIni'):
+                        parts = line.split("=")
+                        if len(parts) >= 2: data["initWaterLevel"] = parts[1].split("#")[0].strip()
+                    elif line.strip().startswith('InitialSalinity'):
+                        parts = line.split("=")
+                        if len(parts) >= 2: data["initSalinity"] = parts[1].split("#")[0].strip()
+                    elif line.strip().startswith('Temperature'):
+                        parts = line.split("=")
+                        if len(parts) >= 2: data["initTemperature"] = parts[1].split("#")[0].strip()
+            meteo_path = os.path.normpath(os.path.join(in_dir, "FlowFM_meteo.tim"))
+            data["meteoPath"], meteos = '', []
+            if os.path.exists(meteo_path):
+                with open(meteo_path, 'r', encoding="utf-8") as f:
+                    lines = f.readlines()
+                for line in lines:
+                    line = line.replace("\n", "")
+                    if len(line.strip().split()) != 5: continue
+                    temp = line.strip().split()
+                    temp[0] = datetime.datetime.fromtimestamp(int(temp[0].strip())*60).strftime("%Y-%m-%d %H:%M:%S")
+                    meteos.append(temp)
+                data["meteoPath"] = meteos
+            weather_path = os.path.normpath(os.path.join(in_dir, "windxy.tim"))
+            data["weatherPath"], weathers, data["weatherType"] = '', [], ''
+            if os.path.exists(weather_path):
+                with open(weather_path, 'r', encoding="utf-8") as f:
+                    lines = f.readlines()
+                for line in lines:
+                    line = line.replace("\n", "")
+                    if not line.strip(): continue
+                    temp = line.strip().split()
+                    temp[0] = datetime.datetime.fromtimestamp(int(temp[0].strip())*60).strftime("%Y-%m-%d %H:%M:%S")
+                    weathers.append(temp)
+                if len(temp) == 3: data["weatherType"] = "wind-magnitude-direction"
+                data["weatherPath"] = weathers
+            return JSONResponse({"status": 'ok', "content": data})
+        else: return JSONResponse({"status": 'new'})
+    except Exception as e:
+        print('/get_scenario:\n==============')
+        traceback.print_exc()
+        return JSONResponse({"status": 'error', "message": f"Error: {str(e)}"})
 
 # Set up the database depending on the project
 @router.post("/setup_database")
@@ -69,7 +243,7 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
         body = await request.json()
         project_name = functions.project_definer(body.get('projectName'), user)
         redis, params = request.app.state.redis, body.get('params')
-        extend_task, lock = None, redis.lock(f"{project_name}:setup_database", timeout=300)
+        extend_task, lock = None, redis.lock(f"{project_name}:setup_database", timeout=600)
         async with lock:
             extend_task = asyncio.create_task(functions.auto_extend(lock, interval=10))
             project_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name))
@@ -191,7 +365,7 @@ async def copy_project(request: Request, user=Depends(functions.basic_auth)):
         new_name = functions.project_definer(body.get('newName'), user)
         project_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, old_name))
         redis = request.app.state.redis
-        extend_task, lock = None, redis.lock(f"{old_name}:copy_project", timeout=200)
+        extend_task, lock = None, redis.lock(f"{old_name}:copy_project", timeout=600)
         async with lock:
             # Optional: auto-extend lock if deletion may take long
             extend_task = asyncio.create_task(functions.auto_extend(lock))
@@ -209,7 +383,6 @@ async def copy_project(request: Request, user=Depends(functions.basic_auth)):
             try: await extend_task
             except asyncio.CancelledError: pass
 
-
 # Delete a project
 @router.post("/delete_project")
 async def delete_project(request: Request, user=Depends(functions.basic_auth)):
@@ -218,7 +391,7 @@ async def delete_project(request: Request, user=Depends(functions.basic_auth)):
         project_name = functions.project_definer(body.get('projectName'), user)
         redis = request.app.state.redis
         name = project_name if '/' not in project_name else project_name.split('/')[-1]
-        lock = redis.lock(f"{project_name}:delete_project", timeout=10)
+        lock = redis.lock(f"{project_name}:delete_project", timeout=600)
         project_folder, extend_task = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name)), None        
         async with lock:
             # Optional: auto-extend lock if deletion may take long

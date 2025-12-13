@@ -1225,3 +1225,12 @@ def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
     max_row = np.max(np.where(mask_valid.T)[0])
     smoothed_transpose = smoothed_transpose[:max_row + 2, :]
     return smoothed_transpose
+
+def seconds_datetime(seconds: int) -> tuple:
+    days = seconds // 86400
+    seconds %= 86400
+    hours = seconds // 3600
+    seconds %= 3600
+    minutes = seconds // 60
+    seconds = seconds % 60
+    return days, f"{hours:02d}:{minutes:02d}:{seconds:02d}"

@@ -189,6 +189,7 @@ export function csvUploader(target, table, nCols, isIgnoreHeader=true, objName=n
     target.addEventListener('change', (event) => {
         const file = event.target.files[0];
         if (!file) return;
+        target.value = file?.name || "";
         const reader = new FileReader();
         reader.onload = (e) => {
             const text = e.target.result;
