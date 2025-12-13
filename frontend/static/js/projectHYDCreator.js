@@ -1,5 +1,6 @@
-import { fillTable, getDataFromTable, addRowToTable, removeRowFromTable, deleteTable, copyPaste } from "./tableManager.js";
-import { csvUploader, mapPicker, renderProjects, pointUpdate, updateTable, plotTable, sendQuery } from "./tableManager.js";
+import { fillTable, getDataFromTable, addRowToTable, removeRowFromTable,
+    deleteTable, copyPaste, csvUploader, mapPicker, renderProjects, 
+    pointUpdate, updateTable, plotTable, sendQuery } from "./tableManager.js";
 import { saveProject, timeStepCalculator } from "./projectSaver.js";
 import { getState } from "./constants.js";
 import { loadList } from "./utils.js";
@@ -245,7 +246,6 @@ function updateOption(){
     // Event when user uploads CSV file
     csvUploader(obsPointUpload(), obsPointTable(), 3);
     csvUploader(sourceUpload(), sourceTable(), 5, false, sourceName(), sourceLatitude(), sourceLongitude());
-    
     csvUploader(weatherCSVUpload(), weatherTable(), 3);
     // Upload file to server
     gridPathText().addEventListener('click', () => { gridPathFile().click(); });
@@ -382,9 +382,6 @@ function updateOption(){
     meteoUploadText().addEventListener('click', () => {
         meteoUploadFile().click(); csvUploader(meteoUploadText(), meteoTable(), 5);
     })
-
-
-
     // View boundary condition
     boundarySelectorView().addEventListener('change', async () => {
         if (boundarySelectorView().value === '') { boundaryViewContainer().style.display = 'none'; return; }
