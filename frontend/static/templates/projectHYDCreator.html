@@ -14,7 +14,7 @@
         <input type="text" id="project-name" placeholder="Enter scenario's name">
         <ul id="project-list"></ul>
       </div>
-      <button class="tab-btn" id="create-project-button">Create Scenario<span class="ink"></span></button>
+      <button class="tab-btn" id="create-project-button">Create/Edit Scenario<span class="ink"></span></button>
       <button class="tab-btn" id="duplicate-project-button" style="color: rgb(2, 240, 248);">Clone Scenario<span class="ink"></span></button>
       <button class="tab-btn" id="remove-project-button" style="color: crimson;">Delete Scenario<span class="ink"></span></button>
     </div>
@@ -75,8 +75,9 @@
                   <!-- Unstructured grid -->
                   <div class="tile"><h3>Grid</h3>
                     <div class="row">
-                      <label for="unstructured-grid">Upload grid:</label>
-                      <input type="file" id="unstructured-grid" accept=".nc">
+                      <label for="unstructured-grid-file">Click to Upload grid:</label>
+                      <input type="text" id="unstructured-grid-text" placeholder="No grid selected" readonly>
+                      <input type="file" id="unstructured-grid-file" accept=".nc" hidden>
                     </div>
                   </div>
                   <div class="tile"><h3>Grid Generation</h3>
@@ -389,8 +390,9 @@
                   <div class="grid">
                     <div class="tile"><h3>Meteo data</h3>
                        <div class="row">
-                        <label for="meteo-picker-csv">Upload CSV:</label>
-                        <input type="file" id="meteo-picker-csv" accept=".csv">
+                        <label for="meteo-picker-file">Click to Upload CSV:</label>
+                        <input type="file" id="meteo-picker-file" accept=".csv" hidden>
+                        <input type="text" id="meteo-picker-text" placeholder="No meteo selected">
                        </div>
                     </div>
                     <div class="tile"><h3>Weather data</h3>

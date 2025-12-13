@@ -1,4 +1,4 @@
-import os, json, re, requests, math, asyncio, traceback, subprocess, msgpack
+import os, json, re, requests, math, asyncio, traceback, subprocess, msgpack, datetime
 from fastapi import APIRouter, Request, File, UploadFile, Form, Depends
 from Functions import functions
 from shapely.geometry import mapping
@@ -503,7 +503,6 @@ async def delete_boundary(request: Request, user=Depends(functions.basic_auth)):
         boundary_path = os.path.normpath(os.path.join(path, f"{boundary_name}.pli"))
         ext_path = os.path.normpath(os.path.join(path, "FlowFM_bnd.ext"))
         # Delete file
-        status, message = 'ok', ""
         if os.path.exists(boundary_path):
             os.remove(boundary_path)
             message += f"- Delete successfully: {boundary_name}'.pli.\n"
@@ -516,11 +515,41 @@ async def delete_boundary(request: Request, user=Depends(functions.basic_auth)):
         if os.path.exists(contaminant_path):
             os.remove(contaminant_path)
             message += "- Delete successfully: Contaminant.bc."     
+        return JSONResponse({"status": 'ok'})
     except Exception as e:
         print('/delete_boundary:\n==============')
         traceback.print_exc()
-        status, message = 'error', f'Error: {str(e)}'
-    return JSONResponse({"status": status, "message": message})
+        return JSONResponse({"status": 'error', "message": f'Error: {str(e)}'})
+
+# Get boundary properties
+@router.post("/get_boundary_params")
+async def get_boundary_params(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
+        project_name = functions.project_definer(body.get('projectName'), user)
+        boundary_name, boundary_type = body.get('boundaryName'), body.get('boundaryType')     
+        input_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
+        type_path = os.path.normpath(os.path.join(input_dir, f"{boundary_type}.bc"))
+        if not os.path.exists(type_path): return JSONResponse({"status": 'new'})
+        with open(type_path, 'r', encoding="utf-8") as f:
+            lines = f.readlines()
+        current_data, check, content = [], False, []
+        for line in lines:
+            if not line.strip(): continue
+            if line.startswith("Name"):
+                temp_name = line.split("=", 1)[1].strip()
+                if temp_name == boundary_name: check = True
+                continue
+            if line[0].isdigit() and check: current_data.append(line.replace("\n", ""))
+        for line in current_data:
+            temp = line.strip().split()
+            val = datetime.datetime.fromtimestamp(int(temp[0]))
+            content.append([val.strftime("%Y-%m-%d %H:%M:%S"), temp[1]])
+        return JSONResponse({"status": 'ok', "content": content})   
+    except Exception as e:
+        print('/get_boundary_params:\n==============')
+        traceback.print_exc()
+        return JSONResponse({"status": 'error', "message": f'Error: {str(e)}'})
 
 # Check boundary conditions
 @router.post("/check_condition")
