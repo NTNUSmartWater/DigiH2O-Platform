@@ -75,8 +75,8 @@
                   <!-- Unstructured grid -->
                   <div class="tile"><h3>Grid</h3>
                     <div class="row">
-                      <label for="unstructured-grid-file">Click to Upload grid:</label>
-                      <input type="text" id="unstructured-grid-text" placeholder="No grid selected" readonly>
+                      <label for="unstructured-grid-file">Click to Upload Grid:</label>
+                      <input type="text" id="unstructured-grid-text" placeholder="Click to Upload Grid" readonly>
                       <input type="file" id="unstructured-grid-file" accept=".nc" hidden>
                     </div>
                   </div>
@@ -151,8 +151,9 @@
                     <!-- Layer 2: "Create a new observation point" -->
                     <div class="radio-panel" data-panel="observation-point-exist">
                       <div class="row">
-                        <label for="observation-point-csv">Upload CSV:</label>
-                        <input type="file" id="observation-point-csv" accept=".csv">
+                        <label for="observation-point-file">Click to Upload CSV:</label>
+                        <input type="file" id="observation-point-file" accept=".csv" hidden>
+                        <input type="text" id="observation-point-text" placeholder="Click to Upload Points">
                       </div>
                     </div>
                     <table class="attributes-table" id="observation-point-table">
@@ -222,7 +223,7 @@
                       </select>
                     </div>
                     <div class="row">
-                      <button type="button" id="boundary-add-row">Add new row</button>
+                      <button type="button" id="boundary-add-row">Add row</button>
                     </div>
                     <table class="attributes-table" id="boundary-edit-table">
                       <thead>
@@ -340,8 +341,9 @@
                       <!-- Layer 2: "Load from CSV file" -->
                       <div class="radio-panel" data-panel="source-sink-exist">
                         <div class="row">
-                          <label for="source-csv-file">Upload CSV:</label>
-                          <input type="file" id="source-csv-file" accept=".csv">
+                          <label for="source-csv-file">Click to Upload CSV:</label>
+                          <input type="file" id="source-csv-file" accept=".csv" hidden>
+                          <input type="text" id="source-csv-text" placeholder="Click to Upload CSV">
                         </div>
                       </div>                                  
                       <!-- Layer 3: "Select from list" -->
@@ -371,7 +373,8 @@
                     <div class="tile tile-double">
                       <div class="table-header">
                         <h3>Attribute Table</h3>
-                        <button class="tile-btn" id="plot-source-btn">Plot</button>
+                        <button class="tile-btn" id="add-source-btn">Add row</button>
+                        <button class="tile-btn" id="plot-source-btn">Plot data</button>
                         <button class="tile-btn" id="delete-source-btn"
                           style="color: crimson; background-color: aliceblue;">Delete table</button>
                         <button class="tile-btn" id="save-source-btn">Create/Update source data</button>
@@ -381,7 +384,15 @@
                           <tr><th>Time</th><th>Discharge (m³/s)</th><th>Salinity (ppt)</th>
                             <th>Temperature (°C)</th><th>Contaminant (kg/m³)</th></tr>
                         </thead>
-                        <tbody></tbody>
+                        <tbody>
+                          <tr>
+                            <td><input type="text" placeholder="YYYY-MM-DD HH:MM:SS"></td>
+                            <td><input type="text" placeholder="Discharge"></td>
+                            <td><input type="text" placeholder="Salinity"></td>
+                            <td><input type="text" placeholder="Temperature"></td>
+                            <td><input type="text" placeholder="Contaminant"></td>
+                          </tr>
+                        </tbody>
                       </table>
                     </div>
                   </div>
@@ -392,7 +403,7 @@
                        <div class="row">
                         <label for="meteo-picker-file">Click to Upload CSV:</label>
                         <input type="file" id="meteo-picker-file" accept=".csv" hidden>
-                        <input type="text" id="meteo-picker-text" placeholder="No meteo selected">
+                        <input type="text" id="meteo-picker-text" placeholder="Click to Upload Meteo data">
                        </div>
                     </div>
                     <div class="tile"><h3>Weather data</h3>
@@ -412,31 +423,32 @@
                           <option value="spider-web-grid">Spider web grid</option> -->
                         </select>
                       </div>
-                      <div class="row">
-                        <input type="file" id="weather-update-csv" accept=".csv" style="width: 50px; display: none;">
-                        <button type="button" id="weather-add-row" style="display: none;">Add row</button>
+                      <div id="weather-upload-panel" style="display: none;">
+                        <div class="row">
+                          <label for="weather-update-file">Upload CSV:</label>
+                          <input type="file" id="weather-update-file" accept=".csv" hidden>
+                          <input type="text" id="weather-update-text" placeholder="Click to Upload Weather data">
+                          <button type="button" id="weather-add-row">Add row</button>
+                        </div>
                       </div>
-                      <table class="attributes-table" id="weather-edit-table">
+                      <table class="attributes-table" id="weather-edit-table" style="display: none;">
                         <thead>
                           <tr><th>Time</th><th>Magnitude (m/s)</th><th>Direction (°)</th></tr>
                         </thead>
-                        <tbody>
-                          <tr>
-                            <td><input type="text" placeholder="YYYY-MM-DD HH:MM:SS"></td>
-                            <td><input type="text" placeholder="Magnitude"></td>
-                            <td><input type="text" placeholder="Direction"></td>
-                        </tr>
-                        </tbody>
+                        <tbody></tbody>
                       </table>
                       <div class="row">
-                        <button type="button" id="weather-update" style="display: none;">Create/Update weather data</button>
+                        <button type="button" id="weather-update" style="display: none;">Create/Update Weather data</button>
+                        <button type="button" id="weather-remove" 
+                            style="display: none; color: crimson; background-color: aliceblue;">Delete table</button>
                       </div>
 
                     </div>
                     <div class="tile tile-double">
                       <div class="table-header">
                         <h3>Attribute Table</h3>
-                        <button class="tile-btn" id="plot-meteo-btn">Plot</button>
+                        <button class="tile-btn" id="add-meteo-btn">Add row</button>
+                        <button class="tile-btn" id="plot-meteo-btn">Plot data</button>
                         <button class="tile-btn" id="delete-meteo-btn"
                           style="color: crimson; background-color: aliceblue;">Delete table</button>
                         <button class="tile-btn" id="save-meteo-btn">Create/Update meteo data</button>
@@ -446,7 +458,15 @@
                           <tr><th>Time</th><th>Humidity (%)</th><th>Air temperature (°C)</th>
                             <th>Cloud coverage (%)</th><th>Solar radiation (W/m²)</th></tr>
                         </thead>
-                        <tbody></tbody>
+                        <tbody>
+                          <tr>
+                            <td><input type="text" placeholder="YYYY-MM-DD HH:MM:SS"></td>
+                            <td><input type="text" placeholder="Humidity"></td>
+                            <td><input type="text" placeholder="Air temperature"></td>
+                            <td><input type="text" placeholder="Cloud coverage"></td>
+                            <td><input type="text" placeholder="Solar radiation"></td>
+                          </tr>
+                        </tbody>
                       </table>
                     </div>
                   </div>

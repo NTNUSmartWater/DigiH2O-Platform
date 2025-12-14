@@ -545,6 +545,7 @@ async def get_boundary_params(request: Request, user=Depends(functions.basic_aut
             temp = line.strip().split()
             val = datetime.datetime.fromtimestamp(int(temp[0]))
             content.append([val.strftime("%Y-%m-%d %H:%M:%S"), temp[1]])
+        if not content: return JSONResponse({"status": 'new'})
         return JSONResponse({"status": 'ok', "content": content})   
     except Exception as e:
         print('/get_boundary_params:\n==============')
@@ -569,7 +570,7 @@ async def generate_mdu(request: Request, user=Depends(functions.basic_auth)):
         body = await request.json()
         params = dict(body.get('params'))
         project_name = functions.project_definer(params['project_name'], user)      
-        status, message = 'ok', f"Project '{project_name}' created successfully!"
+        status, message = 'ok', f"Scenario '{project_name}' is created/modified successfully!"
         # Create MDU file
         project_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'input'))
         mdu_path = os.path.normpath(os.path.join(STATIC_DIR_BACKEND, 'samples', 'MDUFile.mdu'))
