@@ -1,6 +1,5 @@
 // Import necessary functions
-import { initializeMap, baseMapButtonFunctionality } from './mapManager.js';
-import { startLoading, showLeafletMap, map } from './mapManager.js';
+import { initializeMap, baseMapButtonFunctionality, startLoading, showLeafletMap, map } from './mapManager.js';
 import { plotChart, plotEvents, drawChart, plotWindow, thermoclinePlotter } from './chartManager.js';
 import { timeControl, colorbar_container, colorbar_vector_container, plot2DMapDynamic } from "./map2DManager.js";
 import { generalOptionsManager, summaryWindow } from './generalOptionManager.js';
