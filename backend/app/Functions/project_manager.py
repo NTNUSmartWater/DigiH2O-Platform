@@ -204,8 +204,8 @@ async def get_scenario(request: Request, user=Depends(functions.basic_auth)):
                     elif line.strip().startswith('Temperature'):
                         parts = line.split("=")
                         if len(parts) >= 2: data["initTemperature"] = parts[1].split("#")[0].strip()
-            meteo_path = os.path.normpath(os.path.join(in_dir, "FlowFM_meteo.tim"))
-            data["meteoPath"], meteos = '', []
+            data["meteoPath"], meteos, data["meteoName"] = '', [], "FlowFM_meteo.tim"
+            meteo_path = os.path.normpath(os.path.join(in_dir, data["meteoName"]))
             if os.path.exists(meteo_path):
                 with open(meteo_path, 'r', encoding="utf-8") as f:
                     lines = f.readlines()
@@ -216,8 +216,8 @@ async def get_scenario(request: Request, user=Depends(functions.basic_auth)):
                     temp[0] = datetime.datetime.fromtimestamp(int(temp[0].strip())*60).strftime("%Y-%m-%d %H:%M:%S")
                     meteos.append(temp)
                 data["meteoPath"] = meteos
-            weather_path = os.path.normpath(os.path.join(in_dir, "windxy.tim"))
-            data["weatherPath"], weathers, data["weatherType"] = '', [], ''
+            data["weatherPath"], weathers, data["weatherType"], data["weatherName"] = '', [], '', "windxy.tim"
+            weather_path = os.path.normpath(os.path.join(in_dir, data["weatherName"]))
             if os.path.exists(weather_path):
                 with open(weather_path, 'r', encoding="utf-8") as f:
                     lines = f.readlines()
