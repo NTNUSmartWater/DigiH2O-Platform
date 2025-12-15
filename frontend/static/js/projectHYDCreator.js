@@ -258,6 +258,7 @@ function updateOption(){
     });
     sourceUploadText().addEventListener('click', () => { sourceUploadFile().click(); });
     sourceUploadFile().addEventListener('change', async (event) => { 
+        deleteTable(sourceTable());
         await csvUploader(event, sourceUploadText(), sourceTable(), 5, false, sourceName(), sourceLatitude(), sourceLongitude()); 
     });
     meteoUploadText().addEventListener('click', () => { meteoUploadFile().click(); });
@@ -581,8 +582,12 @@ async function loadScenario(scenarioName){
     if (data.content.weatherPath !== '') { 
         weatherSelector().value = data.content.weatherType;
         weatherCSVUploadText().value = data.content.weatherName;
-        weatherPanel().style.display = 'block';
+        weatherPanel().style.display = 'block'; weatherTable().style.display = 'block';
+        weatherUpload().style.display = 'block'; weatherRemove().style.display = 'block';
         fillTable(data.content.weatherPath, weatherTable());
+    } else { 
+        weatherPanel().style.display = 'none'; weatherTable().style.display = 'none';
+        weatherUpload().style.display = 'none'; weatherRemove().style.display = 'none';
     }
     hisIntervalDate().value = data.content.hisIntervalDate;
     hisIntervalTime().value = data.content.hisIntervalTime;

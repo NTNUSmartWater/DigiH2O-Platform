@@ -100,33 +100,23 @@ function setupTabs(root) {
     function radioSelector(target){
       const name = target.getAttribute('data-tab');
       // Show corresponding panel and hide others
-      radioPanels.forEach(p => {
-        p.style.display = (p.getAttribute('data-panel')!==name)?'none':'block';
-      })
+      radioPanels.forEach(p => { p.style.display = (p.getAttribute('data-panel')!==name)?'none':'block'; })
     }
     function checkboxSelector(target){
         const name = target.getAttribute('data-tab');
         const checkObj = target.querySelector('input');
         const panel = root.querySelectorAll(`[data-panel="${name}"]`);
         if(panel.length === 0) return;
-        panel.forEach(p => {
-            p.style.display = checkObj.checked ? 'flex' : 'none';
-        })
+        panel.forEach(p => { p.style.display = checkObj.checked ? 'flex' : 'none'; })
     }
     // Show Simulator panel
     if(buttonPanels.length > 0) activate(buttonPanels[0]);
     // Click to change tab
-    buttonPanels.forEach(btn => {
-        btn.addEventListener('click', () => { activate(btn); });
-    });
+    buttonPanels.forEach(btn => { btn.addEventListener('click', () => { activate(btn); }); });
     // Change Radio button
-    radioBtns.forEach(btn => {
-        btn.addEventListener('click', () => { radioSelector(btn); });
-    });
+    radioBtns.forEach(btn => { btn.addEventListener('click', () => { radioSelector(btn); }); });
     // Change checkbox button
-    checkboxBtns.forEach(box => {
-        box.addEventListener('change', () => { checkboxSelector(box); });
-    });
+    checkboxBtns.forEach(box => { box.addEventListener('change', () => { checkboxSelector(box); }); });
 }
 
 async function getProjectList(){
@@ -134,8 +124,8 @@ async function getProjectList(){
     if (data.status === "ok") projectList = data.content;
 }
 
-function substanceChanger(target, name){
-    target.addEventListener('change', () => {
+function substanceChanger(target, name, type){
+    target.addEventListener('change', async () => {
         if (target.value === '') return;
         const key = target.value;
         if (key === 'simple-oxygen') subKey = 'Simple_Oxygen';
@@ -147,6 +137,31 @@ function substanceChanger(target, name){
         else if (key === 'suspend-sediment') subKey = 'Suspend_Sediment';
         else if (key === 'coliform') subKey = 'Coliform';
         name.value = subKey;
+        const data = await sendQuery('wq_time_from_waq', { key: subKey });
+        if (data.status === "error") {
+            timePreview().value = ''; timePreviewContainer().style.display = 'none'; alert(data.message); return;
+        };
+        if (type === 'wq-chemical') {
+            from_usefors = document.getElementById('wq-chemical-usefors-from');
+            from_initial = document.getElementById('wq-chemical-initial-from');
+        } else if (type === 'wq-physical') {
+            from_usefors = document.getElementById('wq-physical-usefors-from');
+            from_initial = document.getElementById('wq-physical-initial-from');
+        } else if (type === 'wq-microbial') {
+            from_usefors = document.getElementById('wq-microbial-usefors-from');
+            from_initial = document.getElementById('wq-microbial-initial-from');
+        }
+        from_usefors.innerHTML = ''; from_initial.innerHTML = ''; initialList = data.froms;
+        data.froms.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item; option.text = item;
+            from_usefors.add(option); 
+        });
+        data.froms.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item; option.text = item;
+            from_initial.add(option);
+        });
     });
 }
 
@@ -168,15 +183,17 @@ function updateOption(){
     copyPaste(obsPointTable(), 3); copyPaste(loadsPointTable(), 3);
     copyPaste(timeTable(), 4); copyPaste(sourcesTable(), 3);
     // Update when user change Combobox
-    substanceChanger(chemicalSelector(), chemicalName());
-    substanceChanger(physicalSelector(), physicalName());
-    substanceChanger(microbialSelector(), microbialName());
+    substanceChanger(chemicalSelector(), chemicalName(), 'wq-chemical');
+    substanceChanger(physicalSelector(), physicalName(), 'wq-physical');
+    substanceChanger(microbialSelector(), microbialName(), 'wq-microbial');
     // Add new row to table
     timeTableAddRow().addEventListener('click', () => {
-        addRowToTable(timeTable(), ['YYYY-MM-DD HH:MM:SS', 'PointName', '0Substance', 'Value'])
+        deleteTable(timeTable()); addRowToTable(timeTable(), ['YYYY-MM-DD HH:MM:SS', 'PointName', 'Substance', 'Value']);
     });
     // Delete table
-    deleteTable(removeTable(), timeTable());
+    removeTable().addEventListener('click', () => { 
+        deleteTable(timeTable()); addRowToTable(timeTable(), ['YYYY-MM-DD HH:MM:SS', 'PointName', 'Substance', 'Value']);
+    });
     // Upload CSV
     csvTable().addEventListener('click', () => { 
         inputFile().click();
@@ -206,8 +223,7 @@ function updateOption(){
     obsPointRemove().addEventListener('click', () => {
         const name = obsPointName().value.trim();
         if (name === '') { alert('Please enter name of observation point from list to remove.'); return; }
-        removeRowFromTable(obsPointTable(), name);
-        obsPointName().value = '';
+        removeRowFromTable(obsPointTable(), name); obsPointName().value = '';
     });
     loadsPointRemove().addEventListener('click', () => {
         const name = loadsPointName().value.trim();
@@ -266,51 +282,33 @@ function updateOption(){
             }
             if (subKey === '') { alert('Please specify type of simulation.'); return; }
             if (folderName === '') { alert('Please specify name of substance.'); return; }
-            const data = await sendQuery('wq_time', { key: subKey, folderName: folderName, loadsData: loadsData.rows, timeData: timeData.rows });
-            timePreview().value = ''; 
+            const data = await sendQuery('wq_time_to_waq', { folderName: folderName, loadsData: loadsData.rows, timeData: timeData.rows });
             if (data.status === "error") {
-                timePreviewContainer().style.display = 'none'; alert(data.message); return;
+                timePreview().value = ''; timePreviewContainer().style.display = 'none'; alert(data.message); return;
             };
             timePreview().value = data.content; timePreviewContainer().style.display = 'flex';
             // Assign value to USEFORS
             if (btn.id === 'wq-chemical') {
-                from_usefors = document.getElementById('wq-chemical-usefors-from');
                 to_usefors = document.getElementById('wq-chemical-usefors-to');
                 usefors = document.getElementById('wq-usefors-chemical');
-                from_initial = document.getElementById('wq-chemical-initial-from');
                 initial_value = document.getElementById('wq-chemical-initial');
                 initial_area = document.getElementById('wq-initial-chemical');
             } else if (btn.id === 'wq-physical') {
-                from_usefors = document.getElementById('wq-physical-usefors-from');
                 to_usefors = document.getElementById('wq-physical-usefors-to');
                 usefors = document.getElementById('wq-usefors-physical');
-                from_initial = document.getElementById('wq-physical-initial-from');
                 initial_value = document.getElementById('wq-physical-initial');
                 initial_area = document.getElementById('wq-initial-physical');
             } else if (btn.id === 'wq-microbial') {
-                from_usefors = document.getElementById('wq-microbial-usefors-from');
                 to_usefors = document.getElementById('wq-microbial-usefors-to');
                 usefors = document.getElementById('wq-usefors-microbial');
-                from_initial = document.getElementById('wq-microbial-initial-from');
                 initial_value = document.getElementById('wq-microbial-initial');
                 initial_area = document.getElementById('wq-initial-microbial');
             }
-            from_usefors.innerHTML = ''; to_usefors.innerHTML = '';
-            usefors.value = ''; from_initial.innerHTML = ''; initialList = data.froms;
-            data.froms.forEach(item => {
-                const option = document.createElement('option');
-                option.value = item; option.text = item;
-                from_usefors.add(option); 
-            })
+            to_usefors.innerHTML = ''; usefors.value = ''; 
             data.tos.forEach(item => {
                 const option = document.createElement('option');
                 option.value = item; option.text = item;
                 to_usefors.add(option);
-            });
-            data.froms.forEach(item => {
-                const option = document.createElement('option');
-                option.value = item; option.text = item;
-                from_initial.add(option);
             });
         });
     });
