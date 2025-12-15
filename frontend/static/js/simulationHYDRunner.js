@@ -69,9 +69,10 @@ function updateSelection(){
         }
         checkboxContainer().style.display = 'block'; textareaWrapper().style.display = 'block';
         const statusRes = await sendQuery('check_sim_status_hyd', {projectName: projectName});
+        const protocol = window.location.protocol === "https:" ? "wss" : "ws";
         if (statusRes.status === "running") {
             if (!ws || ws.readyState === WebSocket.CLOSED) {
-                ws = new WebSocket(`ws://${window.location.host}/sim_progress_hyd/${projectName}`);
+                ws = new WebSocket(`${protocol}://${window.location.host}/sim_progress_hyd/${projectName}`);
                 ws.onmessage = (event) => {
                     if (!event.data.includes("[PROGRESS]")) { content += event.data + '\n';}
                     infoArea().value = content;
@@ -104,8 +105,9 @@ function updateSelection(){
         currentProject = projectName; content = ''; infoArea().value = ''; progressbar().value = 0;
         progressText().innerText = 'Start running hydrodynamic simulation...';
         // Run hydrodynamics simulation
+        const protocol = window.location.protocol === "https:" ? "wss" : "ws";
         if (ws) ws.close();
-        ws = new WebSocket(`ws://${window.location.host}/sim_progress_hyd/${projectName}`);
+        ws = new WebSocket(`${protocol}://${window.location.host}/sim_progress_hyd/${projectName}`);
         ws.onmessage = (event) => {
             if (!event.data.includes("[PROGRESS]")) { content += event.data + '\n';}
             infoArea().value = content;

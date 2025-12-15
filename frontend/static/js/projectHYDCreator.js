@@ -575,11 +575,13 @@ async function loadScenario(scenarioName){
     // Get source data if exist
     updateTable(sourceRemoveTable(), sourceSelectorRemove(), scenarioName);
     if (data.content.meteoPath !== '') { 
-        meteoUploadText().value = 'FlowFM_meteo.tim';
+        meteoUploadText().value = data.content.meteoName;
         fillTable(data.content.meteoPath, meteoTable());
     }
     if (data.content.weatherPath !== '') { 
         weatherSelector().value = data.content.weatherType;
+        weatherCSVUploadText().value = data.content.weatherName;
+        weatherPanel().style.display = 'block';
         fillTable(data.content.weatherPath, weatherTable());
     }
     hisIntervalDate().value = data.content.hisIntervalDate;
