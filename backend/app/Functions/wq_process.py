@@ -40,11 +40,30 @@ async def select_hyd(request: Request, user=Depends(functions.basic_auth)):
     message = f"Error: Cannot find .hyd file in project '{project_name}'.\nPlease run a hydrodynamic simulation first."
     return JSONResponse({"status": 'error', "message": message})
 
-@router.post("/wq_time")
+@router.post("/wq_time_from_waq")
+async def wq_time_from_waq(request: Request):
+    try:
+        body = await request.json()
+        key = body.get('key')
+        if key == 'Simple_Oxygen': from_ = ['NH4', 'CBOD5', 'OXY', 'SOD']
+        elif key == 'Oxygen_BOD': from_ = ['OXY', 'CBOD5']
+        elif key == 'Cadmium': from_ = ['IM1', 'Cd', 'IM1S1', 'CdS1']
+        elif key == 'Eutrophication': from_ = ['A', 'DP', 'NORG', 'NH4', 'NO3']
+        elif key == 'Trace_Metals': from_ = ['ASWTOT', 'CUWTOT', 'NIWTOT', 'PBWTOT', 'POCW', 'AOCW', 'DOCW', 'SSW', 'ZNWTOT',
+                    'ASREDT', 'ASSTOT', 'ASSUBT', 'CUREDT', 'CUSTOT', 'CUSUBT', 'NIREDT', 'NISTOT', 'NISUBT',
+                    'PBREDT', 'PBSTOT', 'PBSUBT', 'DOCB', 'DOCSUB', 'POCB', 'POCSUB', 'S', 'ZNREDT', 'ZNSTOT', 'ZNSUBT']
+        elif key == 'Conservative_Tracers': from_ = ['cTR1', 'cTR2', 'cTR3', 'dTR1', 'dTR2', 'dTR3']
+        elif key == 'Suspend_Sediment': from_ = ['IM1', 'IM2', 'IM3', 'IM1S1', 'IM2S1', 'IM3S1']
+        elif key == 'Coliform': from_ = ['Salinity', 'EColi']
+        return JSONResponse({"status": 'ok', "froms": from_})
+    except Exception as e:
+        return JSONResponse({"status": 'error', "message":  f"Error: {str(e)}"})
+
+@router.post("/wq_time_to_waq")
 async def wq_time(request: Request):
     try:
         body = await request.json()
-        load_data, time_data, key, folder = body.get('loadsData'), body.get('timeData'), body.get('key'), body.get('folderName')
+        load_data, time_data, folder = body.get('loadsData'), body.get('timeData'), body.get('folderName')
         # Check whether the location in time-series is in the load data
         loads, times = [x[0] for x in load_data], [x[1] for x in time_data]
         if not any(x in times for x in loads):
@@ -67,16 +86,6 @@ async def wq_time(request: Request):
             temp = ["DATA_ITEM", name[0], "CONCENTRATIONS",
                 f"INCLUDE 'includes_deltashell\\load_data_tables\\{folder}.usefors'",
                 "TIME LINEAR DATA", subs]
-            if key == 'simple-oxygen': from_ = ['NH4', 'CBOD5', 'OXY', 'SOD']
-            elif key == 'oxygen-bod-water': from_ = ['OXY', 'CBOD5']
-            elif key == 'cadmium': from_ = ['IM1', 'Cd', 'IM1S1', 'CdS1']
-            elif key == 'eutrophication': from_ = ['A', 'DP', 'NORG', 'NH4', 'NO3']
-            elif key == 'trace-metals': from_ = ['ASWTOT', 'CUWTOT', 'NIWTOT', 'PBWTOT', 'POCW', 'AOCW', 'DOCW', 'SSW', 'ZNWTOT',
-                        'ASREDT', 'ASSTOT', 'ASSUBT', 'CUREDT', 'CUSTOT', 'CUSUBT', 'NIREDT', 'NISTOT', 'NISUBT',
-                        'PBREDT', 'PBSTOT', 'PBSUBT', 'DOCB', 'DOCSUB', 'POCB', 'POCSUB', 'S', 'ZNREDT', 'ZNSTOT', 'ZNSUBT']
-            elif key == 'conservative-tracers': from_ = ['cTR1', 'cTR2', 'cTR3', 'dTR1', 'dTR2', 'dTR3']
-            elif key == 'suspend-sediment': from_ = ['IM1', 'IM2', 'IM3', 'IM1S1', 'IM2S1', 'IM3S1']
-            elif key == 'coliform': from_ = ['Salinity', 'EColi']
             # Assign data
             temp_df = pd.DataFrame()
             for item in gr_substance:
@@ -90,7 +99,7 @@ async def wq_time(request: Request):
             lst = [' '.join(x) for x in lst]
             temp += lst
             result.append('\n'.join(temp))
-        return JSONResponse({"status": 'ok',"content": '\n\n\n'.join(result), "froms": from_, "tos": gr_substance})
+        return JSONResponse({"status": 'ok',"content": '\n\n\n'.join(result), "tos": gr_substance})
     except Exception as e:
         return JSONResponse({"status": 'error', "message":  f"Error: {str(e)}"})
 
