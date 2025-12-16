@@ -108,6 +108,7 @@ async def waq_config_writer(request: Request, user=Depends(functions.basic_auth)
         body = await request.json()
         project_name = functions.project_definer(body.get('projectName'), user)
         config_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "config"))
+        if not os.path.exists(config_path): os.makedirs(config_path)
         config_file = os.path.normpath(os.path.join(config_path, "config_waq.json"))
         if os.path.exists(config_file): os.remove(config_file)
         with open(config_file, 'w', encoding='utf-8') as f:
@@ -153,10 +154,12 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
             await websocket.send_json({"error": "Configuration file not found."})
             log_file.write("Configuration file not found.\n")
             return
+        log_file.write("Configuration file found.\n")
         await websocket.send_json({'status': "Reading configuration ..."})
         with open(config_file, "r", encoding="utf-8", errors="replace") as f:
             body = json.load(f)
         await websocket.send_json({'status': "Starting simulation ..."})
+        log_file.write("Starting simulation.\n")
         
         processes[project_name] = {"progress": 0, "logs": [], "status": "running", "process": None, "stopped": False}
         try:
