@@ -136,8 +136,12 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
             log_file.write("Simulation for this project is already running.\n")
             return
         processes[project_name] = {"progress": 0, "logs": [], "status": "running", "process": None, "stopped": False}
+        try: body = await websocket.receive_json()
+        except Exception as e:
+            log_file.write(f"Error: {str(e)}\n")
+            return
         try:
-            body = await websocket.receive_json()
+            
             key, file_name, time_data, usefors = body['key'], body['folderName'], body['timeTable'], body['usefors']
             log_file.write(f"Simulation parameters:\nKey: {key}\nFolder: {file_name}\nTime table: {time_data}\nUsefors: {usefors}\n")
             t_start = datetime.fromtimestamp(int(body['startTime']/1000.0), tz=timezone.utc)
@@ -268,8 +272,6 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
                 await websocket.send_json({'status': "Simulation completed successfully."})
             except Exception as e: await websocket.send_json({'status': str(e)})
         except WebSocketDisconnect: pass
-        except Exception as e:
-            log_file.write(str(e) + "\n")
         finally:
             if project_name in processes and not processes[project_name].get("stopped", False):
                 processes.pop(project_name, None)
