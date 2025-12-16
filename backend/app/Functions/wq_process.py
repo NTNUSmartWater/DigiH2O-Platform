@@ -131,14 +131,13 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
     with open(log_path, "a", encoding="utf-8", errors="replace") as log_file:
         log_file.write(f"Project: {project_name} - Simulation started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         log_file.write("===============================================\n")
-        body = await websocket.receive_json()
-        log_file.write(f"Socket: {body}\n")
         if project_name in processes and processes[project_name]["status"] == "running":
             await websocket.send_json({"error": "Simulation for this project is already running."})
             log_file.write("Simulation for this project is already running.\n")
             return
         processes[project_name] = {"progress": 0, "logs": [], "status": "running", "process": None, "stopped": False}
         try:
+            body = await websocket.receive_json()
             key, file_name, time_data, usefors = body['key'], body['folderName'], body['timeTable'], body['usefors']
             log_file.write(f"Simulation parameters:\nKey: {key}\nFolder: {file_name}\nTime table: {time_data}\nUsefors: {usefors}\n")
             t_start = datetime.fromtimestamp(int(body['startTime']/1000.0), tz=timezone.utc)
