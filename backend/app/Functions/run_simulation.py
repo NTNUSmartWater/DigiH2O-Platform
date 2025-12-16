@@ -65,64 +65,64 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
     percent_re = re.compile(r'(?P<percent>\d{1,3}(?:\.\d+)?)\s*%')
     time_re = re.compile(r'(?P<tt>\d+d\s+\d{1,2}:\d{2}:\d{2})')
     # Run the process
-    if request.app.state.env == 'development':
-        # Run the process on host
-        command = [bat_path, "--autostartstop", mdu_path]
-        process = subprocess.Popen(
-            command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-            encoding="utf-8", errors="replace", bufsize=1, cwd=path
-        )
-        processes[project_name] = {"process": process, "progress": 0.0, 
-            "real_time_used": "N/A", "real_time_left": "N/A", "logs": [], "status": "running"}
-        # Stream logs
-        def stream_logs():
-            try:
-                for line in process.stdout:
-                    line = line.strip()
-                    if not line: continue
-                    append_log(log_path, line)
-                    # Catch error messages
-                    if "forrtl:" in line.lower() or "error" in line.lower():
-                        processes[project_name]["status"] = "error"
-                        append_log(log_path, f"[ERROR] {line}")
-                        try: process.kill()
-                        except: pass
-                        break
-                    # Check for progress
-                    match_pct = percent_re.search(line)
-                    if match_pct: processes[project_name]["progress"] = float(match_pct.group("percent"))
-                    # Extract run time
-                    times = time_re.findall(line)
-                    if len(times) >= 4:
-                        processes[project_name]["real_time_used"] = times[2]
-                        processes[project_name]["real_time_left"] = times[3]
-                    elif len(times) == 3:
-                        processes[project_name]["real_time_used"] = times[1]
-                        processes[project_name]["real_time_left"] = times[2]
-            finally:
-                process.wait()
-                status = processes[project_name]["status"]
-                if status != "error":
-                    try:
-                        processes[project_name]["status"] = "postprocessing"
-                        post_result = functions.postProcess(path)
-                        processes[project_name]["status"] = "finished"
-                        msg = f"[FINISHED] {post_result['message']}" if post_result["status"] == "ok" else f"[ERROR] {post_result['message']}"
-                        append_log(log_path, msg)
-                    except Exception as e: append_log(log_path, f"[POSTPROCESS FAILED] {str(e)}")
-                append_log(log_path, "[CLEANUP] Done.")
-                processes[project_name]["progress"] = 100.0
-        threading.Thread(target=stream_logs, daemon=True).start()
-        return JSONResponse({"status": "ok", "message": f"Simulation {project_name} started on Windows host."})
-    else: # Run the process on docker
+    # if request.app.state.env == 'development':
+    # Run the process on host
+    command = [bat_path, "--autostartstop", mdu_path]
+    process = subprocess.Popen(
+        command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        encoding="utf-8", errors="replace", bufsize=1, cwd=path
+    )
+    processes[project_name] = {"process": process, "progress": 0.0, 
+        "real_time_used": "N/A", "real_time_left": "N/A", "logs": [], "status": "running"}
+    # Stream logs
+    def stream_logs():
         try:
-            payload = {"action": "run_hyd", "bat_path": bat_path, "mdu_path": mdu_path, "project_name": project_name, 
-                   "log_path": log_path, "cwd_path": path, "percent_re": str(percent_re), "time_re": str(time_re)}
-            res = requests.post(WINDOWS_AGENT_URL, json=payload, timeout=10)
-            res.raise_for_status()
-            return JSONResponse({"status": "ok", "message": f"Simulation {project_name} started (via Windows Agent)."})
-        except Exception as e:
-            return JSONResponse({"status": "error", "message": f"Exception: {str(e)}"})
+            for line in process.stdout:
+                line = line.strip()
+                if not line: continue
+                append_log(log_path, line)
+                # Catch error messages
+                if "forrtl:" in line.lower() or "error" in line.lower():
+                    processes[project_name]["status"] = "error"
+                    append_log(log_path, f"[ERROR] {line}")
+                    try: process.kill()
+                    except: pass
+                    break
+                # Check for progress
+                match_pct = percent_re.search(line)
+                if match_pct: processes[project_name]["progress"] = float(match_pct.group("percent"))
+                # Extract run time
+                times = time_re.findall(line)
+                if len(times) >= 4:
+                    processes[project_name]["real_time_used"] = times[2]
+                    processes[project_name]["real_time_left"] = times[3]
+                elif len(times) == 3:
+                    processes[project_name]["real_time_used"] = times[1]
+                    processes[project_name]["real_time_left"] = times[2]
+        finally:
+            process.wait()
+            status = processes[project_name]["status"]
+            if status != "error":
+                try:
+                    processes[project_name]["status"] = "postprocessing"
+                    post_result = functions.postProcess(path)
+                    processes[project_name]["status"] = "finished"
+                    msg = f"[FINISHED] {post_result['message']}" if post_result["status"] == "ok" else f"[ERROR] {post_result['message']}"
+                    append_log(log_path, msg)
+                except Exception as e: append_log(log_path, f"[POSTPROCESS FAILED] {str(e)}")
+            append_log(log_path, "[CLEANUP] Done.")
+            processes[project_name]["progress"] = 100.0
+    threading.Thread(target=stream_logs, daemon=True).start()
+    return JSONResponse({"status": "ok", "message": f"Simulation {project_name} started on Windows host."})
+    # else: # Run the process on docker
+    #     try:
+    #         payload = {"action": "run_hyd", "bat_path": bat_path, "mdu_path": mdu_path, "project_name": project_name, 
+    #                "log_path": log_path, "cwd_path": path, "percent_re": str(percent_re), "time_re": str(time_re)}
+    #         res = requests.post(WINDOWS_AGENT_URL, json=payload, timeout=10)
+    #         res.raise_for_status()
+    #         return JSONResponse({"status": "ok", "message": f"Simulation {project_name} started (via Windows Agent)."})
+    #     except Exception as e:
+    #         return JSONResponse({"status": "error", "message": f"Exception: {str(e)}"})
 
 @router.websocket("/sim_progress_hyd/{project_name}")
 async def sim_progress_hyd(websocket: WebSocket, project_name: str):
