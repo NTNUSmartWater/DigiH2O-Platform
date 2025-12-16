@@ -336,6 +336,7 @@ function updateOption(){
     // Check function to run water quality simulation
     document.querySelectorAll('.wq-simulation').forEach(btn => {
         btn.addEventListener('click', async () => {
+            window.parent.postMessage({ type: 'update-WAQ', content: 'Getting configuration. Please wait...'}, '*');
             if (btn.dataset.info === 'chemical') {
                 maxiter = document.getElementById('max-iterations-chemical');
                 tolerance = document.getElementById('tolerance-chemical');
@@ -374,7 +375,10 @@ function updateOption(){
                 temPath: temPath, initial: initialValue, initialList: initialList, startTime: toUTC(start), stopTime: toUTC(stop),
                 obsPoints: obsTable.rows, timeTable: timeTable, maxiter: maxiter.value, tolerance: tolerance.value, scheme: scheme.value, salPath: salPath
             }
-            window.parent.postMessage({ type: 'run-wq', data: params}, '*');
+            window.parent.postMessage({ type: 'update-WAQ', content: 'Saving configuration. Please wait...'}, '*');
+            const waq_config = await sendQuery('waq_config_writer', params);
+            if (waq_config.status === 'error') { alert(waq_config.message); return; }
+            window.parent.postMessage({ type: 'run-wq', projectName: name}, '*');
         });
     });
 }
