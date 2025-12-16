@@ -139,9 +139,11 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
         processes[project_name] = {"progress": 0, "logs": [], "status": "running", "process": None, "stopped": False}
         try:
             key, file_name, time_data, usefors = body['key'], body['folderName'], body['timeTable'], body['usefors']
+            log_file.write(f"Simulation parameters:\nKey: {key}\nFolder: {file_name}\nTime table: {time_data}\nUsefors: {usefors}\n")
             t_start = datetime.fromtimestamp(int(body['startTime']/1000.0), tz=timezone.utc)
             t_stop = datetime.fromtimestamp(int(body['stopTime']/1000.0), tz=timezone.utc)
             hyd_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "DFM_DELWAQ", body['hydName']))
+            log_file.write(f"Hydrodynamic file: {hyd_path}\n")
             hyd_folder = os.path.dirname(hyd_path)
             sal_path, attr_path = os.path.normpath(os.path.join(hyd_folder, body['salPath'])), os.path.normpath(os.path.join(hyd_folder, body['attrPath']))
             vol_path, ptr_path = os.path.normpath(os.path.join(hyd_folder, body['volPath'])), os.path.normpath(os.path.join(hyd_folder, body['ptrPath']))
@@ -266,6 +268,8 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
                 await websocket.send_json({'status': "Simulation completed successfully."})
             except Exception as e: await websocket.send_json({'status': str(e)})
         except WebSocketDisconnect: pass
+        except Exception as e:
+            log_file.write(str(e) + "\n")
         finally:
             if project_name in processes and not processes[project_name].get("stopped", False):
                 processes.pop(project_name, None)
