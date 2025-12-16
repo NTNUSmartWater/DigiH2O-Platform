@@ -253,7 +253,7 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
                 processes[project_name]["status"] = "finished"
                 return
             # === Run delwaq2 ===
-            await websocket.send_json({'status': "Running WAQ simulation..."})
+            # await websocket.send_json({'status': "Running WAQ simulation..."})
             log_file.write("Running WAQ simulation\n")
             print('=== Run delwaq2 ===')
             cmd2 = [delwaq2_path, inp_name]
