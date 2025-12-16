@@ -483,11 +483,11 @@ function updateEvents() {
         }
         if (event.data?.type === 'run-wq') {
             const params = event.data.data;
-            // Check if simulation is running
-            const statusRes = await sendQuery('check_sim_status_waq', {projectName: params.projectName});
-            if (statusRes.status === "running") {
-                alert("Simulation is already running for this project."); return;
-            }
+            // // Check if simulation is running
+            // const statusRes = await sendQuery('check_sim_status_waq', {projectName: params.projectName});
+            // if (statusRes.status === "running") {
+            //     alert("Simulation is already running for this project."); return;
+            // }
             waqWindow().style.display = 'flex'; currentProject = params.projectName;
             waqProgressText().innerText = 'Start running water quality simulation...';            
             const protocol = window.location.protocol === "https:" ? "wss" : "ws";
