@@ -246,8 +246,9 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
             cmd1 = [delwaq1_path, inp_name, "-p", proc_path, "-eco", bloom_path]
             ok1 = await subprocessRunner(log_file, cmd1, output_folder, websocket, project_name)
             log_file.write("=== Finished Running delwaq1 ===\n")
+            log_file.write(f"{ok1}\n")
             if not ok1:
-                # await websocket.send_json({'error': "Prepare inputs failed."})
+                await websocket.send_json({'error': "Prepare inputs failed."})
                 log_file.write("Prepare inputs failed.\n")
                 processes[project_name]["status"] = "finished"
                 return
