@@ -488,6 +488,7 @@ function updateEvents() {
             // if (statusRes.status === "running") {
             //     alert("Simulation is already running for this project."); return;
             // }
+            console.log('params', params);
             waqWindow().style.display = 'flex'; currentProject = params.projectName;
             waqProgressText().innerText = 'Start running water quality simulation...';            
             const protocol = window.location.protocol === "https:" ? "wss" : "ws";
