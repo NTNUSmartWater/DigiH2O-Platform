@@ -333,7 +333,7 @@ async def subprocessRunner(log_file, cmd, cwd, websocket, project_name, progress
                     percent = float(match.group(1))
                     processes[project_name]["progress"] = percent
                     log_file.write(f"Progress: {percent}%\n")
-                    await websocket.send_json({"progress": percent})     
+                    # await websocket.send_json({"progress": percent})     
             # Check special errors
             if stop_on_error and stop_on_error in line:
                 if "ERROR in GMRES" in line: 
