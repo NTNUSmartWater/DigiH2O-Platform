@@ -2,7 +2,7 @@ import shapely, os, re, shutil, stat, json, asyncio, base64, time
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
-from scipy.interpolate import Rbf, griddata
+from scipy.interpolate import griddata
 from config import PROJECT_STATIC_ROOT, ALLOWED_USERS_PATH
 from redis.asyncio.lock import Lock
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
