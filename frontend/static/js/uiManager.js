@@ -486,34 +486,21 @@ function updateEvents() {
         }
         if (event.data?.type === 'run-wq') {
             currentProject = event.data.projectName;
-            // const params = waq_config.content;
-            // // Check if simulation is running
-            // const statusRes = await sendQuery('check_sim_status_waq', {projectName: params.projectName});
-            // if (statusRes.status === "running") {
-            //     alert("Simulation is already running for this project."); return;
-            // }
-            // console.log('params', params);
             waqWindow().style.display = 'flex'; waqProgressText().innerText = 'Start running water quality simulation...';            
             const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-            // console.log(protocol);
             if (ws) ws.close();
             ws = new WebSocket(`${protocol}://${window.location.host}/sim_progress_waq/${currentProject}`);
-            // console.log(ws);
             waqProgressText().innerText = ''; waqProgressbar().value = 0;
-            // ws.onopen = () => {
-            //     ws.send(JSON.stringify(params));
-            //     waqProgressText().innerText = ''; waqProgressbar().value = 0;
-            // }
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                if (data.error) { waqProgressText().innerText = data.error; return; }
-                if (data.status !== undefined) waqProgressText().innerText = data.status;
-                if (data.logs !== undefined) waqProgressText().innerText = data.logs;
-                if (data.progress !== undefined) {
-                    waqProgressText().innerText = 'Completed: ' + data.progress + '%';
-                    waqProgressbar().value = data.progress;
-                }
-            };
+            // ws.onmessage = (event) => {
+            //     const data = JSON.parse(event.data);
+            //     if (data.error) { waqProgressText().innerText = data.error; return; }
+            //     if (data.status !== undefined) waqProgressText().innerText = data.status;
+            //     if (data.logs !== undefined) waqProgressText().innerText = data.logs;
+            //     if (data.progress !== undefined) {
+            //         waqProgressText().innerText = 'Completed: ' + data.progress + '%';
+            //         waqProgressbar().value = data.progress;
+            //     }
+            // };
         }
     });
     // Move window
