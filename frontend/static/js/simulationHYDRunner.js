@@ -88,32 +88,43 @@ function updateSelection(){
     });
     // Run new simulation
     runBtn().addEventListener('click', async () => {
+        let lastContent = '';
         if (isRunning) return; isRunning = true;
-        const projectName = projectSelector().value;
-        if (!projectName) {alert('Please select a project.'); return;}
+        currentProject = projectSelector().value;
+        if (!currentProject) {alert('Please select a project.'); return;}
         // Check if simulation is running
-        const statusRes = await sendQuery('check_sim_status_hyd', {projectName: projectName});
+        const statusRes = await sendQuery('check_sim_status_hyd', {projectName: currentProject});
         if (statusRes.status === "running") {
             alert("Simulation is already running for this project."); return;
         }
-        const res = await sendQuery('check_folder', {projectName: projectName, folder: ['output']});
+        const res = await sendQuery('check_folder', {projectName: currentProject, folder: ['output']});
         if (res.status === "ok") {
             if (!confirm("Output exists. Re-run will overwrite it. Continue?")) return;
         }
-        const start = await sendQuery('start_sim_hyd', {projectName: projectName});
+        const start = await sendQuery('start_sim_hyd', {projectName: currentProject});
         if (start.status === "error") {alert(start.message); return;}
-        currentProject = projectName; content = ''; infoArea().value = ''; progressbar().value = 0;
+        content = ''; infoArea().value = ''; progressbar().value = 0;
         progressText().innerText = 'Start running hydrodynamic simulation...';
         // Run hydrodynamics simulation
         const protocol = window.location.protocol === "https:" ? "wss" : "ws";
         if (ws) ws.close();
-        ws = new WebSocket(`${protocol}://${window.location.host}/sim_progress_hyd/${projectName}`);
-        ws.onmessage = (event) => {
-            if (!event.data.includes("[PROGRESS]")) { content += event.data + '\n';}
-            infoArea().value = content;
-            statusUpdate(event.data, progressbar, progressText);
-            if (event.data.includes("[FINISHED]")) isRunning = false;
-        };
+        ws = new WebSocket(`${protocol}://${window.location.host}/sim_progress_hyd/${currentProject}`);
+        // Update logs every 3 seconds
+        setInterval(async () => {
+            try {
+                const res = await fetch(`/sim_temp_log/${currentProject}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                const newContent = data.line;
+                if (newContent !== lastContent) {
+                    if (!newContent.includes("[PROGRESS]")) { content += newContent + '\n';}
+                    infoArea().value = content;
+                    statusUpdate(newContent, progressbar, progressText);
+                    if (newContent.includes("[FINISHED]")) isRunning = false;
+                    lastContent = newContent;
+                }
+            } catch (error) { console.error("Fetch log failed:", error); }
+        }, 3000);
     });
 }
 updateSelection();
