@@ -586,5 +586,5 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
             content_inp = content_inp.replace(f'{{{key}}}', str(value))
         with open(inp_path, 'w', encoding='utf-8') as f:
             f.write(content_inp)
-        return inp_path, ''
+        return inp_path
     except Exception as e: return None, str(e)
