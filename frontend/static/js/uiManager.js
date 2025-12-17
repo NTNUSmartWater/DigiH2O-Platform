@@ -166,7 +166,7 @@ function updateLogWAQ(project, progress_bar, progress_text, seconds=0.1) {
     logInterval = setInterval(async () => {
         try {
             const statusRes = await sendQuery('check_sim_status_waq', {projectName: project});
-            if (statusRes.status === "running") {
+            if (statusRes.status === "running" || statusRes.status === "checking") {
                 progress_text.innerText = statusRes.complete || '';
                 progress_bar.value = statusRes.progress || 0;
             } else if (statusRes.status === "postprocessing") {
