@@ -1,12 +1,11 @@
 import os, subprocess, asyncio, re, shutil, json
 import pandas as pd, numpy as np, xarray as xr
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request, Depends, BackgroundTasks
 from config import PROJECT_STATIC_ROOT, DELFT_PATH
 from fastapi.responses import JSONResponse
 from datetime import datetime, timezone
 from Functions import wq_functions, functions
 from starlette.websockets import WebSocketDisconnect
-from zarr.convenience import consolidate_metadata
 
 router, processes = APIRouter(), {}
 
@@ -131,9 +130,10 @@ async def check_sim_status_waq(request: Request, user=Depends(functions.basic_au
     return JSONResponse({ "status": info["status"], "progress": info["progress"], "logs": logs, "message": info["message"],
                             "complete": f"Progress: {info['progress']}%"})
 
+
 # Start a waq simulation
 @router.post("/start_sim_waq")
-async def start_sim_waq(request: Request, user=Depends(functions.basic_auth)):
+async def start_sim_waq(request: Request, background_tasks: BackgroundTasks, user=Depends(functions.basic_auth)):
     body = await request.json()
     project_name = functions.project_definer(body.get('projectName'), user)
     if project_name in processes and processes[project_name]["status"] == "running":
@@ -232,7 +232,7 @@ async def start_sim_waq(request: Request, user=Depends(functions.basic_auth)):
             progress_regex = re.compile(r"(\d+(?:\.\d+)?)% Completed")
             # if websocket.app.state.env == "development":
             # === Run delwaq1 ===
-            processes[project_name]["status"] = "running"
+            processes[project_name]["status"] = "checking"
             processes[project_name]["message"] = "Checking inputs for WAQ simulation..."
             log_file.write("Checking inputs for WAQ simulation\n")
             print('=== Run delwaq1 ===')
@@ -245,7 +245,7 @@ async def start_sim_waq(request: Request, user=Depends(functions.basic_auth)):
                 log_file.write("Prepare inputs failed.\n")
                 return JSONResponse({"status": processes[project_name]["status"], "message": processes[project_name]["message"]})
             # === Run delwaq2 ===
-            processes[project_name]["status"] = "running"
+            processes[project_name]["status"] = "checking"
             processes[project_name]["message"] = "Running WAQ simulation..."
             log_file.write("Running WAQ simulation\n")
             print('=== Run delwaq2 ===')
