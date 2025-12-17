@@ -1,12 +1,10 @@
-import os, subprocess, threading, asyncio, re
+import os, subprocess, threading, re
 from Functions import functions
-from fastapi import APIRouter, Request, WebSocket, Depends
+from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import JSONResponse
 from config import PROJECT_STATIC_ROOT, DELFT_PATH, WINDOWS_AGENT_URL
-from starlette.websockets import WebSocketDisconnect
 
 router, processes = APIRouter(), {}
-TEMP_LOGS: dict[str, str] = {}
 
 # Utility: append to file log
 def append_log(log_path, text):
@@ -31,17 +29,18 @@ async def check_sim_status_hyd(request: Request, user=Depends(functions.basic_au
     body = await request.json()
     project_name = functions.project_definer(body.get('projectName'), user)
     info, logs = processes.get(project_name), []
+    if not info: 
+        return JSONResponse({"status": "not_started", "progress": 0, "complete": 'Completed: --% [Used: N/A → Left: N/A]',
+                         "time_used": "N/A", "time_left": "N/A", "logs": [], "message": ''})
     log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log_hyd.txt"))
-    if info:
-        # Read log file
-        if os.path.exists(log_path):
-            with open(log_path, "r", encoding="utf-8", errors="replace") as f:
-                logs = f.read().splitlines()
-        complete = f'Completed: {info["progress"]}% [Used: {info["time_used"]} → Left: {info["time_left"]}]'
-        return JSONResponse({ "status": info["status"], "progress": info["progress"], "complete": complete,
-            "time_used": info["time_used"], "time_left": info["time_left"], "logs": logs})
-    return JSONResponse({"status": "none"})
-
+    # Read log file
+    if os.path.exists(log_path):
+        with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+            logs = f.read().splitlines()
+    complete = f'Completed: {info["progress"]}% [Used: {info["time_used"]} → Left: {info["time_left"]}]'
+    return JSONResponse({ "status": info["status"], "progress": info["progress"], "complete": complete,
+        "time_used": info["time_used"], "time_left": info["time_left"], "logs": logs, "message": info["message"]})
+    
 # Start a hydrodynamic simulation
 @router.post("/start_sim_hyd")
 async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
@@ -65,11 +64,10 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
     # if request.app.state.env == 'development':
     # Run the process on host
     command = [bat_path, "--autostartstop", mdu_path]
-    process = subprocess.Popen(
-        command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-        encoding="utf-8", errors="replace", bufsize=1, cwd=path
-    )
-    processes[project_name] = {"process": process, "progress": 0.0, "status": "running", "logs": []}
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        encoding="utf-8", errors="replace", bufsize=1, cwd=path)
+    processes[project_name] = {"process": process, "progress": 0.0, "status": "running", 
+                               "time_used": "N/A", "time_left": "N/A", "logs": [], "message": ''}
     # Stream logs
     def stream_logs():
         try:
@@ -79,7 +77,7 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
                 append_log(log_path, line)
                 # Catch error messages
                 if "forrtl:" in line.lower() or "error" in line.lower():
-                    processes[project_name]["status"] = "error"
+                    processes[project_name]["status"], processes[project_name]["message"] = "error", line
                     append_log(log_path, line)
                     try: process.kill()
                     except: pass
@@ -103,11 +101,15 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
                 try:
                     processes[project_name]["status"] = "postprocessing"
                     post_result = functions.postProcess(path)
-                    if not post_result["status"] == "ok": 
+                    if not post_result["status"] == "ok":
+                        processes[project_name]["status"], processes[project_name]["message"] = "error", f"Exception: {str(e)}"
                         return JSONResponse({"status": "error", "message": f"Exception: {str(e)}"})
-                except Exception as e: 
+                    processes[project_name]["status"] = "finished"
+                    return JSONResponse({"status": "ok", "message": f"Simulation {project_name} finished successfully."})
+                except Exception as e:
+                    processes[project_name]["status"], processes[project_name]["message"] = "error", f"Exception: {str(e)}"
                     return JSONResponse({"status": "error", "message": f"Exception: {str(e)}"})
-            # processes[project_name]["progress"] = 100.0
+            processes[project_name]["progress"] = 100.0
             processes.pop(project_name, None)
     threading.Thread(target=stream_logs, daemon=True).start()
     return JSONResponse({"status": "ok", "message": f"Simulation {project_name} started on Windows host."})
@@ -128,72 +130,15 @@ async def sim_log_full(project_name: str, user=Depends(functions.basic_auth)):
     if not os.path.exists(log_path): return {"content": ""}
     with open(log_path, "r", encoding="utf-8", errors="replace") as f:
         content = f.read()
-    return {"content": content}
+    return {"content": content, "offset": os.path.getsize(log_path)}
 
 @router.get("/sim_log_tail/{project_name}")
-async def sim_log_tail(project_name: str, user=Depends(functions.basic_auth)):
+async def sim_log_tail(project_name: str, offset: int = Query(0), user=Depends(functions.basic_auth)):
     project_name = functions.project_definer(project_name, user)
-    log_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "log_hyd.txt")
-    if not os.path.exists(log_path): return {"lines": [], "finished": False}
-    last_pos, lines = TEMP_LOGS.get(project_name, 0), []
+    log_path, lines = os.path.join(PROJECT_STATIC_ROOT, project_name, "log_hyd.txt"), []
+    if not os.path.exists(log_path): return {"lines": lines, "offset": offset}
     with open(log_path, "r", encoding="utf-8", errors="replace") as f:
-        f.seek(last_pos)
+        f.seek(offset)
         for line in f:
             lines.append(line.rstrip())
-        TEMP_LOGS[project_name] = f.tell()
-    info = processes.get(project_name)
-    finished = info is None or info.get("status") == "finished"
-    if finished: TEMP_LOGS.pop(project_name, None)
-    return {"lines": lines, "finished": finished}
-
-
-
-# @router.get("/sim_temp_log/{project_name}")
-# async def sim_temp_log(project_name: str, user=Depends(functions.basic_auth)):
-#     project_name = functions.project_definer(project_name, user)
-#     content = TEMP_LOGS.get(project_name)
-#     return {"content": content}
-
-# @router.websocket("/sim_progress_hyd/{project_name}")
-# async def sim_progress_hyd(websocket: WebSocket, project_name: str):
-#     await websocket.accept()
-#     try:
-#         auth_header = websocket.headers.get("authorization")
-#         user = functions.basic_auth_ws(auth_header)
-#         if not user:
-#             # TEMP_LOGS[project_name] = "[ERROR] Unauthorized"
-#             await websocket.close(code=1008)
-#             return
-#         project_name = functions.project_definer(project_name, user)
-#         wait = 0
-#         log_path, last_pos = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log_hyd.txt")), 0
-#         while True:
-#             info = processes.get(project_name)
-#             if not info:
-#                 wait += 1
-#                 if wait > 30:
-#                     TEMP_LOGS[project_name] = "[ERROR] Simulation not found."
-#                     break
-#                 # TEMP_LOGS[project_name] = "[INFO] Waiting for simulation..."
-#                 # await asyncio.sleep(1)
-#                 # continue
-#             # Send new logs to the client
-#             if os.path.exists(log_path):
-
-#                 with open(log_path, "r", encoding="utf-8", errors="replace") as f:
-#                     f.seek(last_pos)
-#                     for line in f:
-#                         TEMP_LOGS[project_name] = line.strip()
-#                     last_pos = f.tell()
-#             TEMP_LOGS[project_name] = f"[PROGRESS] {info['progress']:.2f}|{info['real_time_used']}|{info['real_time_left']}"
-#             if info["status"] == "postprocessing": 
-#                 TEMP_LOGS[project_name] = "[POSTPROCESS] Reorganizing outputs. Please wait..."
-#             if info["status"] == "finished":
-#                 TEMP_LOGS[project_name] = "[FINISHED] Simulation finished."
-#                 break
-#             await asyncio.sleep(1)
-#     except WebSocketDisconnect: pass
-#     finally:
-#         await asyncio.sleep(2)
-#         TEMP_LOGS.pop(project_name, None)
-#         await websocket.close()
+    return {"lines": lines, "offset": os.path.getsize(log_path)}
