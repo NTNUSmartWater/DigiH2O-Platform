@@ -1,6 +1,6 @@
 import os, subprocess, asyncio, re, shutil, json
 import pandas as pd, numpy as np, xarray as xr
-from fastapi import APIRouter, Request, Depends, BackgroundTasks
+from fastapi import APIRouter, Request, Depends
 from config import PROJECT_STATIC_ROOT, DELFT_PATH
 from fastapi.responses import JSONResponse
 from datetime import datetime, timezone
@@ -133,7 +133,7 @@ async def check_sim_status_waq(request: Request, user=Depends(functions.basic_au
 
 # Start a waq simulation
 @router.post("/start_sim_waq")
-async def start_sim_waq(request: Request, background_tasks: BackgroundTasks, user=Depends(functions.basic_auth)):
+async def start_sim_waq(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
     project_name = functions.project_definer(body.get('projectName'), user)
     if project_name in processes and processes[project_name]["status"] == "running":
