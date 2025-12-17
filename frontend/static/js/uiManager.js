@@ -8,8 +8,8 @@ import { sendQuery } from './tableManager.js';
 import { getState, resetState, setState } from './constants.js';
 
 let pickerState = { location: false, point: false, crosssection: false, boundary: false, source: false },
-    cachedMenus = {}, markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [],
-    pathLineBoundary = null, ws = null, currentProject = null, gridLayer = null, timeOut = null, userName = false,
+    cachedMenus = {}, markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [], logInterval = null,
+    pathLineBoundary = null, isRunning = false, currentProject = null, gridLayer = null, timeOut = null, userName = false,
     markersCrosssection = [], crosssectionContainer = [], pathLineCrosssection = null, hideTimeout = null;
 
 const popupMenu = () => document.getElementById('popup-menu');
@@ -41,8 +41,8 @@ const simulationCloseBtn = () => document.getElementById('closeSimulationWindow'
 const waqWindow = () => document.getElementById('waqWindow');
 const waqWindowHeader = () => document.getElementById('waqWindowHeader');
 const waqCloseBtn = () => document.getElementById('closeWAQWindow');
-const waqProgressbar = () => document.getElementById('progressbar');
-const waqProgressText = () => document.getElementById('progress-text');
+const waqProgressBar = () => document.getElementById('progress-barWAQ');
+const waqProgressText = () => document.getElementById('progress-textWAQ');
 const mapContainer = () => map.getContainer();
 
 initializeMap(); baseMapButtonFunctionality(); plotEvents(); initializeMenu();
@@ -161,6 +161,33 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
     objHeader.childNodes[0].nodeValue = title;
     objWindow.style.display = 'flex'; hideMap();
 }
+
+function updateLogWAQ(project, progress_bar, progress_text, seconds=0.1) {
+    logInterval = setInterval(async () => {
+        try {
+            const statusRes = await sendQuery('check_sim_status_waq', {projectName: project});
+            if (statusRes.status === "running") {
+                progress_text.innerText = statusRes.complete || '';
+                progress_bar.value = statusRes.progress || 0;
+            } else if (statusRes.status === "postprocessing") {
+                progress_text.innerText = statusRes.message; 
+                progress_bar.value = 100;
+            // } else if (statusRes.status === "checking") {
+            //     progress_text.innerText = statusRes.message; 
+            } else if (statusRes.status === "finished") {
+                progress_text.innerText = statusRes.message; 
+                isRunning = false; progress_bar.value = 100;
+                if (logInterval) { clearInterval(logInterval); logInterval = null; }
+            } else {
+                progress_text.innerText = statusRes.message;
+                isRunning = false; progress_bar.value = 0;
+                if (logInterval) { clearInterval(logInterval); logInterval = null; }
+            }
+        } catch (error) { clearInterval(logInterval); logInterval = null; }
+    }, seconds * 1000);
+}
+
+
 
 function updateEvents() {
     // Search locations
@@ -482,25 +509,22 @@ function updateEvents() {
             showLeafletMap();
         }
         if (event.data?.type === 'update-WAQ') {
+            if (waqWindow().style.display !== 'flex') waqWindow().style.display = 'flex';
             waqProgressText().innerText = event.data.content;
         }
         if (event.data?.type === 'run-wq') {
             currentProject = event.data.projectName;
-            waqWindow().style.display = 'flex'; waqProgressText().innerText = 'Start running water quality simulation...';            
-            const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-            if (ws) ws.close();
-            ws = new WebSocket(`${protocol}://${window.location.host}/sim_progress_waq/${currentProject}`);
-            waqProgressText().innerText = ''; waqProgressbar().value = 0;
-            // ws.onmessage = (event) => {
-            //     const data = JSON.parse(event.data);
-            //     if (data.error) { waqProgressText().innerText = data.error; return; }
-            //     if (data.status !== undefined) waqProgressText().innerText = data.status;
-            //     if (data.logs !== undefined) waqProgressText().innerText = data.logs;
-            //     if (data.progress !== undefined) {
-            //         waqProgressText().innerText = 'Completed: ' + data.progress + '%';
-            //         waqProgressbar().value = data.progress;
-            //     }
-            // };
+            if (!currentProject) {alert('Please select a project.'); return;}
+            // Check if simulation is running
+            const statusRes = await sendQuery('check_sim_status_waq', {projectName: currentProject});
+            if (statusRes.status === "running") {
+                alert("Simulation is already running for this project."); isRunning = true; return;
+            }
+            const start = await sendQuery('start_sim_waq', {projectName: currentProject});
+            if (start.status === "error") {alert(start.message); return;}
+            if (waqWindow().style.display !== 'flex') waqWindow().style.display = 'flex'
+            waqProgressText().innerText = 'Start running water quality simulation...'; waqProgressBar().value = 0;
+            updateLogWAQ(currentProject, waqProgressBar(), waqProgressText());
         }
     });
     // Move window
