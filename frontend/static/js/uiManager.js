@@ -162,32 +162,29 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
     objWindow.style.display = 'flex'; hideMap();
 }
 
-function updateLogWAQ(project, progress_bar, progress_text, seconds=0.1) {
+function updateLogWAQ(project, progress_bar, progress_text, seconds) {
     logInterval = setInterval(async () => {
         try {
             const statusRes = await sendQuery('check_sim_status_waq', {projectName: project});
-            if (statusRes.status === "running" || statusRes.status === "checking") {
+            if (statusRes.status === "running" || statusRes.status === "not_started") {
                 progress_text.innerText = statusRes.complete || '';
                 progress_bar.value = statusRes.progress || 0;
             } else if (statusRes.status === "postprocessing") {
                 progress_text.innerText = statusRes.message; 
                 progress_bar.value = 100;
-            // } else if (statusRes.status === "checking") {
-            //     progress_text.innerText = statusRes.message; 
             } else if (statusRes.status === "finished") {
                 progress_text.innerText = statusRes.message; 
-                isRunning = false; progress_bar.value = 100;
+                progress_bar.value = 100; isRunning = false; 
                 if (logInterval) { clearInterval(logInterval); logInterval = null; }
             } else {
                 progress_text.innerText = statusRes.message;
-                isRunning = false; progress_bar.value = 0;
+                progress_bar.value = 0; isRunning = false; 
                 if (logInterval) { clearInterval(logInterval); logInterval = null; }
             }
+
         } catch (error) { clearInterval(logInterval); logInterval = null; }
     }, seconds * 1000);
 }
-
-
 
 function updateEvents() {
     // Search locations
@@ -524,9 +521,8 @@ function updateEvents() {
             waqProgressText().innerText = 'Start running water quality simulation...'; waqProgressBar().value = 0;
             const start = await sendQuery('start_sim_waq', {projectName: currentProject});
             if (start.status === "error") {alert(start.message); return;}
-            updateLogWAQ(currentProject, waqProgressBar(), waqProgressText());
-            waqProgressText().innerText = "Finished running water quality simulation."; waqProgressBar().value = 100;
-            alert("Finished running water quality simulation.");
+            updateLogWAQ(currentProject, waqProgressBar(), waqProgressText(), 0.5);
+            // waqProgressText().innerText = "Finished running water quality simulation."; waqProgressBar().value = 100;
         }
     });
     // Move window

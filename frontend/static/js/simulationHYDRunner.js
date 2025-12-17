@@ -38,7 +38,7 @@ async function getProjectList(target){
 
 }
 
-function updateLogHYD(project, progress_bar, progress_text, info, seconds=3){
+function updateLogHYD(project, progress_bar, progress_text, info, seconds){
     logInterval = setInterval(async () => {
         try {
             const statusRes = await sendQuery('check_sim_status_hyd', {projectName: project});
@@ -87,7 +87,8 @@ function updateSelection(){
                 progressbar().value = statusRes.progress || 0;
             }
             showCheckbox().checked = true; isRunning = true; currentProject = projectName;
-            updateLogHYD(projectName, progressbar(), progressText(), infoArea());
+            // Run hydrodynamics simulation and Update logs every 10 seconds
+            updateLogHYD(projectName, progressbar(), progressText(), infoArea(), 10);
         } else {
             progressText().innerText = "No simulation running."; 
             showCheckbox().checked = false; progressbar().value = 0;
@@ -109,8 +110,8 @@ function updateSelection(){
         if (start.status === "error") {alert(start.message); return;}
         infoArea().value = ''; progressbar().value = 0;
         progressText().innerText = 'Start running hydrodynamic simulation...';
-        // Run hydrodynamics simulation and Update logs every 3 seconds
-        updateLogHYD(currentProject, progressbar(), progressText(), infoArea());
+        // Run hydrodynamics simulation and Update logs every 10 seconds
+        updateLogHYD(currentProject, progressbar(), progressText(), infoArea(), 10);
     });
 }
 updateSelection();
