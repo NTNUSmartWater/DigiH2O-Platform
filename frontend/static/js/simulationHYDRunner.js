@@ -38,7 +38,7 @@ async function getProjectList(target){
 
 }
 
-function updateLog(project, progress_bar, progress_text, info, seconds=3){
+function updateLogHYD(project, progress_bar, progress_text, info, seconds=3){
     logInterval = setInterval(async () => {
         try {
             const statusRes = await sendQuery('check_sim_status_hyd', {projectName: project});
@@ -46,18 +46,18 @@ function updateLog(project, progress_bar, progress_text, info, seconds=3){
                 progress_text.innerText = statusRes.complete || '';
                 progress_bar.value = statusRes.progress || 0;
             } else if (statusRes.status === "postprocessing") {
-                progress_text.innerText = 'Reorganizing outputs. Please wait...'; 
+                progress_text.innerText = statusRes.message; 
                 progress_bar.value = 100;
             } else if (statusRes.status === "finished") {
-                progress_text.innerText = 'Finished running hydrodynamic simulation.'; 
+                progress_text.innerText = statusRes.message; 
                 isRunning = false; progress_bar.value = 100;
                 if (logInterval) { clearInterval(logInterval); logInterval = null; }
             } else {
-                progress_text.innerText = "Simulation finished unsuccessfully.";
+                progress_text.innerText = statusRes.message;
                 info.value += statusRes.message; isRunning = false; progress_bar.value = 0;
                 if (logInterval) { clearInterval(logInterval); logInterval = null; }
             }
-            const res = await fetch(`/sim_log_tail/${project}?offset=${lastOffset}`);
+            const res = await fetch(`/sim_log_tail/${project}?offset=${lastOffset}&log_file=log_hyd.txt`);
             if (!res.ok) return;
             const data = await res.json();
             for (const line of data.lines) { info.value += line + "\n"; }
@@ -79,7 +79,7 @@ function updateSelection(){
         checkboxContainer().style.display = 'block'; textareaWrapper().style.display = 'block';
         const statusRes = await sendQuery('check_sim_status_hyd', {projectName: projectName});
         if (statusRes.status === "running") {
-            const res = await fetch(`/sim_log_full/${projectName}`);
+            const res = await fetch(`/sim_log_full/${projectName}?log_file=log_hyd.txt`);
             if (res.ok) {
                 const data = await res.json();
                 infoArea().value = data.content || ''; lastOffset = data.offset;
@@ -87,7 +87,7 @@ function updateSelection(){
                 progressbar().value = statusRes.progress || 0;
             }
             showCheckbox().checked = true; isRunning = true; currentProject = projectName;
-            updateLog(projectName, progressbar(), progressText(), infoArea());
+            updateLogHYD(projectName, progressbar(), progressText(), infoArea());
         } else {
             progressText().innerText = "No simulation running."; 
             showCheckbox().checked = false; progressbar().value = 0;
@@ -110,7 +110,7 @@ function updateSelection(){
         infoArea().value = ''; progressbar().value = 0;
         progressText().innerText = 'Start running hydrodynamic simulation...';
         // Run hydrodynamics simulation and Update logs every 3 seconds
-        updateLog(currentProject, progressbar(), progressText(), infoArea());
+        updateLogHYD(currentProject, progressbar(), progressText(), infoArea());
     });
 }
 updateSelection();

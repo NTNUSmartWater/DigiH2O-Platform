@@ -100,12 +100,14 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
             if status != "error":
                 try:
                     processes[project_name]["status"] = "postprocessing"
+                    processes[project_name]["message"] = 'Reorganizing outputs. Please wait...'
                     post_result = functions.postProcess(path)
                     if not post_result["status"] == "ok":
                         processes[project_name]["status"], processes[project_name]["message"] = "error", f"Exception: {str(e)}"
                         return JSONResponse({"status": "error", "message": f"Exception: {str(e)}"})
                     processes[project_name]["status"] = "finished"
-                    return JSONResponse({"status": "ok", "message": f"Simulation {project_name} finished successfully."})
+                    processes[project_name]["message"] = f"Simulation completed successfully."
+                    return JSONResponse({"status": "ok", "message": f"Simulation completed successfully."})
                 except Exception as e:
                     processes[project_name]["status"], processes[project_name]["message"] = "error", f"Exception: {str(e)}"
                     return JSONResponse({"status": "error", "message": f"Exception: {str(e)}"})
@@ -124,18 +126,18 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
     #         return JSONResponse({"status": "error", "message": f"Exception: {str(e)}"})
 
 @router.get("/sim_log_full/{project_name}")
-async def sim_log_full(project_name: str, user=Depends(functions.basic_auth)):
+async def sim_log_full(project_name: str, log_file: str = Query(""), user=Depends(functions.basic_auth)):
     project_name = functions.project_definer(project_name, user)
-    log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log_hyd.txt"))
+    log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, log_file))
     if not os.path.exists(log_path): return {"content": ""}
     with open(log_path, "r", encoding="utf-8", errors="replace") as f:
         content = f.read()
     return {"content": content, "offset": os.path.getsize(log_path)}
 
 @router.get("/sim_log_tail/{project_name}")
-async def sim_log_tail(project_name: str, offset: int = Query(0), user=Depends(functions.basic_auth)):
+async def sim_log_tail(project_name: str, offset: int = Query(0), log_file: str = Query(""), user=Depends(functions.basic_auth)):
     project_name = functions.project_definer(project_name, user)
-    log_path, lines = os.path.join(PROJECT_STATIC_ROOT, project_name, "log_hyd.txt"), []
+    log_path, lines = os.path.join(PROJECT_STATIC_ROOT, project_name, log_file), []
     if not os.path.exists(log_path): return {"lines": lines, "offset": offset}
     with open(log_path, "r", encoding="utf-8", errors="replace") as f:
         f.seek(offset)
