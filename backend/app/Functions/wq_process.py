@@ -1,11 +1,10 @@
-import os, subprocess, asyncio, re, shutil, json
+import os, subprocess, re, shutil, json, asyncio, signal
 import pandas as pd, numpy as np, xarray as xr
 from fastapi import APIRouter, Request, Depends
 from config import PROJECT_STATIC_ROOT, DELFT_PATH
 from fastapi.responses import JSONResponse
 from datetime import datetime, timezone
 from Functions import wq_functions, functions
-from starlette.websockets import WebSocketDisconnect
 
 router, processes = APIRouter(), {}
 
@@ -15,16 +14,24 @@ def path_process(full_path:str, head:int=3, tail:int=2):
     return '/'.join(parts[:head]) + '/ ... /' + '/'.join(parts[-tail:])
 
 def kill_process(process):
+    if not process: return {"status": "ok", "message": "No process to kill."}
     try:
+        if process.poll() is not None: return {"status": "ok", "message": "Simulation stopped."}
         # Try terminate
-        process.terminate()
         try:
+            process.send_signal(signal.CTRL_BREAK_EVENT)
             process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            # Force kill for Windows
-            subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return {"status": "ok", "message": "Simulation stopped."}
+            return {"status": "ok", "message": "Simulation stopped (graceful)."}
+        except Exception: pass
+        try:
+            process.terminate()
+            process.wait(timeout=5)
+            return {"status": "ok", "message": "Simulation terminated."}
+        except Exception: pass
+        # Force kill for Windows
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        return {"status": "ok", "message": "Simulation force killed."}
     except Exception as e: 
         return {"status": "error", "message": str(e)}
 
@@ -128,33 +135,41 @@ async def check_sim_status_waq(request: Request, user=Depends(functions.basic_au
         with open(log_path, "r", encoding="utf-8", errors="replace") as f:
             logs = f.read().splitlines()
     return JSONResponse({ "status": info["status"], "progress": info["progress"], "logs": logs, "message": info["message"],
-                            "complete": f"Progress: {info['progress']}%"})
+                            "complete": f"Completed: {info['progress']}%"})
 
-
-# Start a waq simulation
+# # Start a waq simulation
 @router.post("/start_sim_waq")
-async def start_sim_waq(request: Request, user=Depends(functions.basic_auth)):
+async def start_sim_waq_test(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
     project_name = functions.project_definer(body.get('projectName'), user)
     if project_name in processes and processes[project_name]["status"] == "running":
-        return JSONResponse({"status": "error", "message": "Simulation is already running."})
+        old = processes[project_name]["status"]
+        if old in ("finished", "error"): processes.pop(project_name)
+        return JSONResponse({"status": "error", "message": "Simulation already running"})
+    asyncio.create_task(run_waq_simulation(project_name, body))
+    return JSONResponse({"status": "ok", "message": "Simulation started"})
+
+async def run_waq_simulation(project_name, body):
+    processes[project_name] = {"status": "not_started", "progress": 0, "message": "", "process": None}
     log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log_waq.txt"))
     if os.path.exists(log_path): os.remove(log_path)
     with open(log_path, "a", encoding="utf-8", errors="replace") as log_file:
-        log_file.write(f"Project: {project_name}\n- Simulation started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        log_file.write("===============================================\n")
+        log_file.write(f"Project: {project_name}\n")
+        log_file.write(f"Simulation started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        log_file.write("===============================================\n\n")
         # Check if configuration exists
         config_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "config"))
         if not os.path.exists(config_path): os.makedirs(config_path)
         config_file = os.path.normpath(os.path.join(config_path, "config_waq.json"))
         if not os.path.exists(config_file):
             log_file.write("Configuration file not found.\n")
-            return JSONResponse({"status": "error", "message": "Configuration file not found."})
+            processes[project_name]["status"] = "error"
+            processes[project_name]["message"] = "Configuration file not found."
+            return
         log_file.write("Configuration file found. Reading configuration ...\n")
         with open(config_file, "r", encoding="utf-8", errors="replace") as f:
             body = json.load(f)
         # Start simulation
-        processes[project_name] = {"status": "running", "progress": 0, "message": "", "process": None}
         try:
             key, file_name, time_data, usefors = body['key'], body['folderName'], body['timeTable'], body['usefors']
             t_start = datetime.fromtimestamp(int(body['startTime']/1000.0), tz=timezone.utc)
@@ -201,7 +216,7 @@ async def start_sim_waq(request: Request, user=Depends(functions.basic_auth)):
                 log_file.write("Error creating inp file.\n")
                 processes[project_name]['status'] = "error"
                 processes[project_name]['message'] = "Error creating inp file."
-                return JSONResponse({"status": "error", "message": "Error creating inp file."})
+                return
             # Run WAQ simulation
             delwaq1_path = os.path.normpath(os.path.join(DELFT_PATH, 'dwaq/bin/delwaq1.exe'))
             delwaq2_path = os.path.normpath(os.path.join(DELFT_PATH, 'dwaq/bin/delwaq2.exe'))
@@ -218,47 +233,46 @@ async def start_sim_waq(request: Request, user=Depends(functions.basic_auth)):
                     log_file.write(f"File not found: {path}\n")
                     processes[project_name]["status"] = "error"
                     processes[project_name]["message"] = f"File not found: {path}"
-                    return JSONResponse({"status": "error", "message": f"File not found: {path}"})
+                    return
                 if not os.access(path, os.R_OK):
                     log_file.write(f"No read permission: {path}\n")
                     processes[project_name]["status"] = "error"
                     processes[project_name]["message"] = f"No read permission: {path}"
-                    return JSONResponse({"status": "error", "message": f"No read permission: {path}"})
+                    return
             # Add dll path
             dll_path = os.path.normpath(os.path.join(DELFT_PATH, 'share/bin'))
             os.environ["PATH"] += os.pathsep + dll_path
             # Run Simulation and get output
             inp_name = os.path.basename(inp_file)
             progress_regex = re.compile(r"(\d+(?:\.\d+)?)% Completed")
-            # if websocket.app.state.env == "development":
-            # === Run delwaq1 ===
-            processes[project_name]["status"] = "checking"
+            processes[project_name]["status"] = "running"
             processes[project_name]["message"] = "Checking inputs for WAQ simulation..."
-            log_file.write("Checking inputs for WAQ simulation\n")
-            print('=== Run delwaq1 ===')
+            log_file.write("\n\nChecking inputs for WAQ simulation\n\n")
             log_file.write("=== Run delwaq1 ===\n")
             cmd1 = [delwaq1_path, inp_name, "-p", proc_path, "-eco", bloom_path]
-            ok1 = await subprocessRunner(log_file, cmd1, output_folder, project_name)
+            ok1 = await asyncio.to_thread(subprocessRunner, log_file, cmd1, output_folder, project_name)
             log_file.write("=== Finished Running delwaq1 ===\n")
-            log_file.write(f"{ok1}\n")
             if not ok1:
                 log_file.write("Prepare inputs failed.\n")
-                return JSONResponse({"status": processes[project_name]["status"], "message": processes[project_name]["message"]})
+                processes[project_name]["status"] = "error"
+                processes[project_name]["message"] = "Prepare inputs failed."
+                return
             # === Run delwaq2 ===
-            processes[project_name]["status"] = "checking"
+            processes[project_name]["status"] = "running"
             processes[project_name]["message"] = "Running WAQ simulation..."
-            log_file.write("Running WAQ simulation\n")
-            print('=== Run delwaq2 ===')
+            log_file.write("\n\nRunning WAQ simulation\n")
             cmd2 = [delwaq2_path, inp_name]
-            ok2 = await subprocessRunner(log_file, cmd2, output_folder, project_name, progress_regex, "ERROR in GMRES")
+            ok2 = await asyncio.to_thread(subprocessRunner, log_file, cmd2, output_folder, project_name, progress_regex, "ERROR in GMRES")
             if not ok2:
-                log_file.write("Run failed.\n")
-                return JSONResponse({"status": processes[project_name]["status"], "message": processes[project_name]["message"]})
-            print('=== Finished ===')
-            log_file.write("=== Finished ===\n")
+                log_file.write("Simulation failed.\n")
+                processes[project_name]["status"] = "error"
+                processes[project_name]["message"] = "Simulation failed."
+                return
+            log_file.write("=== Finished ===\n\n")
             # Move WAQ output files to output folder
             processes[project_name]["status"] = "postprocessing"
             processes[project_name]["message"] = "Reorganizing output files ..."
+            log_file.write("Reorganizing output files ...\n")
             try:
                 output_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "output"))
                 if not os.path.exists(output_dir): os.makedirs(output_dir)
@@ -285,36 +299,39 @@ async def start_sim_waq(request: Request, user=Depends(functions.basic_auth)):
                         functions.safe_remove(src)
                 # Delete folder
                 if os.path.exists(wq_folder): shutil.rmtree(wq_folder, onerror=functions.remove_readonly)
-                processes[project_name]["status"] = "finished"
                 log_file.write(f"Simulation {project_name} completed successfully.")
-                return JSONResponse({"status": "ok", "message": f"Simulation {project_name} completed successfully."})
+                processes[project_name]["status"] = "finished"
+                processes[project_name]["progress"] = 100
+                processes[project_name]["message"] = f"Simulation completed successfully."
+                return
             except Exception as e:
                 log_file.write(f"Error reorganizing output files: {e}")
-                return JSONResponse({"status": "error", "message": f"Failed to reorganize output files: {e}"})
-        except WebSocketDisconnect: pass
-        finally:
-            if project_name in processes and processes[project_name]["status"] in ["finished", "error"]:
-                processes.pop(project_name, None)
-
-async def subprocessRunner(log_file, cmd, cwd, project_name, progress_regex=None, stop_on_error=None):
+                processes[project_name]["status"] = "error"
+                processes[project_name]["message"] = f"Error reorganizing output files: {e}"
+                return
+        except Exception as e:
+            log_file.write(f"Error running simulation: {e}")
+            processes[project_name]["status"] = "error"
+            processes[project_name]["message"] = f"Error running simulation: {e}"
+            return
+        
+def subprocessRunner(log_file, cmd, cwd, project_name, progress_regex=None, stop_on_error=None):
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=cwd, bufsize=1,
                                 universal_newlines=True, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
     processes[project_name]["process"], success = process, False
     try:
         while True:
             # Check if simulation is stopped
-            if processes[project_name]["status"] == "error":
+            proc_info = processes.get(project_name)
+            if not proc_info or proc_info.get("status") == "error":
                 res = kill_process(process)
                 log_file.write(res["message"] + "\n")              
                 return False
             line = process.stdout.readline()
-            if not line:
-                if process.poll() is not None: break
-                await asyncio.sleep(0.1)
-                continue
+            if line == "" and process.poll() is not None: break
+            if not line: continue
             line = line.strip()
             if not line: continue
-            print("[OUT]", line)
             log_file.write(line + "\n")
             # Check for progress
             if progress_regex:
@@ -326,21 +343,17 @@ async def subprocessRunner(log_file, cmd, cwd, project_name, progress_regex=None
             if stop_on_error and stop_on_error in line:
                 if "ERROR in GMRES" in line: 
                     log_file.write(f"Error detected: {line}\n")
-                kill_process(process)
+                res = kill_process(process)
                 processes[project_name]["status"] = "error"
                 processes[project_name]["message"] = "GMRES solver failed.\nConsider increasing the maximum number of iterations."
+                log_file.write(res["message"] + "\n")
+                log_file.write("GMRES solver failed.\nConsider increasing the maximum number of iterations.\n")
                 return False
             if "Normal end" in line: success = True
         for line in process.stdout:
             if not line.strip(): continue
-            print("[ERR]", line.strip())
             log_file.write(line + "\n")
-            processes[project_name]["status"] = "error"
-            processes[project_name]["message"] = line
     finally:
-        process.stdout.close()
-        try: process.wait(timeout=3)
-        except subprocess.TimeoutExpired: kill_process(process)
+        if process.stdout: process.stdout.close()
         if process.poll() is None: kill_process(process)
     return success
-
