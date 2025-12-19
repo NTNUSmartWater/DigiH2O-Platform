@@ -242,9 +242,11 @@ function updateOption(){
             const lat = Number(event.data.content.lat).toFixed(12);
             const lon = Number(event.data.content.lng).toFixed(12);
             if (pointSelected === 'obsPoint') {
-                nPoints++;
-                // Add to table
-                const data_arr = [[`Obs_${nPoints}`, lat, lon]];
+                let name = ''; nPoints++;
+                // Define name of point
+                if (obsPointName().value.trim() !== '') name = obsPointName().value.trim();
+                else name = `Obs_${nPoints}`;
+                const data_arr = [[name, lat, lon]];
                 fillTable(data_arr, obsPointTable(), false);
             }
             else if (pointSelected === 'loadsPoint') {
