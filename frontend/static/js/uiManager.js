@@ -281,7 +281,7 @@ function updateEvents() {
             if (name === 'visualization') {
                 // Open project for visualization
                 iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
-                    projectOpenWindowContent(), "Select Project with Simulation Result");
+                    projectOpenWindowContent(), "Select Scenario with Simulation Result");
             } else if (name === 'new-hyd-project') { 
                 // Create new hyd project
                 projectChecker();
@@ -292,11 +292,16 @@ function updateEvents() {
                 projectChecker();
                 iframeInit("run_hyd_simulation", simulationWindow(), simulationHeader(), 
                     simulationContent(), "Run Hydrodynamic Simulation");
-            } else if (name === 'new-wq-project') { 
-                // Create and run a new wq project
+            } else if (name === 'new-waq-project') { 
+                // Create a new waq project
                 projectChecker();
                 iframeInit("new_WQ_project", projectSetting(), projectSettingHeader(), 
-                    projectSettingContent(), "Set up and Run Water Quality Simulation");
+                    projectSettingContent(), "Set up a Water Quality Simulation");
+            } else if (name === 'run-waq-project') { 
+                // Run a new waq project
+                projectChecker();
+                iframeInit("run_WQ_project", projectSetting(), projectSettingHeader(), 
+                    projectSettingContent(), "Run a Water Quality Simulation");
             } else if (name === 'grid-generation') {
                 projectChecker();
                 // Grid Generation
@@ -522,7 +527,6 @@ function updateEvents() {
             const start = await sendQuery('start_sim_waq', {projectName: currentProject});
             if (start.status === "error") {alert(start.message); return;}
             updateLogWAQ(currentProject, waqProgressBar(), waqProgressText(), 0.5);
-            // waqProgressText().innerText = "Finished running water quality simulation."; waqProgressBar().value = 100;
         }
     });
     // Move window

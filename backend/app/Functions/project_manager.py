@@ -234,7 +234,7 @@ async def get_scenario(request: Request, user=Depends(functions.basic_auth)):
     except Exception as e:
         print('/get_scenario:\n==============')
         traceback.print_exc()
-        return JSONResponse({"status": 'error', "message": f"Error: {str(e)}"})
+        return JSONResponse({"status": 'error', "message": f"Error: {str(e)}\nConsider deleting the scenario and creating a new one."})
 
 # Set up the database depending on the project
 @router.post("/setup_database")
@@ -421,6 +421,28 @@ async def delete_project(request: Request, user=Depends(functions.basic_auth)):
             extend_task.cancel()
             try: await extend_task
             except asyncio.CancelledError: pass
+
+# Delete a Water Quality file
+@router.post("/delete_waq")
+async def delete_waq(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
+        project_name = functions.project_definer(body.get('projectName'), user)
+        file_name = body.get('fileName')
+        project_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "WAQ"))
+        found_files = [f for f in os.listdir(project_folder)]
+        if len(found_files) == 0: 
+            return JSONResponse({"status": 'error', "message": f"File '{file_name}' does not exist."})
+        for f in found_files:
+            file = os.path.normpath(os.path.join(project_folder, f))
+            if os.path.exists(file):
+                if f.endswith('.json'): functions.safe_remove(file)
+                else: shutil.rmtree(file, onerror=functions.remove_readonly)
+        return JSONResponse({"status": "ok", "message": f"File '{file_name}' was deleted successfully."})
+    except Exception as e:
+        print('/delete_waq:\n==============')
+        traceback.print_exc()
+        return JSONResponse({"status": 'error', "message": f"Error: {str(e)}"})
 
 # Open a project
 @router.post("/select_project")

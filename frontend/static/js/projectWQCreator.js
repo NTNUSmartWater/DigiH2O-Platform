@@ -377,6 +377,10 @@ function updateOption(){
                 temPath: temPath, initial: initialValue, initialList: initialList, startTime: toUTC(start), stopTime: toUTC(stop),
                 obsPoints: obsTable.rows, timeTable: timeTable, maxiter: maxiter.value, tolerance: tolerance.value, scheme: scheme.value, salPath: salPath
             }
+            
+            
+            
+            
             window.parent.postMessage({ type: 'update-WAQ', content: 'Saving configuration. Please wait...'}, '*');
             const waq_config = await sendQuery('waq_config_writer', params);
             if (waq_config.status === 'error') { alert(waq_config.message); return; }
@@ -415,11 +419,12 @@ function initializeProject(){
     projectCreator().addEventListener('click', async () => {
         const name = projectName().value.trim();
         if (!name || name.trim() === '') { alert('Please define project.'); return; }
-        // Show tabs
-        sectionTab().style.display = "block"; sectionDescription().style.display = "none";
         // Find .hyd file
         const data = await sendQuery('select_hyd', {projectName: name});
         if (data.status === "error") {alert(data.message); return;}
+        setupTabs(document);
+        // Show tabs
+        sectionTab().style.display = "block"; sectionDescription().style.display = "none";
         sourcesContainer().style.display = data.content.sink_sources.length > 0 ? "block":"none";
         fillTable(data.content.sink_sources, sourcesTable(), true);
         // Assign values
@@ -436,6 +441,4 @@ function initializeProject(){
         startTime().value = data.content.start_time; stopTime().value = data.content.stop_time;
     });
 }
-
-await getProjectList(); initializeProject();
-setupTabs(document); updateOption();
+await getProjectList(); initializeProject(); updateOption();

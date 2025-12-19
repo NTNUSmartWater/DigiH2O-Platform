@@ -44,12 +44,10 @@ const boundaryText = () => document.getElementById('data-view');
 const sourceName = () => document.getElementById('source-name');
 const sourceOptionNew = () => document.getElementById('source-sink-new');
 const sourceOptionExist = () => document.getElementById('source-sink-exist');
-const sourceOptionList = () => document.getElementById('source-sink-list');
 const sourceOptionPicker = () => document.getElementById('source-picker');
 const sourceLatitude = () => document.getElementById('source-latitude');
 const sourceLongitude = () => document.getElementById('source-longitude');
 const sourceTable = () => document.getElementById('source-table');
-const sourceSelectionList = () => document.getElementById('option-source');
 const sourceUploadFile = () => document.getElementById('source-csv-file');
 const sourceUploadText = () => document.getElementById('source-csv-text');
 const sourceAddBtn = () => document.getElementById('add-source-btn');
@@ -437,42 +435,6 @@ function updateOption(){
         sourceChange(sourceOptionExist()); deleteTable(sourceTable()); sourceAddBtn().click();
         sourceOptionPicker().style.display = 'none';
     });
-    sourceOptionList().addEventListener('change', async () => {
-        sourceChange(sourceOptionList()); deleteTable(sourceTable()); sourceAddBtn().click();
-        sourceOptionPicker().style.display = 'none';
-        const data = await sendQuery('get_files', {});
-        if (data.status === "error") { alert(data.message); return; }
-        const sourceSelector = sourceSelectionList();
-        sourceSelector.innerHTML = '';
-        // Add hint to the velocity object
-        const hint = document.createElement('option');
-        hint.value = ''; hint.selected = true;
-        hint.text = '- No Selection -'; 
-        sourceSelector.add(hint);
-        // Add options
-        data.content.forEach(item => {
-            const option = document.createElement('option');
-            option.value = item; option.text = item;
-            sourceSelector.add(option);
-        });
-    });
-    // Select source from list
-    sourceSelectionList().addEventListener('change', async () => {
-        const value = sourceSelectionList().value;
-        if (value === '') return;
-        window.parent.postMessage({type: 'showOverlay', 
-            message: 'Reading source/sink and exacting data to table...'}, '*'); // Show overlay
-        const data = await sendQuery('get_source', {filename: value});
-        if (data.status === "error") alert(data.message);
-        sourceLatitude().value = data.content.lat;
-        sourceLongitude().value = data.content.lon;
-        sourceName().value = value;
-        // Convert to 2D array
-        const lines = data.content.data;
-        const data_arr = lines.map(line => line.trim().split(","));
-        fillTable(data_arr, sourceTable());
-        window.parent.postMessage({type: 'hideOverlay'}, '*');  // Hide overlay
-    });
     // Remove source from project
     sourceRemoveBtn().addEventListener('click', async () => {
         const nameProject = projectName().value.trim();
@@ -657,13 +619,14 @@ async function initializeProject(){
     })
     // Delete project
     projectRemover().addEventListener('click', async () => {
-        // Ask for confirmation
-        if (!confirm('Are you sure you want to delete this scenario?')) { return; }
         const name = projectName().value.trim();
         if (!name || name.trim() === '') { alert('Please define scenario.'); return; }
+        // Ask for confirmation
+        if (!confirm('Are you sure you want to delete this scenario?')) { return; }
         projectRemover().innerHTML = 'Deleting...';
         const data = await sendQuery('delete_project', {projectName: name});
-        alert(data.message); projectList = []; projectName().value = ''; await getProjectList(); projectRemover().innerHTML = 'Delete Scenario';
+        alert(data.message); projectList = []; projectName().value = ''; 
+        await getProjectList(); projectRemover().innerHTML = 'Delete Scenario';
     });
 }
 
