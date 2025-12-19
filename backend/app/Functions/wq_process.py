@@ -1,4 +1,4 @@
-import os, subprocess, re, shutil, json, asyncio, signal
+import os, subprocess, re, shutil, json, asyncio, signal, traceback
 import pandas as pd, numpy as np, xarray as xr
 from fastapi import APIRouter, Request, Depends
 from config import PROJECT_STATIC_ROOT, DELFT_PATH
@@ -211,8 +211,10 @@ async def run_waq_simulation(project_name, body):
                 f.write(usefors)
             # Prepare external inputs
             inp_file = wq_functions.wqPreparation(parameters, key, output_folder, includes_folder)
+            
+            print(inp_file)
             log_file.write(f"Inp file: {inp_file}\n")
-            if not inp_file:
+            if inp_file is None:
                 log_file.write("Error creating inp file.\n")
                 processes[project_name]['status'] = "error"
                 processes[project_name]['message'] = "Error creating inp file."
@@ -313,6 +315,8 @@ async def run_waq_simulation(project_name, body):
             log_file.write(f"Error running simulation: {e}")
             processes[project_name]["status"] = "error"
             processes[project_name]["message"] = f"Error running simulation: {e}"
+            print('/run_waq_simulation:\n==============')
+            traceback.print_exc()
             return
         
 def subprocessRunner(log_file, cmd, cwd, project_name, progress_regex=None, stop_on_error=None):

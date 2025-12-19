@@ -272,8 +272,8 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
                 params_INC['B9_Hisvar'].append(f"'{item}' 'volume'")
                 params_INC['B9_Mapvar'].append(f"'{item}'")
         
-        # *************************** Tracer metals model ***************************
-        elif key == 'tracer-metals':
+        # *************************** Trace metals model ***************************
+        elif key == 'trace-metals':
             # Get data for B1_sublist variable
             with open(os.path.normpath(os.path.join(sample_path, 'B1_tracer_metals.inc')), 'r') as f:
                 params_INC['B1_sublist'] = f.read()
