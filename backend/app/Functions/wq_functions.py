@@ -275,7 +275,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
         # *************************** Trace metals model ***************************
         elif key == 'trace-metals':
             # Get data for B1_sublist variable
-            with open(os.path.normpath(os.path.join(sample_path, 'B1_tracer_metals.inc')), 'r') as f:
+            with open(os.path.normpath(os.path.join(sample_path, 'B1_trace_metals.inc')), 'r') as f:
                 params_INC['B1_sublist'] = f.read()
             # Prepare for the config file B7_processes
             params_INC['B7_processes'], processes = [], ['HydDuflow', 'Metal']
