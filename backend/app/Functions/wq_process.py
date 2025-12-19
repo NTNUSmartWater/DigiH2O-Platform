@@ -211,8 +211,6 @@ async def run_waq_simulation(project_name, body):
                 f.write(usefors)
             # Prepare external inputs
             inp_file = wq_functions.wqPreparation(parameters, key, output_folder, includes_folder)
-            
-            print(inp_file)
             log_file.write(f"Inp file: {inp_file}\n")
             if inp_file is None:
                 log_file.write("Error creating inp file.\n")
@@ -252,6 +250,7 @@ async def run_waq_simulation(project_name, body):
             log_file.write("\n\nChecking inputs for WAQ simulation\n\n")
             log_file.write("=== Run delwaq1 ===\n")
             cmd1 = [delwaq1_path, inp_name, "-p", proc_path, "-eco", bloom_path]
+            
             ok1 = await asyncio.to_thread(subprocessRunner, log_file, cmd1, output_folder, project_name)
             log_file.write("=== Finished Running delwaq1 ===\n")
             if not ok1:
