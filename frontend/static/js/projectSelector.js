@@ -1,10 +1,10 @@
 import { loadList } from './utils.js';
+import { sendQuery } from './tableManager.js';
 
 const projectSelector = () => document.getElementById("project");
 const hydOptions = () => document.getElementById("hyd-option");
 const waqOptions = () => document.getElementById("waq-option");
 const confirmButton = () => document.getElementById("button");
-const deleteButton = () => document.getElementById("delete-button");
 
 const defaultOption = `<option value="">--- No selected ---</option>`;
 let hydHis = '', hydMap = '', waqHis = '', waqMap = '';
@@ -26,9 +26,14 @@ async function projectDefinition(projectName){
     // Assign files to components
     if (hydFiles.length === 0) { hydOptions().innerHTML = defaultOption; 
     } else { hydOptions().innerHTML = hydFiles.map(file => `<option value="${file}">${file}</option>`).join(''); }
-    if (waqFiles.length > 0) { waqOptions().innerHTML = waqFiles.map(file => `
-        <label for="${file}"><input type="radio" name="waq" value="${file}" id="${file}">${file}</label>`).join(''); 
-    } else { waqOptions().innerHTML = `<p style="size: 10px; text-align: center;">No Water Quality files found.</p>`; }
+    if (waqFiles.length > 0) { 
+        waqOptions().innerHTML = waqFiles.map(file => `
+            <div style="display:flex; justify-content:space-between; margin:2px 0 2px 0;">
+                <label for="${file}"><input type="radio" name="waq" value="${file}" id="${file}">${file}</label>
+                <button class="waq-delete" data-file="${file}" type="button" style="margin-right: 5px; height: 20px; margin:2px 0 2px 0;">Delete</button>
+            </div>
+        `).join('');
+    } else { waqOptions().innerHTML = `<p style="font-size: 15px; text-align: center;">No Water Quality files found</p>`; }
 }
 
 async function confirmSelection(){
@@ -46,26 +51,31 @@ async function confirmSelection(){
     window.parent.postMessage({type: 'projectConfirmed', project: projectSelector().value, values: params}, '*');
 }
 
+async function handleWaq(btn, file) {
+    const data = await sendQuery('delete_waq', {projectName: projectSelector().value, fileName: file});
+    if (data.status === "error") { alert(data.message); btn.textContent = 'Delete'; return; }
+    // Delete component
+    btn.parentElement.remove();
+    if (waqOptions().querySelectorAll('.waq-delete').length === 0) { 
+        waqOptions().innerHTML = `<p style="font-size: 15px; text-align:center;">No Water Quality files found</p>`; }
+    alert(data.message);
+}
+
 function projectOption(){
     projectSelector().addEventListener('change', () => {
         if (projectSelector().value === '') { 
-            waqOptions().innerHTML = `<p style="size:10px; text-align:center;">No Water Quality files found.</p>`; 
+            waqOptions().innerHTML = `<p style="font-size:10px; text-align:center;">No Water Quality files found</p>`; 
             hydOptions().innerHTML = defaultOption; return; }
         projectDefinition(projectSelector().value);
     });
+    waqOptions().addEventListener('click', async (e) => {
+        const btn = e.target.closest('.waq-delete');
+        if (!btn) return;
+        btn.textContent = 'Deleting...';
+        const file = btn.dataset.file;
+        await handleWaq(btn, file);
+    });
     confirmButton().addEventListener('click', () => { confirmSelection(); });
-    deleteButton().addEventListener('click', async () => {
-        if (projectSelector().value === '') { alert('No project selected.'); return; }
-        const confirmDelete = confirm(`Are you sure to delete project '${projectSelector().value}'?\nThis action cannot be undone.`);
-        if (!confirmDelete) return;
-        // Send delete request
-        const response = await fetch('/delete_project', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({projectName: projectSelector().value})});
-        const data = await response.json();
-        alert(data.message);
-        loadProjectList();
-    });    
 }
 
 loadProjectList(); projectOption();

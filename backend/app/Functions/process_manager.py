@@ -539,8 +539,8 @@ async def get_boundary_params(request: Request, user=Depends(functions.basic_aut
             if line.startswith("Name"):
                 temp_name = line.split("=", 1)[1].strip()
                 if temp_name == boundary_name: check = True
-                continue
             if line[0].isdigit() and check: current_data.append(line.replace("\n", ""))
+            if line.startswith("[forcing]"): check = False
         for line in current_data:
             temp = line.strip().split()
             val = datetime.datetime.fromtimestamp(int(temp[0]))
