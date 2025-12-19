@@ -387,6 +387,7 @@ function updateOption(){
         const boundaryName = boundarySelector().value, boundaryType = boundaryTypeSelector().value;
         const content = {projectName: projectName().value.trim(), boundaryName: boundaryName, boundaryType: boundaryType};
         const data = await sendQuery('get_boundary_params', content);
+        console.log(data);
         if (data.status === 'new') { boundaryEditRemove().click(); return; }
         if (data.status === 'error') { alert(data.message); return; }
         boundaryEditRemove().click(); fillTable(data.content, boundaryEditTable());
