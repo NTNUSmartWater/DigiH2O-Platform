@@ -8,8 +8,8 @@ import { sendQuery } from './tableManager.js';
 import { getState, resetState, setState } from './constants.js';
 
 let pickerState = { location: false, point: false, crosssection: false, boundary: false, source: false },
-    cachedMenus = {}, markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [], logInterval = null,
-    pathLineBoundary = null, currentProject = null, gridLayer = null, timeOut = null, userName = false,
+    cachedMenus = {}, markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [],
+    pathLineBoundary = null, gridLayer = null, timeOut = null, userName = false,
     markersCrosssection = [], crosssectionContainer = [], pathLineCrosssection = null, hideTimeout = null;
 
 const popupMenu = () => document.getElementById('popup-menu');
@@ -38,11 +38,6 @@ const simulationWindow = () => document.getElementById('simulationWindow');
 const simulationHeader = () => document.getElementById('simulationWindowHeader');
 const simulationContent = () => document.getElementById('simulationWindowContent');
 const simulationCloseBtn = () => document.getElementById('closeSimulationWindow');
-const waqWindow = () => document.getElementById('waqWindow');
-const waqWindowHeader = () => document.getElementById('waqWindowHeader');
-const waqCloseBtn = () => document.getElementById('closeWAQWindow');
-const waqProgressBar = () => document.getElementById('progress-barWAQ');
-const waqProgressText = () => document.getElementById('progress-textWAQ');
 const mapContainer = () => map.getContainer();
 
 initializeMap(); baseMapButtonFunctionality(); plotEvents(); initializeMenu();
@@ -65,7 +60,6 @@ async function openDemoProject(name='demo', params=['FlowFM_his.zarr', 'FlowFM_m
 function refresh() {
     // Close windows if open
     if (summaryWindow().style.display !== 'none') summaryWindow().style.display = 'none';
-    if (waqWindow().style.display !== 'none') waqWindow().style.display = 'none';
     if (plotWindow().style.display !== 'none') plotWindow().style.display = 'none';
     if (substanceWindowHis().style.display !== 'none') substanceWindowHis().style.display = 'none';
 }
@@ -160,30 +154,6 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
     objContent.appendChild(newIframe);
     objHeader.childNodes[0].nodeValue = title;
     objWindow.style.display = 'flex'; hideMap();
-}
-
-function updateLogWAQ(project, progress_bar, progress_text, seconds) {
-    logInterval = setInterval(async () => {
-        try {
-            const statusRes = await sendQuery('check_sim_status_waq', {projectName: project});
-            if (statusRes.status === "running" || statusRes.status === "not_started") {
-                progress_text.innerText = statusRes.complete || '';
-                progress_bar.value = statusRes.progress || 0;
-            } else if (statusRes.status === "postprocessing") {
-                progress_text.innerText = statusRes.message; 
-                progress_bar.value = 100;
-            } else if (statusRes.status === "finished") {
-                progress_text.innerText = statusRes.message; 
-                progress_bar.value = 100; isRunning = false; 
-                if (logInterval) { clearInterval(logInterval); logInterval = null; }
-            } else {
-                progress_text.innerText = statusRes.message;
-                progress_bar.value = 0; isRunning = false; 
-                if (logInterval) { clearInterval(logInterval); logInterval = null; }
-            }
-
-        } catch (error) { clearInterval(logInterval); logInterval = null; }
-    }, seconds * 1000);
 }
 
 function updateEvents() {
@@ -291,7 +261,7 @@ function updateEvents() {
                 // Run hyd simulation
                 projectChecker();
                 iframeInit("run_hyd_simulation", simulationWindow(), simulationHeader(), 
-                    simulationContent(), "Run Hydrodynamic Simulation");
+                    simulationContent(), "Run a Hydrodynamic Simulation");
             } else if (name === 'new-waq-project') { 
                 // Create a new waq project
                 projectChecker();
@@ -300,8 +270,8 @@ function updateEvents() {
             } else if (name === 'run-waq-project') { 
                 // Run a new waq project
                 projectChecker();
-                iframeInit("run_WQ_project", projectSetting(), projectSettingHeader(), 
-                    projectSettingContent(), "Run a Water Quality Simulation");
+                iframeInit("run_WQ_project", simulationWindow(), simulationHeader(), 
+                    simulationContent(), "Run a Water Quality Simulation");
             } else if (name === 'grid-generation') {
                 projectChecker();
                 // Grid Generation
@@ -510,30 +480,11 @@ function updateEvents() {
             }).addTo(map);
             showLeafletMap();
         }
-        if (event.data?.type === 'update-WAQ') {
-            if (waqWindow().style.display !== 'flex') waqWindow().style.display = 'flex';
-            waqProgressText().innerText = event.data.content;
-        }
-        if (event.data?.type === 'run-wq') {
-            currentProject = event.data.projectName;
-            if (!currentProject) {alert('Please select a project.'); return;}
-            // Check if simulation is running
-            const statusRes = await sendQuery('check_sim_status_waq', {projectName: currentProject});
-            if (statusRes.status === "running") {
-                alert("Simulation is already running for this project."); isRunning = true; return;
-            }
-            if (waqWindow().style.display !== 'flex') waqWindow().style.display = 'flex'
-            waqProgressText().innerText = 'Start running water quality simulation...'; waqProgressBar().value = 0;
-            const start = await sendQuery('start_sim_waq', {projectName: currentProject});
-            if (start.status === "error") {alert(start.message); return;}
-            updateLogWAQ(currentProject, waqProgressBar(), waqProgressText(), 0.5);
-        }
     });
     // Move window
     moveWindow(contactInfo, contactInfoHeader); moveWindow(projectOpenWindow, projectOpenWindowHeader);
     moveWindow(projectSetting, projectSettingHeader); moveWindow(simulationWindow, simulationHeader);
-    moveWindow(substanceWindowHis, substanceWindowHeaderHis); moveWindow(waqWindow, waqWindowHeader);
-    moveWindow(substanceWindowMap, substanceWindowHeaderMap); moveWindow(waqWindow, waqWindowHeader);
+    moveWindow(substanceWindowHis, substanceWindowHeaderHis); moveWindow(substanceWindowMap, substanceWindowHeaderMap); 
     // Close windows
     substanceWindowCloseBtnHis().addEventListener('click', () => { 
         substanceWindowHis().style.display = 'none'; plotWindow().style.display = 'none';
@@ -547,7 +498,6 @@ function updateEvents() {
         hideMap(); projectSetting().style.display = 'none'; 
     });
     simulationCloseBtn().addEventListener('click', () => { simulationWindow().style.display = 'none'; });
-    waqCloseBtn().addEventListener('click', () => { waqWindow().style.display = 'none'; });
     map.on('mousemove', function (e) {
         if (!pickerState.location && !pickerState.point && !pickerState.source && !pickerState.crosssection && 
             !pickerState.boundary) {

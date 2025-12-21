@@ -609,13 +609,14 @@ async function initializeProject(){
     // Copy project
     projectCloner().addEventListener('click', async () => {
         const name = projectName().value.trim();
-        if (!name || name.trim() === '') { alert('Please select scenario from the dropdown list first.'); return; }
+        if (!name || name === '') { alert('Please select scenario first.'); return; }
         // Ask for a new name
-        const newName = prompt('Please enter a name for the new scenario:\nCloning a scenario will take some time. Please be patient.');
-        if (!newName || newName.trim() === '') { alert('Please define scenario name.'); return; }
+        const newName = prompt('Please enter a name for the new scenario.\nCloning a scenario will take some time. Please be patient.');
+        if (!newName || newName === '') { alert('Please define clone scenario name.'); return; }
         projectCloner().innerHTML = 'Cloning...';
         const data = await sendQuery('copy_project', {oldName: name, newName: newName});
-        alert(data.message); projectList = []; projectName().value = ''; await getProjectList(); projectCloner().innerHTML = 'Clone Scenario';
+        alert(data.message); projectList = []; projectName().value = ''; 
+        await getProjectList(); projectCloner().innerHTML = 'Clone Scenario';
     })
     // Delete project
     projectRemover().addEventListener('click', async () => {

@@ -383,6 +383,58 @@ async def copy_project(request: Request, user=Depends(functions.basic_auth)):
             try: await extend_task
             except asyncio.CancelledError: pass
 
+@router.post("/clone_waq")
+async def clone_waq(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
+        project_name = functions.project_definer(body.get('projectName'), user)
+        old_name, new_name = body.get('oldName'), body.get('newName')
+        project_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'output', 'scenarios'))
+        redis = request.app.state.redis
+        extend_task, lock = None, redis.lock(f"{project_name}:clone_waq", timeout=300)
+        async with lock:
+            extend_task = asyncio.create_task(functions.auto_extend(lock))
+            old_path = os.path.normpath(os.path.join(project_folder, f"{old_name}.json"))
+            if not os.path.exists(old_path): 
+                return JSONResponse({"status": 'error', "message": f"Path '{old_path}' does not exist."})
+            shutil.copy2(old_path, os.path.normpath(os.path.join(project_folder, f"{new_name}.json")))
+            return JSONResponse({"message": f"Scenario '{new_name}' was cloned successfully!"})
+    except Exception as e:
+        print('/clone_waq:\n==============')
+        traceback.print_exc()
+        return JSONResponse({"message": f"Error: {str(e)}"})
+    finally:
+        if extend_task:
+            extend_task.cancel()
+            try: await extend_task
+            except asyncio.CancelledError: pass
+
+# Delete a file
+@router.post("/delete_file")
+async def delete_file(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
+        project_name = functions.project_definer(body.get('projectName'), user)
+        project_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'output', 'scenarios'))
+        redis, file = request.app.state.redis, body.get('name')
+        extend_task, lock = None, redis.lock(f"{project_name}:delete_file", timeout=300)
+        async with lock:
+            extend_task = asyncio.create_task(functions.auto_extend(lock))
+            file_name = os.path.normpath(os.path.join(project_folder, f"{file}.json"))
+            if not os.path.exists(file_name): 
+                return JSONResponse({"status": 'error', "message": f"Path '{file_name}' does not exist."})
+            functions.safe_remove(file_name)
+            return JSONResponse({"message": f"Scenario '{file}' was cloned successfully!"})
+    except Exception as e:
+        print('/delete_file:\n==============')
+        traceback.print_exc()
+        return JSONResponse({"message": f"Error: {str(e)}"})
+    finally:
+        if extend_task:
+            extend_task.cancel()
+            try: await extend_task
+            except asyncio.CancelledError: pass
+
 # Delete a project
 @router.post("/delete_project")
 async def delete_project(request: Request, user=Depends(functions.basic_auth)):
@@ -454,6 +506,10 @@ async def select_project(request: Request, user=Depends(functions.basic_auth)):
         if key == 'getProjects': # List the projects in a folder that contains the "folder_check"
             project = [p.name for p in os.scandir(os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name))) if p.is_dir()]
             project = [p for p in project if os.path.exists(os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, p, folder_check)))]
+            data = sorted(project)
+        elif key == 'getWAQs': # List the scenarios for water quality
+            project = [p.name for p in os.scandir(os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'output', 'scenarios')))]
+            project = [p.replace('.json', '') for p in project if os.path.exists(os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'output', 'scenarios', p)))]
             data = sorted(project)
         elif key == 'getFiles': # List the files
             project_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name))
