@@ -11,10 +11,14 @@
         <div class="page-title">
             <label for="project-name">Scenario Name</label>
             <div id="project-name-wrapper">
-                <input type="text" id="project-name" placeholder="Select scenario from list">
-                <ul id="project-list"></ul>
+                <input type="text" id="project-name" style="width: 200px;" placeholder="Select scenario from list">
+                <ul id="project-list" style="width: 200px;"></ul>
             </div>
-            <button class="tab-btn" id="create-project-button">Select Scenario<span class="ink"></span></button>
+            <label id="label-waq" for="waq-name" style="font-weight: normal; font-size: medium; display: none;">WAQ model</label>
+            <select id="waq-name" style="display: none;"></select>
+            <button class="tab-btn" id="create-project-button">Open Scenario<span class="ink"></span></button>
+            <button class="tab-btn" id="duplicate-project-button" style="color: rgb(2, 240, 248); display: none;">Clone Scenario<span class="ink"></span></button>
+            <button class="tab-btn" id="delete-project-button" style="color: rgb(248, 10, 2); display: none;">Delete Scenario<span class="ink"></span></button>
         </div>
         <section class="card tabs" id="desription-tab" style="margin-left: 15px; margin-right: 15px;">
             <p style="text-align: center; font-weight: bold; font-size: 20px;">
@@ -32,7 +36,7 @@
                 <div class="tabs__list">
                     <button class="tab-btn" data-tab="model-settings">Model Overview<span class="ink"></span></button>
                     <button class="tab-btn" data-tab="point-settings">Point Settings<span class="ink"></span></button>
-                    <button class="tab-btn" data-tab="data-processing">Run Simulation<span class="ink"></span></button>
+                    <button class="tab-btn" data-tab="data-processing">Model Settings<span class="ink"></span></button>
                 </div>
             </div>
             <div class="tabs__content">
@@ -179,7 +183,7 @@
                                         </div>
                                     </div>
                                     <div class="row" style="justify-content: center;">
-                                        <button class="wq-simulation" type="button" data-info="physical" style="flex:0 0 auto; width:200px;">Run model</button>
+                                        <button class="wq-simulation" type="button" data-info="physical" style="flex:0 0 auto; width:400px;">Save physical model</button>
                                     </div>
                                 </div>
                                 <!-- Sub Tab: Chemical Settings -->
@@ -229,7 +233,7 @@
                                         </div>
                                     </div>
                                     <div class="row" style="justify-content: center;">
-                                        <button class="wq-simulation" type="button" data-info="chemical" style="flex:0 0 auto; width:200px;">Run model</button>
+                                        <button class="wq-simulation" type="button" data-info="chemical" style="flex:0 0 auto; width:400px;">Save chemical model</button>
                                     </div>
                                 </div>
                                 <!-- Sub Tab: Microbiology Settings -->
@@ -275,7 +279,7 @@
                                         </div>
                                     </div>
                                     <div class="row" style="justify-content: center;">
-                                        <button class="wq-simulation" type="button" data-info="microbial" style="flex:0 0 auto; width:200px;">Run model</button>
+                                        <button class="wq-simulation" type="button" data-info="microbial" style="flex:0 0 auto; width:400px;">Save microbial model</button>
                                     </div>
                                 </div>
                             </div>

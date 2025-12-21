@@ -1,6 +1,6 @@
 import os, subprocess, re, shutil, json, asyncio, signal, traceback
 import pandas as pd, numpy as np, xarray as xr
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request, Depends, Query
 from config import PROJECT_STATIC_ROOT, DELFT_PATH
 from fastapi.responses import JSONResponse
 from datetime import datetime, timezone
@@ -45,6 +45,37 @@ async def select_hyd(request: Request, user=Depends(functions.basic_auth)):
         return JSONResponse({"status": 'ok', "content": wq_functions.hydReader(path)})
     message = f"Error: Cannot find .hyd file in project '{project_name}'.\nPlease run a hydrodynamic simulation first."
     return JSONResponse({"status": 'error', "message": message})
+
+@router.post("/select_waq")
+async def select_waq(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
+        project_name = functions.project_definer(body.get('projectName'), user)
+        folder = [PROJECT_STATIC_ROOT, project_name, "output", 'scenarios']
+        path = os.path.normpath(os.path.join(*folder))
+        files = [f.replace('.json', '') for f in os.listdir(path) if f.endswith('.json')]
+        if len(files) == 0: return JSONResponse({"status": 'error'})
+        return JSONResponse({"status": 'ok', "content": files})
+    except: return JSONResponse({"status": 'error'})
+
+@router.post("/load_waq")
+async def load_waq(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
+        project_name = functions.project_definer(body.get('projectName'), user)
+        folder = [PROJECT_STATIC_ROOT, project_name, "output", 'scenarios', f"{body.get('waqName')}.json"]
+        path, data = os.path.normpath(os.path.join(*folder)), {}
+        if not os.path.exists(path): return JSONResponse({"status": 'error', "message": 'Configuration file not found.'})
+        with open(path, 'r', encoding='utf-8') as f:
+            files = json.load(f)
+        data['key'], data['name'], data['mode'] = files['key'], files['folderName'], files['mode']
+        data['obs'], data['loads'] = files['obsPoints'], files['loadsData']
+        data['times'], data['usefors'] = files['timeTable'], files['usefors']
+        data['initial'], data['scheme'] = files['initial'], files['scheme']
+        data['maxiter'], data['tolerance'] = files['maxiter'], files['tolerance']
+        data['useforsFrom'], data['useforsTo'] = files['useforsFrom'], files['useforsTo']
+        return JSONResponse({"status": 'ok', "content": data})
+    except: return JSONResponse({"status": 'error'})
 
 @router.post("/wq_time_from_waq")
 async def wq_time_from_waq(request: Request):
@@ -113,13 +144,13 @@ async def waq_config_writer(request: Request, user=Depends(functions.basic_auth)
     try:
         body = await request.json()
         project_name = functions.project_definer(body.get('projectName'), user)
-        config_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "config"))
+        config_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "scenarios"))
         if not os.path.exists(config_path): os.makedirs(config_path)
-        config_file = os.path.normpath(os.path.join(config_path, "config_waq.json"))
+        config_file = os.path.normpath(os.path.join(config_path, f"{body.get('folderName')}.json"))
         if os.path.exists(config_file): os.remove(config_file)
         with open(config_file, 'w', encoding='utf-8') as f:
             json.dump(body, f, indent=4)
-        return JSONResponse({"status": 'ok'})
+        return JSONResponse({"status": 'ok', "message": 'Model configuration saved successfully.'})
     except Exception as e: return JSONResponse({"status": 'error', "message":  f"Error: {str(e)}"})
 
 # Check if simulation is running
@@ -137,7 +168,18 @@ async def check_sim_status_waq(request: Request, user=Depends(functions.basic_au
     return JSONResponse({ "status": info["status"], "progress": info["progress"], "logs": logs, "message": info["message"],
                             "complete": f"Completed: {info['progress']}%"})
 
-# # Start a waq simulation
+@router.get("/sim_log_tail_waq/{project_name}")
+async def sim_log_tail_waq(project_name: str, offset: int = Query(0), log_file: str = Query(""), user=Depends(functions.basic_auth)):
+    project_name = functions.project_definer(project_name, user)
+    log_path, lines = os.path.join(PROJECT_STATIC_ROOT, project_name, log_file), []
+    if not os.path.exists(log_path): return {"lines": lines, "offset": offset}
+    with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+        f.seek(offset)
+        for line in f:
+            lines.append(line.rstrip())
+    return {"lines": lines, "offset": os.path.getsize(log_path)}
+
+# Start a waq simulation
 @router.post("/start_sim_waq")
 async def start_sim_waq_test(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
