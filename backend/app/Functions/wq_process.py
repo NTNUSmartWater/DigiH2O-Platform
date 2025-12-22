@@ -181,17 +181,17 @@ async def sim_log_tail_waq(project_name: str, offset: int = Query(0), log_file: 
 
 # Start a waq simulation
 @router.post("/start_sim_waq")
-async def start_sim_waq_test(request: Request, user=Depends(functions.basic_auth)):
+async def start_sim_waq(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name = functions.project_definer(body.get('projectName'), user)
+    project_name, waq_name = functions.project_definer(body.get('projectName'), user), body.get('waqName')
     if project_name in processes and processes[project_name]["status"] == "running":
         old = processes[project_name]["status"]
         if old in ("finished", "error"): processes.pop(project_name)
         return JSONResponse({"status": "error", "message": "Simulation already running"})
-    asyncio.create_task(run_waq_simulation(project_name, body))
+    asyncio.create_task(run_waq_simulation(project_name, waq_name))
     return JSONResponse({"status": "ok", "message": "Simulation started"})
 
-async def run_waq_simulation(project_name, body):
+async def run_waq_simulation(project_name, waq_name):
     processes[project_name] = {"status": "not_started", "progress": 0, "message": "", "process": None}
     log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log_waq.txt"))
     if os.path.exists(log_path): os.remove(log_path)
@@ -200,9 +200,8 @@ async def run_waq_simulation(project_name, body):
         log_file.write(f"Simulation started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         log_file.write("===============================================\n\n")
         # Check if configuration exists
-        config_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "config"))
-        if not os.path.exists(config_path): os.makedirs(config_path)
-        config_file = os.path.normpath(os.path.join(config_path, "config_waq.json"))
+        config_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "scenarios")
+        config_file = os.path.normpath(os.path.join(config_path, f"{waq_name}.json"))
         if not os.path.exists(config_file):
             log_file.write("Configuration file not found.\n")
             processes[project_name]["status"] = "error"
@@ -237,7 +236,7 @@ async def run_waq_simulation(project_name, body):
                 'exchange_y': body['exchangeY'], 'exchange_z': body['exchangeZ'], 'folder_name': file_name,
                 'ptr_path': ptr_path, 'area_path': area_path, 'flow_path': flow_path, 'length_path': length_path,
                 'n_layers': body['nLayers'], 'sources': body['sources'], 'loads_data': body['loadsData'],
-                'vdf_path': vdf_path, 'tem_path': tem_path, 'initial_list': body['initialList'], 'initial_set': body['initial'].split('\n')
+                'vdf_path': vdf_path, 'tem_path': tem_path, 'initial_list': body['useforsFrom'], 'initial_set': body['initial'].split('\n')
             }
             includes_folder = os.path.normpath(os.path.join(output_folder, "includes_deltashell"))
             os.makedirs(includes_folder, exist_ok=True)
@@ -292,7 +291,6 @@ async def run_waq_simulation(project_name, body):
             log_file.write("\n\nChecking inputs for WAQ simulation\n\n")
             log_file.write("=== Run delwaq1 ===\n")
             cmd1 = [delwaq1_path, inp_name, "-p", proc_path, "-eco", bloom_path]
-            
             ok1 = await asyncio.to_thread(subprocessRunner, log_file, cmd1, output_folder, project_name)
             log_file.write("=== Finished Running delwaq1 ===\n")
             if not ok1:

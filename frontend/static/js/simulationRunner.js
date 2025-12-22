@@ -90,7 +90,7 @@ function updateLogWAQ(project, progress_bar, progress_text, info, seconds) {
             }
             const res = await fetch(`/sim_log_tail_waq/${project}?offset=${lastOffsetWAQ}&log_file=log_waq.txt`);
             if (!res.ok) return;
-            const data = await res.json();
+            const data = await res.json(); if (info.value !== '') { info.value = ''; }
             for (const line of data.lines) { info.value += line + "\n"; }
             lastOffsetWAQ = data.offset;
         } catch (error) { clearInterval(logIntervalWAQ); logIntervalWAQ = null; }
@@ -171,9 +171,9 @@ function updateSelection(){
             const res = await sendQuery('check_folder', {projectName: currentProject, folder: waqSelector().value, key: 'waq'});
             if (res.status === "ok") { if (!confirm("Output exists. Re-run will overwrite it. Continue?")) return; }
             progressText().innerText = 'Start running the water quality simulation...';
-            const start = await sendQuery('start_sim_waq', {projectName: currentProject});
-            if (start.status === "error") {alert(start.message); return;}
             infoArea().value = ''; progressbar().value = 0;
+            const start = await sendQuery('start_sim_waq', {projectName: currentProject, waqName: waqSelector().value});
+            if (start.status === "error") {alert(start.message); return;}
             updateLogWAQ(currentProject, progressbar(), progressText(), infoArea(), 0.5);
         }
     });
