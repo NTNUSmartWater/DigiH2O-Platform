@@ -1,4 +1,4 @@
-import os, socket
+import os, socket, logging
 from contextlib import asynccontextmanager
 from Functions import dataset_manager
 from dotenv import load_dotenv
@@ -23,8 +23,6 @@ else:
     STATIC_DIR_FRONTEND = "/app/frontend/static"
     DELFT_PATH = os.path.normpath(os.path.join(PROJECT_DES, "x64"))
     REDIS_URL = "redis://redis:6379/0"
-WINDOWS_AGENT_URL = "http://host.docker.internal:5055/run" 
-GRID_PATH = os.getenv('GRID_PATH')
 
 
 # ============== Redis Client ================
@@ -35,7 +33,7 @@ def check_redis_running(host="localhost", port=6379, timeout=1):
     try:
         sock.connect((host, port))
         sock.close()
-        print("✅ Redis server is running.")
+        print("Redis server is running.")
         return True
     except Exception: return False
     
@@ -49,7 +47,7 @@ async def lifespan(app):
     try:
         app.state.redis = Redis.from_url(REDIS_URL, decode_responses=False)
     except Exception as e:
-        print(f"❌ Failed to initialize Redis: {e}")
+        print(f"Failed to initialize Redis: {e}")
         app.state.redis = None
     yield
     try:
@@ -57,4 +55,4 @@ async def lifespan(app):
         if app.state.redis:
             await app.state.redis.close()
     except Exception as e:
-        print(f"⚠️ Dataset manager close error: {e}")
+        print(f"Dataset manager close error: {e}")

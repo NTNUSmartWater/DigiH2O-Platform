@@ -14,18 +14,18 @@ class DatasetManager:
         mtime = os.path.getmtime(path)
         with self._lock:
             if path not in self._cache:
-                print(f"🔄 Opening: {path}")
+                print(f"Opening: {path}")
                 # self._cache[path] = xr.open_dataset(path, chunks='auto')
                 self._cache[path] = xr.open_zarr(path, consolidated=True)
                 self._timestamp[path] = mtime
             elif self._timestamp[path] != mtime:
-                print(f"♻️ Reload dataset: {path}")
+                print(f"Reload dataset: {path}")
                 self._cache[path].close()
                 del self._cache[path]
                 # self._cache[path] = xr.open_dataset(path, chunks='auto')
                 self._cache[path] = xr.open_zarr(path, consolidated=True)
                 self._timestamp[path] = mtime
-            else: print(f"✅ Using cached dataset: {path}")
+            else: print(f"Using cached dataset: {path}")
             return self._cache[path]
 
     def close(self):
@@ -34,7 +34,7 @@ class DatasetManager:
             try:
                 dataset.close()
                 del dataset
-                print(f"🛑 Closed dataset: {path}")
-            except Exception as e: print(f"❌ Error closing dataset: {path} - {str(e)}")
+                print(f"Closed dataset: {path}")
+            except Exception as e: print(f"Error closing dataset: {path} - {str(e)}")
         self._cache.clear()
         self._timestamp.clear()
