@@ -1,4 +1,4 @@
-import os, subprocess, re, shutil, json, asyncio, signal, traceback, threading
+import os, subprocess, re, shutil, json, asyncio, traceback, threading
 import pandas as pd, numpy as np, xarray as xr
 from fastapi import APIRouter, Request, Depends, Query
 from config import PROJECT_STATIC_ROOT, DELFT_PATH
