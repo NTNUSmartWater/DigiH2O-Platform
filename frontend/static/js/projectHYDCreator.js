@@ -88,7 +88,7 @@ const latitude = () => document.getElementById('latitude');
 const nLayers = () => document.getElementById('n-layer');
 const gridPathFile = () => document.getElementById('unstructured-grid-file');
 const gridPathText = () => document.getElementById('unstructured-grid-text');
-// const gridTool = () => document.getElementById('activate-grid');
+const gridTool = () => document.getElementById('activate-grid');
 const startDate = () => document.getElementById('start-date');
 const stopDate = () => document.getElementById('stop-date');
 const obsPointTable = () => document.getElementById('observation-point-table');
@@ -274,7 +274,7 @@ function updateOption(){
         window.parent.postMessage({type: 'showGrid', projectName: projectName().value, 
             gridName: 'FlowFM_net.nc', message: 'Uploading grid to project...'}, '*');
     });
-    // gridTool().addEventListener('click', () => { window.parent.postMessage({type: 'showGridTool'}, '*'); });
+    gridTool().addEventListener('click', () => { window.parent.postMessage({type: 'showGridTool'}, '*'); });
     // Copy and paste to tables
     copyPaste(boundaryEditTable(), 2); copyPaste(sourceTable(), 5); 
     copyPaste(meteoTable(), 5); copyPaste(weatherTable(), 3); copyPaste(obsPointTable(), 3);

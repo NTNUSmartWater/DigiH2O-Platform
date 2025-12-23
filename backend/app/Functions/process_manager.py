@@ -1,10 +1,9 @@
-import os, json, re, requests, math, asyncio, traceback, subprocess, msgpack, datetime
+import os, json, re, math, asyncio, traceback, subprocess, msgpack, datetime
 from fastapi import APIRouter, Request, File, UploadFile, Form, Depends
 from Functions import functions
 from shapely.geometry import mapping
 from fastapi.responses import JSONResponse
-from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND
-from config import GRID_PATH, WINDOWS_AGENT_URL
+from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND, DELFT_PATH
 import xarray as xr, pandas as pd, numpy as np, geopandas as gpd
 
 router = APIRouter()
@@ -588,13 +587,7 @@ async def generate_mdu(request: Request, user=Depends(functions.basic_auth)):
 @router.post("/open_gridTool")
 async def open_gridTool(request: Request):
     await request.json()
-    if not os.path.exists(GRID_PATH): return JSONResponse({"status": "error", "message": "Grid Tool not found."})
-    if request.app.state.env == 'development': subprocess.Popen(GRID_PATH, shell=True)
-    else:
-        try:
-            payload = {"action": "run_grid_tool", "path": GRID_PATH}            
-            res = requests.post(WINDOWS_AGENT_URL, json=payload, timeout=10)
-            res.raise_for_status()
-            return JSONResponse({"status": "ok", "message": ""})
-        except Exception as e:
-            return JSONResponse({"status": "error", "message": f"Exception: {str(e)}"})
+    GRID_PATH = os.path.normpath(os.path.join(DELFT_PATH, 'grid/rgfgrid.cmd'))
+    if not os.path.exists(GRID_PATH): 
+        return JSONResponse({"status": "error", "message": "Grid Tool not found."})
+    subprocess.Popen(GRID_PATH, shell=True)
