@@ -1234,3 +1234,25 @@ def seconds_datetime(seconds: int) -> tuple:
     minutes = seconds // 60
     seconds = seconds % 60
     return days, f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+def kill_process(process):
+    if not process: return {"status": "ok", "message": "No process to kill."}
+    try:
+        if process.poll() is not None: return {"status": "ok", "message": "Simulation stopped."}
+        # Try terminate
+        try:
+            process.send_signal(signal.CTRL_BREAK_EVENT)
+            process.wait(timeout=5)
+            return {"status": "ok", "message": "Simulation stopped (graceful)."}
+        except Exception: pass
+        try:
+            process.terminate()
+            process.wait(timeout=5)
+            return {"status": "ok", "message": "Simulation terminated."}
+        except Exception: pass
+        # Force kill for Windows
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        return {"status": "ok", "message": "Simulation force killed."}
+    except Exception as e: 
+        return {"status": "error", "message": str(e)}
