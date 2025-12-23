@@ -2,7 +2,7 @@ import os, subprocess, threading, re
 from Functions import functions
 from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import JSONResponse
-from config import PROJECT_STATIC_ROOT, DELFT_PATH, WINDOWS_AGENT_URL
+from config import PROJECT_STATIC_ROOT, DELFT_PATH
 
 router, processes = APIRouter(), {}
 
@@ -66,8 +66,6 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
     percent_re = re.compile(r'(?P<percent>\d{1,3}(?:\.\d+)?)\s*%')
     time_re = re.compile(r'(?P<tt>\d+d\s+\d{1,2}:\d{2}:\d{2})')
     # Run the process
-    # if request.app.state.env == 'development':
-    # Run the process on host
     command = ["cmd.exe", "/c", bat_path, "--autostartstop", mdu_path]
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
         encoding="utf-8", errors="replace", bufsize=1, cwd=path)
@@ -119,15 +117,6 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
             processes.pop(project_name, None)
     threading.Thread(target=stream_logs, daemon=True).start()
     return JSONResponse({"status": "ok", "message": f"Simulation {project_name} started on Windows host."})
-    # else: # Run the process on docker
-    #     try:
-    #         payload = {"action": "run_hyd", "bat_path": bat_path, "mdu_path": mdu_path, "project_name": project_name, 
-    #                "log_path": log_path, "cwd_path": path, "percent_re": str(percent_re), "time_re": str(time_re)}
-    #         res = requests.post(WINDOWS_AGENT_URL, json=payload, timeout=10)
-    #         res.raise_for_status()
-    #         return JSONResponse({"status": "ok", "message": f"Simulation {project_name} started (via Windows Agent)."})
-    #     except Exception as e:
-    #         return JSONResponse({"status": "error", "message": f"Exception: {str(e)}"})
 
 @router.get("/sim_log_full/{project_name}")
 async def sim_log_full(project_name: str, log_file: str = Query(""), user=Depends(functions.basic_auth)):
