@@ -1,4 +1,4 @@
-import shapely, os, re, shutil, stat, json, asyncio, base64, time
+import shapely, os, re, shutil, stat, json, asyncio, base64, time, subprocess, signal
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
