@@ -591,3 +591,4 @@ async def open_gridTool(request: Request):
     if not os.path.exists(GRID_PATH): 
         return JSONResponse({"status": "error", "message": "Grid Tool not found."})
     subprocess.Popen(GRID_PATH, shell=True)
+    return JSONResponse({"status": "ok"})
