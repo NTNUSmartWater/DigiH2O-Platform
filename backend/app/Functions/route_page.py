@@ -85,12 +85,17 @@ def new_HYD_project(request: Request):
 # Run simulation page
 @router.get("/run_hyd_simulation")
 def run_hyd_simulation(request: Request):
-    return templates.TemplateResponse("simulationHYDRunner.html", {"request": request})
+    return templates.TemplateResponse("simulationRunner.html", {"request": request, "mode": "hyd"})
 
 # Load new wq project
 @router.get("/new_WQ_project")
 def new_WQ_project(request: Request):
     return templates.TemplateResponse("projectWQCreator.html", {"request": request})
+
+# Load new wq project
+@router.get("/run_WQ_project")
+def run_WQ_project(request: Request):
+    return templates.TemplateResponse("simulationRunner.html", {"request": request, "mode": "waq"})
 
 # Run grid generator
 @router.get("/grid_generation")

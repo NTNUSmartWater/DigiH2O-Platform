@@ -316,10 +316,6 @@
                         <input type="radio" id="source-sink-exist" name="source" value="2">
                         <label for="source-sink-exist">Load from CSV file</label>
                       </div>
-                      <div class="row-radio" data-tab="source-sink-list">
-                        <input type="radio" id="source-sink-list" name="source" value="3">
-                        <label for="source-sink-list">Select from list</label>
-                      </div>
                       <div class="row">
                         <label for="source-name">Name:</label>
                         <input type="text" id="source-name" placeholder="Name of source/sink">
@@ -346,13 +342,6 @@
                           <input type="text" id="source-csv-text" placeholder="Click to Upload Source from CSV">
                         </div>
                       </div>                                  
-                      <!-- Layer 3: "Select from list" -->
-                      <div class="radio-panel" data-panel="source-sink-list">
-                        <div class="row">
-                          <label for="option-source">Select from list:</label>
-                          <select id="option-source"></select>
-                        </div>
-                      </div>
                     </div>
                     <div class="tile"><h3>Remove source</h3>
                       <div class="row">
@@ -540,7 +529,7 @@
                     <input type="text" class="datetime" id="water-quality-output-end" placeholder="YYYY-mm-dd HH:mm:ss">
                   </div>                                    
                 </div>
-                <div class="tile"><h3>Restart</h3>
+                <div class="tile" hidden><h3>Restart</h3>
                   <div class="row-checkbox">
                     <input type="checkbox" id="write-restart-file">
                     <label for="write-restart-file">Write Restart file:</label>                                    

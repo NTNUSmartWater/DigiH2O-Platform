@@ -4,7 +4,11 @@ import { toUTC } from "./projectSaver.js";
 
 const projectName = () => document.getElementById('project-name');
 const projects = () => document.getElementById("project-list");
+const waqSelector = () => document.getElementById("waq-name");
+const waqLabel = () => document.getElementById("label-waq");
 const projectCreator = () => document.getElementById('create-project-button');
+const projectCloner = () => document.getElementById('duplicate-project-button');
+const projectDeleter = () => document.getElementById('delete-project-button');
 const sectionTab = () => document.getElementById('parent-tab');
 const sectionDescription = () => document.getElementById('desription-tab');
 const hydFilename = () => document.getElementById("hyd-filename");
@@ -38,7 +42,7 @@ const microbialName = () => document.getElementById('wq-microbial-name');
 let projectList=[], subKey='', folderName='', usefors=null, from_usefors=null, to_usefors=null, pointSelected=null, nPoints=0,
     timeStep1=0, timeStep2='', nSegments=0, attrPath_='', volPath='', exchange_x=0, exchange_y=0, exchange_z=0, nLoads=0,
     ptrPath='', areaPath='', flowPath='', lengthPath='', srfPath='', vdfPath='', temPath='', maxiter=null, tolerance=null,
-    scheme=null, salPath='', from_initial=null, initial_value=null, initial_area=null, initialList=[];
+    scheme=null, salPath='', from_initial=null, initial_value=null, initial_area=null, useforsFrom=[], useforsTo=[], waqContent=[];
 
 function setupTabs(root) {
     const buttonPanels = root.querySelectorAll('#main-tabs button');
@@ -139,7 +143,8 @@ function substanceChanger(target, name, type){
         name.value = subKey;
         const data = await sendQuery('wq_time_from_waq', { key: subKey });
         if (data.status === "error") {
-            timePreview().value = ''; timePreviewContainer().style.display = 'none'; alert(data.message); return;
+            timePreviewContainer().style.display = 'none'; 
+            timePreview().value = ''; alert(data.message); return;
         };
         if (type === 'wq-chemical') {
             from_usefors = document.getElementById('wq-chemical-usefors-from');
@@ -151,7 +156,7 @@ function substanceChanger(target, name, type){
             from_usefors = document.getElementById('wq-microbial-usefors-from');
             from_initial = document.getElementById('wq-microbial-initial-from');
         }
-        from_usefors.innerHTML = ''; from_initial.innerHTML = ''; initialList = data.froms;
+        from_usefors.innerHTML = ''; from_initial.innerHTML = ''; useforsFrom = data.froms;
         data.froms.forEach(item => {
             const option = document.createElement('option');
             option.value = item; option.text = item;
@@ -284,11 +289,14 @@ function updateOption(){
             }
             if (subKey === '') { alert('Please specify type of simulation.'); return; }
             if (folderName === '') { alert('Please specify name of substance.'); return; }
-            const data = await sendQuery('wq_time_to_waq', { folderName: folderName, loadsData: loadsData.rows, timeData: timeData.rows });
+            const data = await sendQuery('wq_time_to_waq', { folderName: folderName, 
+                loadsData: loadsData.rows, timeData: timeData.rows });
             if (data.status === "error") {
-                timePreview().value = ''; timePreviewContainer().style.display = 'none'; alert(data.message); return;
+                timePreviewContainer().style.display = 'none'; 
+                timePreview().value = ''; alert(data.message); return;
             };
-            timePreview().value = data.content; timePreviewContainer().style.display = 'flex';
+            timePreview().value = data.content; useforsTo = data.tos;
+            timePreviewContainer().style.display = 'flex';
             // Assign value to USEFORS
             if (btn.id === 'wq-chemical') {
                 to_usefors = document.getElementById('wq-chemical-usefors-to');
@@ -338,7 +346,6 @@ function updateOption(){
     // Check function to run water quality simulation
     document.querySelectorAll('.wq-simulation').forEach(btn => {
         btn.addEventListener('click', async () => {
-            window.parent.postMessage({ type: 'update-WAQ', content: 'Getting configuration. Please wait...'}, '*');
             if (btn.dataset.info === 'chemical') {
                 maxiter = document.getElementById('max-iterations-chemical');
                 tolerance = document.getElementById('tolerance-chemical');
@@ -370,17 +377,16 @@ function updateOption(){
             if (loadTable.rows.length === 0) { alert('No loads data found. Please add at least one load.'); return; }
             if (maxiter.value === '' || parseInt(maxiter.value) <= 0) { alert('Please define maximum number of iterations.'); return; }
             if (tolerance.value === '' || parseFloat(tolerance.value) <= 0) { alert('Please define tolerance.'); return; }
-            const params = {projectName: name, key: subKey, hydName: hydPath, folderName: folderName, usefors: userforValue,
+            const params = {mode: btn.dataset.info, projectName: name, key: subKey, hydName: hydPath, folderName: folderName, usefors: userforValue,
                 timeStep1: timeStep1, timeStep2: timeStep2, nSegments: nSegments, attrPath: attrPath_, volPath: volPath, exchangeY: exchange_y,
                 exchangeX: exchange_x, exchangeZ: exchange_z, ptrPath: ptrPath, areaPath: areaPath, flowPath: flowPath, lengthPath: lengthPath,
                 nLayers: nLayers().value, sources: sourceTable.rows, loadsData: loadTable.rows, srfPath: srfPath, vdfPath: vdfPath,
-                temPath: temPath, initial: initialValue, initialList: initialList, startTime: toUTC(start), stopTime: toUTC(stop),
+                temPath: temPath, initial: initialValue, useforsFrom: useforsFrom, useforsTo: useforsTo, startTime: toUTC(start), stopTime: toUTC(stop),
                 obsPoints: obsTable.rows, timeTable: timeTable, maxiter: maxiter.value, tolerance: tolerance.value, scheme: scheme.value, salPath: salPath
             }
-            window.parent.postMessage({ type: 'update-WAQ', content: 'Saving configuration. Please wait...'}, '*');
             const waq_config = await sendQuery('waq_config_writer', params);
             if (waq_config.status === 'error') { alert(waq_config.message); return; }
-            window.parent.postMessage({ type: 'run-wq', projectName: name}, '*');
+            alert(waq_config.message);
         });
     });
 }
@@ -411,15 +417,29 @@ function initializeProject(){
     projectName().addEventListener('blur', () => { 
         setTimeout(() => { projects().style.display = "none"; }, 100);
     });
+    projects().addEventListener('mousedown', async () => {
+        const name = projectName().value.trim();
+        const data = await sendQuery('select_waq', {projectName: name});
+        if (!name || name === '' || data.status === "error") { 
+            waqSelector().style.display = "none"; waqSelector().value = '';
+            waqLabel().style.display = "none"; projectCloner().style.display = "none"; 
+            projectDeleter().style.display = "none"; return; 
+        }
+        waqContent = data.content;
+        waqSelector().innerHTML = waqContent.map(name => `<option value="${name}">${name}</option>`).join('');
+        waqSelector().style.display = "flex"; waqLabel().style.display = "flex"; 
+        projectCloner().style.display = "flex"; projectDeleter().style.display = "flex";
+    });
     // Create new project
     projectCreator().addEventListener('click', async () => {
         const name = projectName().value.trim();
         if (!name || name.trim() === '') { alert('Please define project.'); return; }
-        // Show tabs
-        sectionTab().style.display = "block"; sectionDescription().style.display = "none";
         // Find .hyd file
         const data = await sendQuery('select_hyd', {projectName: name});
         if (data.status === "error") {alert(data.message); return;}
+        setupTabs(document);
+        // Show tabs
+        sectionTab().style.display = "block"; sectionDescription().style.display = "none";
         sourcesContainer().style.display = data.content.sink_sources.length > 0 ? "block":"none";
         fillTable(data.content.sink_sources, sourcesTable(), true);
         // Assign values
@@ -434,8 +454,102 @@ function initializeProject(){
         srfPath = data.content.srf_path; vdfPath = data.content.vdf_path;
         temPath = data.content.tem_path; salPath = data.content.sal_path;
         startTime().value = data.content.start_time; stopTime().value = data.content.stop_time;
+        const waqValue = waqSelector().value;
+        if (waqValue !== '') { 
+            const data = await sendQuery('load_waq', {projectName: name, waqName: waqValue});
+            if (data.status === "error") {alert(data.message); return;}
+            fillTable(data.content.obs, obsPointTable(), true);
+            fillTable(data.content.loads, loadsPointTable(), true);
+            if (data.content.mode === 'chemical') {
+                from_usefors = document.getElementById('wq-chemical-usefors-from');
+                to_usefors = document.getElementById('wq-chemical-usefors-to');
+                from_initial = document.getElementById('wq-chemical-initial-from');
+                usefors = document.getElementById('wq-usefors-chemical');
+                // initial_value = document.getElementById('wq-chemical-initial');
+                initial_area = document.getElementById('wq-initial-chemical');
+                maxiter = document.getElementById('max-iterations-chemical');
+                tolerance = document.getElementById('tolerance-chemical');
+                scheme = document.getElementById('wq-scheme-chemical');
+                chemicalSelector().value = data.content.key;
+                chemicalName().value = data.content.name;
+            } else if (data.content.mode === 'physical') {
+                from_usefors = document.getElementById('wq-physical-usefors-from');
+                to_usefors = document.getElementById('wq-physical-usefors-to');
+                from_initial = document.getElementById('wq-physical-initial-from');
+                usefors = document.getElementById('wq-usefors-physical');
+                // initial_value = document.getElementById('wq-physical-initial');
+                initial_area = document.getElementById('wq-initial-physical');
+                maxiter = document.getElementById('max-iterations-physical');
+                tolerance = document.getElementById('tolerance-physical');
+                scheme = document.getElementById('wq-scheme-physical');
+                physicalSelector().value = data.content.key;
+                physicalName().value = data.content.name;
+            } else if (data.content.mode === 'microbial') {
+                from_usefors = document.getElementById('wq-microbial-usefors-from');
+                to_usefors = document.getElementById('wq-microbial-usefors-to');
+                from_initial = document.getElementById('wq-microbial-initial-from');
+                usefors = document.getElementById('wq-usefors-microbial');
+                // initial_value = document.getElementById('wq-microbial-initial');
+                initial_area = document.getElementById('wq-initial-microbial');
+                maxiter = document.getElementById('max-iterations-microbial');
+                tolerance = document.getElementById('tolerance-microbial');
+                scheme = document.getElementById('wq-scheme-microbial');
+                microbialSelector().value = data.content.key;
+                microbialName().value = data.content.name;
+            }
+            scheme.value = data.content.scheme;
+            data.content.useforsFrom.forEach(item => {
+                [from_usefors, from_initial].forEach(select => {
+                    const option = document.createElement('option');
+                    option.value = item; option.text = item;
+                    select.add(option);
+                })
+            });
+            data.content.useforsTo.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item; option.text = item;
+                to_usefors.add(option);
+            });
+            usefors.value = data.content.usefors; initial_area.value = data.content.initial;
+            maxiter.value = data.content.maxiter; tolerance.value = data.content.tolerance;
+            timePreview().value = data.content.times; timePreviewContainer().style.display = 'block';
+        }
+    });
+    projectCloner().addEventListener('click', async () => { 
+        const name = projectName().value.trim();
+        if (!name || name === '') { alert('Please select scenario first.'); return; }
+        const newName = prompt('Please enter a name for the new WAQ scenario.');
+        if (!newName || newName === '') { alert('Please define clone scenario name.'); return; }
+        projectCloner().innerHTML = 'Cloning...';
+        const data = await sendQuery('clone_waq', {
+            projectName: name, oldName: waqSelector().value, newName: newName
+        });
+        projectCloner().innerHTML = 'Clone Scenario';
+        if (data.status === "error") { alert(data.message); return; }
+        waqContent.push(newName); waqSelector().innerHTML = '';
+        waqContent.forEach(item => { 
+            const option = document.createElement('option');
+            option.value = item; option.text = item;
+            waqSelector().add(option);
+        });
+        alert(data.message);
+    });
+    projectDeleter().addEventListener('click', async () => {
+        const name = projectName().value.trim(), waqName = waqSelector().value;
+        projectDeleter().innerHTML = 'Deleting...';
+        const data = await sendQuery('delete_file', { projectName: name, name: waqName });
+        projectDeleter().innerHTML = 'Delete Scenario'; 
+        if (data.status === "error") { 
+            alert(data.message); return;
+        }
+        waqSelector().innerHTML = '';
+        waqContent = waqContent.filter(item => item !== waqName);
+        waqContent.forEach(item => { 
+            const option = document.createElement('option');
+            option.value = item; option.text = item;
+            waqSelector().add(option);
+        });
+        alert(data.message);
     });
 }
-
-await getProjectList(); initializeProject();
-setupTabs(document); updateOption();
+await getProjectList(); initializeProject(); updateOption();

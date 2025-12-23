@@ -17,9 +17,14 @@ def append_log(log_path, text):
 async def check_folder(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
     project_name = functions.project_definer(body.get('projectName'), user)
-    folder = body.get('folder', [])
-    if isinstance(folder, str): folder = [folder]
-    path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, *folder))
+    folder, key = body.get('folder'), body.get('key')
+    if key == "hyd": path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, folder))
+    elif key == "waq":
+        waq_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "WAQ"))
+        if not os.path.exists(waq_dir): return JSONResponse({"status": 'error'})
+        files = [f for f in os.listdir(waq_dir) if f.split('.')[0] == folder]
+        if len(files) == 0: return JSONResponse({"status": 'error'})
+        path = os.path.normpath(os.path.join(waq_dir, files[0]))
     status = 'ok' if os.path.exists(path) else 'error'
     return JSONResponse({"status": status})
 
@@ -63,7 +68,7 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
     # Run the process
     # if request.app.state.env == 'development':
     # Run the process on host
-    command = [bat_path, "--autostartstop", mdu_path]
+    command = ["cmd.exe", "/c", bat_path, "--autostartstop", mdu_path]
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
         encoding="utf-8", errors="replace", bufsize=1, cwd=path)
     processes[project_name] = {"process": process, "progress": 0.0, "status": "running", 
@@ -79,13 +84,12 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
                 if "forrtl:" in line.lower() or "error" in line.lower():
                     processes[project_name]["status"], processes[project_name]["message"] = "error", line
                     append_log(log_path, line)
-                    try: process.kill()
-                    except: pass
-                    break
+                    res = functions.kill_process(process)
+                    append_log(log_path, res["message"])
+                    return JSONResponse({"status": "error", "message": f'Exception: {res["message"]}'})
                 # Check for progress
                 match_pct = percent_re.search(line)
-                if match_pct: 
-                    processes[project_name]["progress"] = float(match_pct.group("percent"))
+                if match_pct: processes[project_name]["progress"] = float(match_pct.group("percent"))
                 # Extract run time
                 times = time_re.findall(line)
                 if len(times) >= 4:
@@ -104,10 +108,10 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
                     post_result = functions.postProcess(path)
                     if not post_result["status"] == "ok":
                         processes[project_name]["status"], processes[project_name]["message"] = "error", f"Exception: {str(e)}"
-                        return JSONResponse({"status": "error", "message": f"Exception: {str(e)}"})
+                        return JSONResponse({"status": "error", "message": str(e)})
                     processes[project_name]["status"] = "finished"
                     processes[project_name]["message"] = f"Simulation completed successfully."
-                    return JSONResponse({"status": "ok", "message": f"Simulation completed successfully."})
+                    return JSONResponse({"status": "ok", "message": "Simulation completed successfully."})
                 except Exception as e:
                     processes[project_name]["status"], processes[project_name]["message"] = "error", f"Exception: {str(e)}"
                     return JSONResponse({"status": "error", "message": f"Exception: {str(e)}"})
@@ -134,8 +138,8 @@ async def sim_log_full(project_name: str, log_file: str = Query(""), user=Depend
         content = f.read()
     return {"content": content, "offset": os.path.getsize(log_path)}
 
-@router.get("/sim_log_tail/{project_name}")
-async def sim_log_tail(project_name: str, offset: int = Query(0), log_file: str = Query(""), user=Depends(functions.basic_auth)):
+@router.get("/sim_log_tail_hyd/{project_name}")
+async def sim_log_tail_hyd(project_name: str, offset: int = Query(0), log_file: str = Query(""), user=Depends(functions.basic_auth)):
     project_name = functions.project_definer(project_name, user)
     log_path, lines = os.path.join(PROJECT_STATIC_ROOT, project_name, log_file), []
     if not os.path.exists(log_path): return {"lines": lines, "offset": offset}
