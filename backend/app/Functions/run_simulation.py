@@ -68,7 +68,7 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
     # Run the process
     # if request.app.state.env == 'development':
     # Run the process on host
-    command = [bat_path, "--autostartstop", mdu_path]
+    command = ["cmd.exe", "/c", bat_path, "--autostartstop", mdu_path]
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
         encoding="utf-8", errors="replace", bufsize=1, cwd=path)
     processes[project_name] = {"process": process, "progress": 0.0, "status": "running", 
@@ -84,13 +84,12 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
                 if "forrtl:" in line.lower() or "error" in line.lower():
                     processes[project_name]["status"], processes[project_name]["message"] = "error", line
                     append_log(log_path, line)
-                    try: process.kill()
-                    except: pass
-                    break
+                    res = functions.kill_process(process)
+                    append_log(log_path, res["message"])
+                    return JSONResponse({"status": "error", "message": f'Exception: {res["message"]}'})
                 # Check for progress
                 match_pct = percent_re.search(line)
-                if match_pct: 
-                    processes[project_name]["progress"] = float(match_pct.group("percent"))
+                if match_pct: processes[project_name]["progress"] = float(match_pct.group("percent"))
                 # Extract run time
                 times = time_re.findall(line)
                 if len(times) >= 4:
@@ -109,10 +108,10 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
                     post_result = functions.postProcess(path)
                     if not post_result["status"] == "ok":
                         processes[project_name]["status"], processes[project_name]["message"] = "error", f"Exception: {str(e)}"
-                        return JSONResponse({"status": "error", "message": f"Exception: {str(e)}"})
+                        return JSONResponse({"status": "error", "message": str(e)})
                     processes[project_name]["status"] = "finished"
                     processes[project_name]["message"] = f"Simulation completed successfully."
-                    return JSONResponse({"status": "ok", "message": f"Simulation completed successfully."})
+                    return JSONResponse({"status": "ok", "message": "Simulation completed successfully."})
                 except Exception as e:
                     processes[project_name]["status"], processes[project_name]["message"] = "error", f"Exception: {str(e)}"
                     return JSONResponse({"status": "error", "message": f"Exception: {str(e)}"})

@@ -154,7 +154,7 @@ function updateSelection(){
     // Run new simulation
     runBtn().addEventListener('click', async () => {
         currentProject = scenarioSelector().value;
-        if (!currentProject) {alert('Please select a project.'); return;}
+        if (!currentProject) {alert('Please select a scenario.'); return;}
         if (APP_MODE === 'hyd') { // Check if HYD simulation is running
             const statusRes = await sendQuery('check_sim_status_hyd', {projectName: currentProject});
             if (statusRes.status === "running") { alert("HYD simulation is already running."); return; }
@@ -163,14 +163,14 @@ function updateSelection(){
             const start = await sendQuery('start_sim_hyd', {projectName: currentProject});
             if (start.status === "error") {alert(start.message); return;}
             infoArea().value = ''; progressbar().value = 0;
-            progressText().innerText = 'Start running the hydrodynamic simulation...';
+            progressText().innerText = 'Start running the HYD simulation...';
             updateLogHYD(currentProject, progressbar(), progressText(), infoArea(), 10);
         } else if (APP_MODE === 'waq'){ // Check if WAQ simulation is running
             const statusRes = await sendQuery('check_sim_status_waq', {projectName: currentProject});
             if (statusRes.status === "running") { alert("WAQ simulation is already running."); return; }
             const res = await sendQuery('check_folder', {projectName: currentProject, folder: waqSelector().value, key: 'waq'});
             if (res.status === "ok") { if (!confirm("Output exists. Re-run will overwrite it. Continue?")) return; }
-            progressText().innerText = 'Start running the water quality simulation...';
+            progressText().innerText = 'Start running the WAQ simulation...';
             infoArea().value = ''; progressbar().value = 0;
             const start = await sendQuery('start_sim_waq', {projectName: currentProject, waqName: waqSelector().value});
             if (start.status === "error") {alert(start.message); return;}
