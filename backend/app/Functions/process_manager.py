@@ -1,9 +1,9 @@
-import os, json, re, math, asyncio, traceback, subprocess, msgpack, datetime
+import os, json, re, math, asyncio, traceback, subprocess, msgpack, datetime, time
 from fastapi import APIRouter, Request, File, UploadFile, Form, Depends
 from Functions import functions
 from shapely.geometry import mapping
 from fastapi.responses import JSONResponse
-from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND, DELFT_PATH
+from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND, DELFT_PATH, PROJECT_DES
 import xarray as xr, pandas as pd, numpy as np, geopandas as gpd
 
 router = APIRouter()
@@ -582,13 +582,3 @@ async def generate_mdu(request: Request, user=Depends(functions.basic_auth)):
         traceback.print_exc()
         status, message = 'error', f"Error: {str(e)}"
     return JSONResponse({"status": status, "message": message})
-
-# Open Delft3D Grid Tool
-@router.post("/open_gridTool")
-async def open_gridTool(request: Request):
-    await request.json()
-    GRID_PATH = os.path.normpath(os.path.join(DELFT_PATH, 'grid/rgfgrid.cmd'))
-    if not os.path.exists(GRID_PATH): 
-        return JSONResponse({"status": "error", "message": "Grid Tool not found."})
-    subprocess.Popen(GRID_PATH, shell=True)
-    return JSONResponse({"status": "ok"})
