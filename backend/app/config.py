@@ -1,4 +1,4 @@
-import os, socket, logging
+import os, socket
 from contextlib import asynccontextmanager
 from Functions import dataset_manager
 from dotenv import load_dotenv
