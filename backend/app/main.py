@@ -31,4 +31,4 @@ app.include_router(run_simulation.router)
 app.include_router(wq_process.router)
 
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload_dirs=['.'], reload=True) # Remove reload=True for production
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload_dirs=['.']) # Remove reload=True for production
