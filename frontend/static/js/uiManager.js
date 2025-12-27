@@ -421,10 +421,6 @@ function updateEvents() {
             gridLayer = L.geoJSON(data.content, {style: {color: 'black', weight: 1}}).addTo(map);
             showLeafletMap();
         }
-        if (event.data?.type === 'showGridTool') {
-            const data = await sendQuery('open_gridTool', {});
-            if (data.status === "error") {alert(data.message); return;}
-        }
         if (event.data?.type === 'thermoclineGridClear') { 
             if (gridLayer) map.removeLayer(gridLayer); gridLayer = null;
             if (plotWindow().style.display !== 'none') plotWindow().style.display = 'none';
