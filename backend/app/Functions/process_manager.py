@@ -408,8 +408,8 @@ async def update_boundary(request: Request, user=Depends(functions.basic_auth)):
         path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
         # Write new format boundary file (*_bnd.ext)
         ext_path = os.path.normpath(os.path.join(path, "FlowFM_bnd.ext"))
-        file_content = '[boundary]\n' + f'quantity={quantity}\n' + f'locationFile={boundary_name}.pli\n' + \
-            f'forcingFile={boundary_type}.bc\n' + 'returnTime=0.0000000e+000'
+        file_content = '[boundary]\n' + f'quantity={quantity}\n' + \
+            f'locationFile={boundary_name}.pli\n' + f'forcingFile={boundary_type}.bc'
         if os.path.exists(ext_path):
             with open(ext_path, encoding="utf-8") as f:
                 content = f.read()
