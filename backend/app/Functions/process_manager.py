@@ -1,9 +1,9 @@
-import os, json, re, math, asyncio, traceback, subprocess, msgpack, datetime, time
+import os, json, re, math, asyncio, traceback, msgpack, datetime
 from fastapi import APIRouter, Request, File, UploadFile, Form, Depends
 from Functions import functions
 from shapely.geometry import mapping
 from fastapi.responses import JSONResponse
-from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND, DELFT_PATH, PROJECT_DES
+from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND
 import xarray as xr, pandas as pd, numpy as np, geopandas as gpd
 
 router = APIRouter()
@@ -271,7 +271,7 @@ async def select_thermocline(request: Request, user=Depends(functions.basic_auth
         redis, thermo_cache_key = request.app.state.redis, f"{project_name}:thermocline_cache"
         project_cache = request.app.state.project_cache.setdefault(project_name)
         hyd_map, waq_map = project_cache.get("hyd_map"), project_cache.get("waq_map")
-        lock = redis.lock(f"{project_name}:{typ}", timeout=10)        
+        lock = redis.lock(f"{project_name}:thermocline", timeout=30, blocking_timeout=25)
         async with lock:
             is_hyd = key == 'thermocline_hyd'
             data_ds = hyd_map if is_hyd else waq_map

@@ -51,71 +51,74 @@ async def check_sim_status_hyd(request: Request, user=Depends(functions.basic_au
 async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
     project_name = functions.project_definer(body.get('projectName'), user)
-    # Check if simulation already running
-    if project_name in processes and processes[project_name]["status"] == "running":
-        return JSONResponse({"status": "error", "message": "Simulation is already running."})
-    path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
-    mdu_path = os.path.normpath(os.path.join(path, "FlowFM.mdu"))
-    bat_path = os.path.normpath(os.path.join(DELFT_PATH, "dflowfm/scripts/run_dflowfm.bat"))
-    # Check if file exists
-    if not os.path.exists(mdu_path): return JSONResponse({"status": "error", "message": "MDU file not found."})
-    if not os.path.exists(bat_path): return JSONResponse({"status": "error", "message": "Executable file not found."})
-    # Remove old log
-    log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log_hyd.txt"))
-    if os.path.exists(log_path): os.remove(log_path)
-    percent_re = re.compile(r'(?P<percent>\d{1,3}(?:\.\d+)?)\s*%')
-    time_re = re.compile(r'(?P<tt>\d+d\s+\d{1,2}:\d{2}:\d{2})')
-    # Run the process
-    command = ["cmd.exe", "/c", bat_path, "--autostartstop", mdu_path]
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-        encoding="utf-8", errors="replace", bufsize=1, cwd=path)
-    processes[project_name] = {"process": process, "progress": 0.0, "status": "running", 
-                               "time_used": "N/A", "time_left": "N/A", "logs": [], "message": ''}
-    # Stream logs
-    def stream_logs():
-        try:
-            for line in process.stdout:
-                line = line.strip()
-                if not line: continue
-                append_log(log_path, line)
-                # Catch error messages
-                if "forrtl:" in line.lower() or "error" in line.lower():
-                    processes[project_name]["status"], processes[project_name]["message"] = "error", line
+    redis = request.app.state.redis
+    lock = redis.lock(f"{project_name}:sim_hyd", timeout=300, blocking_timeout=10)
+    async with lock:
+        # Check if simulation already running
+        if project_name in processes and processes[project_name]["status"] == "running":
+            return JSONResponse({"status": "error", "message": "Simulation is already running."})
+        path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
+        mdu_path = os.path.normpath(os.path.join(path, "FlowFM.mdu"))
+        bat_path = os.path.normpath(os.path.join(DELFT_PATH, "dflowfm/scripts/run_dflowfm.bat"))
+        # Check if file exists
+        if not os.path.exists(mdu_path): return JSONResponse({"status": "error", "message": "MDU file not found."})
+        if not os.path.exists(bat_path): return JSONResponse({"status": "error", "message": "Executable file not found."})
+        # Remove old log
+        log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log_hyd.txt"))
+        if os.path.exists(log_path): os.remove(log_path)
+        percent_re = re.compile(r'(?P<percent>\d{1,3}(?:\.\d+)?)\s*%')
+        time_re = re.compile(r'(?P<tt>\d+d\s+\d{1,2}:\d{2}:\d{2})')
+        # Run the process
+        command = ["cmd.exe", "/c", bat_path, "--autostartstop", mdu_path]
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            encoding="utf-8", errors="replace", bufsize=1, cwd=path)
+        processes[project_name] = {"process": process, "progress": 0.0, "status": "running", 
+                                "time_used": "N/A", "time_left": "N/A", "logs": [], "message": ''}
+        # Stream logs
+        def stream_logs():
+            try:
+                for line in process.stdout:
+                    line = line.strip()
+                    if not line: continue
                     append_log(log_path, line)
-                    res = functions.kill_process(process)
-                    append_log(log_path, res["message"])
-                    return JSONResponse({"status": "error", "message": f'Exception: {res["message"]}'})
-                # Check for progress
-                match_pct = percent_re.search(line)
-                if match_pct: processes[project_name]["progress"] = float(match_pct.group("percent"))
-                # Extract run time
-                times = time_re.findall(line)
-                if len(times) >= 4:
-                    processes[project_name]["time_used"] = times[2]
-                    processes[project_name]["time_left"] = times[3]
-                elif len(times) == 3:
-                    processes[project_name]["time_used"] = times[1]
-                    processes[project_name]["time_left"] = times[2]
-        finally:
-            process.wait()
-            status = processes[project_name]["status"]
-            if status != "error":
-                try:
-                    processes[project_name]["status"] = "postprocessing"
-                    processes[project_name]["message"] = 'Reorganizing outputs. Please wait...'
-                    post_result = functions.postProcess(path)
-                    if not post_result["status"] == "ok":
+                    # Catch error messages
+                    if "forrtl:" in line.lower() or "error" in line.lower():
+                        processes[project_name]["status"], processes[project_name]["message"] = "error", line
+                        append_log(log_path, line)
+                        res = functions.kill_process(process)
+                        append_log(log_path, res["message"])
+                        return JSONResponse({"status": "error", "message": f'Exception: {res["message"]}'})
+                    # Check for progress
+                    match_pct = percent_re.search(line)
+                    if match_pct: processes[project_name]["progress"] = float(match_pct.group("percent"))
+                    # Extract run time
+                    times = time_re.findall(line)
+                    if len(times) >= 4:
+                        processes[project_name]["time_used"] = times[2]
+                        processes[project_name]["time_left"] = times[3]
+                    elif len(times) == 3:
+                        processes[project_name]["time_used"] = times[1]
+                        processes[project_name]["time_left"] = times[2]
+            finally:
+                process.wait()
+                status = processes[project_name]["status"]
+                if status != "error":
+                    try:
+                        processes[project_name]["status"] = "postprocessing"
+                        processes[project_name]["message"] = 'Reorganizing outputs. Please wait...'
+                        post_result = functions.postProcess(path)
+                        if not post_result["status"] == "ok":
+                            processes[project_name]["status"], processes[project_name]["message"] = "error", f"Exception: {str(e)}"
+                            return JSONResponse({"status": "error", "message": str(e)})
+                        processes[project_name]["status"] = "finished"
+                        processes[project_name]["message"] = f"Simulation completed successfully."
+                        return JSONResponse({"status": "ok", "message": "Simulation completed successfully."})
+                    except Exception as e:
                         processes[project_name]["status"], processes[project_name]["message"] = "error", f"Exception: {str(e)}"
-                        return JSONResponse({"status": "error", "message": str(e)})
-                    processes[project_name]["status"] = "finished"
-                    processes[project_name]["message"] = f"Simulation completed successfully."
-                    return JSONResponse({"status": "ok", "message": "Simulation completed successfully."})
-                except Exception as e:
-                    processes[project_name]["status"], processes[project_name]["message"] = "error", f"Exception: {str(e)}"
-                    return JSONResponse({"status": "error", "message": f"Exception: {str(e)}"})
-            processes[project_name]["progress"] = 100.0
-            processes.pop(project_name, None)
-    threading.Thread(target=stream_logs, daemon=True).start()
+                        return JSONResponse({"status": "error", "message": f"Exception: {str(e)}"})
+                processes[project_name]["progress"] = 100.0
+                processes.pop(project_name, None)
+        threading.Thread(target=stream_logs, daemon=True).start()
     return JSONResponse({"status": "ok", "message": f"Simulation {project_name} started on Windows host."})
 
 @router.get("/sim_log_full/{project_name}")

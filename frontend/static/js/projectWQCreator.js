@@ -525,23 +525,22 @@ function initializeProject(){
             projectName: name, oldName: waqSelector().value, newName: newName
         });
         projectCloner().innerHTML = 'Clone Scenario';
-        if (data.status === "error") { alert(data.message); return; }
+        alert(data.message);
+        if (data.status === "error") { return; }
         waqContent.push(newName); waqSelector().innerHTML = '';
         waqContent.forEach(item => { 
             const option = document.createElement('option');
             option.value = item; option.text = item;
             waqSelector().add(option);
         });
-        alert(data.message);
     });
     projectDeleter().addEventListener('click', async () => {
         const name = projectName().value.trim(), waqName = waqSelector().value;
         projectDeleter().innerHTML = 'Deleting...';
         const data = await sendQuery('delete_file', { projectName: name, name: waqName });
-        projectDeleter().innerHTML = 'Delete Scenario'; 
-        if (data.status === "error") { 
-            alert(data.message); return;
-        }
+        projectDeleter().innerHTML = 'Delete Scenario';
+        alert(data.message);
+        if (data.status === "error") { return; }
         waqSelector().innerHTML = '';
         waqContent = waqContent.filter(item => item !== waqName);
         waqContent.forEach(item => { 
@@ -549,7 +548,9 @@ function initializeProject(){
             option.value = item; option.text = item;
             waqSelector().add(option);
         });
-        alert(data.message);
     });
+    waqSelector().addEventListener('change', async () => {
+        projectCreator().click();
+    });    
 }
 await getProjectList(); initializeProject(); updateOption();
