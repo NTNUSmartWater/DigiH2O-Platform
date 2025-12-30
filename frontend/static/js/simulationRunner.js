@@ -154,7 +154,7 @@ function updateSelection(){
     // Run new simulation
     runBtn().addEventListener('click', async () => {
         currentProject = scenarioSelector().value;
-        if (!currentProject) {alert('Please select a scenario.'); return;}
+        if (!currentProject || currentProject === '') {alert('Please select a scenario.'); return;}
         if (APP_MODE === 'hyd') { // Check if HYD simulation is running
             const statusRes = await sendQuery('check_sim_status_hyd', {projectName: currentProject});
             if (statusRes.status === "running") { alert("HYD simulation is already running."); return; }
