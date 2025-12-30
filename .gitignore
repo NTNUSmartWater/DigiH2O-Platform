@@ -14,10 +14,13 @@ Variable_names.txt
 
 # Additional files
 *.pyc
-rgfgrid.dia
+rgfgrid*.dia
 docker.txt
 backend/run.sh
 backend/static/allowed_users.json
+backend/Dockerfile
+docker-compose.yml
 
 # Environment
 .env
+.dockerignore

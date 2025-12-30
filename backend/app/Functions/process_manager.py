@@ -1,10 +1,9 @@
-import os, json, re, requests, math, asyncio, traceback, subprocess, msgpack, datetime
+import os, json, re, math, asyncio, traceback, msgpack, datetime
 from fastapi import APIRouter, Request, File, UploadFile, Form, Depends
 from Functions import functions
 from shapely.geometry import mapping
 from fastapi.responses import JSONResponse
 from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND
-from config import GRID_PATH, WINDOWS_AGENT_URL
 import xarray as xr, pandas as pd, numpy as np, geopandas as gpd
 
 router = APIRouter()
@@ -272,7 +271,7 @@ async def select_thermocline(request: Request, user=Depends(functions.basic_auth
         redis, thermo_cache_key = request.app.state.redis, f"{project_name}:thermocline_cache"
         project_cache = request.app.state.project_cache.setdefault(project_name)
         hyd_map, waq_map = project_cache.get("hyd_map"), project_cache.get("waq_map")
-        lock = redis.lock(f"{project_name}:{typ}", timeout=10)        
+        lock = redis.lock(f"{project_name}:thermocline", timeout=30, blocking_timeout=25)
         async with lock:
             is_hyd = key == 'thermocline_hyd'
             data_ds = hyd_map if is_hyd else waq_map
@@ -583,18 +582,3 @@ async def generate_mdu(request: Request, user=Depends(functions.basic_auth)):
         traceback.print_exc()
         status, message = 'error', f"Error: {str(e)}"
     return JSONResponse({"status": status, "message": message})
-
-# Open Delft3D Grid Tool
-@router.post("/open_gridTool")
-async def open_gridTool(request: Request):
-    await request.json()
-    if not os.path.exists(GRID_PATH): return JSONResponse({"status": "error", "message": "Grid Tool not found."})
-    if request.app.state.env == 'development': subprocess.Popen(GRID_PATH, shell=True)
-    else:
-        try:
-            payload = {"action": "run_grid_tool", "path": GRID_PATH}            
-            res = requests.post(WINDOWS_AGENT_URL, json=payload, timeout=10)
-            res.raise_for_status()
-            return JSONResponse({"status": "ok", "message": ""})
-        except Exception as e:
-            return JSONResponse({"status": "error", "message": f"Exception: {str(e)}"})

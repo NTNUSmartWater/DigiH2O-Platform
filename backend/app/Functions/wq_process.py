@@ -1,4 +1,4 @@
-import os, subprocess, re, shutil, json, asyncio, signal, traceback, threading
+import os, subprocess, re, shutil, json, asyncio, traceback, threading
 import pandas as pd, numpy as np, xarray as xr
 from fastapi import APIRouter, Request, Depends, Query
 from config import PROJECT_STATIC_ROOT, DELFT_PATH
@@ -12,8 +12,6 @@ def path_process(full_path:str, head:int=3, tail:int=2):
     parts  = full_path.split('/')
     if len(parts) <= head + tail: return full_path
     return '/'.join(parts[:head]) + '/ ... /' + '/'.join(parts[-tail:])
-
-
 
 @router.post("/select_hyd")
 async def select_hyd(request: Request, user=Depends(functions.basic_auth)):
@@ -124,13 +122,16 @@ async def waq_config_writer(request: Request, user=Depends(functions.basic_auth)
     try:
         body = await request.json()
         project_name = functions.project_definer(body.get('projectName'), user)
-        config_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "scenarios"))
-        if not os.path.exists(config_path): os.makedirs(config_path)
-        config_file = os.path.normpath(os.path.join(config_path, f"{body.get('folderName')}.json"))
-        if os.path.exists(config_file): os.remove(config_file)
-        with open(config_file, 'w', encoding='utf-8') as f:
-            json.dump(body, f, indent=4)
-        return JSONResponse({"status": 'ok', "message": 'Model configuration saved successfully.'})
+        redis = request.app.state.redis
+        lock = redis.lock(f"{project_name}:waq_config", timeout=10)
+        async with lock:
+            config_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "scenarios"))
+            if not os.path.exists(config_path): os.makedirs(config_path)
+            config_file = os.path.normpath(os.path.join(config_path, f"{body.get('folderName')}.json"))
+            if os.path.exists(config_file): os.remove(config_file)
+            with open(config_file, 'w', encoding='utf-8') as f:
+                json.dump(body, f, indent=4)
+            return JSONResponse({"status": 'ok', "message": 'Model configuration saved successfully.'})
     except Exception as e: return JSONResponse({"status": 'error', "message":  f"Error: {str(e)}"})
 
 # Check if simulation is running

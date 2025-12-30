@@ -391,13 +391,16 @@ async def clone_waq(request: Request, user=Depends(functions.basic_auth)):
         old_name, new_name = body.get('oldName'), body.get('newName')
         project_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'output', 'scenarios'))
         redis = request.app.state.redis
-        extend_task, lock = None, redis.lock(f"{project_name}:clone_waq", timeout=300)
+        extend_task, lock = None, redis.lock(f"{project_name}:clone_waq", timeout=100, blocking_timeout=10)
         async with lock:
             extend_task = asyncio.create_task(functions.auto_extend(lock))
             old_path = os.path.normpath(os.path.join(project_folder, f"{old_name}.json"))
+            new_path = os.path.normpath(os.path.join(project_folder, f"{new_name}.json"))
             if not os.path.exists(old_path): 
                 return JSONResponse({"status": 'error', "message": f"Path '{old_path}' does not exist."})
-            shutil.copy2(old_path, os.path.normpath(os.path.join(project_folder, f"{new_name}.json")))
+            data = json.load(open(old_path))
+            data['folderName'] = new_name.replace('.json', '')
+            json.dump(data, open(new_path, 'w'))
             return JSONResponse({"message": f"Scenario '{new_name}' was cloned successfully!"})
     except Exception as e:
         print('/clone_waq:\n==============')
@@ -424,7 +427,7 @@ async def delete_file(request: Request, user=Depends(functions.basic_auth)):
             if not os.path.exists(file_name): 
                 return JSONResponse({"status": 'error', "message": f"Path '{file_name}' does not exist."})
             functions.safe_remove(file_name)
-            return JSONResponse({"message": f"Scenario '{file}' was cloned successfully!"})
+            return JSONResponse({"message": f"Scenario '{file}' was deleted successfully!"})
     except Exception as e:
         print('/delete_file:\n==============')
         traceback.print_exc()
