@@ -373,7 +373,7 @@ async def upload_data(file: UploadFile = File(...), projectName: str = Form(...)
     try:
         project_name = functions.project_definer(projectName, user)
         file_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input", gridName))
-        with open(file_path, "wb", encoding=functions.encoding_detect(file_path)) as f:
+        with open(file_path, "wb") as f:
             while True:
                 chunk = await file.read(1024 * 1024)
                 if not chunk: break
