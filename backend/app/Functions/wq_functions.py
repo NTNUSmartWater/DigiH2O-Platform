@@ -126,7 +126,6 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
         The path to the config file for the water quality simulation.
     """
     try:
-        inp_path = os.path.normpath(os.path.join(output_folder, f'{parameters["folder_name"]}.inp'))
         sample_path = os.path.normpath(os.path.join(STATIC_DIR_BACKEND, 'samples', 'waq'))
         params_INP, params_INC, model_type = {}, {}, {"model_type": key}
         grid_path = os.path.normpath(os.path.join(os.path.dirname(parameters['hyd_path']), 'FlowFM_waqgeom.nc'))
@@ -465,160 +464,160 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
         # Write .inc files
         # ######################## Block 1 ########################
         # Write file B1_t0.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B1_t0.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B1_t0.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write(f"'T0: {params_INC['t0']}  (scu= {params_INC['t0_scu']:7d}s)'")
         # Write file B1_sublist.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B1_sublist.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B1_sublist.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write(params_INC['B1_sublist'])
         
         # ######################## Block 2 ########################
         # Write file B2_numsettings.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B2_numsettings.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B2_numsettings.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write(params_INC['B2_numsettings'])
         # Write file B2_simtimers.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B2_simtimers.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B2_simtimers.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write('\n'.join(params_INC['B2_simtimers']))
         # Write file B2_outlocs.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B2_outlocs.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B2_outlocs.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write(params_INC['B2_outlocs'])
         # Write file B2_outputtimers.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B2_outputtimers.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B2_outputtimers.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write('\n'.join(params_INC['B2_outputtimers']))
         
         # ######################## Block 3 ########################
         # Write file B3_ugrid.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B3_ugrid.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B3_ugrid.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write(params_INC['B3_ugrid'])
         # Write file B3_nrofseg.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B3_nrofseg.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B3_nrofseg.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write(params_INC['B3_nrofseg'])
         # Write file B3_attributes.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B3_attributes.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B3_attributes.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write(params_INC['B3_attributes'])
         # Write file B3_volumes.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B3_volumes.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B3_volumes.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write(params_INC['B3_volumes'])
 
         # ######################## Block 4 ########################
         # Write file B4_nrofexch.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B4_nrofexch.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B4_nrofexch.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write(params_INC['B4_nrofexch'])
         # Write file B4_pointers.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B4_pointers.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B4_pointers.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write(params_INC['B4_pointers'])
         # Write file B4_cdispersion.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B4_cdispersion.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B4_cdispersion.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write(params_INC['B4_cdispersion'])
         # Write file B4_area.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B4_area.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B4_area.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write(params_INC['B4_area'])
         # Write file B4_flows.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B4_flows.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B4_flows.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write(params_INC['B4_flows'])
         # Write file B4_length.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B4_length.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B4_length.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write(params_INC['B4_length'])
 
         # ######################## Block 5 ########################
         # Write file B5_boundlist.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B5_boundlist.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B5_boundlist.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write('\n'.join(params_INC['B5_boundlist']))
         # Write file B5_boundaliases.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B5_boundaliases.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B5_boundaliases.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write(params_INC['B5_boundaliases'])
         # Write file B5_bounddata.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B5_bounddata.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B5_bounddata.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write(params_INC['B5_bounddata'])
         
         # ######################## Block 6 ########################
         # Write file B6_loads.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B6_loads.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B6_loads.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write('\n'.join(params_INC['B6_loads']))
         # Write file B6_loads_aliases.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B6_loads_aliases.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B6_loads_aliases.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write('\n'.join(params_INC['B6_loads_aliases']))
         # Write file B6_loads_data.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B6_loads_data.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B6_loads_data.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write(params_INC['B6_loads_data'])
 
         # ######################## Block 7 ########################
         # Write file B7_processes.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B7_processes.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B7_processes.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write('\n'.join(params_INC['B7_processes']))
         # Write file B7_constants.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B7_constants.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B7_constants.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write('\n'.join(params_INC['B7_constants']))
         # Write file B7_functions.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B7_functions.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B7_functions.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write(params_INC['B7_functions'])
         # Write file B7_parameters.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B7_parameters.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B7_parameters.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write(params_INC['B7_parameters'])
         # Write file B7_dispersion.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B7_dispersion.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B7_dispersion.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write(params_INC['B7_dispersion'])
         # Write file B7_vdiffusion.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B7_vdiffusion.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B7_vdiffusion.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write('\n'.join(params_INC['B7_vdiffusion']))
         # Write file B7_segfunctions.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B7_segfunctions.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B7_segfunctions.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write('\n'.join(params_INC['B7_segfunctions']))
         # Write file B7_numerical_options.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B7_numerical_options.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B7_numerical_options.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write('\n'.join(params_INC['B7_numerical_options']))
 
         # ######################## Block 8 ########################
         # Write file B8_initials.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B8_initials.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B8_initials.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write('\n'.join(params_INC['B8_initials']))
 
         # ######################## Block 9 ########################
         # Write file B9_Hisvar.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B9_Hisvar.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B9_Hisvar.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write('\n'.join(params_INC['B9_Hisvar']))
         # Write file B9_Mapvar.inc
-        path = os.path.normpath(os.path.join(includes_folder, 'B9_Mapvar.inc'))
-        with open(path, 'w', encoding=functions.encoding_detect(path)) as f:
+        temp_path = os.path.normpath(os.path.join(includes_folder, 'B9_Mapvar.inc'))
+        with open(temp_path, 'w', encoding=functions.encoding_detect(temp_path)) as f:
             f.write('\n'.join(params_INC['B9_Mapvar']))
 
         # Write file .inp
         time_step = int(86400/params_INC['t0_scu'])
         params_INP['time_step'] = time_step
         # Open the file and read its contents
-        inp_path = os.path.normpath(os.path.join(sample_path, 'INPFile.inp'))
-        with open(inp_path, 'r', encoding=functions.encoding_detect(inp_path)) as file:
+        inp_temp = os.path.normpath(os.path.join(sample_path, 'INPFile.inp'))
+        with open(inp_temp, 'r', encoding=functions.encoding_detect(inp_temp)) as file:
             content_inp = file.read()
         # Write file to store model type
         model_path = os.path.normpath(os.path.join(output_folder, f'{parameters["folder_name"]}.json'))
@@ -627,6 +626,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
         # Replace placeholders with actual values
         for key, value in params_INP.items():
             content_inp = content_inp.replace(f'{{{key}}}', str(value))
+        inp_path = os.path.normpath(os.path.join(output_folder, f'{parameters["folder_name"]}.inp'))
         with open(inp_path, 'w', encoding=functions.encoding_detect(inp_path)) as f:
             f.write(content_inp)
         return inp_path
