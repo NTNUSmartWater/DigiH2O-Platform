@@ -48,18 +48,13 @@ function updateLogHYD(project, progress_bar, progress_text, info, seconds){
     logIntervalHYD = setInterval(async () => {
         try {
             const statusRes = await sendQuery('check_sim_status_hyd', {projectName: project});
-            if (statusRes.status === "running" || statusRes.status === "not_started") {
-                progress_text.innerText = statusRes.complete || '';
-                progress_bar.value = statusRes.progress || 0;
-            } else if (statusRes.status === "postprocessing") {
-                progress_text.innerText = statusRes.message; 
-                progress_bar.value = 100;
-            } else if (statusRes.status === "finished") {
-                progress_text.innerText = statusRes.message; progress_bar.value = 100;
-                if (logIntervalHYD) { clearInterval(logIntervalHYD); logIntervalHYD = null; }
+            if (statusRes.status === "running") {
+                progress_text.innerText = statusRes.message;
+                progress_bar.value = statusRes.progress;
             } else {
                 progress_text.innerText = statusRes.message;
-                info.value += statusRes.message; progress_bar.value = 0;
+                info.value += statusRes.message;
+                progress_bar.value = statusRes.progress;
                 if (logIntervalHYD) { clearInterval(logIntervalHYD); logIntervalHYD = null; }
             }
             const res = await fetch(`/sim_log_tail_hyd/${project}?offset=${lastOffsetHYD}&log_file=log_hyd.txt`);
@@ -75,17 +70,12 @@ function updateLogWAQ(project, progress_bar, progress_text, info, seconds) {
     logIntervalWAQ = setInterval(async () => {
         try {
             const statusRes = await sendQuery('check_sim_status_waq', {projectName: project});
-            if (statusRes.status === "running" || statusRes.status === "not_started") {
-                progress_text.innerText = statusRes.complete || '';
-                progress_bar.value = statusRes.progress || 0;
-            } else if (statusRes.status === "postprocessing") {
-                progress_text.innerText = statusRes.message; 
-                progress_bar.value = 100;
-            } else if (statusRes.status === "finished") {
-                progress_text.innerText = statusRes.message; progress_bar.value = 100;
-                if (logIntervalWAQ) { clearInterval(logIntervalWAQ); logIntervalWAQ = null; }
+            if (statusRes.status === "running") {
+                progress_text.innerText = statusRes.message;
+                progress_bar.value = statusRes.progress;
             } else {
-                progress_text.innerText = statusRes.message; progress_bar.value = 0;
+                progress_text.innerText = statusRes.message;
+                progress_bar.value = statusRes.progress;
                 if (logIntervalWAQ) { clearInterval(logIntervalWAQ); logIntervalWAQ = null; }
             }
             const res = await fetch(`/sim_log_tail_waq/${project}?offset=${lastOffsetWAQ}&log_file=log_waq.txt`);
@@ -114,16 +104,12 @@ function updateSelection(){
                 if (res.ok) {
                     const data = await res.json();
                     infoArea().value = data.content || ''; lastOffsetHYD = data.offset;
-                    progressText().innerText = statusRes.complete || '';
-                    progressbar().value = statusRes.progress || 0;
                 }
                 showCheckbox().checked = true;
                 // Run hydrodynamics simulation and Update logs every 10 seconds
                 updateLogHYD(projectName, progressbar(), progressText(), infoArea(), 10);
-            } else {
-                progressText().innerText = "No simulation running."; 
-                showCheckbox().checked = false; progressbar().value = 0;
-            }
+            } else { showCheckbox().checked = false; }
+            progressText().innerText = statusRes.message; progressbar().value = statusRes.progress;
         } else if (APP_MODE === 'waq'){ // Work with WAQ simulation
             const data = await sendQuery('select_project', {filename: projectName, key: 'getWAQs', folder_check: 'input'});
             if (data.status === "error") {
@@ -138,16 +124,12 @@ function updateSelection(){
                 if (res.ok) {
                     const data = await res.json();
                     infoArea().value = data.content || ''; lastOffsetWAQ = data.offset;
-                    progressText().innerText = statusRes.complete || '';
-                    progressbar().value = statusRes.progress || 0;
                 }
                 showCheckbox().checked = true;
                 // Run water quality simulation and Update logs every 0.5 seconds
                 updateLogWAQ(projectName, progressbar(), progressText(), infoArea(), 0.5);
-            } else {
-                progressText().innerText = "No simulation running."; 
-                showCheckbox().checked = false; progressbar().value = 0;
-            }
+            } else { showCheckbox().checked = false; }
+            progressText().innerText = statusRes.message; progressbar().value = statusRes.progress;
         }
         checkboxContainer().style.display = 'block'; textareaWrapper().style.display = 'block'; checkboxUpdate(); 
     });
@@ -163,14 +145,14 @@ function updateSelection(){
             const start = await sendQuery('start_sim_hyd', {projectName: currentProject});
             if (start.status === "error") {alert(start.message); return;}
             infoArea().value = ''; progressbar().value = 0;
-            progressText().innerText = 'Start running the HYD simulation...';
+            progressText().innerText = 'Preparing data for the HYD simulation...';
             updateLogHYD(currentProject, progressbar(), progressText(), infoArea(), 10);
         } else if (APP_MODE === 'waq'){ // Check if WAQ simulation is running
             const statusRes = await sendQuery('check_sim_status_waq', {projectName: currentProject});
             if (statusRes.status === "running") { alert("WAQ simulation is already running."); return; }
             const res = await sendQuery('check_folder', {projectName: currentProject, folder: waqSelector().value, key: 'waq'});
             if (res.status === "ok") { if (!confirm("Output exists. Re-run will overwrite it. Continue?")) return; }
-            progressText().innerText = 'Start running the WAQ simulation...';
+            progressText().innerText = 'Preparing data for the WAQ simulation...';
             infoArea().value = ''; progressbar().value = 0;
             const start = await sendQuery('start_sim_waq', {projectName: currentProject, waqName: waqSelector().value});
             if (start.status === "error") {alert(start.message); return;}
