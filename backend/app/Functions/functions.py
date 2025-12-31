@@ -1,4 +1,5 @@
-import shapely, os, re, shutil, stat, json, asyncio, base64, time, subprocess, signal
+import shapely, os, re, shutil, stat, json, asyncio
+import base64, time, subprocess, signal, chardet
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
@@ -9,7 +10,18 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi import Depends, HTTPException, status
 
 security = HTTPBasic()
-ALLOWED_USERS = json.load(open(ALLOWED_USERS_PATH))
+
+def encoding_detect(file_path: str) -> str:
+    """Detect the encoding of a file."""
+    encoding = 'utf-8'
+    if not os.path.exists(file_path): return encoding
+    with open(file_path, 'rb') as f:
+        raw_data = f.read()
+        result = chardet.detect(raw_data)
+        encoding = result['encoding']
+    return encoding
+
+ALLOWED_USERS = json.load(open(ALLOWED_USERS_PATH, "r", encoding=encoding_detect(ALLOWED_USERS_PATH)))
 
 def basic_auth(credentials: HTTPBasicCredentials=Depends(security)):
     username, password = credentials.username, credentials.password
@@ -553,7 +565,7 @@ def dialogReader(dialog_file: str) -> dict:
     # Check if the dialog file exists
     if not os.path.exists(dialog_file): return {}
     result = {}
-    with open(f'{dialog_file}', 'r', encoding="utf-8") as f:
+    with open(f'{dialog_file}', 'r', encoding=encoding_detect(dialog_file)) as f:
         content = f.read()
     content = content.split('\n')
     for line in content:
@@ -1017,7 +1029,7 @@ def fileWriter(template_path: str, params: dict) -> str:
         The content of saved file
     """
     # Open the file and read its contents
-    with open(template_path, 'r', encoding="utf-8") as file:
+    with open(template_path, 'r', encoding=encoding_detect(template_path)) as file:
         file_content = file.read()
     # Replace placeholders with actual values
     for key, value in params.items():
@@ -1063,7 +1075,8 @@ def contentWriter(project_name: str, filename: str, data: list, content: str, un
     try:
         path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
         # Write weather.tim file
-        with open(os.path.normpath(os.path.join(path, filename)), 'w', encoding="utf-8") as f:
+        tim_path = os.path.normpath(os.path.join(path, filename))
+        with open(tim_path, 'w', encoding=encoding_detect(tim_path)) as f:
             for row in data:
                 if unit == 'sec': row[0] = int(row[0]/1000)
                 elif unit == 'min': row[0] = int(row[0]/(1000*60))
@@ -1072,7 +1085,7 @@ def contentWriter(project_name: str, filename: str, data: list, content: str, un
         # Add weather data to FlowFM.ext file
         ext_path = os.path.normpath(os.path.join(path, "FlowFM.ext"))
         if os.path.exists(ext_path):
-            with open(ext_path, 'r', encoding="utf-8") as f:
+            with open(ext_path, 'r', encoding=encoding_detect(ext_path)) as f:
                 update_content = f.read()
             parts = re.split(r'\n\s*\n', update_content)
             parts = [p.strip() for p in parts if p.strip()]
@@ -1080,11 +1093,11 @@ def contentWriter(project_name: str, filename: str, data: list, content: str, un
                 index = parts.index([part for part in parts if filename in part][0])
                 parts[index] = content
             else: parts.append(content)
-            with open(ext_path, 'w', encoding="utf-8") as file:
+            with open(ext_path, 'w', encoding=encoding_detect(ext_path)) as file:
                 joined_parts = '\n\n'.join(parts)
                 file.write(f"\n{joined_parts}\n")
         else:
-            with open(ext_path, 'w', encoding="utf-8") as f:
+            with open(ext_path, 'w', encoding=encoding_detect(ext_path)) as f:
                 f.write(f"\n{content}\n")
         status, message = 'ok', "Data is saved successfully."
     except Exception as e:

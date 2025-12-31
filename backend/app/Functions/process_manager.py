@@ -411,7 +411,7 @@ async def update_boundary(request: Request, user=Depends(functions.basic_auth)):
         file_content = '[boundary]\n' + f'quantity={quantity}\n' + \
             f'locationFile={boundary_name}.pli\n' + f'forcingFile={boundary_type}.bc'
         if os.path.exists(ext_path):
-            with open(ext_path, encoding="utf-8") as f:
+            with open(ext_path, encoding=functions.encoding_detect(ext_path)) as f:
                 content = f.read()
             parts = re.split(r'(?=\[boundary\])', content)
             parts = [p.strip() for p in parts if p.strip()]
@@ -419,13 +419,13 @@ async def update_boundary(request: Request, user=Depends(functions.basic_auth)):
                 index = parts.index([part for part in parts if boundary_type in part][0])
                 parts[index] = file_content
             else: parts.append(file_content)
-            with open(ext_path, 'w', encoding="utf-8") as file:
+            with open(ext_path, 'w', encoding=functions.encoding_detect(ext_path)) as file:
                 joined_parts = '\n\n'.join(parts)
                 file.write(f"\n{joined_parts}\n")
                 file.flush()
                 os.fsync(file.fileno())
         else:   
-            with open(ext_path, 'w', encoding="utf-8") as file:
+            with open(ext_path, 'w', encoding=functions.encoding_detect(ext_path)) as file:
                 file.write(f"\n{file_content}\n")
                 file.flush()
                 os.fsync(file.fileno())
@@ -435,7 +435,7 @@ async def update_boundary(request: Request, user=Depends(functions.basic_auth)):
         for row in data_boundary:
             temp = f'{row[2]}    {row[1]}    {row[0]}'
             bc.append(temp)
-        with open(boundary_file, 'w', encoding="utf-8") as file:
+        with open(boundary_file, 'w', encoding=functions.encoding_detect(boundary_file)) as file:
             file.write('\n'.join(bc))
             file.flush()
             os.fsync(file.fileno())
@@ -443,7 +443,7 @@ async def update_boundary(request: Request, user=Depends(functions.basic_auth)):
         file_path = os.path.normpath(os.path.join(path, f"{boundary_type}.bc"))
         update_content = functions.fileWriter(temp_file, config)
         if os.path.exists(file_path):
-            with open(file_path, encoding="utf-8") as f:
+            with open(file_path, encoding=functions.encoding_detect(file_path)) as f:
                 content = f.read()
             parts = re.split(r'(?=\[forcing\])', content)  # Split the file content
             parts = [p.strip() for p in parts if p.strip()]  # Remove empty parts
@@ -451,14 +451,14 @@ async def update_boundary(request: Request, user=Depends(functions.basic_auth)):
                 index = parts.index([part for part in parts if subBoundaryName in part][0])
                 parts[index] = update_content
             else: parts.append(update_content)                
-            with open(file_path, 'w', encoding="utf-8") as file:
+            with open(file_path, 'w', encoding=functions.encoding_detect(file_path)) as file:
                 joined_parts = '\n\n'.join(parts)
                 file.write(joined_parts)
                 file.flush()
                 os.fsync(file.fileno())
         else:
             file_content = functions.fileWriter(temp_file, config)
-            with open(file_path, 'w', encoding="utf-8") as file:
+            with open(file_path, 'w', encoding=functions.encoding_detect(file_path)) as file:
                 file.write(file_content + '\n')
                 file.flush()
                 os.fsync(file.fileno())
@@ -478,7 +478,8 @@ async def view_boundary(request: Request, user=Depends(functions.basic_auth)):
         boundary_type = body.get('boundaryType')        
         path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
         # Read file
-        with open(os.path.normpath(os.path.join(path, f"{boundary_type}.bc")), 'r') as f:
+        path = os.path.normpath(os.path.join(path, f"{boundary_type}.bc"))
+        with open(path, 'r', encoding=functions.encoding_detect(path)) as f:
             data = ''.join(f.readlines())
         status, message = 'ok', ""
     except FileNotFoundError:
@@ -530,7 +531,7 @@ async def get_boundary_params(request: Request, user=Depends(functions.basic_aut
         input_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
         type_path = os.path.normpath(os.path.join(input_dir, f"{boundary_type}.bc"))
         if not os.path.exists(type_path): return JSONResponse({"status": 'new'})
-        with open(type_path, 'r', encoding="utf-8") as f:
+        with open(type_path, 'r', encoding=functions.encoding_detect(type_path)) as f:
             lines = f.readlines()
         current_data, check, content = [], False, []
         for line in lines:
@@ -575,7 +576,8 @@ async def generate_mdu(request: Request, user=Depends(functions.basic_auth)):
         mdu_path = os.path.normpath(os.path.join(STATIC_DIR_BACKEND, 'samples', 'MDUFile.mdu'))
         file_content = functions.fileWriter(mdu_path, params)
         # Write file
-        with open(os.path.normpath(os.path.join(project_path, 'FlowFM.mdu')), 'w') as file:
+        path = os.path.normpath(os.path.join(project_path, 'FlowFM.mdu'))
+        with open(path, 'w', encoding=functions.encoding_detect(path)) as file:
             file.write(file_content)
     except Exception as e:
         print('/generate_mdu:\n==============')
