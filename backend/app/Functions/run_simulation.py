@@ -52,7 +52,7 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
     project_name = functions.project_definer(body.get('projectName'), user)
     redis = request.app.state.redis
-    lock = redis.lock(f"{project_name}:sim_hyd", timeout=300, blocking_timeout=10)
+    lock = redis.lock(f"{project_name}:sim_hyd", timeout=1000, blocking_timeout=10)
     async with lock:
         # Check if simulation already running
         if project_name in processes and processes[project_name]["status"] == "running":
@@ -87,7 +87,6 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
                         append_log(log_path, line)
                         res = functions.kill_process(process)
                         append_log(log_path, res["message"])
-                        return JSONResponse({"status": "error", "message": f'Exception: {res["message"]}'})
                     # Check for progress
                     match_pct = percent_re.search(line)
                     if match_pct: processes[project_name]["progress"] = float(match_pct.group("percent"))
@@ -109,13 +108,10 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
                         post_result = functions.postProcess(path)
                         if not post_result["status"] == "ok":
                             processes[project_name]["status"], processes[project_name]["message"] = "error", f"Exception: {str(e)}"
-                            return JSONResponse({"status": "error", "message": str(e)})
                         processes[project_name]["status"] = "finished"
                         processes[project_name]["message"] = f"Simulation completed successfully."
-                        return JSONResponse({"status": "ok", "message": "Simulation completed successfully."})
                     except Exception as e:
                         processes[project_name]["status"], processes[project_name]["message"] = "error", f"Exception: {str(e)}"
-                        return JSONResponse({"status": "error", "message": f"Exception: {str(e)}"})
                 processes[project_name]["progress"] = 100.0
                 processes.pop(project_name, None)
         threading.Thread(target=stream_logs, daemon=True).start()

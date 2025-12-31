@@ -34,6 +34,9 @@ const boundaryPicker = () => document.getElementById('boundary-picker');
 const boundaryRemove = () => document.getElementById('boundary-remove');
 const boundarySelector = () => document.getElementById('option-boundary-edit');
 const boundaryTypeSelector = () => document.getElementById('option-boundary-type');
+const boundaryUploadFile = () => document.getElementById('boundary-picker-file');
+const boundaryUploadText = () => document.getElementById('boundary-picker-text');
+const boundaryCSV = () => document.getElementById('boundary-upload-csv');
 const boundaryAddRow = () => document.getElementById('boundary-add-row');
 const boundaryEditTable = () => document.getElementById('boundary-edit-table');
 const boundaryEditUpdate = () => document.getElementById('boundary-update');
@@ -395,7 +398,12 @@ function updateOption(){
         if (data.status === 'new') { boundaryEditRemove().click(); return; }
         if (data.status === 'error') { alert(data.message); return; }
         boundaryEditRemove().click(); fillTable(data.content, boundaryEditTable());
-    })
+    });
+    // Upload boundary condition from CSV
+    boundaryCSV().addEventListener('click', () => { boundaryUploadFile().click(); });
+    boundaryUploadFile().addEventListener('change', async (event) => { 
+        await csvUploader(event, boundaryUploadText(), boundaryEditTable(), 2);
+    });
     // View boundary condition
     boundarySelectorView().addEventListener('change', async () => {
         if (boundarySelectorView().value === '') { boundaryViewContainer().style.display = 'none'; return; }
@@ -493,6 +501,9 @@ function updateOption(){
     })
     // Save project
     saveProjectBtn().addEventListener('click', async () => { 
+        // Check boundary condition
+        const boundaryContent = getDataFromTable(boundaryTable(), true);
+        if (boundaryContent.rows.length === 0) {alert('No boundary conditions found.'); return;}
         const userTimeSec = timeStepCalculator(userTimestepDate().value, userTimestepTime().value);
         const nodalTimeSec = timeStepCalculator(nodalTimestepDate().value, nodalTimestepTime().value);
         const hisInterval = timeStepCalculator(hisIntervalDate().value, hisIntervalTime().value);
