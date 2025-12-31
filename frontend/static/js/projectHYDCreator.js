@@ -254,27 +254,32 @@ function updateOption(){
     // Event when user uploads CSV file
     obsPointUploadText().addEventListener('click', () => { obsPointUploadFile().click(); });
     obsPointUploadFile().addEventListener('change', async (event) => { 
-        await csvUploader(event, obsPointUploadText(), obsPointTable(), 3); 
+        await csvUploader(event, obsPointUploadText(), obsPointTable(), 3);
+        obsPointUploadFile().value = '';
     });
     sourceUploadText().addEventListener('click', () => { sourceUploadFile().click(); });
     sourceUploadFile().addEventListener('change', async (event) => { 
         deleteTable(sourceTable());
         await csvUploader(event, sourceUploadText(), sourceTable(), 5, false, sourceName(), sourceLatitude(), sourceLongitude()); 
+        sourceUploadFile().value = '';
     });
     meteoUploadText().addEventListener('click', () => { meteoUploadFile().click(); });
     meteoUploadFile().addEventListener('change', async (event) => {
         await csvUploader(event, meteoUploadText(), meteoTable(), 5);
-    })
+        meteoUploadFile().value = '';
+    });
     weatherCSVUploadText().addEventListener('click', () => { weatherCSVUploadFile().click(); });
     weatherCSVUploadFile().addEventListener('change', async (event) => {
         await csvUploader(event, weatherCSVUploadText(), weatherTable(), 3);
-    })
+        weatherCSVUploadFile().value = '';
+    });
     // Upload file to server
     gridPathText().addEventListener('click', () => { gridPathFile().click(); });
     gridPathFile().addEventListener('change', async() => {
         await fileUploader(gridPathFile(), gridPathText(), projectName().value, 'FlowFM_net.nc')
         window.parent.postMessage({type: 'showGrid', projectName: projectName().value, 
             gridName: 'FlowFM_net.nc', message: 'Uploading grid to project...'}, '*');
+        gridPathFile().value = '';
     });
     // Copy and paste to tables
     copyPaste(boundaryEditTable(), 2); copyPaste(sourceTable(), 5); 
@@ -403,6 +408,7 @@ function updateOption(){
     boundaryCSV().addEventListener('click', () => { boundaryUploadFile().click(); });
     boundaryUploadFile().addEventListener('change', async (event) => { 
         await csvUploader(event, boundaryUploadText(), boundaryEditTable(), 2);
+        boundaryUploadFile().value = '';
     });
     // View boundary condition
     boundarySelectorView().addEventListener('change', async () => {

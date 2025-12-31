@@ -13,10 +13,12 @@ security = HTTPBasic()
 
 def encoding_detect(file_path: str) -> str:
     """Detect the encoding of a file."""
+    encoding = 'utf-8'
+    if not os.path.exists(file_path): return encoding
     with open(file_path, 'rb') as f:
         raw_data = f.read()
         result = chardet.detect(raw_data)
-    encoding = result['encoding'] if result['encoding'] else 'utf-8'
+        encoding = result['encoding']
     return encoding
 
 ALLOWED_USERS = json.load(open(ALLOWED_USERS_PATH, "r", encoding=encoding_detect(ALLOWED_USERS_PATH)))
@@ -1073,8 +1075,8 @@ def contentWriter(project_name: str, filename: str, data: list, content: str, un
     try:
         path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
         # Write weather.tim file
-        path = os.path.normpath(os.path.join(path, filename))
-        with open(path, 'w', encoding=encoding_detect(path)) as f:
+        tim_path = os.path.normpath(os.path.join(path, filename))
+        with open(tim_path, 'w', encoding=encoding_detect(tim_path)) as f:
             for row in data:
                 if unit == 'sec': row[0] = int(row[0]/1000)
                 elif unit == 'min': row[0] = int(row[0]/(1000*60))
