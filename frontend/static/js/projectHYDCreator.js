@@ -501,6 +501,9 @@ function updateOption(){
     })
     // Save project
     saveProjectBtn().addEventListener('click', async () => { 
+        // Check boundary condition
+        const boundaryContent = getDataFromTable(boundaryTable(), true);
+        if (boundaryContent.rows.length === 0) {alert('No boundary conditions found.'); return;}
         const userTimeSec = timeStepCalculator(userTimestepDate().value, userTimestepTime().value);
         const nodalTimeSec = timeStepCalculator(nodalTimestepDate().value, nodalTimestepTime().value);
         const hisInterval = timeStepCalculator(hisIntervalDate().value, hisIntervalTime().value);
