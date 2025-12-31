@@ -44,7 +44,7 @@ async def load_waq(request: Request, user=Depends(functions.basic_auth)):
         folder = [PROJECT_STATIC_ROOT, project_name, "output", 'scenarios', f"{body.get('waqName')}.json"]
         path, data = os.path.normpath(os.path.join(*folder)), {}
         if not os.path.exists(path): return JSONResponse({"status": 'error', "message": 'Configuration file not found.'})
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, 'r', encoding=functions.encoding_detect(path)) as f:
             files = json.load(f)
         data['key'], data['name'], data['mode'] = files['key'], files['folderName'], files['mode']
         data['obs'], data['loads'] = files['obsPoints'], files['loadsData']
@@ -129,7 +129,7 @@ async def waq_config_writer(request: Request, user=Depends(functions.basic_auth)
             if not os.path.exists(config_path): os.makedirs(config_path)
             config_file = os.path.normpath(os.path.join(config_path, f"{body.get('folderName')}.json"))
             if os.path.exists(config_file): os.remove(config_file)
-            with open(config_file, 'w', encoding='utf-8') as f:
+            with open(config_file, 'w', encoding=functions.encoding_detect(config_file)) as f:
                 json.dump(body, f, indent=4)
             return JSONResponse({"status": 'ok', "message": 'Model configuration saved successfully.'})
     except Exception as e: return JSONResponse({"status": 'error', "message":  f"Error: {str(e)}"})
@@ -144,7 +144,7 @@ async def check_sim_status_waq(request: Request, user=Depends(functions.basic_au
         return JSONResponse({"status": "not_started", "progress": 0, "logs": logs, "message": '', "complete": 'Completed: --%'})
     log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log_waq.txt"))
     if os.path.exists(log_path):
-        with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+        with open(log_path, "r", encoding=functions.encoding_detect(log_path), errors="replace") as f:
             logs = f.read().splitlines()
     return JSONResponse({ "status": info["status"], "progress": info["progress"], "logs": logs, "message": info["message"],
                             "complete": f"Completed: {info['progress']}%"})
@@ -154,7 +154,7 @@ async def sim_log_tail_waq(project_name: str, offset: int = Query(0), log_file: 
     project_name = functions.project_definer(project_name, user)
     log_path, lines = os.path.join(PROJECT_STATIC_ROOT, project_name, log_file), []
     if not os.path.exists(log_path): return {"lines": lines, "offset": offset}
-    with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+    with open(log_path, "r", encoding=functions.encoding_detect(log_path), errors="replace") as f:
         f.seek(offset)
         for line in f:
             lines.append(line.rstrip())
@@ -176,7 +176,7 @@ async def run_waq_simulation(project_name, waq_name):
     processes[project_name] = {"status": "not_started", "progress": 0, "message": "", "process": None}
     log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log_waq.txt"))
     if os.path.exists(log_path): os.remove(log_path)
-    log_file = open(log_path, "a", encoding="utf-8", errors="replace")
+    log_file = open(log_path, "a", encoding=functions.encoding_detect(log_path), errors="replace")
     log_file.write(f"Project: {project_name}\n")
     log_file.write(f"Simulation started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
     log_file.write("===============================================\n\n")
@@ -190,7 +190,7 @@ async def run_waq_simulation(project_name, waq_name):
         log_file.flush(); log_file.close()
         return
     log_file.write("Configuration file found. Reading configuration ...\n")
-    with open(config_file, "r", encoding="utf-8", errors="replace") as f:
+    with open(config_file, "r", encoding=functions.encoding_detect(config_file), errors="replace") as f:
         body = json.load(f)
     # Start simulation
     try:
@@ -225,11 +225,11 @@ async def run_waq_simulation(project_name, waq_name):
         os.makedirs(table_folder, exist_ok=True)
         # Write *.tbl file
         tbl_path = os.path.normpath(os.path.join(table_folder, f"{file_name}.tbl"))
-        with open(tbl_path, 'w', encoding='utf-8', newline='\n') as f:
+        with open(tbl_path, 'w', encoding=functions.encoding_detect(tbl_path), newline='\n') as f:
             f.write(time_data)
         # Write *.usefors file
         usefor_path = os.path.normpath(os.path.join(table_folder, f"{file_name}.usefors"))
-        with open(usefor_path, 'w', encoding='utf-8', newline='\n') as f:
+        with open(usefor_path, 'w', encoding=functions.encoding_detect(usefor_path), newline='\n') as f:
             f.write(usefors)
         # Prepare external inputs
         inp_file = wq_functions.wqPreparation(parameters, key, output_folder, includes_folder)

@@ -9,7 +9,7 @@ router, processes = APIRouter(), {}
 # Utility: append to file log
 def append_log(log_path, text):
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    with open(log_path, "a", encoding="utf-8", errors="replace") as f:
+    with open(log_path, "a", encoding=functions.encoding_detect(log_path), errors="replace") as f:
         f.write(text.strip() + "\n")
         f.flush()
 
@@ -40,7 +40,7 @@ async def check_sim_status_hyd(request: Request, user=Depends(functions.basic_au
     log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log_hyd.txt"))
     # Read log file
     if os.path.exists(log_path):
-        with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+        with open(log_path, "r", encoding=functions.encoding_detect(log_path), errors="replace") as f:
             logs = f.read().splitlines()
     complete = f'Completed: {info["progress"]}% [Used: {info["time_used"]} → Left: {info["time_left"]}]'
     return JSONResponse({ "status": info["status"], "progress": info["progress"], "complete": complete,
@@ -122,7 +122,7 @@ async def sim_log_full(project_name: str, log_file: str = Query(""), user=Depend
     project_name = functions.project_definer(project_name, user)
     log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, log_file))
     if not os.path.exists(log_path): return {"content": ""}
-    with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+    with open(log_path, "r", encoding=functions.encoding_detect(log_path), errors="replace") as f:
         content = f.read()
     return {"content": content, "offset": os.path.getsize(log_path)}
 
@@ -131,7 +131,7 @@ async def sim_log_tail_hyd(project_name: str, offset: int = Query(0), log_file: 
     project_name = functions.project_definer(project_name, user)
     log_path, lines = os.path.join(PROJECT_STATIC_ROOT, project_name, log_file), []
     if not os.path.exists(log_path): return {"lines": lines, "offset": offset}
-    with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+    with open(log_path, "r", encoding=functions.encoding_detect(log_path), errors="replace") as f:
         f.seek(offset)
         for line in f:
             lines.append(line.rstrip())
