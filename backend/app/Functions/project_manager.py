@@ -552,7 +552,7 @@ async def get_source(request: Request):
         body = await request.json()
         filename = body.get('filename')        
         path = os.path.normpath(os.path.join(STATIC_DIR_BACKEND, 'samples', 'sources'))
-        with open(os.path.normpath(os.path.join(path, f"{filename}.csv")), 'r') as f:
+        with open(os.path.normpath(os.path.join(path, f"{filename}.csv")), 'r', encoding="utf-8") as f:
             lines = f.readlines()
         first_row = lines[0].strip().split(',')
         latitude, longitude = first_row[0], first_row[1]
@@ -609,7 +609,7 @@ async def save_source(request: Request, user=Depends(functions.basic_auth)):
             # Write old format boundary file (*.ext)
             ext_path = os.path.normpath(os.path.join(path, "FlowFM.ext"))
             if os.path.exists(ext_path):
-                with open(ext_path, encoding="utf-8") as f:
+                with open(ext_path, 'r', encoding="utf-8") as f:
                     content = f.read()
                 blocks = re.split(r'\n\s*\n', content)
                 blocks = [p.strip() for p in blocks if p.strip()]
@@ -651,7 +651,7 @@ async def init_source(request: Request, user=Depends(functions.basic_auth)):
     project_name, key = functions.project_definer(body.get('projectName'), user), body.get('key')
     path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input", "FlowFM.ext"))
     if os.path.exists(path):
-        with open(path, encoding="utf-8") as f:
+        with open(path, 'r', encoding="utf-8") as f:
             content = f.read()
         parts = re.split(r'\n\s*\n', content)
         parts = [p.strip() for p in parts if p.strip()]
