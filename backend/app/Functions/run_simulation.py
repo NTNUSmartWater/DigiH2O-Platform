@@ -35,16 +35,18 @@ async def check_sim_status_hyd(request: Request, user=Depends(functions.basic_au
     project_name = functions.project_definer(body.get('projectName'), user)
     info, logs = processes.get(project_name), []
     if not info: 
-        return JSONResponse({"status": "not_started", "progress": 0, "complete": 'Completed: --% [Used: N/A → Left: N/A]',
-                         "time_used": "N/A", "time_left": "N/A", "logs": [], "message": ''})
+        return JSONResponse({"status": "not_started", "progress": 0, "message": 'No simulation running'})
+    if info["status"] == "finished":
+        processes.pop(project_name, None)
+        return JSONResponse({"status": "finished", "progress": info["progress"], "message": info["message"]})
     log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log_hyd.txt"))
     # Read log file
     if os.path.exists(log_path):
         with open(log_path, "r", encoding=functions.encoding_detect(log_path), errors="replace") as f:
             logs = f.read().splitlines()
-    complete = f'Completed: {info["progress"]}% [Used: {info["time_used"]} → Left: {info["time_left"]}]'
-    return JSONResponse({ "status": info["status"], "progress": info["progress"], "complete": complete,
-        "time_used": info["time_used"], "time_left": info["time_left"], "logs": logs, "message": info["message"]})
+    complete = f'Completed: {info["progress"]}% [Time used: {info["time_used"]} → Time left: {info["time_left"]}]'
+    return JSONResponse({"status": info["status"], "progress": info["progress"], "message": complete,
+        "time_used": info["time_used"], "time_left": info["time_left"], "logs": logs})
     
 # Start a hydrodynamic simulation
 @router.post("/start_sim_hyd")
@@ -56,13 +58,17 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
     async with lock:
         # Check if simulation already running
         if project_name in processes and processes[project_name]["status"] == "running":
-            return JSONResponse({"status": "error", "message": "Simulation is already running."})
+            info = processes[project_name]
+            complete = f'Completed: {info["progress"]}% [Time used: {info["time_used"]} → Time left: {info["time_left"]}]'
+            return JSONResponse({"status": "running", "progress": info["progress"], "message": complete})
         path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
         mdu_path = os.path.normpath(os.path.join(path, "FlowFM.mdu"))
         bat_path = os.path.normpath(os.path.join(DELFT_PATH, "dflowfm/scripts/run_dflowfm.bat"))
         # Check if file exists
-        if not os.path.exists(mdu_path): return JSONResponse({"status": "error", "message": "MDU file not found."})
-        if not os.path.exists(bat_path): return JSONResponse({"status": "error", "message": "Executable file not found."})
+        if not os.path.exists(mdu_path): 
+            return JSONResponse({"status": "error", "progress": 0.0, "message": "MDU file not found"})
+        if not os.path.exists(bat_path): 
+            return JSONResponse({"status": "error", "progress": 0.0, "message": "Executable file not found"})
         # Remove old log
         log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log_hyd.txt"))
         if os.path.exists(log_path): os.remove(log_path)
@@ -73,7 +79,7 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
             encoding="utf-8", errors="replace", bufsize=1, cwd=path)
         processes[project_name] = {"process": process, "progress": 0.0, "status": "running", 
-                                "time_used": "N/A", "time_left": "N/A", "logs": [], "message": ''}
+            "message": 'Preparing data for simulation...', "time_used": "", "time_left": "", "logs": []}
         # Stream logs
         def stream_logs():
             try:
@@ -83,7 +89,8 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
                     append_log(log_path, line)
                     # Catch error messages
                     if "forrtl:" in line.lower() or "error" in line.lower():
-                        processes[project_name]["status"], processes[project_name]["message"] = "error", line
+                        processes[project_name]["status"] = "error"
+                        processes[project_name]["message"] = line
                         append_log(log_path, line)
                         res = functions.kill_process(process)
                         append_log(log_path, res["message"])
@@ -100,22 +107,19 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
                         processes[project_name]["time_left"] = times[2]
             finally:
                 process.wait()
-                status = processes[project_name]["status"]
-                if status != "error":
-                    try:
-                        processes[project_name]["status"] = "postprocessing"
-                        processes[project_name]["message"] = 'Reorganizing outputs. Please wait...'
-                        post_result = functions.postProcess(path)
-                        if not post_result["status"] == "ok":
-                            processes[project_name]["status"], processes[project_name]["message"] = "error", f"Exception: {str(e)}"
+                if processes[project_name]["status"] != "error":
+                    processes[project_name]["progress"] = 100.0
+                    processes[project_name]["message"] = 'Reorganizing outputs. Please wait...'
+                    post_result = functions.postProcess(path)
+                    if not post_result["status"] == "ok":
+                        processes[project_name]["status"] = post_result["status"]
+                        processes[project_name]["message"] = post_result["message"]
+                    else:
                         processes[project_name]["status"] = "finished"
                         processes[project_name]["message"] = f"Simulation completed successfully."
-                    except Exception as e:
-                        processes[project_name]["status"], processes[project_name]["message"] = "error", f"Exception: {str(e)}"
-                processes[project_name]["progress"] = 100.0
-                processes.pop(project_name, None)
+                else: processes[project_name]["message"] = "Simulation terminated due to errors"
         threading.Thread(target=stream_logs, daemon=True).start()
-    return JSONResponse({"status": "ok", "message": f"Simulation {project_name} started on Windows host."})
+    return JSONResponse({"status": "ok", "message": f"Simulation {project_name} started"})
 
 @router.get("/sim_log_full/{project_name}")
 async def sim_log_full(project_name: str, log_file: str = Query(""), user=Depends(functions.basic_auth)):

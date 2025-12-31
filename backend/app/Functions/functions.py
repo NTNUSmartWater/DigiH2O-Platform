@@ -1138,10 +1138,10 @@ def postProcess(directory: str) -> dict:
         # Copy files to the directory output
         DFM_OUTPUT_folder = os.path.normpath(os.path.join(directory, 'DFM_OUTPUT'))
         if not os.path.exists(DFM_OUTPUT_folder):
-            return {'status': 'error', 'message': 'No output folder found.'}
+            return {'status': 'error', 'message': 'No output folder found'}
         select_files = ['FlowFM.dia', 'FlowFM_his.nc', 'FlowFM_map.nc']
         found_files = [f for f in os.listdir(DFM_OUTPUT_folder) if f in select_files]
-        if len(found_files) == 0: return {'status': 'error', 'message': 'No required files found in the output folder.'}
+        if len(found_files) == 0: return {'status': 'error', 'message': 'No required files found in the output folder'}
         # Copy and Remove the outputs
         for f in found_files:
             src = os.path.normpath(os.path.join(DFM_OUTPUT_folder, f))
@@ -1160,7 +1160,7 @@ def postProcess(directory: str) -> dict:
             safe_remove(src)
         # Clean DFM_OUTPUT folder
         if os.path.exists(DFM_OUTPUT_folder): shutil.rmtree(DFM_OUTPUT_folder, onerror=remove_readonly)
-        return {'status': 'ok', 'message': 'Data is saved successfully.'}
+        return {'status': 'ok', 'message': 'Simulation completed successfully'}
     except Exception as e: return {'status': 'error', 'message': str(e)}
 
 def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
