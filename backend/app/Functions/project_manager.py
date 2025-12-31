@@ -74,7 +74,7 @@ async def get_scenario(request: Request, user=Depends(functions.basic_auth)):
             mdu_path = os.path.normpath(os.path.join(in_dir, "FlowFM.mdu"))
             if not os.path.exists(mdu_path):
                 return JSONResponse({"status": 'error', "message": f"Scenario '{body.get('projectName')}' doesn't have an *.mdu file."})
-            with open(mdu_path, 'r', encoding="utf-8") as f:
+            with open(mdu_path, 'r', encoding=functions.encoding_detect(mdu_path)) as f:
                 for line in f:
                     if line.strip().startswith('AngLat'):
                         parts = line.split("=")
@@ -101,7 +101,7 @@ async def get_scenario(request: Request, user=Depends(functions.basic_auth)):
                         parts = line.split("=")
                         if len(parts) >= 2:
                             obs_path = os.path.normpath(os.path.join(in_dir, parts[1].split("#")[0].strip()))
-                            with open(obs_path, 'r', encoding="utf-8") as f:
+                            with open(obs_path, 'r', encoding=functions.encoding_detect(obs_path)) as f:
                                 lines = f.readlines()
                             data["obsPointTable"] = [[z.replace("'", ""), y, x] 
                                 for x, y, z in [line.split() for line in lines if len(line.split()) == 3]]
@@ -109,7 +109,7 @@ async def get_scenario(request: Request, user=Depends(functions.basic_auth)):
                         parts = line.split("=")
                         if len(parts) >= 2:
                             crs_path = os.path.normpath(os.path.join(in_dir, parts[1].split("#")[0].strip()))
-                            with open(crs_path, 'r', encoding="utf-8") as f:
+                            with open(crs_path, 'r', encoding=functions.encoding_detect(crs_path)) as f:
                                 lines = f.readlines()
                             data["crossSectionTable"] = [[z, y, x] 
                                 for x, y, z in [line.split() for line in lines if len(line.split()) == 3]]
@@ -118,13 +118,13 @@ async def get_scenario(request: Request, user=Depends(functions.basic_auth)):
                         if len(parts) >= 2:
                             boundary_path = os.path.normpath(os.path.join(in_dir, parts[1].split("#")[0].strip()))
                             boundary, boundary_names, forcing = [], [], []
-                            with open(boundary_path, 'r', encoding="utf-8") as f:
+                            with open(boundary_path, 'r', encoding=functions.encoding_detect(boundary_path)) as f:
                                 for line1 in f:
                                     if line1.strip().startswith('locationFile'):
                                         parts = line1.split("=")
                                         if len(parts) >= 2 and parts[1] not in boundary_names:
                                             file_path = os.path.normpath(os.path.join(in_dir, parts[1].replace("\n", "")))
-                                            with open(file_path, 'r', encoding="utf-8") as f:
+                                            with open(file_path, 'r', encoding=functions.encoding_detect(file_path)) as f:
                                                 line_files = f.readlines()
                                             boundary.append([[z, y, x] for x, y, z in [line.split() for line in line_files if len(line.split()) == 3]])
                                             boundary_names.append(parts[1])
@@ -207,7 +207,7 @@ async def get_scenario(request: Request, user=Depends(functions.basic_auth)):
             data["meteoPath"], meteos, data["meteoName"] = '', [], "FlowFM_meteo.tim"
             meteo_path = os.path.normpath(os.path.join(in_dir, data["meteoName"]))
             if os.path.exists(meteo_path):
-                with open(meteo_path, 'r', encoding="utf-8") as f:
+                with open(meteo_path, 'r', encoding=functions.encoding_detect(meteo_path)) as f:
                     lines = f.readlines()
                 for line in lines:
                     line = line.replace("\n", "")
@@ -219,7 +219,7 @@ async def get_scenario(request: Request, user=Depends(functions.basic_auth)):
             data["weatherPath"], weathers, data["weatherType"], data["weatherName"] = '', [], '', "windxy.tim"
             weather_path = os.path.normpath(os.path.join(in_dir, data["weatherName"]))
             if os.path.exists(weather_path):
-                with open(weather_path, 'r', encoding="utf-8") as f:
+                with open(weather_path, 'r', encoding=functions.encoding_detect(weather_path)) as f:
                     lines = f.readlines()
                 for line in lines:
                     line = line.replace("\n", "")
@@ -273,12 +273,12 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
             config_path = os.path.normpath(os.path.join(config_dir, 'config.json'))
             if os.path.exists(config_path) and os.path.getsize(config_path) > 0:
                 print('Config already exists. Loading...')
-                config = json.loads(open(config_path).read())
+                config = json.loads(open(config_path, "r", encoding=functions.encoding_detect(config_path)).read())
             else:
                 print('Config doesn\'t exist. Creating...')
                 config = {"hyd": {}, "waq": {}, "meta": {"hyd_scanned": False, "waq_scanned": False}, "model_type": ''}
                 if os.path.exists(config_path): os.remove(config_path)
-                open(config_path, "w").write(json.dumps(config))
+                open(config_path, "w", encoding=functions.encoding_detect(config_path)).write(json.dumps(config))
             # ---------------- Grid & Layer ----------------
             layer_reverse_hyd, layer_reverse_waq = {}, {}
             if hyd_map:
@@ -290,15 +290,15 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
                 layer_path = os.path.normpath(os.path.join(config_dir, 'layers_hyd.json'))
                 if not os.path.exists(layer_path):
                     layer_reverse_hyd = functions.layerCounter(hyd_map, 'hyd')
-                    json.dump(layer_reverse_hyd, open(layer_path, "w"))                    
-                else: layer_reverse_hyd = json.load(open(layer_path))
+                    json.dump(layer_reverse_hyd, open(layer_path, "w", encoding=functions.encoding_detect(layer_path)))                    
+                else: layer_reverse_hyd = json.load(open(layer_path, "r", encoding=functions.encoding_detect(layer_path)))
             if waq_map:
                 print('Creating grid and layers for water quality simulation...')
                 layer_path = os.path.normpath(os.path.join(config_dir, 'layers_waq.json'))
                 if not os.path.exists(layer_path):
                     layer_reverse_waq = functions.layerCounter(waq_map, 'waq')
-                    json.dump(layer_reverse_waq, open(layer_path, "w"))                    
-                else: layer_reverse_waq = json.load(open(layer_path))
+                    json.dump(layer_reverse_waq, open(layer_path, "w", encoding=functions.encoding_detect(layer_path)))                    
+                else: layer_reverse_waq = json.load(open(layer_path, "r", encoding=functions.encoding_detect(layer_path)))
             # Lazy scan HYD variables only once
             if (hyd_map or hyd_his) and not config['meta']['hyd_scanned']:
                 print('Scanning HYD variables...')
@@ -309,7 +309,7 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
             model_path, waq_model, obs = os.path.normpath(os.path.join(waq_dir, f'{temp}.json')), '', {}
             if os.path.exists(model_path):
                 print('Loading WAQ model...')
-                temp_data = json.load(open(model_path))
+                temp_data = json.load(open(model_path, "r", encoding=functions.encoding_detect(model_path)))
                 waq_model = temp_data['model_type']
                 if 'wq_obs' in temp_data: config['wq_obs'], obs['wq_obs'] = True, temp_data['wq_obs']
                 if 'wq_loads' in temp_data: config['wq_loads'], obs['wq_loads'] = True, temp_data['wq_loads']
@@ -327,7 +327,7 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
                 config.pop("wq_obs", None)
                 config.pop("wq_loads", None)
             # Save config
-            open(config_path, "w").write(json.dumps(config))
+            open(config_path, "w", encoding=functions.encoding_detect(config_path)).write(json.dumps(config))
             # Restructure configuration
             result = {**config.get("hyd", {}), **config.get("waq", {})}
             for k, v in config.items():
@@ -398,9 +398,9 @@ async def clone_waq(request: Request, user=Depends(functions.basic_auth)):
             new_path = os.path.normpath(os.path.join(project_folder, f"{new_name}.json"))
             if not os.path.exists(old_path): 
                 return JSONResponse({"status": 'error', "message": f"Path '{old_path}' does not exist."})
-            data = json.load(open(old_path))
+            data = json.load(open(old_path, 'r', encoding=functions.encoding_detect(old_path)))
             data['folderName'] = new_name.replace('.json', '')
-            json.dump(data, open(new_path, 'w'))
+            json.dump(data, open(new_path, 'w', encoding=functions.encoding_detect(new_path)))
             return JSONResponse({"message": f"Scenario '{new_name}' was cloned successfully!"})
     except Exception as e:
         print('/clone_waq:\n==============')
@@ -552,7 +552,8 @@ async def get_source(request: Request):
         body = await request.json()
         filename = body.get('filename')        
         path = os.path.normpath(os.path.join(STATIC_DIR_BACKEND, 'samples', 'sources'))
-        with open(os.path.normpath(os.path.join(path, f"{filename}.csv")), 'r', encoding="utf-8") as f:
+        file_path = os.path.normpath(os.path.join(path, f"{filename}.csv"))
+        with open(file_path, 'r', encoding=functions.encoding_detect(file_path)) as f:
             lines = f.readlines()
         first_row = lines[0].strip().split(',')
         latitude, longitude = first_row[0], first_row[1]
@@ -574,7 +575,8 @@ async def save_obs(request: Request, user=Depends(functions.basic_auth)):
         redis = request.app.state.redis
         lock = redis.lock(f"{project_name}:save_obs:{file_name}", timeout=10)
         def write_file(path, file_name, data, key):
-            with open(os.path.normpath(os.path.join(path, file_name)), 'w', encoding="utf-8") as f:
+            file_path = os.path.normpath(os.path.join(path, file_name))
+            with open(file_path, 'w', encoding=functions.encoding_detect(file_path)) as f:
                 if key == 'obs':
                     for line in data:
                         f.write(f"{line[2]}  {line[1]}  '{line[0]}'\n")
@@ -609,7 +611,7 @@ async def save_source(request: Request, user=Depends(functions.basic_auth)):
             # Write old format boundary file (*.ext)
             ext_path = os.path.normpath(os.path.join(path, "FlowFM.ext"))
             if os.path.exists(ext_path):
-                with open(ext_path, 'r', encoding="utf-8") as f:
+                with open(ext_path, 'r', encoding=functions.encoding_detect(ext_path)) as f:
                     content = f.read()
                 blocks = re.split(r'\n\s*\n', content)
                 blocks = [p.strip() for p in blocks if p.strip()]
@@ -623,17 +625,17 @@ async def save_source(request: Request, user=Depends(functions.basic_auth)):
                     blocks.append(update_content)
                 new_content = '\n\n'.join(blocks)
             else: new_content = f"\n{update_content}\n"
-            with open(ext_path, 'w', encoding="utf-8") as f:
+            with open(ext_path, 'w', encoding=functions.encoding_detect(ext_path)) as f:
                 f.write(new_content.strip() + "\n")
             # Write .pli file
             pli_path = os.path.normpath(os.path.join(path, f"{source_name}.pli"))
-            with open(pli_path, 'w', encoding="utf-8") as f:
+            with open(pli_path, 'w', encoding=functions.encoding_detect(pli_path)) as f:
                 f.write(f'{source_name}\n')
                 f.write('    1    2\n')
                 f.write(f"{lon}  {lat}\n")
             # Write .tim file
             tim_path = os.path.normpath(os.path.join(path, f"{source_name}.tim"))
-            with open(tim_path, 'w', encoding="utf-8") as f:
+            with open(tim_path, 'w', encoding=functions.encoding_detect(tim_path)) as f:
                 for row in data:
                     try: t = float(row[0])/(1000.0*60.0)
                     except Exception: t = 0
@@ -651,7 +653,7 @@ async def init_source(request: Request, user=Depends(functions.basic_auth)):
     project_name, key = functions.project_definer(body.get('projectName'), user), body.get('key')
     path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input", "FlowFM.ext"))
     if os.path.exists(path):
-        with open(path, 'r', encoding="utf-8") as f:
+        with open(path, 'r', encoding=functions.encoding_detect(path)) as f:
             content = f.read()
         parts = re.split(r'\n\s*\n', content)
         parts = [p.strip() for p in parts if p.strip()]
@@ -673,7 +675,7 @@ async def init_source(request: Request, user=Depends(functions.basic_auth)):
                         tim_path = os.path.normpath(os.path.join(temp_path, f"{item_remove}.tim"))
                         if os.path.exists(pli_path): os.remove(pli_path)
                         if os.path.exists(tim_path): os.remove(tim_path)
-            with open(path, 'w', encoding="utf-8") as file:
+            with open(path, 'w', encoding=functions.encoding_detect(path)) as file:
                 joined_parts = '\n\n'.join(parts)
                 file.write(f"\n{joined_parts}\n")
         status, data, type = 'ok', [], []
