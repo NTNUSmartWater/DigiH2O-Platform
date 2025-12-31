@@ -253,6 +253,7 @@ async def run_waq_simulation(project_name, waq_name):
                 return
         # Run Simulation and get output
         inp_name = os.path.basename(inp_file)
+        print(inp_name, inp_file, output_folder)
         progress_regex = re.compile(r"(\d+(?:\.\d+)?)% Completed")
         command = [bat_path, inp_name, "-p", proc_path.replace(".def", ""), "-eco", bloom_path]
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
