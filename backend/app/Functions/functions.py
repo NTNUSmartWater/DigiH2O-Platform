@@ -553,7 +553,7 @@ def dialogReader(dialog_file: str) -> dict:
     # Check if the dialog file exists
     if not os.path.exists(dialog_file): return {}
     result = {}
-    with open(f'{dialog_file}', 'r') as f:
+    with open(f'{dialog_file}', 'r', encoding="utf-8") as f:
         content = f.read()
     content = content.split('\n')
     for line in content:
@@ -1017,7 +1017,7 @@ def fileWriter(template_path: str, params: dict) -> str:
         The content of saved file
     """
     # Open the file and read its contents
-    with open(template_path, 'r') as file:
+    with open(template_path, 'r', encoding="utf-8") as file:
         file_content = file.read()
     # Replace placeholders with actual values
     for key, value in params.items():
@@ -1063,7 +1063,7 @@ def contentWriter(project_name: str, filename: str, data: list, content: str, un
     try:
         path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
         # Write weather.tim file
-        with open(os.path.normpath(os.path.join(path, filename)), 'w') as f:
+        with open(os.path.normpath(os.path.join(path, filename)), 'w', encoding="utf-8") as f:
             for row in data:
                 if unit == 'sec': row[0] = int(row[0]/1000)
                 elif unit == 'min': row[0] = int(row[0]/(1000*60))
@@ -1072,7 +1072,7 @@ def contentWriter(project_name: str, filename: str, data: list, content: str, un
         # Add weather data to FlowFM.ext file
         ext_path = os.path.normpath(os.path.join(path, "FlowFM.ext"))
         if os.path.exists(ext_path):
-            with open(ext_path, encoding="utf-8") as f:
+            with open(ext_path, 'r', encoding="utf-8") as f:
                 update_content = f.read()
             parts = re.split(r'\n\s*\n', update_content)
             parts = [p.strip() for p in parts if p.strip()]
@@ -1080,11 +1080,11 @@ def contentWriter(project_name: str, filename: str, data: list, content: str, un
                 index = parts.index([part for part in parts if filename in part][0])
                 parts[index] = content
             else: parts.append(content)
-            with open(ext_path, 'w') as file:
+            with open(ext_path, 'w', encoding="utf-8") as file:
                 joined_parts = '\n\n'.join(parts)
                 file.write(f"\n{joined_parts}\n")
         else:
-            with open(ext_path, 'w') as f:
+            with open(ext_path, 'w', encoding="utf-8") as f:
                 f.write(f"\n{content}\n")
         status, message = 'ok', "Data is saved successfully."
     except Exception as e:

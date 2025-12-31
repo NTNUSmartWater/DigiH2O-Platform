@@ -21,7 +21,7 @@ def hydReader(hyd_path: str) -> dict:
     """
     # Read the hyd file
     data, check, sinks = {'filename': 'FlowFM.hyd'}, False, []
-    with open(hyd_path, 'r') as f:
+    with open(hyd_path, 'r', encoding="utf-8") as f:
         lines = f.readlines()
     for line in lines:
         if "number-hydrodynamic-layers" in line: data['n_layers'] = line.split()[1]
@@ -248,7 +248,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
         # *************************** Simple oxygen model ***************************
         if key == 'simple-oxygen':
             # Get data for B1_sublist variable
-            with open(os.path.normpath(os.path.join(sample_path, 'B1_simple_oxygen.inc')), 'r') as f:
+            with open(os.path.normpath(os.path.join(sample_path, 'B1_simple_oxygen.inc')), 'r', encoding="utf-8") as f:
                 params_INC['B1_sublist'] = f.read()
             # Prepare for the config file B7_processes
             params_INC['B7_processes'], processes = [], ['Nitrif_NH4', 'BODCOD', 'RearOXY', 'SedOXYDem', 'PosOXY',
@@ -275,7 +275,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
         # *************************** Trace metals model ***************************
         elif key == 'trace-metals':
             # Get data for B1_sublist variable
-            with open(os.path.normpath(os.path.join(sample_path, 'B1_trace_metals.inc')), 'r') as f:
+            with open(os.path.normpath(os.path.join(sample_path, 'B1_trace_metals.inc')), 'r', encoding="utf-8") as f:
                 params_INC['B1_sublist'] = f.read()
             # Prepare for the config file B7_processes
             params_INC['B7_processes'], processes = [], ['HydDuflow', 'Metal']
@@ -314,7 +314,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
                 params_INC['B9_Mapvar'].append(f"'{item}'")
         elif key == 'oxygen-bod-water':
             # Get data for B1_sublist variable
-            with open(os.path.normpath(os.path.join(sample_path, 'B1_bod_water.inc')), 'r') as f:
+            with open(os.path.normpath(os.path.join(sample_path, 'B1_bod_water.inc')), 'r', encoding="utf-8") as f:
                 params_INC['B1_sublist'] = f.read()
             # Prepare for the config file B7_processes
             params_INC['B7_processes'], processes = [], ['RearOXY', 'BODCOD', 'DynDepth', 'SaturOXY', 'TotDepth', 'Veloc']
@@ -339,7 +339,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
                 params_INC['B9_Mapvar'].append(f"'{item}'")
         elif key == 'cadmium':
             # Get data for B1_sublist variable
-            with open(os.path.normpath(os.path.join(sample_path, 'B1_cadmium.inc')), 'r') as f:
+            with open(os.path.normpath(os.path.join(sample_path, 'B1_cadmium.inc')), 'r', encoding="utf-8") as f:
                 params_INC['B1_sublist'] = f.read()
             # Prepare for the config file B7_processes
             params_INC['B7_processes'], processes = [], ['Compos', 'Sed_IM1', 'S12TraIM1', 'S1_Comp', 'Sed_Cd', 'S12TraCd', 'CalTau', 'DynDepth',
@@ -362,7 +362,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
                 params_INC['B9_Mapvar'].append(f"'{item}'")
         elif key == 'eutrophication':
             # Get data for B1_sublist variable
-            with open(os.path.normpath(os.path.join(sample_path, 'B1_eu_1a.inc')), 'r') as f:
+            with open(os.path.normpath(os.path.join(sample_path, 'B1_eu_1a.inc')), 'r', encoding="utf-8") as f:
                 params_INC['B1_sublist'] = f.read()
             # Prepare for the config file B7_processes
             params_INC['B7_processes'], processes = [], ['HydDuflow', 'Eutr1a']
@@ -387,7 +387,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
                 params_INC['B9_Mapvar'].append(f"'{item}'")
         elif key == 'conservative-tracers':
             # Get data for B1_sublist variable
-            with open(os.path.normpath(os.path.join(sample_path, 'B1_conservative.inc')), 'r') as f:
+            with open(os.path.normpath(os.path.join(sample_path, 'B1_conservative.inc')), 'r', encoding="utf-8") as f:
                 params_INC['B1_sublist'] = f.read()
             # Prepare for the config file B7_processes
             params_INC['B7_processes'], processes = [], ['Age1', 'Age2', 'Age3']
@@ -409,7 +409,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
                 params_INC['B9_Mapvar'].append(f"'{item}'")
         elif key == 'suspend-sediment':
             # Get data for B1_sublist variable
-            with open(os.path.normpath(os.path.join(sample_path, 'B1_suspend_sediment.inc')), 'r') as f:
+            with open(os.path.normpath(os.path.join(sample_path, 'B1_suspend_sediment.inc')), 'r', encoding="utf-8") as f:
                 params_INC['B1_sublist'] = f.read()
             # Prepare for the config file B7_processes
             params_INC['B7_processes'], processes = [], ['Compos', 'Sed_IM1', 'S12TraIM1', 'S1_Comp', 'Sed_IM2',
@@ -432,7 +432,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
                 params_INC['B9_Mapvar'].append(f"'{item}'")
         elif key == 'coliform':
             # Get data for B1_sublist variable
-            with open(os.path.normpath(os.path.join(sample_path, 'B1_coliform.inc')), 'r') as f:
+            with open(os.path.normpath(os.path.join(sample_path, 'B1_coliform.inc')), 'r', encoding="utf-8") as f:
                 params_INC['B1_sublist'] = f.read()
             # Prepare for the config file B7_processes
             params_INC['B7_processes'], processes = [], ['EColiMrt', 'Salinchlor', 'CalcRadDay', 'DynDepth']
@@ -576,7 +576,7 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
         time_step = int(86400/params_INC['t0_scu'])
         params_INP['time_step'] = time_step
         # Open the file and read its contents
-        with open(os.path.normpath(os.path.join(sample_path, 'INPFile.inp')), 'r') as file:
+        with open(os.path.normpath(os.path.join(sample_path, 'INPFile.inp')), 'r', encoding='utf-8') as file:
             content_inp = file.read()
         # Write file to store model type
         with open(os.path.normpath(os.path.join(output_folder, f'{parameters["folder_name"]}.json')), 'w', encoding='utf-8') as f:

@@ -225,11 +225,11 @@ async def run_waq_simulation(project_name, waq_name):
         os.makedirs(table_folder, exist_ok=True)
         # Write *.tbl file
         tbl_path = os.path.normpath(os.path.join(table_folder, f"{file_name}.tbl"))
-        with open(tbl_path, 'w', encoding='ascii', newline='\n') as f:
+        with open(tbl_path, 'w', encoding='utf-8', newline='\n') as f:
             f.write(time_data)
         # Write *.usefors file
         usefor_path = os.path.normpath(os.path.join(table_folder, f"{file_name}.usefors"))
-        with open(usefor_path, 'w', encoding='ascii', newline='\n') as f:
+        with open(usefor_path, 'w', encoding='utf-8', newline='\n') as f:
             f.write(usefors)
         # Prepare external inputs
         inp_file = wq_functions.wqPreparation(parameters, key, output_folder, includes_folder)
