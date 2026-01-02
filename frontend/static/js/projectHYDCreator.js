@@ -116,7 +116,7 @@ const outputRestart = () => document.getElementById('write-restart-file');
 const rtsStart = () => document.getElementById('restart-output-start');
 const rtsStop = () => document.getElementById('restart-output-end');
 
-let projectList = [];
+let projectList = [], BCChecked = 0;
 
 function setupTabs(root) {
     const buttonPanels = root.querySelectorAll('#main-tabs button');
@@ -249,7 +249,7 @@ function updateOption(){
     mapPicker(getLocation(), 'pickLocation');
     mapPicker(obsPointPicker(), 'pickPoint', () => getDataFromTable(obsPointTable(), true), 'obsPoint');
     mapPicker(crossSectionPicker(), 'pickCrossSection', () => getDataFromTable(crossSectionTable(), true));
-    mapPicker(boundaryPicker(), 'pickBoundary', () => getDataFromTable(boundaryTable(), true));
+    mapPicker(boundaryPicker(), 'pickBoundary', () => {BCChecked = 1; getDataFromTable(boundaryTable(), true);});
     mapPicker(sourceOptionPicker(), 'pickSource');
     // Event when user uploads CSV file
     obsPointUploadText().addEventListener('click', () => { obsPointUploadFile().click(); });
@@ -433,7 +433,7 @@ function updateOption(){
         if (nameBoundary === '') { alert('Name of boundary is required.'); return; }
         // Delete boundary
         const data = await sendQuery('delete_boundary', {projectName: projectName().value, boundaryName: nameBoundary});
-        alert(data.message); deleteTable(boundaryTable(), undefined, 'clearBoundary');
+        alert(data.message); deleteTable(boundaryTable(), undefined, 'clearBoundary'); BCChecked = 0;
         const tbody = boundaryEditTable().querySelector("tbody"); tbody.innerHTML = "";
         boundarySelectorView().value = ''; boundarySelector().value = ''; boundarySelector().innerHTML = '';
         boundaryViewContainer().style.display = 'none'; boundaryText().value = ''; boundaryName().value = '';
@@ -471,7 +471,7 @@ function updateOption(){
         const lon = sourceLongitude().value;
         if (table.rows.length === 0) { alert('No data to save. Please check the table.'); return; }
         if (lat === '' || lon === '' || name === ''){ alert('Please check Name/Latitude/Longitude.'); return; }
-        const content = {projectName: nameProject, nameSource: name, lat: lat, lon: lon, data: table.rows}
+        const content = {projectName: nameProject, nameSource: name, lat: lat, lon: lon, data: table.rows, BC: BCChecked};
         const data = await sendQuery('save_source', content);
         updateTable(sourceRemoveTable(), sourceSelectorRemove(), nameProject);
         alert(data.message);
@@ -507,9 +507,6 @@ function updateOption(){
     })
     // Save project
     saveProjectBtn().addEventListener('click', async () => { 
-        // Check boundary condition
-        const boundaryContent = getDataFromTable(boundaryTable(), true);
-        if (boundaryContent.rows.length === 0) {alert('No boundary conditions found.'); return;}
         const userTimeSec = timeStepCalculator(userTimestepDate().value, userTimestepTime().value);
         const nodalTimeSec = timeStepCalculator(nodalTimestepDate().value, nodalTimestepTime().value);
         const hisInterval = timeStepCalculator(hisIntervalDate().value, hisIntervalTime().value);
