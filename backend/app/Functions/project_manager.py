@@ -75,48 +75,47 @@ async def get_scenario(request: Request, user=Depends(functions.basic_auth)):
             if not os.path.exists(mdu_path):
                 return JSONResponse({"status": 'error', "message": f"Scenario '{body.get('projectName')}' doesn't have an *.mdu file."})
             with open(mdu_path, 'r', encoding=functions.encoding_detect(mdu_path)) as f:
-                for line in f:
-                    if line.strip().startswith('AngLat'):
-                        parts = line.split("=")
-                        if len(parts) >= 2: data["avgLat"] = parts[1].split("#")[0].strip()
-                    elif line.strip().startswith('NetFile'):
-                        parts = line.split("=")
-                        if len(parts) >= 2: data["gridPath"] = parts[1].split("#")[0].strip()
-                    elif line.strip().startswith('Kmx'):
-                        parts = line.split("=")
-                        if len(parts) >= 2: data["nLayers"] = parts[1].split("#")[0].strip()
-                    elif line.strip().startswith('TStart'):
-                        parts = line.split("=")
-                        if len(parts) >= 2:
-                            val = int(parts[1].split("#")[0].strip())
-                            temp = datetime.datetime.fromtimestamp(val)
+                for raw_line in f:
+                    line = raw_line.split("#")[0].strip()
+                    if line.startswith('AngLat'):
+                        parts = [p.strip() for p in line.split("=") if p.strip()]
+                        if len(parts) == 2: data["avgLat"] = parts[1].strip()
+                    elif line.startswith('NetFile'):
+                        parts = [p.strip() for p in line.split("=") if p.strip()]
+                        if len(parts) == 2: data["gridPath"] = parts[1].strip()
+                    elif line.startswith('Kmx'):
+                        parts = [p.strip() for p in line.split("=") if p.strip()]
+                        if len(parts) == 2: data["nLayers"] = parts[1].strip()
+                    elif line.startswith('TStart'):
+                        parts = [p.strip() for p in line.split("=") if p.strip()]
+                        if len(parts) == 2:
+                            temp = datetime.datetime.fromtimestamp(int(parts[1].strip()))
                             data["startDate"] = temp.strftime("%Y-%m-%d %H:%M:%S")
-                    elif line.strip().startswith('TStop'):
-                        parts = line.split("=")
-                        if len(parts) >= 2: 
-                            val = int(parts[1].split("#")[0].strip())
-                            temp = datetime.datetime.fromtimestamp(val)
+                    elif line.startswith('TStop'):
+                        parts = [p.strip() for p in line.split("=") if p.strip()]
+                        if len(parts) == 2:
+                            temp = datetime.datetime.fromtimestamp(int(parts[1].strip()))
                             data["stopDate"] = temp.strftime("%Y-%m-%d %H:%M:%S")
-                    elif line.strip().startswith('ObsFile'):
-                        parts = line.split("=")
-                        if len(parts) >= 2:
-                            obs_path = os.path.normpath(os.path.join(in_dir, parts[1].split("#")[0].strip()))
+                    elif line.startswith('ObsFile'):
+                        parts = [p.strip() for p in line.split("=") if p.strip()]
+                        if len(parts) == 2:
+                            obs_path = os.path.normpath(os.path.join(in_dir, parts[1].strip()))
                             with open(obs_path, 'r', encoding=functions.encoding_detect(obs_path)) as f:
                                 lines = f.readlines()
                             data["obsPointTable"] = [[z.replace("'", ""), y, x] 
                                 for x, y, z in [line.split() for line in lines if len(line.split()) == 3]]
-                    elif line.strip().startswith('CrsFile'):
-                        parts = line.split("=")
-                        if len(parts) >= 2:
-                            crs_path = os.path.normpath(os.path.join(in_dir, parts[1].split("#")[0].strip()))
+                    elif line.startswith('CrsFile'):
+                        parts = [p.strip() for p in line.split("=") if p.strip()]
+                        if len(parts) == 2:
+                            crs_path = os.path.normpath(os.path.join(in_dir, parts[1].strip()))
                             with open(crs_path, 'r', encoding=functions.encoding_detect(crs_path)) as f:
                                 lines = f.readlines()
                             data["crossSectionTable"] = [[z, y, x] 
                                 for x, y, z in [line.split() for line in lines if len(line.split()) == 3]]
-                    elif line.strip().startswith('ExtForceFileNew'):
-                        parts = line.split("=")
-                        if len(parts) >= 2:
-                            boundary_path = os.path.normpath(os.path.join(in_dir, parts[1].split("#")[0].strip()))
+                    elif line.startswith('ExtForceFileNew'):
+                        parts = [p.strip() for p in line.split("=") if p.strip()]
+                        if len(parts) == 2:
+                            boundary_path = os.path.normpath(os.path.join(in_dir, parts[1].strip()))
                             boundary, boundary_names, forcing = [], [], []
                             with open(boundary_path, 'r', encoding=functions.encoding_detect(boundary_path)) as f:
                                 for line1 in f:
@@ -132,22 +131,20 @@ async def get_scenario(request: Request, user=Depends(functions.basic_auth)):
                                         parts = line1.split("=")
                                         if len(parts) >= 2 and parts[1] not in forcing: forcing.append(parts[1])
                             data["boundaryTable"] = boundary[0]
-                    elif line.strip().startswith('DtUser'):
-                        parts = line.split("=")
-                        if len(parts) >= 2:
-                            seconds = int(parts[1].split("#")[0].strip())
-                            values = functions.seconds_datetime(seconds)
+                    elif line.startswith('DtUser'):
+                        parts = [p.strip() for p in line.split("=") if p.strip()]
+                        if len(parts) == 2:
+                            values = functions.seconds_datetime(int(parts[1].strip()))
                             data["userTimestepDate"], data["userTimestepTime"] = values[0], values[1]
-                    elif line.strip().startswith('DtNodal'):
-                        parts = line.split("=")
-                        if len(parts) >= 2:
-                            seconds = int(parts[1].split("#")[0].strip())
-                            values = functions.seconds_datetime(seconds)
+                    elif line.startswith('DtNodal'):
+                        parts = [p.strip() for p in line.split("=") if p.strip()]
+                        if len(parts) == 2:
+                            values = functions.seconds_datetime(int(parts[1].strip()))
                             data["nodalTimestepDate"], data["nodalTimestepTime"] = values[0], values[1]
-                    elif line.strip().startswith('HisInterval'):
-                        parts = line.split("=")
-                        if len(parts) >= 2:
-                            temp = parts[1].split("#")[0].strip()
+                    elif line.startswith('HisInterval'):
+                        parts = [p.strip() for p in line.split("=") if p.strip()]
+                        if len(parts) == 2:
+                            temp = parts[1].strip()
                             seconds = int(temp.split(" ")[0].strip())
                             values = functions.seconds_datetime(seconds)
                             data["hisIntervalDate"], data["hisIntervalTime"] = values[0], values[1]
@@ -157,10 +154,10 @@ async def get_scenario(request: Request, user=Depends(functions.basic_auth)):
                             stop = datetime.datetime.fromtimestamp(temp_stop)
                             data["hisStart"] = start.strftime("%Y-%m-%d %H:%M:%S")
                             data["hisStop"] = stop.strftime("%Y-%m-%d %H:%M:%S")
-                    elif line.strip().startswith('MapInterval'):
-                        parts = line.split("=")
-                        if len(parts) >= 2:
-                            temp = parts[1].split("#")[0].strip()
+                    elif line.startswith('MapInterval'):
+                        parts = [p.strip() for p in line.split("=") if p.strip()]
+                        if len(parts) == 2:
+                            temp = parts[1].strip()
                             seconds = int(temp.split(" ")[0].strip())
                             values = functions.seconds_datetime(seconds)
                             data["mapIntervalDate"], data["mapIntervalTime"] = values[0], values[1]
@@ -170,10 +167,10 @@ async def get_scenario(request: Request, user=Depends(functions.basic_auth)):
                             stop = datetime.datetime.fromtimestamp(temp_stop)
                             data["mapStart"] = start.strftime("%Y-%m-%d %H:%M:%S")
                             data["mapStop"] = stop.strftime("%Y-%m-%d %H:%M:%S")
-                    elif line.strip().startswith('WaqInterval'):
-                        parts = line.split("=")
-                        if len(parts) >= 2:
-                            temp = parts[1].split("#")[0].strip()
+                    elif line.startswith('WaqInterval'):
+                        parts = [p.strip() for p in line.split("=") if p.strip()]
+                        if len(parts) == 2:
+                            temp = parts[1].strip()
                             seconds = int(temp.split(" ")[0].strip())
                             values = functions.seconds_datetime(seconds)
                             data["wqIntervalDate"], data["wqIntervalTime"] = values[0], values[1]
@@ -183,27 +180,25 @@ async def get_scenario(request: Request, user=Depends(functions.basic_auth)):
                             stop = datetime.datetime.fromtimestamp(temp_stop)
                             data["wqStart"] = start.strftime("%Y-%m-%d %H:%M:%S")
                             data["wqStop"] = stop.strftime("%Y-%m-%d %H:%M:%S")
-                    elif line.strip().startswith('StatsInterval'):
-                        parts = line.split("=")
-                        if len(parts) >= 2:
-                            seconds = int(parts[1].split("#")[0].strip())
-                            values = functions.seconds_datetime(seconds)
+                    elif line.startswith('StatsInterval'):
+                        parts = [p.strip() for p in line.split("=") if p.strip()]
+                        if len(parts) == 2:
+                            values = functions.seconds_datetime(int(parts[1].strip()))
                             data["statisticDate"], data["statisticTime"] = values[0], values[1]
-                    elif line.strip().startswith('TimingsInterval'):
-                        parts = line.split("=")
-                        if len(parts) >= 2:
-                            seconds = int(parts[1].split("#")[0].strip())
-                            values = functions.seconds_datetime(seconds)
+                    elif line.startswith('TimingsInterval'):
+                        parts = [p.strip() for p in line.split("=") if p.strip()]
+                        if len(parts) == 2:
+                            values = functions.seconds_datetime(int(parts[1].strip()))
                             data["timingDate"], data["timingTime"] = values[0], values[1]
-                    elif line.strip().startswith('WaterLevIni'):
-                        parts = line.split("=")
-                        if len(parts) >= 2: data["initWaterLevel"] = parts[1].split("#")[0].strip()
-                    elif line.strip().startswith('InitialSalinity'):
-                        parts = line.split("=")
-                        if len(parts) >= 2: data["initSalinity"] = parts[1].split("#")[0].strip()
-                    elif line.strip().startswith('Temperature'):
-                        parts = line.split("=")
-                        if len(parts) >= 2: data["initTemperature"] = parts[1].split("#")[0].strip()
+                    elif line.startswith('WaterLevIni'):
+                        parts = [p.strip() for p in line.split("=") if p.strip()]
+                        if len(parts) == 2: data["initWaterLevel"] = parts[1].strip()
+                    elif line.startswith('InitialSalinity'):
+                        parts = [p.strip() for p in line.split("=") if p.strip()]
+                        if len(parts) == 2: data["initSalinity"] = parts[1].strip()
+                    elif line.startswith('Temperature'):
+                        parts = [p.strip() for p in line.split("=") if p.strip()]
+                        if len(parts) == 2: data["initTemperature"] = parts[1].strip()
             data["meteoPath"], meteos, data["meteoName"] = '', [], "FlowFM_meteo.tim"
             meteo_path = os.path.normpath(os.path.join(in_dir, data["meteoName"]))
             if os.path.exists(meteo_path):
@@ -600,7 +595,8 @@ async def save_source(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
         project_name = functions.project_definer(body.get('projectName'), user)
-        lat, lon, data, source_name = body.get('lat'), body.get('lon'), body.get('data'), body.get('nameSource')
+        lat, lon, BCCheck = body.get('lat'), body.get('lon'), body.get('BC')
+        data, source_name = body.get('data'), body.get('nameSource')
         redis = request.app.state.redis
         lock = redis.lock(f"{project_name}:save_source:{source_name}", timeout=10)
         path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))        
@@ -639,8 +635,8 @@ async def save_source(request: Request, user=Depends(functions.basic_auth)):
                 for row in data:
                     try: t = float(row[0])/(1000.0*60.0)
                     except Exception: t = 0
-                    t = int(t)
-                    values = [str(t)] + [str(r) for r in row[1:]]
+                    if int(BCCheck)==1: values = [str(t)] + [str(r) for r in row[1:]]
+                    else: values = [str(t)] + [str(r) for r in row[1:-1]]
                     f.write('  '.join(values) + '\n')
             return JSONResponse({"status": 'ok', "message": f"Source '{source_name}' saved successfully."})
     except Exception as e:
