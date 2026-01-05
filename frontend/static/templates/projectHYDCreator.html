@@ -571,11 +571,12 @@
   <script>
     flatpickr(".datetime-interval",{ 
       noCalendar: true, enableSeconds: true, time_24hr: true,
-      enableTime: true, dateFormat: "H:i:S", defaultDate: "today 00:00:00"
+      enableTime: true, dateFormat: "H:i:S", 
+      defaultHour: 0, defaultMinute: 0, defaultSecond: 0
     });
     flatpickr(".datetime", {
-      enableTime: true, enableSeconds: true, time_24hr: true, 
-      dateFormat: "Y-m-d H:i:S", defaultDate: "today 00:00:00"
+      enableTime: true, enableSeconds: true, time_24hr: true, dateFormat: "Y-m-d H:i:S", 
+      defaultHour: 0, defaultMinute: 0, defaultSecond: 0
     });
   </script>
   <!-- Load the newest version of the script -->

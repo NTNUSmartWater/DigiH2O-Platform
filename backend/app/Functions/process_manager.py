@@ -35,9 +35,9 @@ async def process_internal(query: str, key: str, redis, project_cache, project_n
     elif key == 'substance_check':
         substance_raw = await redis.hget(project_name, 'config')
         substance = msgpack.unpackb(substance_raw, raw=False)[query]
-        if len(substance) > 0:
-            data, message = sorted(substance), functions.valueToKeyConverter(substance)
+        if len(substance) > 0: data, message = sorted(substance), functions.valueToKeyConverter(substance)
         else: data, message = None, f"No substance defined."
+        print('Substance check:', data, message)
     elif key == 'substance':
         temp = functions.timeseriesCreator(project_cache.get("waq_his"), query.split(' ')[0], timeColumn='nTimesDlwq')
         data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))

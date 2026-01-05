@@ -10,8 +10,8 @@ const checkboxContainer = () => document.getElementById('checkbox-container');
 const showCheckbox = () => document.getElementById('show-checkbox');
 const textareaWrapper = () => document.getElementById('form-row-textarea');
 
-let currentProject = null, height = 0, logIntervalHYD = null, 
-    logIntervalWAQ = null, lastOffsetHYD = 0, lastOffsetWAQ = 0;
+let currentProject = null, height = 0, logIntervalHYD = null, HYDRunning = false,
+    WAQRunning = false, logIntervalWAQ = null, lastOffsetHYD = 0, lastOffsetWAQ = 0;
 const APP_MODE = window.APP_MODE; 
 
 async function sendQuery(functionName, content){
@@ -48,7 +48,7 @@ function updateLogHYD(project, progress_bar, progress_text, info, seconds){
     logIntervalHYD = setInterval(async () => {
         try {
             const statusRes = await sendQuery('check_sim_status_hyd', {projectName: project});
-            if (statusRes.status === "running") {
+            if (statusRes.status === "running" || statusRes.status === "reorganizing") {
                 progress_text.innerText = statusRes.message;
                 progress_bar.value = statusRes.progress;
             } else {
@@ -70,7 +70,7 @@ function updateLogWAQ(project, progress_bar, progress_text, info, seconds) {
     logIntervalWAQ = setInterval(async () => {
         try {
             const statusRes = await sendQuery('check_sim_status_waq', {projectName: project});
-            if (statusRes.status === "running") {
+            if (statusRes.status === "running" || statusRes.status === "reorganizing") {
                 progress_text.innerText = statusRes.message;
                 progress_bar.value = statusRes.progress;
             } else {
@@ -105,10 +105,10 @@ function updateSelection(){
                     const data = await res.json();
                     infoArea().value = data.content || ''; lastOffsetHYD = data.offset;
                 }
-                showCheckbox().checked = true;
+                showCheckbox().checked = true; HYDRunning = true;
                 // Run hydrodynamics simulation and Update logs every 10 seconds
                 updateLogHYD(projectName, progressbar(), progressText(), infoArea(), 10);
-            } else { showCheckbox().checked = false; }
+            } else { showCheckbox().checked = false; HYDRunning = false; }
             progressText().innerText = statusRes.message; progressbar().value = statusRes.progress;
         } else if (APP_MODE === 'waq'){ // Work with WAQ simulation
             const data = await sendQuery('select_project', {filename: projectName, key: 'getWAQs', folder_check: 'input'});
@@ -125,10 +125,10 @@ function updateSelection(){
                     const data = await res.json();
                     infoArea().value = data.content || ''; lastOffsetWAQ = data.offset;
                 }
-                showCheckbox().checked = true;
+                showCheckbox().checked = true; WAQRunning = true;
                 // Run water quality simulation and Update logs every 0.5 seconds
                 updateLogWAQ(projectName, progressbar(), progressText(), infoArea(), 0.5);
-            } else { showCheckbox().checked = false; }
+            } else { showCheckbox().checked = false; WAQRunning = false; }
             progressText().innerText = statusRes.message; progressbar().value = statusRes.progress;
         }
         checkboxContainer().style.display = 'block'; textareaWrapper().style.display = 'block'; checkboxUpdate(); 
@@ -138,6 +138,7 @@ function updateSelection(){
         currentProject = scenarioSelector().value;
         if (!currentProject || currentProject === '') {alert('Please select a scenario.'); return;}
         if (APP_MODE === 'hyd') { // Check if HYD simulation is running
+            if (HYDRunning) { alert("Detected an HYD simulation is running. Please wait until it finishes."); return; }
             const statusRes = await sendQuery('check_sim_status_hyd', {projectName: currentProject});
             if (statusRes.status === "running") { alert("HYD simulation is already running."); return; }
             const res = await sendQuery('check_folder', {projectName: currentProject, folder: 'output', key: 'hyd'});
@@ -148,6 +149,7 @@ function updateSelection(){
             progressText().innerText = 'Preparing data for the HYD simulation...';
             updateLogHYD(currentProject, progressbar(), progressText(), infoArea(), 10);
         } else if (APP_MODE === 'waq'){ // Check if WAQ simulation is running
+            if (WAQRunning) { alert("Detected a WAQ simulation is running. Please wait until it finishes."); return; }
             const statusRes = await sendQuery('check_sim_status_waq', {projectName: currentProject});
             if (statusRes.status === "running") { alert("WAQ simulation is already running."); return; }
             const res = await sendQuery('check_folder', {projectName: currentProject, folder: waqSelector().value, key: 'waq'});

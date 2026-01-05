@@ -36,6 +36,8 @@ async def check_sim_status_hyd(request: Request, user=Depends(functions.basic_au
     info, logs = processes.get(project_name), []
     if not info: 
         return JSONResponse({"status": "not_started", "progress": 0, "message": 'No simulation running'})
+    if info["status"] == "reorganizing":
+        return JSONResponse({"status": "reorganizing", "progress": 100, "message": 'Reorganizing outputs. Please wait...'})
     if info["status"] == "finished":
         processes.pop(project_name, None)
         return JSONResponse({"status": "finished", "progress": info["progress"], "message": info["message"]})
@@ -109,7 +111,7 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
                 process.wait()
                 if processes[project_name]["status"] != "error":
                     processes[project_name]["progress"] = 100.0
-                    processes[project_name]["message"] = 'Reorganizing outputs. Please wait...'
+                    processes[project_name]["status"] = "reorganizing"
                     post_result = functions.postProcess(path)
                     if not post_result["status"] == "ok":
                         processes[project_name]["status"] = post_result["status"]
