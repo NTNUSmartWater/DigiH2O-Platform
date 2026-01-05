@@ -82,10 +82,10 @@ export async function spatialMapManager() {
             substanceWindowContentMap().innerHTML = ''; substanceWindowMap().style.display = 'flex'; 
             // Add content
             substanceWindowContentMap().innerHTML = data.content.map((substance, i) => {
-                return `<label for="map-${substance[0]}"><input type="radio" name="waq-substance-map" id="map-${substance[0]}"
-                    value="${substance[0]}|${type}" ${i === 0 ? 'checked' : ''}>${substance[1]}</label>`;
+                return `<label for="map-${substance}"><input type="radio" name="waq-substance-map" id="map-${substance}"
+                    value="${data.content[i]}|${type}" ${i === 0 ? 'checked' : ''}>${data.message[i]}</label>`;
             }).join('');
-            const name = data.content[0][0]; colorbarTitle = data.content[0][1];
+            const name = data.content[0]; colorbarTitle = data.message[0];
             if (type === 'single') {
                 newKey = `${name}_waq_single_dynamic`; newQuery = `mesh2d_2d_${name}|${sigmaSelector().value}`;
             } else {

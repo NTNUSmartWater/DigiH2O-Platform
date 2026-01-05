@@ -548,9 +548,14 @@ function initializeProject(){
             option.value = item; option.text = item;
             waqSelector().add(option);
         });
+        if (waqContent.length === 0) { 
+            waqSelector().style.display = 'none'; waqLabel().style.display = 'none';
+            projectCloner().style.display = 'none'; projectDeleter().style.display = 'none';
+        } else { 
+            waqSelector().style.display = 'flex'; waqLabel().style.display = 'flex';
+            projectCloner().style.display = 'flex'; projectDeleter().style.display = 'flex';
+        }
     });
-    waqSelector().addEventListener('change', async () => {
-        projectCreator().click();
-    });    
+    waqSelector().addEventListener('change', async () => { projectCreator().click(); });    
 }
 await getProjectList(); initializeProject(); updateOption();

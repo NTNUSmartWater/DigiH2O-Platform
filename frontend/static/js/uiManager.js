@@ -607,18 +607,15 @@ function timeSeriesManager() {
     document.querySelectorAll('.waq_his').forEach(item => {
         item.addEventListener('click', async() => {
             substanceWindowMap().style.display = 'none';
-            const query = item.dataset.info;
-            console.log(query);
-            const data = await sendQuery('process_data', {query: query, 
+            const data = await sendQuery('process_data', {query: item.dataset.info, 
                 key: 'substance_check', projectName: getState().projectName});
             if (data.status === "error") {alert(data.message); substanceWindowHis().style.display = 'none'; return;}
             substanceWindowContentHis().innerHTML = ''; substanceWindowHis().style.display = 'flex';
             // Add content
-            substanceWindowContentHis().innerHTML = data.message.map((substance, i) => 
+            substanceWindowContentHis().innerHTML = data.content.map((substance, i) => 
                 `<label for="his-${substance}"><input type="radio" name="waq-substance-his" id="his-${substance}"
-                    value="${data.content[i]}" ${i === 0 ? 'checked' : ''}>${data.content[i]}</label>`).join('');
-            console.log(data);
-            hideMap(); plotChart(data.message[0], 'substance', `Substance: ${data.content[0]}`, 'Time', data.content[0]);
+                    value="${data.message[i]}" ${i === 0 ? 'checked' : ''}>${data.message[i]}</label>`).join('');
+            hideMap(); plotChart(data.content[0], 'substance', `Substance: ${data.message[0]}`, 'Time', data.message[0]);
         });
     });
     // Listen to substance selection
