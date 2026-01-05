@@ -142,6 +142,8 @@ async def check_sim_status_waq(request: Request, user=Depends(functions.basic_au
     info, logs = processes.get(project_name), []
     if not info:
         return JSONResponse({"status": "not_started", "progress": 0, "message": 'Simulation not started yet'})
+    if info["status"] == "reorganizing":
+        return JSONResponse({"status": "reorganizing", "progress": 100, "message": 'Reorganizing outputs. Please wait...'})
     if info["status"] == "finished":
         processes.pop(project_name, None)
         return JSONResponse({"status": "finished", "progress": info["progress"], "message": info["message"]})
@@ -255,7 +257,6 @@ async def run_waq_simulation(project_name, waq_name):
                 return
         # Run Simulation and get output
         inp_name = os.path.basename(inp_file)
-        print(inp_name, inp_file, output_folder)
         progress_regex = re.compile(r"(\d+(?:\.\d+)?)% Completed")
         command = [bat_path, inp_name, "-p", proc_path.replace(".def", ""), "-eco", bloom_path]
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -287,7 +288,7 @@ async def run_waq_simulation(project_name, waq_name):
                 if processes[project_name]["status"] != "error":
                     try:
                         processes[project_name]["progress"] = 100.0
-                        processes[project_name]["message"] = 'Reorganizing outputs. Please wait...'
+                        processes[project_name]["status"] = "reorganizing"
                         output_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "output"))
                         if not os.path.exists(output_dir): os.makedirs(output_dir)
                         output_WAQ_dir = os.path.normpath(os.path.join(output_dir, 'WAQ'))
@@ -314,7 +315,7 @@ async def run_waq_simulation(project_name, waq_name):
                         # Delete folder
                         if os.path.exists(wq_folder): shutil.rmtree(wq_folder, onerror=functions.remove_readonly)
                         processes[project_name]["status"] = "finished"
-                        processes[project_name]["message"] = f"Simulation completed successfully."
+                        processes[project_name]["message"] = f"Simulation completed successfully"
                         log_file.write(f"\n=== Simulation {project_name} completed successfully ===")
                         log_file.flush(); log_file.close()
                     except Exception as e:
