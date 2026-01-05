@@ -413,14 +413,21 @@ async def delete_file(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
         project_name = functions.project_definer(body.get('projectName'), user)
-        project_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'output', 'scenarios'))
+        scenario_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'output', 'scenarios'))
+        waq_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'output', 'WAQ'))
         redis, file = request.app.state.redis, body.get('name')
         extend_task, lock = None, redis.lock(f"{project_name}:delete_file", timeout=300)
         async with lock:
             extend_task = asyncio.create_task(functions.auto_extend(lock))
-            file_name = os.path.normpath(os.path.join(project_folder, f"{file}.json"))
+            file_name = os.path.normpath(os.path.join(scenario_folder, f"{file}.json"))
             if not os.path.exists(file_name): 
                 return JSONResponse({"status": 'error', "message": f"Path '{file_name}' does not exist."})
+            if os.path.exists(waq_folder):
+                waq_files = [f for f in os.listdir(waq_folder) if file in f]
+                if len(waq_files) > 0:
+                    for f in waq_files:
+                        temp_path = os.path.normpath(os.path.join(waq_folder, f))
+                        functions.safe_remove(temp_path) if f.endswith('.json') else shutil.rmtree(temp_path)
             functions.safe_remove(file_name)
             return JSONResponse({"message": f"Scenario '{file}' was deleted successfully!"})
     except Exception as e:

@@ -35,11 +35,12 @@ async def process_internal(query: str, key: str, redis, project_cache, project_n
     elif key == 'substance_check':
         substance_raw = await redis.hget(project_name, 'config')
         substance = msgpack.unpackb(substance_raw, raw=False)[query]
-        if len(substance) > 0: data, message = sorted(substance), functions.valueToKeyConverter(substance)
+        if len(substance) > 0: 
+            data = sorted(substance)
+            message = functions.valueToKeyConverter(data)
         else: data, message = None, f"No substance defined."
-        print('Substance check:', data, message)
     elif key == 'substance':
-        temp = functions.timeseriesCreator(project_cache.get("waq_his"), query.split(' ')[0], timeColumn='nTimesDlwq')
+        temp = functions.timeseriesCreator(project_cache.get("waq_his"), query, timeColumn='nTimesDlwq')
         data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
     elif key == 'static':
         # Create static data for map
@@ -86,6 +87,7 @@ async def load_general_dynamic(request: Request, user=Depends(functions.basic_au
         # Get body data
         body = await request.json()
         redis, query, key = request.app.state.redis, body.get('query'), body.get('key')
+        print('Load general dynamic:', query, key)
         project_name = functions.project_definer(body.get('projectName'), user)
         project_cache = request.app.state.project_cache.setdefault(project_name)
         if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory."})

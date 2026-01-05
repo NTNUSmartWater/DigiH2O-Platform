@@ -162,9 +162,9 @@ units = {
     'RcDecTR2': 'Decay rate tracer2 for AGE calculations (1/day)',
     'RcDecTR3': 'Decay rate tracer3 for AGE calculations (1/day)',
     # 1.2. Suspended Sediment
-    'IM1': 'Inorganic Matter (IM1) (gDM/m³)', 'IM1S1': 'IM in layer S1 (g/m²)',
-    'IM2': 'Inorganic Matter (IM2) (gDM/m³)', 'IM2S1': 'IM in layer S1 (g/m²)',
-    'IM3': 'Inorganic Matter (IM3) (gDM/m³)', 'IM3S1': 'IM in layer S1 (g/m²)',
+    'IM1': 'Inorganic Matter (IM1) (gDM/m³)', 'IM1S1': 'IM1 in layer S1 (g/m²)',
+    'IM2': 'Inorganic Matter (IM2) (gDM/m³)', 'IM2S1': 'IM2 in layer S1 (g/m²)',
+    'IM3': 'Inorganic Matter (IM3) (gDM/m³)', 'IM3S1': 'IM3 in layer S1 (g/m²)',
     'VSedIM1': 'Sedimentation velocity IM1 (m/day)', 'TaucSIM1': 'Critical shear stress for sedimentation IM1 (N/m²)',
     'VSedIM2': 'Sedimentation velocity IM2 (m/day)', 'TaucSIM2': 'Critical shear stress for sedimentation IM2 (N/m²)',
     'VSedIM3': 'Sedimentation velocity IM3 (m/day)', 'TaucSIM3': 'Critical shear stress for sedimentation IM3 (N/m²)',
@@ -527,7 +527,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
                     item1 = item.replace('mesh2d_', '').replace('2d_', '')
                     if checkVariables(data, item): 
                         elements_check = {x[0] for x in result['waq_map_conservative_selector']}
-                        if item1 not in elements_check: result['waq_map_conservative_selector'].append(item)
+                        if item1 not in elements_check: result['waq_map_conservative_selector'].append(item1)
                 result['waq_map_conservative_selector'] = list(dict.fromkeys(result['waq_map_conservative_selector']))
                 if len(result['waq_map_conservative_selector']) > 0:
                     result['wq_map'] = result['waq_map_conservative_decay'] = result['thermocline_waq'] = True              
@@ -632,10 +632,7 @@ def valueToKeyConverter(values: list, dict: dict=units) -> list:
     if not isinstance(values, list): values = [values]
     result = []
     for value in values:
-        for key, val in dict.items():
-            if value == val:
-                result.append(key)
-                break
+        result.append(dict.get(value, value))
     return result
 
 def dialogReader(dialog_file: str) -> dict:
