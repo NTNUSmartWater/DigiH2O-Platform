@@ -1,5 +1,5 @@
 import shapely, os, re, shutil, stat, json, asyncio
-import base64, time, subprocess, signal, chardet
+import base64, time, subprocess, signal, chardet, math
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
@@ -171,7 +171,7 @@ units = {
     'TaucRS1DM': 'Critical shear stress for resuspension DM layer S1 (N/m²)',
     # 2. Chemical 
     # 2.1. Simple Oxygen
-    'NH4': 'Ammonium (g/m³)', 'CBOD5': 'Carbonaceous BOD (g/m³)',
+    'NH4': 'Ammonium (g/m³)', 'CBOD5': 'Carbonaceous BOD (g/m³)', 'DO': 'Dissolved Oxygen concentration (g/m³)',
     'OXY': 'Dissolved Oxygen (g/m³)', 'SOD': 'Sediment Oxygen Demand (g/m²)',
     'RcNit': 'First-order Nitrification Rate (1/day)', 'RcBOD': 'Decay rate BOD (first pool) at 20°C (1/day)',
     'COXBOD': 'Critical oxygen concentration for BOD decay (g/m³)', 'OOXBOD': 'Optimum Oxygen concentration for BOD decay (g/m³)',
@@ -240,24 +240,12 @@ units = {
     'KZnSSW': 'Partitioncoeff. Zn on SS (m³/gSSW)', 'NIsulf': 'Constant conc. Ni-Sulfide precipitate (g/m³)', 'Pbsulf': 'Constant conc. Pb-Sulfide precipitate (g/m³)',
     'POR': 'Porosity', 'RHOANO': 'Density of organic matter (g/m³)', 'RHOORG': 'Density of inorganic matter (g/m³)', 'Vsp': 'Sedimentatiesnelheid algen (m/day)',
     'Vss': 'Sedimentatiesnelheid SS (m/day)', 'Vsn': 'Sedimentatiesnelheid organische stof (m/day)', 'Znsulf': 'Constant conc. Zn-Sulfide precipitate (g/m³)',
-    'pHb': 'Zuurgraad waterbodem (pH)', 'PAOC': 'AOC productiesnelheid (g/m³/day)', 'Fres': 'Resuspensie flux (g/m²/day)', 'ASatm': 'Gedistribueerde bron As (g/m²/day)',
-    'CUatm': 'Gedistribueerde bron Cu (g/m²/day)', 'NIatm': 'Gedistribueerde bron Ni (g/m²/day)', 'PBatm': 'Gedistribueerde bron Pb (g/m²/day)',
-    'ZNatm': 'Gedistribueerde bron Zn (g/m²/day)',
-
-
-
-
-
-
-
-
-
-
-
-
+    'pHb': 'Zuurgraad waterbodem (pH)', 'PAOC': 'AOC productiesnelheid (g/m³/day)', 'Fres': 'Resuspensie flux (g/m²/day)',
+    'ASatm': 'Gedistribueerde bron As (g/m²/day)', 'CUatm': 'Gedistribueerde bron Cu (g/m²/day)', 'NIatm': 'Gedistribueerde bron Ni (g/m²/day)',
+    'PBatm': 'Gedistribueerde bron Pb (g/m²/day)', 'ZNatm': 'Gedistribueerde bron Zn (g/m²/day)',
     # 3. Microbial
     # 3.1. Coliform Bacteria
-    'Salinity': 'Salinity (g/kg)', 'EColi': 'E. Coli Bacteria (MPN/m³)', 'RcMrtEColi': 'First-order mortality rate E.Coli (1/day)',
+    'Salinity': 'Salinity (g/kg)', 'EColi': 'E.Coli bacteria (MPN/m³)', 'RcMrtEColi': 'First-order mortality rate E.Coli (1/day)',
     'ExtVl': 'Total extinction coefficient visible light (1/m)', 'DayRadSurf': 'Irradiation at the water surface (W/m²)',
     # 4. Water Quality - General
     'volume': 'Volume (m³)'
@@ -330,6 +318,7 @@ def checkVariables(data: xr.Dataset, variablesNames: str) -> bool:
     if np.isnan(var.data.compute()).all(): return False
     # Check if min and max are the same value
     vmin, vmax = var.min(skipna=True).compute(), var.max(skipna=True).compute()
+    if float(vmin) < 0 and float(vmax) < 0: return False
     return bool(float(vmin) != float(vmax))
 
 def getVariablesNames(Out_files: list, model_type: str='') -> dict:
