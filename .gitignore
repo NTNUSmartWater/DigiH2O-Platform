@@ -10,6 +10,8 @@ logs
 Variable_names.txt
 *.jpg
 *.ipynb
+output.csv
+points.json
 
 # Additional files
 *.pyc
