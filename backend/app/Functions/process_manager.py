@@ -87,7 +87,6 @@ async def load_general_dynamic(request: Request, user=Depends(functions.basic_au
         # Get body data
         body = await request.json()
         redis, query, key = request.app.state.redis, body.get('query'), body.get('key')
-        print('Load general dynamic:', query, key)
         project_name = functions.project_definer(body.get('projectName'), user)
         project_cache = request.app.state.project_cache.setdefault(project_name)
         if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory."})
@@ -203,12 +202,11 @@ async def select_meshes(request: Request, user=Depends(functions.basic_auth)):
         project_cache = request.app.state.project_cache.setdefault(project_name)
         if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory."})
         hyd_map, waq_map = project_cache.get("hyd_map"), project_cache.get("waq_map")
-        extend_task, lock = None, redis.lock(f"{project_name}:select_meshes", timeout=20)
+        lock = redis.lock(f"{project_name}:select_meshes", timeout=20)
         is_hyd = key == 'hyd'
         dataset_type = "hyd" if is_hyd else "waq"
         mesh_cache_key = f"{project_name}:mesh_cache:{dataset_type}"        
         async with lock:
-            extend_task = asyncio.create_task(functions.auto_extend(lock))
             if '_waq_multi_dynamic' in query: query = 'mesh2d_' + query[:-len('_waq_multi_dynamic')]
             data_ds = hyd_map if is_hyd else waq_map
             name = functions.variablesNames.get(query, query)
@@ -257,11 +255,6 @@ async def select_meshes(request: Request, user=Depends(functions.basic_auth)):
         print('/select_meshes:\n==============')
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
-    finally:
-        if extend_task:
-            extend_task.cancel()
-            try: await extend_task
-            except asyncio.CancelledError: pass
 
 # Working with thermocline plots
 @router.post("/select_thermocline")

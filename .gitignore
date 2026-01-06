@@ -9,7 +9,6 @@ logs
 # Files
 Variable_names.txt
 *.jpg
-*.csv
 *.ipynb
 
 # Additional files
