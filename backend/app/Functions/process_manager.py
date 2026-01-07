@@ -235,7 +235,7 @@ async def select_meshes(request: Request, user=Depends(functions.basic_auth)):
                 gdf_filtered = gpd.sjoin(gdf, grid, how="left", predicate="intersects")
                 gdf_filtered.set_index('index_right', inplace=True)
                 df_serialized = gdf_filtered.drop(columns=['geometry'])
-                mesh_cache["df"] = df_serialized.to_dict(orient='list')
+                mesh_cache["df"] = df_serialized.to_dict(orient='split')
                 # Compute frame in thread to avoid blocking
                 frame = await asyncio.to_thread(functions.meshProcess, is_hyd, arr, mesh_cache)
                 vmin, vmax = fnm(np.nanmin(frame)).tolist(), fnm(np.nanmax(frame)).tolist()
