@@ -1,5 +1,4 @@
 import { loadList } from './utils.js';
-import { sendQuery } from './tableManager.js';
 
 const projectSelector = () => document.getElementById("project");
 const hydOptions = () => document.getElementById("hyd-option");

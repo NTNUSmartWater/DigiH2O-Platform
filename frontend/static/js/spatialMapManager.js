@@ -1,5 +1,5 @@
-import { plot2DMapStatic, plot2DVectorMap, plot2DMapDynamic } from "./map2DManager.js";
-import { timeControl, colorbar_container, colorbar_vector_container } from "./map2DManager.js";
+import { plot2DMapStatic, plot2DVectorMap, plot2DMapDynamic, 
+    timeControl, colorbar_container, colorbar_vector_container } from "./map2DManager.js";
 import { map } from './mapManager.js';
 import { initOptions } from './utils.js';
 import { setState, getState } from './constants.js';

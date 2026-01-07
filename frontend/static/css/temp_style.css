@@ -178,7 +178,7 @@ html, body {
 }
 
 #substance-window-his, #substance-window-map {
-  position: fixed; top: 60px; left: 250px; width: fit-content; height: fit-content;
+  position: fixed; top: 60px; left: calc(100% - 430px); width: fit-content; height: fit-content;
   z-index: 2000; background-color: #b9bbbd; border-radius: 10px; margin: 10px;
   display: none; flex-direction: column; overflow: auto; max-height: 300px; resize: both;
 }
