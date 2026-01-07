@@ -3,7 +3,6 @@ import base64, time, subprocess, signal, chardet
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
-from scipy.interpolate import griddata, Rbf
 from scipy.ndimage import distance_transform_edt, gaussian_filter
 from config import PROJECT_STATIC_ROOT, ALLOWED_USERS_PATH
 from redis.asyncio.lock import Lock
@@ -973,7 +972,8 @@ def interpolation_Z(grid_net: gpd.GeoDataFrame, x_coords: np.ndarray, y_coords: 
         z_values: np.ndarray, n_neighbors: int=2, geo_type: str='polygon') -> np.ndarray:
     """
     Interpolate or extrapolate z values for grid from known points
-    using Inverse Distance Weighting (IDW) method.
+    using Inverse Distance Weighting (IDW) method 
+    (in a 'plane' coordinate system like EPSG:32632 - WGS 84 / UTM zone 32N).
 
     Parameters:
     ----------
@@ -1259,68 +1259,26 @@ def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
         The smoothed values.
     """
     cache_copy = cache.copy()
-    df, n_rows = pd.DataFrame(cache_copy["df"]), cache_copy["n_rows"]
+    data = cache_copy["df"]
+    df = pd.DataFrame(data=data["data"], columns=data["columns"], index=data["index"])
     df_depth = np.array(df["depth"].values, dtype=float)
-    df_depth_rounded = abs(np.round(df_depth, 0))
     depth_values = np.array(cache_copy["depth_values"], dtype=float)
-    depth_rounded = abs(np.round(depth_values, 0))
-    index_map = {int(v): len(depth_rounded)-i-1 for i, v in enumerate(depth_rounded)}
+    depth_rounded, n_rows = abs(np.round(depth_values, 0)), cache_copy["n_rows"]
+    index_map = {int(v): len(depth_rounded) - i - 1 for i, v in enumerate(depth_rounded)}
     # Pre-allocate frame
     frame = np.full((len(df), abs(n_rows)), np.nan, float)
     values_filtered = arr[df.index.values, :] if is_hyd else arr[:, df.index.values]
-    for i in range(abs(n_rows)):
-        mask_depth = ((df['depth'].values <= -i) & (i in depth_rounded))
-        row_idx = np.where(mask_depth)[0]
-        if len(row_idx) > 0: frame[row_idx, i] = values_filtered[row_idx, index_map[i]]
-    #     # Define value for max row
-    #     if i in df_depth_rounded:
-    #         pos_row = np.where(df_depth_rounded == i)[0]
-    #         best_idx = np.argmax(np.where(depth_rounded <= i)[0])
-    #         vals = values_filtered[pos_row, best_idx]
-    #         if np.isnan(vals).any():
-    #             temp_vals = []
-    #             for idx, v in enumerate(vals):
-    #                 if np.isnan(v):
-    #                     count = best_idx + 1
-    #                     while count <= len(depth_rounded) - 1:
-    #                         v = values_filtered[pos_row[idx], count]
-    #                         if not np.isnan(v): break
-    #                         count += 1
-    #                 temp_vals.append(v)
-    #             temp_vals = np.array(temp_vals)
-    #         else: temp_vals = vals
-    #         frame[pos_row, i] = temp_vals
-    # frame[:, 0] = frame[:, int(depth_rounded[0])]  # Fill the first column
-    # # Interpolate
-    # mask_valid = -np.arange(abs(n_rows))[None, :] >= df_depth[:, None]
-    # x_idx, y_idx = np.where(~np.isnan(frame))
-    # if len(x_idx) > 0:
-    #     vals = frame[x_idx, y_idx]
-    #     # If only one point, use that value for the whole grid cell
-    #     if not (vals.min() == vals.max()):
-    #         grid_x, grid_y = np.indices(frame.shape)          
-    #         # rbf = Rbf(x_idx, y_idx, vals, function='cubic')
-    #         # frame = rbf(grid_x, grid_y)
-    #         frame = griddata(points=np.column_stack([x_idx, y_idx]), 
-    #                         values=vals, xi=(grid_x, grid_y), method='cubic')
-    #     else: frame[:, :] = vals.min()
-
-    x = np.arange(frame.shape[1])
-    y = np.arange(frame.shape[0])
-    X, Y = np.meshgrid(x, y)
+    depth_int = depth_rounded.astype(int)
+    valid_depth = np.unique(depth_int[depth_int < abs(n_rows)])
+    col_idx = np.array([index_map[d] for d in valid_depth])
+    mask = df_depth[:, None] <= -valid_depth[None, :]
+    vals = values_filtered[:, col_idx]
+    frame[:, valid_depth] = np.where(mask, vals, frame[:, valid_depth])
+    # Interpolate and fill missing values row-wise
     mask = ~np.isnan(frame)
-    points = np.column_stack((X[mask], Y[mask]))
-    # k, power = 6, 2
-    # tree = cKDTree(points)
-    # dist, idx = tree.query(np.c_[X.ravel(), Y.ravel()], k=k, workers=-1)
-    # dist[dist == 0] = 1e-12
-    # weights = 1.0 / dist**power
-    # Z_idw = np.sum(weights * values[idx], axis=1) / np.sum(weights, axis=1)
-    # frame = Z_idw.reshape(X.shape)
-    values = frame[mask]
-    frame = griddata(points, values, (X, Y), method='nearest')
-    
-    
+    _, (ix, iy) = distance_transform_edt(~mask, return_indices=True)
+    frame_filled = gaussian_filter(frame[ix, iy], sigma=(1.2, 0.6))
+    frame = np.clip(frame_filled, 0, None)
     mask_valid = -np.arange(abs(n_rows))[None, :] >= df_depth[:, None]
     max_row = np.max(np.where(mask_valid.T)[0])
     frame[~mask_valid] = np.nan
@@ -1357,12 +1315,3 @@ def kill_process(process):
         return {"status": "ok", "message": "Simulation force killed"}
     except Exception as e: 
         return {"status": "error", "message": str(e)}
-
-
-# fig, ax = plt.subplots(figsize=(10, 5))
-# im = ax.imshow(smoothed_transpose, origin='lower', cmap='viridis')
-# ax.invert_yaxis()
-# cbar = plt.colorbar(im, ax=ax, shrink=0.7)
-# cbar.set_label('Value')
-# plt.title('Heatmap')
-# plt.show()
