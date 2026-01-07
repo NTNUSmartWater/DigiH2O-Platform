@@ -41,8 +41,7 @@ const simulationCloseBtn = () => document.getElementById('closeSimulationWindow'
 const mapContainer = () => map.getContainer();
 
 initializeMap(); baseMapButtonFunctionality(); plotEvents(); initializeMenu();
-projectChecker(); initializeMenu(); updateEvents(); openDemoProject('demo');
-await login();
+projectChecker(); updateEvents(); openDemoProject('demo'); await login();
 
 async function login() {
     const data = await sendQuery('auth_check', {});
@@ -530,8 +529,7 @@ function updateEvents() {
             crosssectionContainer.push({ lat: e.latlng.lat, lng: e.latlng.lng });
             // Plot line
             const latlngs = crosssectionContainer.map(p => [p.lat, p.lng]);
-            if (pathLineCrosssection) {
-                pathLineCrosssection.setLatLngs(latlngs);
+            if (pathLineCrosssection) { pathLineCrosssection.setLatLngs(latlngs);
             } else {
                 pathLineCrosssection = L.polyline(latlngs, {
                     color: 'orange', weight: 2, dashArray: '5,5'
@@ -547,8 +545,7 @@ function updateEvents() {
             boundaryContainer.push({ lat: e.latlng.lat, lng: e.latlng.lng });  // Add point
             // Plot line
             const latlngs = boundaryContainer.map(p => [p.lat, p.lng]);
-            if (pathLineBoundary) {
-                pathLineBoundary.setLatLngs(latlngs);
+            if (pathLineBoundary) { pathLineBoundary.setLatLngs(latlngs);
             } else {
                 pathLineBoundary = L.polyline(latlngs, {
                     color: 'orange', weight: 2, dashArray: '5,5'

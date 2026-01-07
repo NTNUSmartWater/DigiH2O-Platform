@@ -320,36 +320,6 @@ export function plotProfileMultiLayer(key, query, data, title, unit) {
     // Change header title of window
     profileWindowHeader().childNodes[0].nodeValue = 'Profile Plot';
     // Update a single frame
-    // async function updateFrame(index) {
-    //     if (myToken !== animationToken) return;
-    //     const queryContents = { key: key, query: query, idx: index, projectName: getState().projectName };
-    //     const data = await sendQuery('select_meshes', queryContents);
-    //     if (data.status === "error") { 
-    //         alert(data.message); animating = false;
-    //         playPauseBtn().textContent = '▶ Play'; return;
-    //     }
-    //     const { values, local_minmax } = data.content;
-    //     minValue().value = valueFormatter(local_minmax[0], 1e-3); 
-    //     maxValue().value = valueFormatter(local_minmax[1], 1e-3);
-    //     nColors = parseInt(colorCombo().value);
-    //     const discreteColors = getColors(nColors);
-    //     const colorScale = [], step = 1 / nColors;
-    //     for (let i = 0; i < nColors; i++) {
-    //         colorScale.push([i * step, discreteColors[i]]);
-    //         colorScale.push([(i + 1) * step, discreteColors[i]]);
-    //     }
-    //     // Update the frame
-    //     colorTicks = colorbarTicks(local_minmax[0], local_minmax[1], nColors);
-    //     colorTickLabels = colorTicks.map(v => valueFormatter(v, 1e-3));
-    //     await Plotly.update(chartDivProfile(), { z: [values], zmin: [local_minmax[0]], 
-    //         zmax: [local_minmax[1]], colorscale: [colorScale], showscale: [true], 
-    //         colorbar: [{ title: { text: unit, font: { color: 'black' } }, tickvals: colorTicks, 
-    //             ticktext: colorTickLabels, tickfont: { color: 'black' } }]
-    //     }, {}, [0]);
-    //     // Update time slider
-    //     timeSlider().value = index; timeLabel().textContent = `Time: ${timestamps[index]}`;
-    // }
-
     async function updateFrame(index) {
         if (myToken !== animationToken) return;
         const queryContents = { key: key, query: query, idx: index, projectName: getState().projectName };
@@ -359,9 +329,6 @@ export function plotProfileMultiLayer(key, query, data, title, unit) {
             playPauseBtn().textContent = '▶ Play'; return;
         }
         const { values, local_minmax } = data.content;
-        const logValues = logTransform2D(values, 1e-12);
-        const logMin = Math.log10(Math.max(local_minmax[0], 1e-12));
-        const logMax = Math.log10(Math.max(local_minmax[1], 1e-12));
         minValue().value = valueFormatter(local_minmax[0], 1e-3); 
         maxValue().value = valueFormatter(local_minmax[1], 1e-3);
         nColors = parseInt(colorCombo().value);
@@ -372,11 +339,11 @@ export function plotProfileMultiLayer(key, query, data, title, unit) {
             colorScale.push([(i + 1) * step, discreteColors[i]]);
         }
         // Update the frame
-        colorTicks = colorbarTicksLog(local_minmax[0], local_minmax[1], nColors);
-        colorTickLabels = colorTicks.map(v => valueFormatter(Math.pow(10, v), 1e-3));
-        await Plotly.update(chartDivProfile(), { z: [logValues], zmin: [logMin], 
-            zmax: [logMax], colorscale: [colorScale], showscale: [true], 
-            colorbar: [{ title: { text: unit, font: { color: 'black' } }, tickvals: logTicks, 
+        colorTicks = colorbarTicks(local_minmax[0], local_minmax[1], nColors);
+        colorTickLabels = colorTicks.map(v => valueFormatter(v, 1e-3));
+        await Plotly.update(chartDivProfile(), { z: [values], zmin: [local_minmax[0]], 
+            zmax: [local_minmax[1]], colorscale: [colorScale], showscale: [true], 
+            colorbar: [{ title: { text: unit, font: { color: 'black' } }, tickvals: colorTicks, 
                 ticktext: colorTickLabels, tickfont: { color: 'black' } }]
         }, {}, [0]);
         // Update time slider
@@ -428,175 +395,68 @@ function resetAnimation(e) {
     else { frameIndex = 0; }
 }
 
-
-function logTransform2D(values, eps = 1e-12) {
-    return values.map(row =>
-        row.map(v => Math.log10(Math.max(v, eps)))
-    );
-}
-function colorbarTicksLog(min, max, numStops) {
-    const eps = 1e-12;
-    min = Math.max(min, eps);
-    max = Math.max(max, eps);
-
-    const logMin = Math.log10(min);
-    const logMax = Math.log10(max);
-
-    const ticks = [];
-    for (let i = 0; i < numStops; i++) {
-        const t = i / (numStops - 1);
-        ticks.push(logMin + t * (logMax - logMin));
-    }
-    return ticks;
-}
-
-function renderPlot(plotDiv, distance, depths, values,
-                    vmin, vmax, nColors, title, unit) {
-    // === Log transform data ===
-    const logValues = logTransform2D(values);
-    const logVmin = Math.log10(Math.max(vmin, 1e-12));
-    const logVmax = Math.log10(Math.max(vmax, 1e-12));
-    // === Discrete colors ===
+function renderPlot(plotDiv, distance, depths, values, vmin, vmax, nColors, title, unit){
     const discreteColors = getColors(nColors);
-    const colorScale = [];
-    const step = 1 / nColors;
+    const xLabels = distance.map(String), reversedDepths = [...depths];
+    const reverseDepth = reversedDepths.every(d => d >= 0);
+    // Build colorScale for Plotly (discrete)
+    const colorScale = [], step = 1 / nColors;
     for (let i = 0; i < nColors; i++) {
         colorScale.push([i * step, discreteColors[i]]);
         colorScale.push([(i + 1) * step, discreteColors[i]]);
     }
-    // === Axes ===
-    const xLabels = distance.map(String);
-    const reversedDepths = [...depths];
-    const reverseDepth = reversedDepths.every(d => d >= 0);
-    // === Reduce X ticks if too many ===
+    // === Layout ===
     let tickvals = xLabels, ticktext = xLabels;
     const maxXTicks = 20;
     if (xLabels.length > maxXTicks) {
-        const s = Math.ceil(xLabels.length / maxXTicks);
-        tickvals = xLabels.filter((_, i) => i % s === 0);
+        const step = Math.ceil(xLabels.length / maxXTicks);
+        tickvals = xLabels.filter((_, i) => i % step === 0);
         ticktext = tickvals;
     }
-    // === Colorbar ticks (LOG) ===
-    const logTicks = colorbarTicksLog(vmin, vmax, nColors);
-    const tickLabels = logTicks.map(v =>
-        valueFormatter(Math.pow(10, v), 1e-3)
-    );
-    // === Layout ===
-    const layout = {
-        title: { text: title, font: { color: 'black', size: 20, weight: 'bold' } },
-        paper_bgcolor: '#c2bdbdff',
-        plot_bgcolor: '#c2bdbdff',
-        margin: { l: 70, r: 60, t: 50, b: 50 },
+    const layout = { title: { text: title, font: { color: 'black', weight: 'bold', size: 20 } },
+        paper_bgcolor: '#c2bdbdff', plot_bgcolor: '#c2bdbdff',
         xaxis: {
-            title: { text: 'Distance (m)', font: { color: 'black' } },
-            type: 'category', tickmode: 'array', tickvals, ticktext,
-            showgrid: false, showline: true, linewidth: 1,
-            linecolor: 'black', tickfont: { color: 'black' }
+            title: {text: 'Distance (m)', font: { color: 'black' }}, 
+            type: 'category', automargin: true, mirror: true, tickmode: 'array',
+            showgrid: false, tickvals: tickvals, ticktext: ticktext,
+            showline: true, linewidth: 1, linecolor: 'black', tickfont: { color: 'black' }
         },
         yaxis: {
-            title: { text: 'Depth (m)', font: { color: 'black' } },
-            autorange: reverseDepth ? 'reversed' : true, showgrid: false,
-            showline: true, linewidth: 1, linecolor: 'black', tickfont: { color: 'black' }
-        }
+            title: {text: 'Depth (m)', font: { color: 'black' }}, autorange: reverseDepth ? 'reversed' : true,
+            mirror: true, showline: true, linewidth: 1, linecolor: 'black', 
+            showgrid: false, tickfont: { color: 'black' }, tickmode: 'auto'
+        },
+        margin: { l: 70, r: true ? 60 : 20, t: 50, b: 50 }
     };
     const config = {
-        responsive: true, displaylogo: false,
-        displayModeBar: true, modeBarButtonsToRemove: ['lasso2d', 'select2d']
+        responsive: true, displaylogo: false, displayModeBar: true,
+        modeBarButtonsToRemove: ['lasso2d', 'select2d']
     };
+    // Generate colorbar ticks
+    colorTicks = colorbarTicks(vmin, vmax, nColors);
+    colorTickLabels = colorTicks.map(v => valueFormatter(v, 1e-3));
     // === Plot ===
     Plotly.purge(plotDiv);
     Plotly.newPlot(plotDiv, [{
-        type: 'heatmap', z: logValues, x: xLabels, y: reversedDepths, zmin: logVmin,
-        zmax: logVmax, colorscale: colorScale, zsmooth: 'best', showscale: true,
+        z: values, x: xLabels, y: reversedDepths, type: 'heatmap', zsmooth: 'best',
+        colorscale: colorScale, zmin: vmin, zmax: vmax, showscale: true,
         colorbar: {
-            title: { text: unit, font: { color: 'black' } },
-            tickvals: logTicks,
-            ticktext: tickLabels,
-            tickfont: { color: 'black' }
+            title: { text: unit, font: { color: 'black' }}, tickfont: { color: 'black' },
+            tickvals: colorTicks, ticktext: colorTickLabels
         }
     }], layout, config).then(() => {
-        const ro = new ResizeObserver(() => Plotly.Plots.resize(plotDiv));
-        ro.observe(plotDiv);
-        return ro;
+        const resizeObserver = new ResizeObserver(() => Plotly.Plots.resize(plotDiv));
+        resizeObserver.observe(plotDiv);
+        return resizeObserver;
     });
 }
 
-
-
-
-
-
-
-// function renderPlot(plotDiv, distance, depths, values, vmin, vmax, nColors, title, unit){
-//     const discreteColors = getColors(nColors);
-//     const xLabels = distance.map(String), reversedDepths = [...depths];
-//     const reverseDepth = reversedDepths.every(d => d >= 0);
-//     // Build colorScale for Plotly (discrete)
-//     const colorScale = [], step = 1 / nColors;
-//     for (let i = 0; i < nColors; i++) {
-//         colorScale.push([i * step, discreteColors[i]]);
-//         colorScale.push([(i + 1) * step, discreteColors[i]]);
-//     }
-//     // === Layout ===
-//     let tickvals = xLabels, ticktext = xLabels;
-//     const maxXTicks = 20;
-//     if (xLabels.length > maxXTicks) {
-//         const step = Math.ceil(xLabels.length / maxXTicks);
-//         tickvals = xLabels.filter((_, i) => i % step === 0);
-//         ticktext = tickvals;
-//     }
-//     const layout = { title: { text: title, font: { color: 'black', weight: 'bold', size: 20 } },
-//         paper_bgcolor: '#c2bdbdff', plot_bgcolor: '#c2bdbdff',
-//         xaxis: {
-//             title: {text: 'Distance (m)', font: { color: 'black' }}, 
-//             type: 'category', automargin: true, mirror: true, tickmode: 'array',
-//             showgrid: false, tickvals: tickvals, ticktext: ticktext,
-//             showline: true, linewidth: 1, linecolor: 'black', tickfont: { color: 'black' }
-//         },
-//         yaxis: {
-//             title: {text: 'Depth (m)', font: { color: 'black' }}, autorange: reverseDepth ? 'reversed' : true,
-//             mirror: true, showline: true, linewidth: 1, linecolor: 'black', 
-//             showgrid: false, tickfont: { color: 'black' }, tickmode: 'auto'
-//         },
-//         margin: { l: 70, r: true ? 60 : 20, t: 50, b: 50 }
-//     };
-//     const config = {
-//         responsive: true, displaylogo: false, displayModeBar: true,
-//         modeBarButtonsToRemove: ['lasso2d', 'select2d']
-//     };
-//     // Generate colorbar ticks
-//     colorTicks = colorbarTicks(vmin, vmax, nColors);
-//     colorTickLabels = colorTicks.map(v => valueFormatter(v, 1e-3));
-//     // === Plot ===
-//     Plotly.purge(plotDiv);
-//     Plotly.newPlot(plotDiv, [{
-//         z: values, x: xLabels, y: reversedDepths, type: 'heatmap', zsmooth: 'best',
-//         colorscale: colorScale, zmin: vmin, zmax: vmax, showscale: true,
-//         colorbar: {
-//             title: { text: unit, font: { color: 'black' }}, tickfont: { color: 'black' },
-//             tickvals: colorTicks, ticktext: colorTickLabels
-//         }
-//     }], layout, config).then(() => {
-//         const resizeObserver = new ResizeObserver(() => Plotly.Plots.resize(plotDiv));
-//         resizeObserver.observe(plotDiv);
-//         return resizeObserver;
-//     });
-// }
-
 function colorbarTicks(min, max, numStops){
-    const epsilon = 1e-6, minDiff = Math.abs(max - min);
     if (Math.abs(max - min) < 1e-4) return [min];
-    const ticks = [];
-    if (minDiff < 1e-2) max = min + 1e-2;
+    if (Math.abs(max - min) < 1e-2) { max = min + 1e-2; }
+    const ticks = [], step = (max - min) / (numStops - 1);
     for (let i = 0; i < numStops; i++) {
-        const t = i / (numStops - 1);
-        let value;
-        if (min + epsilon > 0 && max + epsilon > 0) {
-            const logMin = Math.log(min + epsilon);
-            const logMax = Math.log(max + epsilon);
-            value = Math.exp(logMin + t * (logMax - logMin));
-        } else { value = min + t * (max - min); }
-        ticks.push(value);
+        ticks.push(min + i * step);
     }
     return ticks;
 }
