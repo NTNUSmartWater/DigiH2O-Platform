@@ -205,7 +205,7 @@ async def select_meshes(request: Request, user=Depends(functions.basic_auth)):
         lock = redis.lock(f"{project_name}:select_meshes", timeout=20)
         is_hyd = key == 'hyd'
         dataset_type = "hyd" if is_hyd else "waq"
-        mesh_cache_key = f"{project_name}:mesh_cache:{dataset_type}"        
+        mesh_cache_key = f"{project_name}:mesh_cache:{dataset_type}"
         async with lock:
             if '_waq_multi_dynamic' in query: query = 'mesh2d_' + query[:-len('_waq_multi_dynamic')]
             data_ds = hyd_map if is_hyd else waq_map
@@ -219,14 +219,14 @@ async def select_meshes(request: Request, user=Depends(functions.basic_auth)):
                 layer_reverse = msgpack.unpackb(layer_reverse_raw, raw=False)
                 depth_values = [float(v.split(' ')[1]) for k, v in layer_reverse.items() if int(k) >= 0]
                 max_layer = float(max(np.array(depth_values), key=abs))
-                n_rows = math.ceil(abs(max_layer)/10)*10 + 1 if max_layer < 0 else -(math.ceil(abs(max_layer)/10)*10 + 1)
+                n_rows = math.ceil(abs(max_layer)/10)*10+1 if max_layer < 0 else -(math.ceil(abs(max_layer)/10)*10+1)
                 mesh_cache = { "depth_values": depth_values, "n_rows": n_rows, "df": None}
                 await redis.set(mesh_cache_key, msgpack.packb(mesh_cache, use_bin_type=True), ex=600)
                 time_column = 'time' if is_hyd else 'nTimesDlwq'
                 time_stamps = pd.to_datetime(data_ds[time_column]).strftime('%Y-%m-%d %H:%M:%S').tolist()
-                points_arr, arr = np.array(points), values[0,:,:]
+                arr = values[0,:,:] if is_hyd else values[0,:,:].T
                 # Create GeoDataFrame for interpolation
-                grid = project_cache.get("grid")
+                grid, points_arr = project_cache.get("grid"), np.array(points)
                 x_coords, y_coords = points_arr[:, 2], points_arr[:, 1]
                 gdf = gpd.GeoDataFrame(geometry=gpd.points_from_xy(x_coords, y_coords), crs=grid.crs)
                 gdf['depth'] = functions.interpolation_Z(gdf, hyd_map['mesh2d_node_x'].values, 
@@ -237,7 +237,7 @@ async def select_meshes(request: Request, user=Depends(functions.basic_auth)):
                 df_serialized = gdf_filtered.drop(columns=['geometry'])
                 mesh_cache["df"] = df_serialized.to_dict(orient='split')
                 # Compute frame in thread to avoid blocking
-                frame = await asyncio.to_thread(functions.meshProcess, is_hyd, arr, mesh_cache)
+                frame = await asyncio.to_thread(functions.meshProcess, arr, mesh_cache)
                 vmin, vmax = fnm(np.nanmin(frame)).tolist(), fnm(np.nanmax(frame)).tolist()
                 depths_idx = np.arange(0, frame.shape[0]) if mesh_cache["n_rows"] > 0 else np.arange(0, -frame.shape[0], -1)
                 data = {"timestamps": time_stamps, "distance": np.round(points_arr[:, 0], 0).tolist(),
@@ -246,8 +246,9 @@ async def select_meshes(request: Request, user=Depends(functions.basic_auth)):
             else: # Load next frame
                 raw_cache = await redis.get(mesh_cache_key)
                 if raw_cache is None: return JSONResponse({"status": 'error', "message": "Mesh cache is not initialized."})
-                mesh_cache, arr = msgpack.unpackb(raw_cache, raw=False), values[int(idx),:,:]
-                frame = await asyncio.to_thread(functions.meshProcess, is_hyd, arr, mesh_cache)
+                mesh_cache = msgpack.unpackb(raw_cache, raw=False)
+                arr = values[int(idx),:,:] if is_hyd else values[int(idx),:,:].T
+                frame = await asyncio.to_thread(functions.meshProcess, arr, mesh_cache)
                 vmin, vmax = fnm(np.nanmin(frame)).tolist(), fnm(np.nanmax(frame)).tolist()
                 data = {"values": fnm(frame).tolist(), "local_minmax": [vmin, vmax]}
         return JSONResponse({'content': data, 'status': 'ok'})

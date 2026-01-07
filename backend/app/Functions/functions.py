@@ -962,10 +962,11 @@ def unstructuredGridCreator(data_map: xr.Dataset) -> gpd.GeoDataFrame:
     if 'wgs84' in data_map.variables:
         crs_code = data_map['wgs84'].attrs.get('EPSG_code', 4326)
         grid = gpd.GeoDataFrame(geometry=polygons, crs=crs_code)
-    else:
+    elif 'projected_coordinate_system' in data_map.variables:
         crs_code = data_map['projected_coordinate_system'].attrs.get('EPSG_code', 4326)
         # Convert to WGS84 if not already
         grid = gpd.GeoDataFrame(geometry=polygons, crs=crs_code).to_crs(epsg=4326)
+    else: grid = gpd.GeoDataFrame(geometry=polygons, crs="EPSG:4326")
     return grid
 
 def interpolation_Z(grid_net: gpd.GeoDataFrame, x_coords: np.ndarray, y_coords: np.ndarray,
@@ -1240,7 +1241,7 @@ def postProcess(directory: str) -> dict:
         return {'status': 'ok', 'message': 'Simulation completed successfully'}
     except Exception as e: return {'status': 'error', 'message': str(e)}
 
-def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
+def meshProcess(arr: np.ndarray, cache: dict) -> np.ndarray:
     """
     Optimized mesh processing using vectorization and interp1d interpolation.
 
@@ -1264,10 +1265,10 @@ def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
     df_depth = np.array(df["depth"].values, dtype=float)
     depth_values = np.array(cache_copy["depth_values"], dtype=float)
     depth_rounded, n_rows = abs(np.round(depth_values, 0)), cache_copy["n_rows"]
-    index_map = {int(v): len(depth_rounded) - i - 1 for i, v in enumerate(depth_rounded)}
+    index_map = {int(v): len(depth_rounded)-i-1 for i, v in enumerate(depth_rounded)}
     # Pre-allocate frame
     frame = np.full((len(df), abs(n_rows)), np.nan, float)
-    values_filtered = arr[df.index.values, :] if is_hyd else arr[:, df.index.values]
+    values_filtered = arr[df.index.values, :]
     depth_int = depth_rounded.astype(int)
     valid_depth = np.unique(depth_int[depth_int < abs(n_rows)])
     col_idx = np.array([index_map[d] for d in valid_depth])
