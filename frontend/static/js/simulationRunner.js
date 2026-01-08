@@ -22,11 +22,14 @@ async function sendQuery(functionName, content){
     return data;
 }
 
-function checkboxUpdate(){
+async function checkboxUpdate(){
     if (APP_MODE === 'waq' && scenarioSelector().value !== '') { 
         labelWAQ().style.display = 'flex'; waqSelector().style.display = 'flex'; 
-    } else { labelWAQ().style.display = 'none'; waqSelector().style.display = 'none'; }
+    } else { 
+        labelWAQ().style.display = 'none'; waqSelector().style.display = 'none'; 
+    }
     const show = showCheckbox().checked;
+    if (show && progressText().innerText === 'No simulation running') { infoArea().value = ''; }
     textareaWrapper().style.display = show ? 'block' : 'none';
     height = show ? 250 : 120;
     requestAnimationFrame(() => { window.parent.postMessage({ type: 'resize-simulation', height }, '*'); });
@@ -166,7 +169,7 @@ function updateSelection(){
             infoArea().value = ''; progressbar().value = 0;
             const start = await sendQuery('start_sim_waq', {projectName: currentProject, waqName: waqSelector().value});
             if (start.status === "error") {alert(start.message); return;}
-            updateLogWAQ(currentProject, progressbar(), progressText(), infoArea(), 0.5);
+            updateLogWAQ(currentProject, waqSelector().value, progressbar(), progressText(), infoArea(), 0.5);
         }
     });
 }

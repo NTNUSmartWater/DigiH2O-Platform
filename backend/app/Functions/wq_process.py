@@ -1,4 +1,5 @@
-import os, subprocess, re, shutil, json, asyncio, traceback, threading
+import os, subprocess, re, shutil, json
+import asyncio, traceback, threading, time
 import pandas as pd, numpy as np, xarray as xr
 from fastapi import APIRouter, Request, Depends, Query
 from config import PROJECT_STATIC_ROOT, DELFT_PATH
@@ -139,19 +140,16 @@ async def waq_config_writer(request: Request, user=Depends(functions.basic_auth)
 async def check_sim_status_waq(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
     project_name, _ = functions.project_definer(body.get('projectName'), user)
-    info, logs = processes.get(project_name), []
+    info = processes.get(project_name)
     if not info:
         return JSONResponse({"status": "not_started", "progress": 0, "message": 'Simulation not started yet'})
+    if info["status"] == "finished":
+        return JSONResponse({"status": "finished", "progress": 100,
+            "message": info.get("message", 'Simulation completed successfully')})
     if info["status"] == "reorganizing":
         return JSONResponse({"status": "reorganizing", "progress": 100, "message": 'Reorganizing outputs. Please wait...'})
-    if info["status"] == "finished":
-        processes.pop(project_name, None)
-        return JSONResponse({"status": "finished", "progress": info["progress"], "message": info["message"]})
-    log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log_waq.txt"))
-    if os.path.exists(log_path):
-        with open(log_path, "r", encoding=functions.encoding_detect(log_path), errors="replace") as f:
-            logs = f.read().splitlines()
-    return JSONResponse({"status": info["status"], "progress": info["progress"], "logs": logs, "message": f"Completed: {info['progress']}%"})
+    return JSONResponse({"status": info["status"], "progress": info["progress"],
+        "message": f"WAQ simulation completed: {info['progress']}%"})
 
 @router.get("/sim_log_tail_waq/{project_name}")
 async def sim_log_tail_waq(project_name: str, offset: int = Query(0), log_file: str = Query(""), user=Depends(functions.basic_auth)):
@@ -170,11 +168,14 @@ async def start_sim_waq(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
     project_name, project_id = functions.project_definer(body.get('projectName'), user)
     waq_name = body.get('waqName')
-    if project_name in processes and processes[project_name]["status"] == "running":
-        old = processes[project_name]["status"]
-        if old in ("finished", "error"): processes.pop(project_name)
-        return JSONResponse({"status": old, "message": processes[project_name]["message"]})
-    asyncio.create_task(run_waq_simulation(project_name, waq_name))
+    redis = request.app.state.redis
+    lock = redis.lock(f"{project_id}:{waq_name}", timeout=500, blocking_timeout=10)
+    async with lock:
+        if project_name in processes and processes[project_name]["status"] == "running":
+            old = processes[project_name]["status"]
+            if old in ("finished", "error"): processes.pop(project_name)
+            return JSONResponse({"status": old, "message": processes[project_name]["message"]})
+        asyncio.create_task(run_waq_simulation(project_name, waq_name))
     return JSONResponse({"status": "ok", "message": "Simulation started"})
 
 async def run_waq_simulation(project_name, waq_name):
@@ -295,6 +296,7 @@ async def run_waq_simulation(project_name, waq_name):
                     try:
                         processes[project_name]["progress"] = 100.0
                         processes[project_name]["status"] = "reorganizing"
+                        processes[project_name]["message"] = "Reorganizing outputs. Please wait..."
                         output_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "output"))
                         if not os.path.exists(output_dir): os.makedirs(output_dir)
                         output_WAQ_dir = os.path.normpath(os.path.join(output_dir, 'WAQ'))
@@ -329,6 +331,10 @@ async def run_waq_simulation(project_name, waq_name):
                         processes[project_name]["message"] = str(e)
                         log_file.write(f"Exception: {str(e)}")
                         log_file.flush(); log_file.close()
+                def cleanup_later(ttl=60):
+                    time.sleep(ttl)
+                    processes.pop(project_name, None)
+                threading.Thread(target=cleanup_later, daemon=True).start()
         threading.Thread(target=stream_logs, daemon=True).start()
     except Exception as e:
         processes[project_name]["status"], processes[project_name]["message"] = "error", str(e)
