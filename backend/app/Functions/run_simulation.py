@@ -1,4 +1,4 @@
-import os, subprocess, threading, re
+import os, subprocess, threading, re, time
 from Functions import functions
 from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import JSONResponse
@@ -16,7 +16,7 @@ def append_log(log_path, text):
 @router.post("/check_folder")
 async def check_folder(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name = functions.project_definer(body.get('projectName'), user)
+    project_name, _ = functions.project_definer(body.get('projectName'), user)
     folder, key = body.get('folder'), body.get('key')
     if key == "hyd": path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, folder))
     elif key == "waq":
@@ -32,14 +32,13 @@ async def check_folder(request: Request, user=Depends(functions.basic_auth)):
 @router.post("/check_sim_status_hyd")
 async def check_sim_status_hyd(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name = functions.project_definer(body.get('projectName'), user)
+    project_name, _ = functions.project_definer(body.get('projectName'), user)
     info, logs = processes.get(project_name), []
     if not info: 
         return JSONResponse({"status": "not_started", "progress": 0, "message": 'No simulation running'})
     if info["status"] == "reorganizing":
         return JSONResponse({"status": "reorganizing", "progress": 100, "message": 'Reorganizing outputs. Please wait...'})
     if info["status"] == "finished":
-        processes.pop(project_name, None)
         return JSONResponse({"status": "finished", "progress": info["progress"], "message": info["message"]})
     log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log_hyd.txt"))
     # Read log file
@@ -54,9 +53,9 @@ async def check_sim_status_hyd(request: Request, user=Depends(functions.basic_au
 @router.post("/start_sim_hyd")
 async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name = functions.project_definer(body.get('projectName'), user)
+    project_name, project_id = functions.project_definer(body.get('projectName'), user)
     redis = request.app.state.redis
-    lock = redis.lock(f"{project_name}:sim_hyd", timeout=1000, blocking_timeout=10)
+    lock = redis.lock(f"{project_id}:sim_hyd", timeout=1000, blocking_timeout=10)
     async with lock:
         # Check if simulation already running
         if project_name in processes and processes[project_name]["status"] == "running":
@@ -118,14 +117,20 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
                         processes[project_name]["message"] = post_result["message"]
                     else:
                         processes[project_name]["status"] = "finished"
-                        processes[project_name]["message"] = f"Simulation completed successfully."
-                else: processes[project_name]["message"] = "Simulation terminated due to errors"
+                        processes[project_name]["message"] = "Simulation completed successfully"
+                else: 
+                    processes[project_name]["phase"] = "finished"
+                    processes[project_name]["message"] = "Simulation terminated due to errors"
+                def cleanup_later(ttl=60):
+                    time.sleep(ttl)
+                    processes.pop(project_name, None)
+                threading.Thread(target=cleanup_later, daemon=True).start()
         threading.Thread(target=stream_logs, daemon=True).start()
     return JSONResponse({"status": "ok", "message": f"Simulation {project_name} started"})
 
 @router.get("/sim_log_full/{project_name}")
 async def sim_log_full(project_name: str, log_file: str = Query(""), user=Depends(functions.basic_auth)):
-    project_name = functions.project_definer(project_name, user)
+    project_name, _ = functions.project_definer(project_name, user)
     log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, log_file))
     if not os.path.exists(log_path): return {"content": ""}
     with open(log_path, "r", encoding=functions.encoding_detect(log_path), errors="replace") as f:
@@ -134,7 +139,7 @@ async def sim_log_full(project_name: str, log_file: str = Query(""), user=Depend
 
 @router.get("/sim_log_tail_hyd/{project_name}")
 async def sim_log_tail_hyd(project_name: str, offset: int = Query(0), log_file: str = Query(""), user=Depends(functions.basic_auth)):
-    project_name = functions.project_definer(project_name, user)
+    project_name, _ = functions.project_definer(project_name, user)
     log_path, lines = os.path.join(PROJECT_STATIC_ROOT, project_name, log_file), []
     if not os.path.exists(log_path): return {"lines": lines, "offset": offset}
     with open(log_path, "r", encoding=functions.encoding_detect(log_path), errors="replace") as f:

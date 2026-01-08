@@ -3,6 +3,7 @@ import base64, time, subprocess, signal, chardet
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
+from uuid import uuid4
 from scipy.ndimage import distance_transform_edt, gaussian_filter
 from config import PROJECT_STATIC_ROOT, ALLOWED_USERS_PATH
 from redis.asyncio.lock import Lock
@@ -32,18 +33,10 @@ def basic_auth(credentials: HTTPBasicCredentials=Depends(security)):
         )
     return username
 
-def basic_auth_ws(auth_header: str):
-    if not auth_header or not auth_header.startswith("Basic "): return None
-    token = auth_header.split(" ")[1]
-    try:
-        decoded = base64.b64decode(token).decode("utf-8")
-        username, password = decoded.split(":", 1)
-    except Exception: return None
-    if username not in ALLOWED_USERS or ALLOWED_USERS[username] != password: return None
-    return username
-
 def project_definer(old_name, username='admin'):
-    return f'{username}/{old_name}' if username!='admin' else 'demo'
+    new_name = f'{username}/{old_name}' if username!='admin' else 'demo'
+    name_id = f'{new_name}/{uuid4()}'
+    return new_name, name_id
 
 def remove_readonly(func, path, excinfo):
     # Change the readonly bit, but not the file contents
@@ -82,34 +75,6 @@ def decode_array(b64_str: str, shape, dtype=np.float32) -> np.ndarray:
     """Decode base64 string to numpy array."""
     arr = np.frombuffer(base64.b64decode(b64_str), dtype=dtype)
     return arr.reshape(shape)
-
-async def layer_lock(redis, project_name: str, layer: str, timeout: int = 10):
-    """Context manager lock for a specific layer."""
-    lock = redis.lock(f"project:{project_name}:layer:{layer}", timeout=timeout)
-    await lock.acquire()
-    try: yield
-    finally: await lock.release()
-
-def serialize_geometry(gdf: gpd.GeoDataFrame):
-    """
-    Convert GeoDataFrame to dict GeoJSON (Polygon / MultiPolygon -> coordinates list)
-    """
-    features_serializable = []
-    for _, row in gdf.iterrows():
-        geom = row.geometry
-        if geom is None: geom_serial = None
-        else: geom_serial = shapely.geometry.mapping(geom)
-        properties = {k: v for k, v in row.items() if k != gdf.geometry.name}
-        features_serializable.append({
-            "type": "Feature",
-            "properties": properties,
-            "geometry": geom_serial
-        })
-    grid_dict = {
-        "type": "FeatureCollection",
-        "features": features_serializable
-    }
-    return grid_dict
 
 async def load_dataset_cached(project_cache, key, dm, dir_path, filename):
     """
@@ -731,10 +696,11 @@ def checkCoordinateReferenceSystem(name: str, geometry: gpd.GeoSeries, data_his:
     if 'wgs84' in data_his.variables:
         crs_code = data_his['wgs84'].attrs.get('EPSG_code', 'EPSG:4326')
         result = gpd.GeoDataFrame(data={'name': name, 'geometry': geometry}, crs=crs_code)
-    else:
+    elif 'projected_coordinate_system' in data_his.variables:
         crs_code = data_his['projected_coordinate_system'].attrs.get('EPSG_code', 'EPSG:4326')
         result = gpd.GeoDataFrame(data={'name': name, 'geometry': geometry}, crs=crs_code)
         result = result.to_crs(epsg=4326)  # Convert to WGS84 if not already
+    else: result = gpd.GeoDataFrame(data={'name': name, 'geometry': geometry}, crs='EPSG:4326')
     return result
 
 def hydCreator(data_his: xr.Dataset) -> tuple[gpd.GeoDataFrame, list]:

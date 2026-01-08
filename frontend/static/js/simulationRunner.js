@@ -10,8 +10,8 @@ const checkboxContainer = () => document.getElementById('checkbox-container');
 const showCheckbox = () => document.getElementById('show-checkbox');
 const textareaWrapper = () => document.getElementById('form-row-textarea');
 
-let currentProject = null, height = 0, logIntervalHYD = null, HYDRunning = false,
-    WAQRunning = false, logIntervalWAQ = null, lastOffsetHYD = 0, lastOffsetWAQ = 0;
+let currentProject = null, height = 0, logIntervalHYD = null, HYDRunning = false, activeHYDProject = null,
+    activeWAQProject = null, WAQRunning = false, logIntervalWAQ = null, lastOffsetHYD = 0, lastOffsetWAQ = 0;
 const APP_MODE = window.APP_MODE; 
 
 async function sendQuery(functionName, content){
@@ -44,10 +44,12 @@ async function getProjectList(target){
     showCheckbox().checked = false; checkboxUpdate();
 }
 
-function updateLogHYD(project, progress_bar, progress_text, info, seconds){
+function updateLogHYD(hydProject, progress_bar, progress_text, info, seconds){
+    activeHYDProject = hydProject;
     logIntervalHYD = setInterval(async () => {
+        if (activeHYDProject !== hydProject) { clearInterval(logIntervalHYD); logIntervalHYD = null; }
         try {
-            const statusRes = await sendQuery('check_sim_status_hyd', {projectName: project});
+            const statusRes = await sendQuery('check_sim_status_hyd', {projectName: hydProject});
             if (statusRes.status === "running" || statusRes.status === "reorganizing") {
                 progress_text.innerText = statusRes.message;
                 progress_bar.value = statusRes.progress;
@@ -57,7 +59,7 @@ function updateLogHYD(project, progress_bar, progress_text, info, seconds){
                 progress_bar.value = statusRes.progress;
                 if (logIntervalHYD) { clearInterval(logIntervalHYD); logIntervalHYD = null; }
             }
-            const res = await fetch(`/sim_log_tail_hyd/${project}?offset=${lastOffsetHYD}&log_file=log_hyd.txt`);
+            const res = await fetch(`/sim_log_tail_hyd/${hydProject}?offset=${lastOffsetHYD}&log_file=log_hyd.txt`);
             if (!res.ok) return;
             const data = await res.json();
             for (const line of data.lines) { info.value += line + "\n"; }
@@ -66,10 +68,12 @@ function updateLogHYD(project, progress_bar, progress_text, info, seconds){
     }, seconds * 1000);
 }
 
-function updateLogWAQ(project, progress_bar, progress_text, info, seconds) {
+function updateLogWAQ(hydProject, waqProject, progress_bar, progress_text, info, seconds) {
+    activeWAQProject = `${hydProject}_${waqProject}`;
     logIntervalWAQ = setInterval(async () => {
+        if (activeWAQProject !== `${hydProject}_${waqProject}`) { clearInterval(logIntervalWAQ); logIntervalWAQ = null; }
         try {
-            const statusRes = await sendQuery('check_sim_status_waq', {projectName: project});
+            const statusRes = await sendQuery('check_sim_status_waq', {projectName: hydProject});
             if (statusRes.status === "running" || statusRes.status === "reorganizing") {
                 progress_text.innerText = statusRes.message;
                 progress_bar.value = statusRes.progress;
@@ -78,7 +82,7 @@ function updateLogWAQ(project, progress_bar, progress_text, info, seconds) {
                 progress_bar.value = statusRes.progress;
                 if (logIntervalWAQ) { clearInterval(logIntervalWAQ); logIntervalWAQ = null; }
             }
-            const res = await fetch(`/sim_log_tail_waq/${project}?offset=${lastOffsetWAQ}&log_file=log_waq.txt`);
+            const res = await fetch(`/sim_log_tail_waq/${hydProject}?offset=${lastOffsetWAQ}&log_file=log_waq.txt`);
             if (!res.ok) return;
             const data = await res.json(); if (info.value !== '') { info.value = ''; }
             for (const line of data.lines) { info.value += line + "\n"; }
@@ -98,6 +102,8 @@ function updateSelection(){
             textareaWrapper().style.display = 'none'; return;
         }
         if (APP_MODE === 'hyd') { // Work with HYD simulation
+            if (logIntervalHYD) { clearInterval(logIntervalHYD); logIntervalHYD = null; }
+            lastOffsetHYD = 0; activeHYDProject = projectName;
             const statusRes = await sendQuery('check_sim_status_hyd', {projectName: projectName});
             if (statusRes.status === "running") {
                 const res = await fetch(`/sim_log_full/${projectName}?log_file=log_hyd.txt`);
@@ -111,6 +117,8 @@ function updateSelection(){
             } else { showCheckbox().checked = false; HYDRunning = false; }
             progressText().innerText = statusRes.message; progressbar().value = statusRes.progress;
         } else if (APP_MODE === 'waq'){ // Work with WAQ simulation
+            if (logIntervalWAQ) { clearInterval(logIntervalWAQ); logIntervalWAQ = null; }
+            lastOffsetWAQ = 0; activeWAQProject = `${projectName}_${waqSelector().value}`;
             const data = await sendQuery('select_project', {filename: projectName, key: 'getWAQs', folder_check: 'input'});
             if (data.status === "error") {
                 alert(data.message); labelWAQ().style.display = 'none'; 
@@ -126,8 +134,8 @@ function updateSelection(){
                     infoArea().value = data.content || ''; lastOffsetWAQ = data.offset;
                 }
                 showCheckbox().checked = true; WAQRunning = true;
-                // Run water quality simulation and Update logs every 0.5 seconds
-                updateLogWAQ(projectName, progressbar(), progressText(), infoArea(), 0.5);
+                // Run water quality simulation and Update logs every 1 second
+                updateLogWAQ(projectName, waqSelector().value, progressbar(), progressText(), infoArea(), 1);
             } else { showCheckbox().checked = false; WAQRunning = false; }
             progressText().innerText = statusRes.message; progressbar().value = statusRes.progress;
         }

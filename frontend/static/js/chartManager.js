@@ -349,7 +349,6 @@ export function plotProfileMultiLayer(key, query, data, title, unit) {
         // Update time slider
         timeSlider().value = index; timeLabel().textContent = `Time: ${timestamps[index]}`;
     }
-
     // === Play / Pause control === 
     async function playAnimation() { 
         duration = parseFloat(durationValue().value)*1000
@@ -453,7 +452,6 @@ function renderPlot(plotDiv, distance, depths, values, vmin, vmax, nColors, titl
 
 function colorbarTicks(min, max, numStops){
     if (Math.abs(max - min) < 1e-4) return [min];
-    if (Math.abs(max - min) < 1e-2) { max = min + 1e-2; }
     const ticks = [], step = (max - min) / (numStops - 1);
     for (let i = 0; i < numStops; i++) {
         ticks.push(min + i * step);
