@@ -16,7 +16,7 @@ def path_process(full_path:str, head:int=3, tail:int=2):
 @router.post("/select_hyd")
 async def select_hyd(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name = functions.project_definer(body.get('projectName'), user)
+    project_name, _ = functions.project_definer(body.get('projectName'), user)
     folder = [PROJECT_STATIC_ROOT, project_name, "DFM_DELWAQ", 'FlowFM.hyd']
     path = os.path.normpath(os.path.join(*folder))
     if os.path.exists(path):
@@ -28,7 +28,7 @@ async def select_hyd(request: Request, user=Depends(functions.basic_auth)):
 async def select_waq(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
-        project_name = functions.project_definer(body.get('projectName'), user)
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
         folder = [PROJECT_STATIC_ROOT, project_name, "output", 'scenarios']
         path = os.path.normpath(os.path.join(*folder))
         files = [f.replace('.json', '') for f in os.listdir(path) if f.endswith('.json')]
@@ -40,7 +40,7 @@ async def select_waq(request: Request, user=Depends(functions.basic_auth)):
 async def load_waq(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
-        project_name = functions.project_definer(body.get('projectName'), user)
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
         folder = [PROJECT_STATIC_ROOT, project_name, "output", 'scenarios', f"{body.get('waqName')}.json"]
         path, data = os.path.normpath(os.path.join(*folder)), {}
         if not os.path.exists(path): return JSONResponse({"status": 'error', "message": 'Configuration file not found.'})
@@ -121,9 +121,9 @@ async def wq_time(request: Request):
 async def waq_config_writer(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
-        project_name = functions.project_definer(body.get('projectName'), user)
+        project_name, project_id = functions.project_definer(body.get('projectName'), user)
         redis = request.app.state.redis
-        lock = redis.lock(f"{project_name}:waq_config", timeout=10)
+        lock = redis.lock(f"{project_id}:waq_config", timeout=10)
         async with lock:
             config_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "scenarios"))
             if not os.path.exists(config_path): os.makedirs(config_path)
@@ -138,7 +138,7 @@ async def waq_config_writer(request: Request, user=Depends(functions.basic_auth)
 @router.post("/check_sim_status_waq")
 async def check_sim_status_waq(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name = functions.project_definer(body.get('projectName'), user)
+    project_name, _ = functions.project_definer(body.get('projectName'), user)
     info, logs = processes.get(project_name), []
     if not info:
         return JSONResponse({"status": "not_started", "progress": 0, "message": 'Simulation not started yet'})
@@ -155,7 +155,7 @@ async def check_sim_status_waq(request: Request, user=Depends(functions.basic_au
 
 @router.get("/sim_log_tail_waq/{project_name}")
 async def sim_log_tail_waq(project_name: str, offset: int = Query(0), log_file: str = Query(""), user=Depends(functions.basic_auth)):
-    project_name = functions.project_definer(project_name, user)
+    project_name, _ = functions.project_definer(project_name, user)
     log_path, lines = os.path.join(PROJECT_STATIC_ROOT, project_name, log_file), []
     if not os.path.exists(log_path): return {"lines": lines, "offset": offset}
     with open(log_path, "r", encoding=functions.encoding_detect(log_path), errors="replace") as f:
@@ -168,7 +168,8 @@ async def sim_log_tail_waq(project_name: str, offset: int = Query(0), log_file: 
 @router.post("/start_sim_waq")
 async def start_sim_waq(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name, waq_name = functions.project_definer(body.get('projectName'), user), body.get('waqName')
+    project_name, project_id = functions.project_definer(body.get('projectName'), user)
+    waq_name = body.get('waqName')
     if project_name in processes and processes[project_name]["status"] == "running":
         old = processes[project_name]["status"]
         if old in ("finished", "error"): processes.pop(project_name)
@@ -203,11 +204,16 @@ async def run_waq_simulation(project_name, waq_name):
         t_stop = datetime.fromtimestamp(int(body['stopTime']/1000.0), tz=timezone.utc)
         hyd_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "DFM_DELWAQ"))
         hyd_path = os.path.normpath(os.path.join(hyd_folder, body['hydName']))
-        sal_path, attr_path = os.path.normpath(os.path.join(hyd_folder, body['salPath'])), os.path.normpath(os.path.join(hyd_folder, body['attrPath']))
-        vol_path, ptr_path = os.path.normpath(os.path.join(hyd_folder, body['volPath'])), os.path.normpath(os.path.join(hyd_folder, body['ptrPath']))
-        area_path, flow_path = os.path.normpath(os.path.join(hyd_folder, body['areaPath'])), os.path.normpath(os.path.join(hyd_folder, body['flowPath']))
-        length_path, srf_path = os.path.normpath(os.path.join(hyd_folder, body['lengthPath'])), os.path.normpath(os.path.join(hyd_folder, body['srfPath']))
-        vdf_path, tem_path = os.path.normpath(os.path.join(hyd_folder, body['vdfPath'])), os.path.normpath(os.path.join(hyd_folder, body['temPath']))
+        sal_path = os.path.normpath(os.path.join(hyd_folder, body['salPath']))
+        attr_path = os.path.normpath(os.path.join(hyd_folder, body['attrPath']))
+        vol_path = os.path.normpath(os.path.join(hyd_folder, body['volPath']))
+        ptr_path = os.path.normpath(os.path.join(hyd_folder, body['ptrPath']))
+        area_path = os.path.normpath(os.path.join(hyd_folder, body['areaPath']))
+        flow_path = os.path.normpath(os.path.join(hyd_folder, body['flowPath']))
+        length_path = os.path.normpath(os.path.join(hyd_folder, body['lengthPath']))
+        srf_path = os.path.normpath(os.path.join(hyd_folder, body['srfPath']))
+        vdf_path = os.path.normpath(os.path.join(hyd_folder, body['vdfPath']))
+        tem_path = os.path.normpath(os.path.join(hyd_folder, body['temPath']))
         wq_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "WAQ"))
         os.makedirs(wq_folder, exist_ok=True)
         # Clear data if exists
