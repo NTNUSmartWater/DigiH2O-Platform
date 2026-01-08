@@ -33,21 +33,16 @@ async def check_folder(request: Request, user=Depends(functions.basic_auth)):
 async def check_sim_status_hyd(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
     project_name, _ = functions.project_definer(body.get('projectName'), user)
-    info, logs = processes.get(project_name), []
+    info = processes.get(project_name)
     if not info: 
         return JSONResponse({"status": "not_started", "progress": 0, "message": 'No simulation running'})
+    if info["status"] == "finished":
+        return JSONResponse({"status": "finished", "progress": 100,
+            "message": info.get("message", 'Simulation completed successfully')})
     if info["status"] == "reorganizing":
         return JSONResponse({"status": "reorganizing", "progress": 100, "message": 'Reorganizing outputs. Please wait...'})
-    if info["status"] == "finished":
-        return JSONResponse({"status": "finished", "progress": info["progress"], "message": info["message"]})
-    log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log_hyd.txt"))
-    # Read log file
-    if os.path.exists(log_path):
-        with open(log_path, "r", encoding=functions.encoding_detect(log_path), errors="replace") as f:
-            logs = f.read().splitlines()
-    complete = f'Completed: {info["progress"]}% [Time used: {info["time_used"]} → Time left: {info["time_left"]}]'
-    return JSONResponse({"status": info["status"], "progress": info["progress"], "message": complete,
-        "time_used": info["time_used"], "time_left": info["time_left"], "logs": logs})
+    complete = f'HYD simulation completed: {info["progress"]}% [Time used: {info["time_used"]} → Time left: {info["time_left"]}]'
+    return JSONResponse({"status": info["status"], "progress": info["progress"], "message": complete})
     
 # Start a hydrodynamic simulation
 @router.post("/start_sim_hyd")
@@ -80,7 +75,7 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
             encoding="utf-8", errors="replace", bufsize=1, cwd=path)
         processes[project_name] = {"process": process, "progress": 0.0, "status": "running", 
-            "message": 'Preparing data for simulation...', "time_used": "", "time_left": "", "logs": []}
+            "message": 'Preparing data for simulation...', "time_used": "", "time_left": ""}
         # Stream logs
         def stream_logs():
             try:
@@ -111,16 +106,14 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
                 if processes[project_name]["status"] != "error":
                     processes[project_name]["progress"] = 100.0
                     processes[project_name]["status"] = "reorganizing"
+                    processes[project_name]["message"] = "Reorganizing outputs. Please wait..."
                     post_result = functions.postProcess(path)
-                    if not post_result["status"] == "ok":
-                        processes[project_name]["status"] = post_result["status"]
+                    if post_result["status"] != "ok":
+                        processes[project_name]["status"] = "error"
                         processes[project_name]["message"] = post_result["message"]
                     else:
                         processes[project_name]["status"] = "finished"
                         processes[project_name]["message"] = "Simulation completed successfully"
-                else: 
-                    processes[project_name]["phase"] = "finished"
-                    processes[project_name]["message"] = "Simulation terminated due to errors"
                 def cleanup_later(ttl=60):
                     time.sleep(ttl)
                     processes.pop(project_name, None)

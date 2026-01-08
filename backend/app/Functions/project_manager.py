@@ -30,7 +30,7 @@ async def reset_config(request: Request, user=Depends(functions.basic_auth)):
             try:
                 shutil.rmtree(config_dir, onerror=functions.remove_readonly)
             except Exception as e:
-                return JSONResponse({"message": f"Failed to delete config folder: {e}"})
+                return JSONResponse({"message": f"Failed: {e}"})
             # Delete config in Redis
             await redis.hdel(project_id, "config", "layer_reverse_hyd", "layer_reverse_waq")
             return JSONResponse({"message": "Configuration reset successfully!"})
