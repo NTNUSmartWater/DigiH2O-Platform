@@ -29,7 +29,8 @@ async function checkboxUpdate(){
         labelWAQ().style.display = 'none'; waqSelector().style.display = 'none'; 
     }
     const show = showCheckbox().checked;
-    if (show && progressText().innerText === 'No simulation running') { infoArea().value = ''; }
+    if (show && (progressText().innerText === 'No simulation running' 
+            || progressText().innerText === 'Simulation completed successfully')) { infoArea().value = ''; }
     textareaWrapper().style.display = show ? 'block' : 'none';
     height = show ? 250 : 120;
     requestAnimationFrame(() => { window.parent.postMessage({ type: 'resize-simulation', height }, '*'); });
