@@ -1,5 +1,5 @@
 import { startLoading, showLeafletMap} from "./mapManager.js";
-import { loadData, interpolateJet, splitLines, getColors, valueFormatter, decodeArray } from "./utils.js";
+import { loadData, interpolateJet, splitLines, getColors, valueFormatter } from "./utils.js";
 import { getState, setState } from "./constants.js";
 import { sendQuery } from "./tableManager.js";
 import { deActivePathQuery, moveWindow } from "./generalOptionManager.js";
@@ -86,7 +86,7 @@ export function plotEvents() {
         const div = chartDivProfile();
         try {
             if (div && div.data) Plotly.purge(div);
-        } catch(e) { console.warn("Plotly purge error:", e); }
+        } catch(e) { alert("Plotly purge error:" + e); }
         // Disconnect resize observer
         if (profileWindow()._resizeObserver) {
             profileWindow()._resizeObserver.disconnect(); 
@@ -305,8 +305,8 @@ export function plotProfileMultiLayer(key, query, data, title, unit) {
     if (profileWindow()._resizeObserver) profileWindow()._resizeObserver.disconnect(); 
     colorCombo().style.display = "block"; minValue().style.display = "block"; maxValue().style.display = "block";
     colorComboLabel().style.display = "block"; minLabel().style.display = "block"; maxLabel().style.display = "block";
-    const { timestamps, distance, values, depths, global_minmax, local_minmax } = data; 
-    minValue().value = valueFormatter(global_minmax[0], 1e-3); maxValue().value = valueFormatter(global_minmax[1], 1e-3);
+    const { timestamps, distance, values, depths, local_minmax } = data;
+    minValue().value = valueFormatter(local_minmax[0], 1e-3); maxValue().value = valueFormatter(local_minmax[1], 1e-3);
     nColors = parseInt(colorCombo().value);
     // Set up time slider
     timeSlider().min = 0; timeSlider().max = timestamps.length - 1;
@@ -329,6 +329,8 @@ export function plotProfileMultiLayer(key, query, data, title, unit) {
             playPauseBtn().textContent = '▶ Play'; return;
         }
         const { values, local_minmax } = data.content;
+        minValue().value = valueFormatter(local_minmax[0], 1e-3); 
+        maxValue().value = valueFormatter(local_minmax[1], 1e-3);
         nColors = parseInt(colorCombo().value);
         const discreteColors = getColors(nColors);
         const colorScale = [], step = 1 / nColors;
@@ -339,8 +341,8 @@ export function plotProfileMultiLayer(key, query, data, title, unit) {
         // Update the frame
         colorTicks = colorbarTicks(local_minmax[0], local_minmax[1], nColors);
         colorTickLabels = colorTicks.map(v => valueFormatter(v, 1e-3));
-        await Plotly.update(chartDivProfile(), { z: [values], zmin: [local_minmax[0]], zmax: [local_minmax[1]],
-            colorscale: [colorScale], showscale: [true], 
+        await Plotly.update(chartDivProfile(), { z: [values], zmin: [local_minmax[0]], 
+            zmax: [local_minmax[1]], colorscale: [colorScale], showscale: [true], 
             colorbar: [{ title: { text: unit, font: { color: 'black' } }, tickvals: colorTicks, 
                 ticktext: colorTickLabels, tickfont: { color: 'black' } }]
         }, {}, [0]);
@@ -378,6 +380,8 @@ export function plotProfileMultiLayer(key, query, data, title, unit) {
         const refreshed = await sendQuery('select_meshes', queryContents);
         if (refreshed.status === "error") { alert(data.message); return; }
         const { values, local_minmax } = refreshed.content;
+        minValue().value = valueFormatter(local_minmax[0], 1e-3); 
+        maxValue().value = valueFormatter(local_minmax[1], 1e-3);
         renderPlot(chartDivProfile(), distance, depths, values, local_minmax[0],
             local_minmax[1], parseInt(colorCombo().value), title, unit); 
     })
@@ -447,19 +451,10 @@ function renderPlot(plotDiv, distance, depths, values, vmin, vmax, nColors, titl
 }
 
 function colorbarTicks(min, max, numStops){
-    const epsilon = 1e-6, minDiff = Math.abs(max - min);
     if (Math.abs(max - min) < 1e-4) return [min];
-    const ticks = [];
-    if (minDiff < 1e-2) max = min + 1e-2;
+    const ticks = [], step = (max - min) / (numStops - 1);
     for (let i = 0; i < numStops; i++) {
-        const t = i / (numStops - 1);
-        let value;
-        if (min + epsilon > 0 && max + epsilon > 0) {
-            const logMin = Math.log(min + epsilon);
-            const logMax = Math.log(max + epsilon);
-            value = Math.exp(logMin + t * (logMax - logMin));
-        } else { value = min + t * (max - min); }
-        ticks.push(value);
+        ticks.push(min + i * step);
     }
     return ticks;
 }

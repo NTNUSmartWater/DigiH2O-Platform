@@ -3,16 +3,25 @@ backend/app/Functions/__pycache__
 backend/app/__pycache__
 backend/Delft_Projects
 .vscode
+backend/x64
+logs
 
 # Files
 Variable_names.txt
 *.jpg
-*.csv
 *.ipynb
+output.csv
+points.json
 
 # Additional files
 *.pyc
-rgfgrid.dia
+rgfgrid*.dia
+docker.txt
+backend/run.sh
+backend/static/allowed_users.json
+backend/Dockerfile
+docker-compose.yml
 
 # Environment
 .env
+.dockerignore

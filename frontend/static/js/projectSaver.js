@@ -14,20 +14,20 @@ export function timeStepCalculator(daysString, timeString){
 }
 
 export async function saveProject(elements) {
-    const { projectName, latitude, nLayers, gridPath, startDate, stopDate,
+    const { projectName, latitude, nLayers, gridPathText, startDate, stopDate,
         userTimeSec, nodalTimeSec, obsPointTable, crossSectionName, crossSectionTable, salinity, 
         temperature, initWaterLevel, initSalinity, initTemperature , outputHis, hisInterval, hisStart, 
         hisStop, outputMap, mapInterval, mapStart, mapStop, outputWQ, wqInterval, wqStart, wqStop, 
         outputRestart, rtsInterval, rtsStart, rtsStop, sttInterval, timingInterval } = elements;
-    sendQuery('save_obs', {projectName: projectName().value.trim()});
+    // Get project name
+    const name = projectName().value.trim();
+    if (name === '') { alert('Please check project name.'); return; }   
+    sendQuery('save_obs', {projectName: name});
     let data = new Map();
+    data.set('project_name', name);
     // Get time
     const formatted = new Date().toISOString().slice(0,19).replace('T',' ');
     data.set('gen_date', formatted);
-    // Get project name
-    const name = projectName().value.trim();
-    if (name === '') { alert('Please check project name.'); return; }
-    data.set('project_name', name);
     // Check latitude
     const lat = latitude().value;
     if (!lat || lat === '') { alert('Please check latitude.'); return; }
@@ -36,8 +36,8 @@ export async function saveProject(elements) {
     if (!nLayers || nLayers === '') { alert('Please check number of layers.'); return; }
     data.set('n_layers', nLayers().value);
     // Check grid
-    const fileInput = gridPath();
-    if (!fileInput || fileInput.files.length === 0) { alert('Please select a grid file!'); return; }
+    const fileInput = gridPathText();
+    if (!fileInput || fileInput.length === 0) { alert('Please select a grid file!'); return; }
     data.set('netNC_file', 'FlowFM_net.nc');
     // Get start date
     const start_ = startDate().value, stop_ = stopDate().value;

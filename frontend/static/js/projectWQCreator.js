@@ -4,7 +4,11 @@ import { toUTC } from "./projectSaver.js";
 
 const projectName = () => document.getElementById('project-name');
 const projects = () => document.getElementById("project-list");
+const waqSelector = () => document.getElementById("waq-name");
+const waqLabel = () => document.getElementById("label-waq");
 const projectCreator = () => document.getElementById('create-project-button');
+const projectCloner = () => document.getElementById('duplicate-project-button');
+const projectDeleter = () => document.getElementById('delete-project-button');
 const sectionTab = () => document.getElementById('parent-tab');
 const sectionDescription = () => document.getElementById('desription-tab');
 const hydFilename = () => document.getElementById("hyd-filename");
@@ -38,7 +42,7 @@ const microbialName = () => document.getElementById('wq-microbial-name');
 let projectList=[], subKey='', folderName='', usefors=null, from_usefors=null, to_usefors=null, pointSelected=null, nPoints=0,
     timeStep1=0, timeStep2='', nSegments=0, attrPath_='', volPath='', exchange_x=0, exchange_y=0, exchange_z=0, nLoads=0,
     ptrPath='', areaPath='', flowPath='', lengthPath='', srfPath='', vdfPath='', temPath='', maxiter=null, tolerance=null,
-    scheme=null, salPath='', from_initial=null, initial_value=null, initial_area=null, initialList=[];
+    scheme=null, salPath='', from_initial=null, initial_value=null, initial_area=null, useforsFrom=[], useforsTo=[], waqContent=[];
 
 function setupTabs(root) {
     const buttonPanels = root.querySelectorAll('#main-tabs button');
@@ -100,33 +104,23 @@ function setupTabs(root) {
     function radioSelector(target){
       const name = target.getAttribute('data-tab');
       // Show corresponding panel and hide others
-      radioPanels.forEach(p => {
-        p.style.display = (p.getAttribute('data-panel')!==name)?'none':'block';
-      })
+      radioPanels.forEach(p => { p.style.display = (p.getAttribute('data-panel')!==name)?'none':'block'; })
     }
     function checkboxSelector(target){
         const name = target.getAttribute('data-tab');
         const checkObj = target.querySelector('input');
         const panel = root.querySelectorAll(`[data-panel="${name}"]`);
         if(panel.length === 0) return;
-        panel.forEach(p => {
-            p.style.display = checkObj.checked ? 'flex' : 'none';
-        })
+        panel.forEach(p => { p.style.display = checkObj.checked ? 'flex' : 'none'; })
     }
     // Show Simulator panel
     if(buttonPanels.length > 0) activate(buttonPanels[0]);
     // Click to change tab
-    buttonPanels.forEach(btn => {
-        btn.addEventListener('click', () => { activate(btn); });
-    });
+    buttonPanels.forEach(btn => { btn.addEventListener('click', () => { activate(btn); }); });
     // Change Radio button
-    radioBtns.forEach(btn => {
-        btn.addEventListener('click', () => { radioSelector(btn); });
-    });
+    radioBtns.forEach(btn => { btn.addEventListener('click', () => { radioSelector(btn); }); });
     // Change checkbox button
-    checkboxBtns.forEach(box => {
-        box.addEventListener('change', () => { checkboxSelector(box); });
-    });
+    checkboxBtns.forEach(box => { box.addEventListener('change', () => { checkboxSelector(box); }); });
 }
 
 async function getProjectList(){
@@ -134,8 +128,8 @@ async function getProjectList(){
     if (data.status === "ok") projectList = data.content;
 }
 
-function substanceChanger(target, name){
-    target.addEventListener('change', () => {
+function substanceChanger(target, name, type){
+    target.addEventListener('change', async () => {
         if (target.value === '') return;
         const key = target.value;
         if (key === 'simple-oxygen') subKey = 'Simple_Oxygen';
@@ -147,6 +141,32 @@ function substanceChanger(target, name){
         else if (key === 'suspend-sediment') subKey = 'Suspend_Sediment';
         else if (key === 'coliform') subKey = 'Coliform';
         name.value = subKey;
+        const data = await sendQuery('wq_time_from_waq', { key: subKey });
+        if (data.status === "error") {
+            timePreviewContainer().style.display = 'none'; 
+            timePreview().value = ''; alert(data.message); return;
+        };
+        if (type === 'wq-chemical') {
+            from_usefors = document.getElementById('wq-chemical-usefors-from');
+            from_initial = document.getElementById('wq-chemical-initial-from');
+        } else if (type === 'wq-physical') {
+            from_usefors = document.getElementById('wq-physical-usefors-from');
+            from_initial = document.getElementById('wq-physical-initial-from');
+        } else if (type === 'wq-microbial') {
+            from_usefors = document.getElementById('wq-microbial-usefors-from');
+            from_initial = document.getElementById('wq-microbial-initial-from');
+        }
+        from_usefors.innerHTML = ''; from_initial.innerHTML = ''; useforsFrom = data.froms;
+        data.froms.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item; option.text = item;
+            from_usefors.add(option); 
+        });
+        data.froms.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item; option.text = item;
+            from_initial.add(option);
+        });
     });
 }
 
@@ -168,15 +188,17 @@ function updateOption(){
     copyPaste(obsPointTable(), 3); copyPaste(loadsPointTable(), 3);
     copyPaste(timeTable(), 4); copyPaste(sourcesTable(), 3);
     // Update when user change Combobox
-    substanceChanger(chemicalSelector(), chemicalName());
-    substanceChanger(physicalSelector(), physicalName());
-    substanceChanger(microbialSelector(), microbialName());
+    substanceChanger(chemicalSelector(), chemicalName(), 'wq-chemical');
+    substanceChanger(physicalSelector(), physicalName(), 'wq-physical');
+    substanceChanger(microbialSelector(), microbialName(), 'wq-microbial');
     // Add new row to table
     timeTableAddRow().addEventListener('click', () => {
-        addRowToTable(timeTable(), ['YYYY-MM-DD HH:MM:SS', 'PointName', '0Substance', 'Value'])
+        deleteTable(timeTable()); addRowToTable(timeTable(), ['YYYY-MM-DD HH:MM:SS', 'PointName', 'Substance', 'Value']);
     });
     // Delete table
-    deleteTable(removeTable(), timeTable());
+    removeTable().addEventListener('click', () => { 
+        deleteTable(timeTable()); addRowToTable(timeTable(), ['YYYY-MM-DD HH:MM:SS', 'PointName', 'Substance', 'Value']);
+    });
     // Upload CSV
     csvTable().addEventListener('click', () => { 
         inputFile().click();
@@ -206,8 +228,7 @@ function updateOption(){
     obsPointRemove().addEventListener('click', () => {
         const name = obsPointName().value.trim();
         if (name === '') { alert('Please enter name of observation point from list to remove.'); return; }
-        removeRowFromTable(obsPointTable(), name);
-        obsPointName().value = '';
+        removeRowFromTable(obsPointTable(), name); obsPointName().value = '';
     });
     loadsPointRemove().addEventListener('click', () => {
         const name = loadsPointName().value.trim();
@@ -226,9 +247,11 @@ function updateOption(){
             const lat = Number(event.data.content.lat).toFixed(12);
             const lon = Number(event.data.content.lng).toFixed(12);
             if (pointSelected === 'obsPoint') {
-                nPoints++;
-                // Add to table
-                const data_arr = [[`Obs_${nPoints}`, lat, lon]];
+                let name = ''; nPoints++;
+                // Define name of point
+                if (obsPointName().value.trim() !== '') name = obsPointName().value.trim();
+                else name = `Obs_${nPoints}`;
+                const data_arr = [[name, lat, lon]];
                 fillTable(data_arr, obsPointTable(), false);
             }
             else if (pointSelected === 'loadsPoint') {
@@ -266,51 +289,36 @@ function updateOption(){
             }
             if (subKey === '') { alert('Please specify type of simulation.'); return; }
             if (folderName === '') { alert('Please specify name of substance.'); return; }
-            const data = await sendQuery('wq_time', { key: subKey, folderName: folderName, loadsData: loadsData.rows, timeData: timeData.rows });
-            timePreview().value = ''; 
+            const data = await sendQuery('wq_time_to_waq', { folderName: folderName, 
+                loadsData: loadsData.rows, timeData: timeData.rows });
             if (data.status === "error") {
-                timePreviewContainer().style.display = 'none'; alert(data.message); return;
+                timePreviewContainer().style.display = 'none'; 
+                timePreview().value = ''; alert(data.message); return;
             };
-            timePreview().value = data.content; timePreviewContainer().style.display = 'flex';
+            timePreview().value = data.content; useforsTo = data.tos;
+            timePreviewContainer().style.display = 'flex';
             // Assign value to USEFORS
             if (btn.id === 'wq-chemical') {
-                from_usefors = document.getElementById('wq-chemical-usefors-from');
                 to_usefors = document.getElementById('wq-chemical-usefors-to');
                 usefors = document.getElementById('wq-usefors-chemical');
-                from_initial = document.getElementById('wq-chemical-initial-from');
                 initial_value = document.getElementById('wq-chemical-initial');
                 initial_area = document.getElementById('wq-initial-chemical');
             } else if (btn.id === 'wq-physical') {
-                from_usefors = document.getElementById('wq-physical-usefors-from');
                 to_usefors = document.getElementById('wq-physical-usefors-to');
                 usefors = document.getElementById('wq-usefors-physical');
-                from_initial = document.getElementById('wq-physical-initial-from');
                 initial_value = document.getElementById('wq-physical-initial');
                 initial_area = document.getElementById('wq-initial-physical');
             } else if (btn.id === 'wq-microbial') {
-                from_usefors = document.getElementById('wq-microbial-usefors-from');
                 to_usefors = document.getElementById('wq-microbial-usefors-to');
                 usefors = document.getElementById('wq-usefors-microbial');
-                from_initial = document.getElementById('wq-microbial-initial-from');
                 initial_value = document.getElementById('wq-microbial-initial');
                 initial_area = document.getElementById('wq-initial-microbial');
             }
-            from_usefors.innerHTML = ''; to_usefors.innerHTML = '';
-            usefors.value = ''; from_initial.innerHTML = ''; initialList = data.froms;
-            data.froms.forEach(item => {
-                const option = document.createElement('option');
-                option.value = item; option.text = item;
-                from_usefors.add(option); 
-            })
+            to_usefors.innerHTML = ''; usefors.value = ''; 
             data.tos.forEach(item => {
                 const option = document.createElement('option');
                 option.value = item; option.text = item;
                 to_usefors.add(option);
-            });
-            data.froms.forEach(item => {
-                const option = document.createElement('option');
-                option.value = item; option.text = item;
-                from_initial.add(option);
             });
         });
     });
@@ -369,14 +377,16 @@ function updateOption(){
             if (loadTable.rows.length === 0) { alert('No loads data found. Please add at least one load.'); return; }
             if (maxiter.value === '' || parseInt(maxiter.value) <= 0) { alert('Please define maximum number of iterations.'); return; }
             if (tolerance.value === '' || parseFloat(tolerance.value) <= 0) { alert('Please define tolerance.'); return; }
-            const params = {projectName: name, key: subKey, hydName: hydPath, folderName: folderName, usefors: userforValue,
+            const params = {mode: btn.dataset.info, projectName: name, key: subKey, hydName: hydPath, folderName: folderName, usefors: userforValue,
                 timeStep1: timeStep1, timeStep2: timeStep2, nSegments: nSegments, attrPath: attrPath_, volPath: volPath, exchangeY: exchange_y,
                 exchangeX: exchange_x, exchangeZ: exchange_z, ptrPath: ptrPath, areaPath: areaPath, flowPath: flowPath, lengthPath: lengthPath,
                 nLayers: nLayers().value, sources: sourceTable.rows, loadsData: loadTable.rows, srfPath: srfPath, vdfPath: vdfPath,
-                temPath: temPath, initial: initialValue, initialList: initialList, startTime: toUTC(start), stopTime: toUTC(stop),
+                temPath: temPath, initial: initialValue, useforsFrom: useforsFrom, useforsTo: useforsTo, startTime: toUTC(start), stopTime: toUTC(stop),
                 obsPoints: obsTable.rows, timeTable: timeTable, maxiter: maxiter.value, tolerance: tolerance.value, scheme: scheme.value, salPath: salPath
             }
-            window.parent.postMessage({ type: 'run-wq', data: params}, '*');
+            const waq_config = await sendQuery('waq_config_writer', params);
+            if (waq_config.status === 'error') { alert(waq_config.message); return; }
+            alert(waq_config.message);
         });
     });
 }
@@ -407,15 +417,29 @@ function initializeProject(){
     projectName().addEventListener('blur', () => { 
         setTimeout(() => { projects().style.display = "none"; }, 100);
     });
+    projects().addEventListener('mousedown', async () => {
+        const name = projectName().value.trim();
+        const data = await sendQuery('select_waq', {projectName: name});
+        if (!name || name === '' || data.status === "error") { 
+            waqSelector().style.display = "none"; waqSelector().value = '';
+            waqLabel().style.display = "none"; projectCloner().style.display = "none"; 
+            projectDeleter().style.display = "none"; return; 
+        }
+        waqContent = data.content;
+        waqSelector().innerHTML = waqContent.map(name => `<option value="${name}">${name}</option>`).join('');
+        waqSelector().style.display = "flex"; waqLabel().style.display = "flex"; 
+        projectCloner().style.display = "flex"; projectDeleter().style.display = "flex";
+    });
     // Create new project
     projectCreator().addEventListener('click', async () => {
         const name = projectName().value.trim();
         if (!name || name.trim() === '') { alert('Please define project.'); return; }
-        // Show tabs
-        sectionTab().style.display = "block"; sectionDescription().style.display = "none";
         // Find .hyd file
         const data = await sendQuery('select_hyd', {projectName: name});
         if (data.status === "error") {alert(data.message); return;}
+        setupTabs(document);
+        // Show tabs
+        sectionTab().style.display = "block"; sectionDescription().style.display = "none";
         sourcesContainer().style.display = data.content.sink_sources.length > 0 ? "block":"none";
         fillTable(data.content.sink_sources, sourcesTable(), true);
         // Assign values
@@ -430,8 +454,108 @@ function initializeProject(){
         srfPath = data.content.srf_path; vdfPath = data.content.vdf_path;
         temPath = data.content.tem_path; salPath = data.content.sal_path;
         startTime().value = data.content.start_time; stopTime().value = data.content.stop_time;
+        const waqValue = waqSelector().value;
+        if (waqValue !== '') { 
+            const data = await sendQuery('load_waq', {projectName: name, waqName: waqValue});
+            if (data.status === "error") {alert(data.message); return;}
+            fillTable(data.content.obs, obsPointTable(), true);
+            fillTable(data.content.loads, loadsPointTable(), true);
+            if (data.content.mode === 'chemical') {
+                from_usefors = document.getElementById('wq-chemical-usefors-from');
+                to_usefors = document.getElementById('wq-chemical-usefors-to');
+                from_initial = document.getElementById('wq-chemical-initial-from');
+                usefors = document.getElementById('wq-usefors-chemical');
+                // initial_value = document.getElementById('wq-chemical-initial');
+                initial_area = document.getElementById('wq-initial-chemical');
+                maxiter = document.getElementById('max-iterations-chemical');
+                tolerance = document.getElementById('tolerance-chemical');
+                scheme = document.getElementById('wq-scheme-chemical');
+                chemicalSelector().value = data.content.key;
+                chemicalName().value = data.content.name;
+            } else if (data.content.mode === 'physical') {
+                from_usefors = document.getElementById('wq-physical-usefors-from');
+                to_usefors = document.getElementById('wq-physical-usefors-to');
+                from_initial = document.getElementById('wq-physical-initial-from');
+                usefors = document.getElementById('wq-usefors-physical');
+                // initial_value = document.getElementById('wq-physical-initial');
+                initial_area = document.getElementById('wq-initial-physical');
+                maxiter = document.getElementById('max-iterations-physical');
+                tolerance = document.getElementById('tolerance-physical');
+                scheme = document.getElementById('wq-scheme-physical');
+                physicalSelector().value = data.content.key;
+                physicalName().value = data.content.name;
+            } else if (data.content.mode === 'microbial') {
+                from_usefors = document.getElementById('wq-microbial-usefors-from');
+                to_usefors = document.getElementById('wq-microbial-usefors-to');
+                from_initial = document.getElementById('wq-microbial-initial-from');
+                usefors = document.getElementById('wq-usefors-microbial');
+                // initial_value = document.getElementById('wq-microbial-initial');
+                initial_area = document.getElementById('wq-initial-microbial');
+                maxiter = document.getElementById('max-iterations-microbial');
+                tolerance = document.getElementById('tolerance-microbial');
+                scheme = document.getElementById('wq-scheme-microbial');
+                microbialSelector().value = data.content.key;
+                microbialName().value = data.content.name;
+            }
+            scheme.value = data.content.scheme;
+            data.content.useforsFrom.forEach(item => {
+                [from_usefors, from_initial].forEach(select => {
+                    const option = document.createElement('option');
+                    option.value = item; option.text = item;
+                    select.add(option);
+                })
+            });
+            data.content.useforsTo.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item; option.text = item;
+                to_usefors.add(option);
+            });
+            usefors.value = data.content.usefors; initial_area.value = data.content.initial;
+            maxiter.value = data.content.maxiter; tolerance.value = data.content.tolerance;
+            timePreview().value = data.content.times; timePreviewContainer().style.display = 'block';
+        }
     });
+    projectCloner().addEventListener('click', async () => { 
+        const name = projectName().value.trim();
+        if (!name || name === '') { alert('Please select scenario first.'); return; }
+        const newName = prompt('Please enter a name for the new WAQ scenario.');
+        if (!newName || newName === '') { alert('Please define clone scenario name.'); return; }
+        projectCloner().innerHTML = 'Cloning...';
+        const data = await sendQuery('clone_waq', {
+            projectName: name, oldName: waqSelector().value, newName: newName
+        });
+        projectCloner().innerHTML = 'Clone Scenario';
+        alert(data.message);
+        if (data.status === "error") { return; }
+        waqContent.push(newName); waqSelector().innerHTML = '';
+        waqContent.forEach(item => { 
+            const option = document.createElement('option');
+            option.value = item; option.text = item;
+            waqSelector().add(option);
+        });
+    });
+    projectDeleter().addEventListener('click', async () => {
+        const name = projectName().value.trim(), waqName = waqSelector().value;
+        projectDeleter().innerHTML = 'Deleting...';
+        const data = await sendQuery('delete_file', { projectName: name, name: waqName });
+        projectDeleter().innerHTML = 'Delete Scenario';
+        alert(data.message);
+        if (data.status === "error") { return; }
+        waqSelector().innerHTML = '';
+        waqContent = waqContent.filter(item => item !== waqName);
+        waqContent.forEach(item => { 
+            const option = document.createElement('option');
+            option.value = item; option.text = item;
+            waqSelector().add(option);
+        });
+        if (waqContent.length === 0) { 
+            waqSelector().style.display = 'none'; waqLabel().style.display = 'none';
+            projectCloner().style.display = 'none'; projectDeleter().style.display = 'none';
+        } else { 
+            waqSelector().style.display = 'flex'; waqLabel().style.display = 'flex';
+            projectCloner().style.display = 'flex'; projectDeleter().style.display = 'flex';
+        }
+    });
+    waqSelector().addEventListener('change', async () => { projectCreator().click(); });    
 }
-
-await getProjectList(); initializeProject();
-setupTabs(document); updateOption();
+await getProjectList(); initializeProject(); updateOption();

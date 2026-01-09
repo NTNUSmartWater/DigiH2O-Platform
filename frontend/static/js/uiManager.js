@@ -1,16 +1,15 @@
 // Import necessary functions
-import { initializeMap, baseMapButtonFunctionality } from './mapManager.js';
-import { startLoading, showLeafletMap, map } from './mapManager.js';
+import { initializeMap, baseMapButtonFunctionality, startLoading, showLeafletMap, map } from './mapManager.js';
 import { plotChart, plotEvents, drawChart, plotWindow, thermoclinePlotter } from './chartManager.js';
 import { timeControl, colorbar_container, colorbar_vector_container, plot2DMapDynamic } from "./map2DManager.js";
 import { generalOptionsManager, summaryWindow } from './generalOptionManager.js';
-import { spatialMapManager } from './spatialMapManager.js';
+import { spatialMapManager, substanceWindowHis, substanceWindowMap } from './spatialMapManager.js';
 import { sendQuery } from './tableManager.js';
 import { getState, resetState, setState } from './constants.js';
 
 let pickerState = { location: false, point: false, crosssection: false, boundary: false, source: false },
     cachedMenus = {}, markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [],
-    pathLineBoundary = null, ws = null, currentProject = null, gridLayer = null, timeOut = null,
+    pathLineBoundary = null, gridLayer = null, timeOut = null, userName = false,
     markersCrosssection = [], crosssectionContainer = [], pathLineCrosssection = null, hideTimeout = null;
 
 const popupMenu = () => document.getElementById('popup-menu');
@@ -26,10 +25,11 @@ const projectOpenWindow = () => document.getElementById('project-open-window');
 const projectOpenWindowHeader = () => document.getElementById('project-open-window-header');
 const projectOpenWindowContent = () => document.getElementById('project-open-window-content');
 const projectOpenCloseBtn = () => document.getElementById('project-open-window-close');
-const substanceWindow = () => document.getElementById('substance-window');
-const substanceWindowHeader = () => document.getElementById('substance-window-header');
-const substanceWindowContent = () => document.getElementById('substance-window-content');
-const substanceWindowCloseBtn = () => document.getElementById('substance-window-close');
+const substanceWindowHeaderHis = () => document.getElementById('substance-window-header-his');
+const substanceWindowContentHis = () => document.getElementById('substance-window-content-his');
+const substanceWindowCloseBtnHis = () => document.getElementById('substance-window-his-close');
+const substanceWindowHeaderMap = () => document.getElementById('substance-window-header-map');
+const substanceWindowCloseBtnMap = () => document.getElementById('substance-window-map-close');
 const projectSetting = () => document.getElementById('projectWindow');
 const projectSettingHeader = () => document.getElementById('projectWindowHeader');
 const projectSettingContent = () => document.getElementById('projectWindowContent');
@@ -38,29 +38,43 @@ const simulationWindow = () => document.getElementById('simulationWindow');
 const simulationHeader = () => document.getElementById('simulationWindowHeader');
 const simulationContent = () => document.getElementById('simulationWindowContent');
 const simulationCloseBtn = () => document.getElementById('closeSimulationWindow');
-const waqWindow = () => document.getElementById('waqWindow');
-const waqWindowHeader = () => document.getElementById('waqWindowHeader');
-const waqCloseBtn = () => document.getElementById('closeWAQWindow');
-const waqProgressbar = () => document.getElementById('progressbar');
-const waqProgressText = () => document.getElementById('progress-text');
 const mapContainer = () => map.getContainer();
 
-initializeMap(); baseMapButtonFunctionality();
-projectChecker(); initializeMenu();
-updateEvents(); plotEvents(); openDemoProject();
+initializeMap(); baseMapButtonFunctionality(); plotEvents(); initializeMenu();
+projectChecker(); updateEvents(); openDemoProject('demo'); await login();
 
-async function openDemoProject() { 
-    await projectChecker('demo', ['FlowFM_his.zarr', 'FlowFM_map.zarr', 'Cadmium_his.zarr', 'Cadmium_map.zarr']);
+async function login() {
+    const data = await sendQuery('auth_check', {});
+    if (data.user==='admin') { userName = ''; } else { userName = `${data.user}/`; }
+}
+
+async function openDemoProject(name='demo', params=['FlowFM_his.zarr', 'FlowFM_map.zarr', 'Coliform_his.zarr', 'Coliform_map.zarr']) { 
+    await projectChecker(name, params);
     // Load temperature dynamic map
     const query = '|-1', key = 'temp_multi_dynamic', titleColorbar = 'Temperature (°C)';
     const colorbarKey = 'Layer: Average temperature';
     plot2DMapDynamic(false, query, key, titleColorbar, colorbarKey);
 }
 
+function refresh() {
+    // Close windows if open
+    if (summaryWindow().style.display !== 'none') summaryWindow().style.display = 'none';
+    if (plotWindow().style.display !== 'none') plotWindow().style.display = 'none';
+    if (substanceWindowHis().style.display !== 'none') substanceWindowHis().style.display = 'none';
+}
+
+function hideMap() {
+    // Clear map
+    map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
+    timeControl().style.display = 'none'; colorbar_container().style.display = 'none';
+    colorbar_vector_container().style.display = 'none';
+    if (substanceWindowMap().style.display !== 'none') substanceWindowMap().style.display = 'none';
+}
+
 // ============================ Functions ============================
 async function showPopupMenu(projectName, id, htmlFile) {
     try {
-        let html;
+        refresh(); let html;
         if (cachedMenus[htmlFile]) html = cachedMenus[htmlFile];
         else {
             const response = await fetch(`/load_popupMenu?htmlFile=${htmlFile}&project_name=${projectName}`);
@@ -78,47 +92,37 @@ async function showPopupMenu(projectName, id, htmlFile) {
 async function projectChecker(name=null, params=null) {
     cachedMenus = {}; // Clear cache of menus for new project
     const projectMenu = document.querySelectorAll('.menu');
-    projectMenu.forEach(menu => { menu.style.display = (name===null)?'none':'block'; });
-    const project = document.querySelector('.menu[data-info="0|projectMenu.html"]');
+    projectMenu.forEach(menu => { menu.style.display = 'block'; });
+    const project = document.querySelector('.menu[id="projectMenu"]');
+    if (name === null) return;    
     project.style.display = 'block'; projectTitle().textContent = '';
-    // Clear map
-    map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
-    resetState();  // Reset variables
-    if (name === null) return;
-    // Close windows if open
-    if (summaryWindow().style.display !== 'none') summaryWindow().style.display = 'none';
-    if (waqWindow().style.display !== 'none') waqWindow().style.display = 'none';
-    if (plotWindow().style.display !== 'none') plotWindow().style.display = 'none';
-    timeControl().style.display = 'none'; colorbar_container().style.display = 'none';
-    colorbar_vector_container().style.display = 'none';
-    const subtance = document.getElementById('substance-window');
-    if (subtance.style.display !== 'none') subtance.style.display = 'none';
-    setState({projectName: name}); projectTitle().textContent = `Project: ${name}`;
+    refresh(); hideMap(); resetState(); await login();  // Reset variables
+    setState({projectName: name}); projectTitle().textContent = `Project: ${userName}${name}`;
     startLoading('Reading Simulation Outputs and Setting up Database.\nThis takes a while (especially the first time). Please wait...');
     const data = await sendQuery('setup_database', {projectName: name, params: params});
-    if (data.status === "error") { alert(data.message); location.reload(); }
+    if (data.status === "error") { alert(data.message); location.reload(); return; }
     showLeafletMap();
 }
 
 async function initializeMenu(){
     // Work with pupup menu
-    document.querySelectorAll('.nav ul li a').forEach(link => {
-        link.addEventListener('click', async(event) => {
+    document.querySelectorAll('.nav ul li a:not([style*="display: none"])').forEach(link => {
+        link.onclick = async(event) => {
             event.stopPropagation(); event.preventDefault();
             const rect = link.getBoundingClientRect();
             const pm = popupMenu();
             if (pm.classList.contains('show')) pm.classList.remove('show');
             const info = link.dataset.info;
-            if (info === 'home') { history.back(); return; }
+            if (info === 'home') { window.location.href = "https://ntnusmartwater.github.io/"; return; }
             if (info === 'help') { contactInformation(); return;}
-            const [id, htmlFile] = info.split('|');
+            const [id, htmlFile, _] = info.split('|');
             startLoading('Getting Information. Please wait...');
             await showPopupMenu(getState().projectName, id, htmlFile);
             showLeafletMap();
             pm.style.top = `${rect.bottom + 15 + window.scrollY}px`;
             pm.style.left = `${rect.left + window.scrollX}px`;
             pm.classList.add('show');
-        });
+        };
     })
 }
 
@@ -148,7 +152,7 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
     newIframe.src = `/${scr}`;
     objContent.appendChild(newIframe);
     objHeader.childNodes[0].nodeValue = title;
-    objWindow.style.display = 'flex';
+    objWindow.style.display = 'flex'; hideMap();
 }
 
 function updateEvents() {
@@ -246,22 +250,27 @@ function updateEvents() {
             if (name === 'visualization') {
                 // Open project for visualization
                 iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
-                    projectOpenWindowContent(), "Select Project with Simulation Result");
+                    projectOpenWindowContent(), "Select Scenario with Simulation Result");
             } else if (name === 'new-hyd-project') { 
                 // Create new hyd project
                 projectChecker();
                 iframeInit("new_HYD_project", projectSetting(), projectSettingHeader(), 
-                    projectSettingContent(), "Set up a new Hydrodynamic project");
+                    projectSettingContent(), "Create/Modify/Delete a new Hydrodynamic Scenario");
             } else if (name === 'run-hyd-simulation') {
                 // Run hyd simulation
                 projectChecker();
                 iframeInit("run_hyd_simulation", simulationWindow(), simulationHeader(), 
-                    simulationContent(), "Run Hydrodynamic Simulation");
-            } else if (name === 'new-wq-project') { 
-                // Create and run a new wq project
+                    simulationContent(), "Run a Hydrodynamic Simulation");
+            } else if (name === 'new-waq-project') { 
+                // Create a new waq project
                 projectChecker();
                 iframeInit("new_WQ_project", projectSetting(), projectSettingHeader(), 
-                    projectSettingContent(), "Set up and Run Water Quality Simulation");
+                    projectSettingContent(), "Set up a Water Quality Simulation");
+            } else if (name === 'run-waq-project') { 
+                // Run a new waq project
+                projectChecker();
+                iframeInit("run_WQ_project", simulationWindow(), simulationHeader(), 
+                    simulationContent(), "Run a Water Quality Simulation");
             } else if (name === 'grid-generation') {
                 projectChecker();
                 // Grid Generation
@@ -405,15 +414,11 @@ function updateEvents() {
             startLoading(event.data.message);
             const name = event.data.projectName, gridName = event.data.gridName;
             const data = await sendQuery('open_grid', {projectName: name, gridName: gridName});
-            if (data.status === "error") {alert(data.message); return;}
+            if (data.status === "error") {alert(data.message); ; return;}
             // Show the grid on the map
             if (gridLayer) map.removeLayer(gridLayer); gridLayer = null;
             gridLayer = L.geoJSON(data.content, {style: {color: 'black', weight: 1}}).addTo(map);
             showLeafletMap();
-        }
-        if (event.data?.type === 'showGridTool') {
-            const data = await sendQuery('open_gridTool', {});
-            if (data.status === "error") {alert(data.message); return;}
         }
         if (event.data?.type === 'thermoclineGridClear') { 
             if (gridLayer) map.removeLayer(gridLayer); gridLayer = null;
@@ -443,7 +448,7 @@ function updateEvents() {
                                 <button id="saveBtn" 
                                     style="width:100%;padding:4px;background:#007bff;
                                     color:white;border:none;border-radius:4px;cursor:pointer;">
-                                    Plot Thermocline Chart
+                                    Plot Chart
                                 </button>
                             </div>
                         `;
@@ -470,53 +475,24 @@ function updateEvents() {
             }).addTo(map);
             showLeafletMap();
         }
-        if (event.data?.type === 'run-wq') {
-            const params = event.data.data;
-            // Check if simulation is running
-            const statusRes = await sendQuery('check_sim_status_waq', {projectName: params.projectName});
-            if (statusRes.status === "running") {
-                alert("Simulation is already running for this project."); return;
-            }
-            waqWindow().style.display = 'flex';
-            currentProject = params.projectName;
-            ws = new WebSocket(`ws://${window.location.host}/sim_progress_waq/${currentProject}`);
-            waqProgressText().innerText = 'Start running water quality simulation...';
-            ws.onopen = () => {
-                ws.send(JSON.stringify(params));
-                waqProgressText().innerText = ''; waqProgressbar().value = 0;
-            }
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                if (data.error) { waqProgressText().innerText = data.error; return; }
-                if (data.status !== undefined) waqProgressText().innerText = data.status;
-                if (data.logs !== undefined) waqProgressText().innerText = data.logs;
-                if (data.progress !== undefined) {
-                    waqProgressText().innerText = 'Completed: ' + data.progress + '%';
-                    waqProgressbar().value = data.progress;
-                }
-            };
-        }
     });
     // Move window
     moveWindow(contactInfo, contactInfoHeader); moveWindow(projectOpenWindow, projectOpenWindowHeader);
     moveWindow(projectSetting, projectSettingHeader); moveWindow(simulationWindow, simulationHeader);
-    moveWindow(substanceWindow, substanceWindowHeader); moveWindow(waqWindow, waqWindowHeader);
+    moveWindow(substanceWindowHis, substanceWindowHeaderHis); moveWindow(substanceWindowMap, substanceWindowHeaderMap); 
     // Close windows
-    substanceWindowCloseBtn().addEventListener('click', () => { 
-        substanceWindow().style.display = 'none'; plotWindow().style.display = 'none';
-        map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
-        timeControl().style.display = 'none'; colorbar_container().style.display = 'none';
-        colorbar_vector_container().style.display = 'none';
+    substanceWindowCloseBtnHis().addEventListener('click', () => { 
+        substanceWindowHis().style.display = 'none'; plotWindow().style.display = 'none';
+    });
+    substanceWindowCloseBtnMap().addEventListener('click', () => { 
+        substanceWindowMap().style.display = 'none'; plotWindow().style.display = 'none'; hideMap();
     });
     contactInfoCloseBtn().addEventListener('click', () => { contactInfo().style.display = 'none'; });
     projectOpenCloseBtn().addEventListener('click', () => { projectOpenWindow().style.display = 'none'; });
     projectSettingCloseBtn().addEventListener('click', () => { 
-        // Clear map
-        map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
-        projectSetting().style.display = 'none'; 
+        hideMap(); projectSetting().style.display = 'none'; 
     });
     simulationCloseBtn().addEventListener('click', () => { simulationWindow().style.display = 'none'; });
-    waqCloseBtn().addEventListener('click', () => { waqWindow().style.display = 'none'; });
     map.on('mousemove', function (e) {
         if (!pickerState.location && !pickerState.point && !pickerState.source && !pickerState.crosssection && 
             !pickerState.boundary) {
@@ -553,8 +529,7 @@ function updateEvents() {
             crosssectionContainer.push({ lat: e.latlng.lat, lng: e.latlng.lng });
             // Plot line
             const latlngs = crosssectionContainer.map(p => [p.lat, p.lng]);
-            if (pathLineCrosssection) {
-                pathLineCrosssection.setLatLngs(latlngs);
+            if (pathLineCrosssection) { pathLineCrosssection.setLatLngs(latlngs);
             } else {
                 pathLineCrosssection = L.polyline(latlngs, {
                     color: 'orange', weight: 2, dashArray: '5,5'
@@ -570,8 +545,7 @@ function updateEvents() {
             boundaryContainer.push({ lat: e.latlng.lat, lng: e.latlng.lng });  // Add point
             // Plot line
             const latlngs = boundaryContainer.map(p => [p.lat, p.lng]);
-            if (pathLineBoundary) {
-                pathLineBoundary.setLatLngs(latlngs);
+            if (pathLineBoundary) { pathLineBoundary.setLatLngs(latlngs);
             } else {
                 pathLineBoundary = L.polyline(latlngs, {
                     color: 'orange', weight: 2, dashArray: '5,5'
@@ -629,24 +603,23 @@ function timeSeriesManager() {
     // Process water quality selector
     document.querySelectorAll('.waq_his').forEach(item => {
         item.addEventListener('click', async() => {
-            const query = item.dataset.info;
-            const data = await sendQuery('process_data', {query: query, 
+            substanceWindowMap().style.display = 'none';
+            const data = await sendQuery('process_data', {query: item.dataset.info, 
                 key: 'substance_check', projectName: getState().projectName});
-            if (data.status === "error") {alert(data.message); substanceWindow().style.display = 'none'; return;}
-            substanceWindowContent().innerHTML = '';
+            if (data.status === "error") {alert(data.message); substanceWindowHis().style.display = 'none'; return;}
+            substanceWindowContentHis().innerHTML = ''; substanceWindowHis().style.display = 'flex';
             // Add content
-            substanceWindowContent().innerHTML = data.message.map((substance, i) => 
-                `<label for="${substance}"><input type="radio" name="waq-substance" id="${substance}"
-                    value="${data.content[i]}" ${i === 0 ? 'checked' : ''}>${data.content[i]}</label>`).join('');
-            substanceWindow().style.display = 'flex';
-            plotChart(data.message[0], 'substance', `Substance: ${data.content[0]}`, 'Time', data.content[0]);
+            substanceWindowContentHis().innerHTML = data.content.map((substance, i) => 
+                `<label for="his-${substance}"><input type="radio" name="waq-substance-his" id="his-${substance}"
+                    value="${data.message[i]}" ${i === 0 ? 'checked' : ''}>${data.message[i]}</label>`).join('');
+            hideMap(); plotChart(data.content[0], 'substance', `Substance: ${data.message[0]}`, 'Time', data.message[0]);
         });
     });
     // Listen to substance selection
-    substanceWindowContent().addEventListener('change', (e) => {
-        if (e.target && e.target.name === "waq-substance") {
+    substanceWindowContentHis().addEventListener('change', (e) => {
+        if (e.target && e.target.name === "waq-substance-his") {
             const id = e.target.id, value = e.target.value;
-            plotChart(id, 'substance', `Substance: ${value}`, 'Time', value);
+            hideMap(); plotChart(id.replace('his-', ''), 'substance', `Substance: ${value}`, 'Time', value);
         }
     });
 }

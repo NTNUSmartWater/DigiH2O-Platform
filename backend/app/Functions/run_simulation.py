@@ -1,79 +1,81 @@
-import os, subprocess, threading, asyncio, re, requests
+import os, subprocess, threading, re, time
 from Functions import functions
-from fastapi import APIRouter, Request, WebSocket
+from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import JSONResponse
-from config import PROJECT_STATIC_ROOT, DELFT_PATH, WINDOWS_AGENT_URL
-from starlette.websockets import WebSocketDisconnect
+from config import PROJECT_STATIC_ROOT, DELFT_PATH
 
-router = APIRouter()
-processes = {}
+router, processes = APIRouter(), {}
 
 # Utility: append to file log
 def append_log(log_path, text):
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    with open(log_path, "a", encoding="utf-8", errors="replace") as f:
-        f.write(text + "\n")
+    with open(log_path, "a", encoding=functions.encoding_detect(log_path), errors="replace") as f:
+        f.write(text.strip() + "\n")
+        f.flush()
 
 @router.post("/check_folder")
-async def check_folder(request: Request):
+async def check_folder(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name, folder = body.get('projectName'), body.get('folder', [])
-    if isinstance(folder, str): folder = [folder]
-    path = os.path.join(PROJECT_STATIC_ROOT, project_name, *folder)
+    project_name, _ = functions.project_definer(body.get('projectName'), user)
+    folder, key = body.get('folder'), body.get('key')
+    if key == "hyd": path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, folder))
+    elif key == "waq":
+        waq_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "WAQ"))
+        if not os.path.exists(waq_dir): return JSONResponse({"status": 'error'})
+        files = [f for f in os.listdir(waq_dir) if f.split('.')[0] == folder]
+        if len(files) == 0: return JSONResponse({"status": 'error'})
+        path = os.path.normpath(os.path.join(waq_dir, files[0]))
     status = 'ok' if os.path.exists(path) else 'error'
     return JSONResponse({"status": status})
 
 # Check if simulation is running
 @router.post("/check_sim_status_hyd")
-async def check_sim_status_hyd(request: Request):
+async def check_sim_status_hyd(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name = body.get("projectName")
+    project_name, _ = functions.project_definer(body.get('projectName'), user)
     info = processes.get(project_name)
-    log_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt")
-    if info:
-        # Read log file
-        logs = []
-        if os.path.exists(log_path):
-            with open(log_path, "r", encoding="utf-8", errors="replace") as f:
-                logs = f.read().splitlines()
-        return JSONResponse({ "status": info["status"], "progress": info["progress"], "logs": logs})
-    # Simulation not in memory → check if log exists → means finished earlier
-    if os.path.exists(log_path):
-        logs = []
-        with open(log_path, "r", encoding="utf-8", errors="replace") as f:
-            logs = f.read().splitlines()
-        return JSONResponse({ "status": "finished", "progress": 100, "logs": logs })
-    return JSONResponse({"status": "none", "progress": 0, "logs": []})
-
+    if not info: 
+        return JSONResponse({"status": "not_started", "progress": 0, "message": 'No simulation running'})
+    if info["status"] == "finished":
+        return JSONResponse({"status": "finished", "progress": 100,
+            "message": info.get("message", 'Simulation completed successfully')})
+    if info["status"] == "reorganizing":
+        return JSONResponse({"status": "reorganizing", "progress": 100, "message": 'Reorganizing outputs. Please wait...'})
+    complete = f'HYD simulation completed: {info["progress"]}% [Time used: {info["time_used"]} → Time left: {info["time_left"]}]'
+    return JSONResponse({"status": info["status"], "progress": info["progress"], "message": complete})
+    
 # Start a hydrodynamic simulation
 @router.post("/start_sim_hyd")
-async def start_sim_hyd(request: Request):
+async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name = body.get("projectName")
-    # Check if simulation already running
-    if project_name in processes and processes[project_name]["status"] == "running":
-        return JSONResponse({"status": "error", "message": "Simulation is already running."})
-    path = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
-    mdu_path = os.path.join(path, "FlowFM.mdu")
-    bat_path = os.path.join(DELFT_PATH, "dflowfm/scripts/run_dflowfm.bat")
-    # Check if file exists
-    if not os.path.exists(mdu_path): return JSONResponse({"status": "error", "message": "MDU file not found."})
-    if not os.path.exists(bat_path): return JSONResponse({"status": "error", "message": "Executable file not found."})
-    # Remove old log
-    log_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt")
-    if os.path.exists(log_path): os.remove(log_path)
-    percent_re = re.compile(r'(?P<percent>\d{1,3}(?:\.\d+)?)\s*%')
-    time_re = re.compile(r'(?P<tt>\d+d\s+\d{1,2}:\d{2}:\d{2})')
-    # Run the process
-    if request.app.state.env == 'development':
-        # Run the process on host
-        command = [bat_path, "--autostartstop", mdu_path]
-        process = subprocess.Popen(
-            command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-            encoding="utf-8", errors="replace", bufsize=1, cwd=path
-        )
-        processes[project_name] = {"process": process, "progress": 0.0, 
-            "real_time_used": "N/A", "real_time_left": "N/A", "logs": [], "status": "running"}
+    project_name, project_id = functions.project_definer(body.get('projectName'), user)
+    redis = request.app.state.redis
+    lock = redis.lock(f"{project_id}:sim_hyd", timeout=1000, blocking_timeout=10)
+    async with lock:
+        # Check if simulation already running
+        if project_name in processes and processes[project_name]["status"] == "running":
+            info = processes[project_name]
+            complete = f'Completed: {info["progress"]}% [Time used: {info["time_used"]} → Time left: {info["time_left"]}]'
+            return JSONResponse({"status": "running", "progress": info["progress"], "message": complete})
+        path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
+        mdu_path = os.path.normpath(os.path.join(path, "FlowFM.mdu"))
+        bat_path = os.path.normpath(os.path.join(DELFT_PATH, "dflowfm/scripts/run_dflowfm.bat"))
+        # Check if file exists
+        if not os.path.exists(mdu_path): 
+            return JSONResponse({"status": "error", "progress": 0.0, "message": "MDU file not found"})
+        if not os.path.exists(bat_path): 
+            return JSONResponse({"status": "error", "progress": 0.0, "message": "Executable file not found"})
+        # Remove old log
+        log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log_hyd.txt"))
+        if os.path.exists(log_path): os.remove(log_path)
+        percent_re = re.compile(r'(?P<percent>\d{1,3}(?:\.\d+)?)\s*%')
+        time_re = re.compile(r'(?P<tt>\d+d\s+\d{1,2}:\d{2}:\d{2})')
+        # Run the process
+        command = ["cmd.exe", "/c", bat_path, "--autostartstop", mdu_path]
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            encoding="utf-8", errors="replace", bufsize=1, cwd=path)
+        processes[project_name] = {"process": process, "progress": 0.0, "status": "running", 
+            "message": 'Preparing data for simulation...', "time_used": "", "time_left": ""}
         # Stream logs
         def stream_logs():
             try:
@@ -82,69 +84,59 @@ async def start_sim_hyd(request: Request):
                     if not line: continue
                     append_log(log_path, line)
                     # Catch error messages
-                    if "forrtl:" in line.lower():
+                    if "forrtl:" in line.lower() or "error" in line.lower():
                         processes[project_name]["status"] = "error"
-                        append_log(log_path, f"[ERROR] {line}")
-                        try: process.kill()
-                        except: pass
-                        break
+                        processes[project_name]["message"] = line
+                        append_log(log_path, line)
+                        res = functions.kill_process(process)
+                        append_log(log_path, res["message"])
                     # Check for progress
                     match_pct = percent_re.search(line)
                     if match_pct: processes[project_name]["progress"] = float(match_pct.group("percent"))
                     # Extract run time
                     times = time_re.findall(line)
                     if len(times) >= 4:
-                        processes[project_name]["real_time_used"] = times[2]
-                        processes[project_name]["real_time_left"] = times[3]
+                        processes[project_name]["time_used"] = times[2]
+                        processes[project_name]["time_left"] = times[3]
                     elif len(times) == 3:
-                        processes[project_name]["real_time_used"] = times[1]
-                        processes[project_name]["real_time_left"] = times[2]
+                        processes[project_name]["time_used"] = times[1]
+                        processes[project_name]["time_left"] = times[2]
             finally:
                 process.wait()
-                status = processes[project_name]["status"]
-                if status != "error":
-                    processes[project_name]["status"] = "finished"
-                    try:
-                        post_result = functions.postProcess(path)
-                        msg = f"[FINISHED] {post_result['message']}" if post_result["status"] == "ok" else f"[ERROR] {post_result['message']}"
-                        append_log(log_path, msg)
-                    except Exception as e: append_log(log_path, f"[POSTPROCESS FAILED] {str(e)}")
-                append_log(log_path, "[CLEANUP] Done.")
-                processes[project_name]["progress"] = 100.0
+                if processes[project_name]["status"] != "error":
+                    processes[project_name]["progress"] = 100.0
+                    processes[project_name]["status"] = "reorganizing"
+                    processes[project_name]["message"] = "Reorganizing outputs. Please wait..."
+                    post_result = functions.postProcess(path)
+                    if post_result["status"] != "ok":
+                        processes[project_name]["status"] = "error"
+                        processes[project_name]["message"] = post_result["message"]
+                    else:
+                        processes[project_name]["status"] = "finished"
+                        processes[project_name]["message"] = "Simulation completed successfully"
+                def cleanup_later(ttl=60):
+                    time.sleep(ttl)
+                    processes.pop(project_name, None)
+                threading.Thread(target=cleanup_later, daemon=True).start()
         threading.Thread(target=stream_logs, daemon=True).start()
-        return JSONResponse({"status": "ok", "message": f"Simulation {project_name} started on Windows host."})
-    else: # Run the process on docker
-        payload = {"action": "run_hyd", "bat_path": bat_path, "mdu_path": mdu_path, "project_name": project_name, 
-                   "log_path": log_path, "cwd_path": path, "percent_re": str(percent_re), "time_re": str(time_re)}
-        try:
-            res = requests.post(WINDOWS_AGENT_URL, json=payload, timeout=10)
-            res.raise_for_status()
-            return JSONResponse({"status": "ok", "message": f"Simulation {project_name} started (via Windows Agent)."})
-        except Exception as e:
-            return JSONResponse({"status": "error", "message": f"Exception: {str(e)}"})
+    return JSONResponse({"status": "ok", "message": f"Simulation {project_name} started"})
 
-@router.websocket("/sim_progress_hyd/{project_name}")
-async def sim_progress_hyd(websocket: WebSocket, project_name: str):
-    await websocket.accept()
-    log_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "log.txt")
-    last_pos = 0
-    try:
-        while True:
-            info = processes.get(project_name)
-            if not info:
-                await websocket.send_text("[ERROR] Simulation not running.")
-                break
-            # Send new logs to the client
-            if os.path.exists(log_path):
-                with open(log_path, "r", encoding="utf-8", errors="replace") as f:
-                    f.seek(last_pos)
-                    for line in f:
-                        await websocket.send_text(line.strip())
-                    last_pos = f.tell()
-            # Send progress to the client if it has changed
-            await websocket.send_text(f"[PROGRESS] {info['progress']:.2f}|{info['real_time_used']}|{info['real_time_left']}")
-            if info["status"] != "running":
-                await websocket.send_text(f"[FINISHED] Simulation {info['status']}.")
-                break
-            await asyncio.sleep(1)
-    except WebSocketDisconnect: pass
+@router.get("/sim_log_full/{project_name}")
+async def sim_log_full(project_name: str, log_file: str = Query(""), user=Depends(functions.basic_auth)):
+    project_name, _ = functions.project_definer(project_name, user)
+    log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, log_file))
+    if not os.path.exists(log_path): return {"content": ""}
+    with open(log_path, "r", encoding=functions.encoding_detect(log_path), errors="replace") as f:
+        content = f.read()
+    return {"content": content, "offset": os.path.getsize(log_path)}
+
+@router.get("/sim_log_tail_hyd/{project_name}")
+async def sim_log_tail_hyd(project_name: str, offset: int = Query(0), log_file: str = Query(""), user=Depends(functions.basic_auth)):
+    project_name, _ = functions.project_definer(project_name, user)
+    log_path, lines = os.path.join(PROJECT_STATIC_ROOT, project_name, log_file), []
+    if not os.path.exists(log_path): return {"lines": lines, "offset": offset}
+    with open(log_path, "r", encoding=functions.encoding_detect(log_path), errors="replace") as f:
+        f.seek(offset)
+        for line in f:
+            lines.append(line.rstrip())
+    return {"lines": lines, "offset": os.path.getsize(log_path)}

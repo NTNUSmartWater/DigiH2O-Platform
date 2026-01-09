@@ -1,7 +1,7 @@
 import { loadData, getColorFromValue, updateColorbar, updateMapByTime, decodeArray } from "./utils.js";
 import { startLoading, showLeafletMap, L, map } from "./mapManager.js";
 import { arrowShape, getState, setState } from "./constants.js";
-import { layerSelector, substanceWindow } from "./spatialMapManager.js";
+import { layerSelector, substanceWindowHis } from "./spatialMapManager.js";
 import { sendQuery } from "./tableManager.js";
 
 export const timeControl = () => document.getElementById('time-controls');
@@ -141,7 +141,7 @@ export async function plot2DMapStatic(key, colorbarTitle, colorbarKey) {
     if (data.status === 'error') { showLeafletMap(); alert(data.message); return; }
     setState({isPlaying: false});
     // Hide timeslider
-    timeControl().style.display = 'none'; substanceWindow().style.display = 'none';
+    timeControl().style.display = 'none'; substanceWindowHis().style.display = 'none';
     // Get the min and max values of the data
     const vmin = data.content.min_max[0], vmax = data.content.min_max[1];
     const meshes = data.content.meshes, values = data.content.values;
@@ -321,7 +321,8 @@ function initScaler() {
 
 export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, colorbarKey) {
     startLoading('Preparing Dynamic Map. Please wait...'); scale = initScaler();
-    let data_below = null, data_above = null, colorbarTitleAbove = null, colorbarKeyAbove = null, key_below = key, key_above = null;
+    let data_below = null, data_above = null, colorbarTitleAbove = null;
+    let colorbarKeyAbove = null, key_below = key, key_above = null;
     setState({showedQuery: key}); setState({isHYD: waterQuality});  // Set HYD flag
     // Process below layer
     const dataBelow = await sendQuery('load_general_dynamic', {query: `${query}|load`, key: key, projectName: getState().projectName});
@@ -343,7 +344,7 @@ export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, 
         }
         key_above = layerSelector.value;
         const dataAbove = await sendQuery('load_vector_dynamic', {query: 'load', key: key_above, projectName: getState().projectName});
-        data_above = dataAbove.content; data_above.values = decodeArray(data_above.values, 3);
+        data_above = dataAbove.content;
     }
     initDynamicMap(query, key_below, key_above, data_below, data_above, colorbarTitle, colorbarTitleAbove, colorbarKey, colorbarKeyAbove, scale);
     showLeafletMap();

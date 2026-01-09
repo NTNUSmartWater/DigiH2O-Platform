@@ -1,71 +1,100 @@
-import os, subprocess, asyncio, re, shutil, requests
+import os, subprocess, re, shutil, json
+import asyncio, traceback, threading, time
 import pandas as pd, numpy as np, xarray as xr
-from fastapi import APIRouter, Request, WebSocket
-from config import PROJECT_STATIC_ROOT, DELFT_PATH, WINDOWS_AGENT_URL
+from fastapi import APIRouter, Request, Depends, Query
+from config import PROJECT_STATIC_ROOT, DELFT_PATH
 from fastapi.responses import JSONResponse
 from datetime import datetime, timezone
-from Functions import wq_functions
-from starlette.websockets import WebSocketDisconnect
+from Functions import wq_functions, functions
 
-router = APIRouter()
-processes = {}
-
+router, processes = APIRouter(), {}
 
 def path_process(full_path:str, head:int=3, tail:int=2):
     parts  = full_path.split('/')
     if len(parts) <= head + tail: return full_path
     return '/'.join(parts[:head]) + '/ ... /' + '/'.join(parts[-tail:])
 
-def kill_process(process):
-    try:
-        # Try terminate
-        process.terminate()
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            # Force kill for Windows
-            subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return {"status": "ok", "message": "Simulation stopped."}
-    except Exception as e: 
-        return {"status": "error", "message": str(e)}
-
 @router.post("/select_hyd")
-async def select_hyd(request: Request):
+async def select_hyd(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name = body.get('projectName')
+    project_name, _ = functions.project_definer(body.get('projectName'), user)
     folder = [PROJECT_STATIC_ROOT, project_name, "DFM_DELWAQ", 'FlowFM.hyd']
-    path = os.path.join(*folder)
-    status, data = 'error', None
-    message = f"Error: Cannot find .hyd file in project '{project_name}'.\nPlease run a hydrodynamic simulation first."
+    path = os.path.normpath(os.path.join(*folder))
     if os.path.exists(path):
-        # Read file
-        data = wq_functions.hydReader(path)
-        status, message = 'ok', ""
-    return JSONResponse({"status": status, "message": message, "content": data})
+        return JSONResponse({"status": 'ok', "content": wq_functions.hydReader(path)})
+    message = f"Error: Cannot find .hyd file in project '{project_name}'.\nPlease run a hydrodynamic simulation first."
+    return JSONResponse({"status": 'error', "message": message})
 
-@router.post("/wq_time")
-async def wq_time(request: Request):
-    body = await request.json()
-    load_data, time_data, key, folder = body.get('loadsData'), body.get('timeData'), body.get('key'), body.get('folderName')
-    # Check whether the location in time-series is in the load data
-    loads = [x[0] for x in load_data]
-    times = [x[1] for x in time_data]
-    if not any(x in times for x in loads):
-        return JSONResponse({"status": 'error', "message": 'Error: No Location/Substance found in the table.'})
+@router.post("/select_waq")
+async def select_waq(request: Request, user=Depends(functions.basic_auth)):
     try:
+        body = await request.json()
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
+        folder = [PROJECT_STATIC_ROOT, project_name, "output", 'scenarios']
+        path = os.path.normpath(os.path.join(*folder))
+        files = [f.replace('.json', '') for f in os.listdir(path) if f.endswith('.json')]
+        if len(files) == 0: return JSONResponse({"status": 'error'})
+        return JSONResponse({"status": 'ok', "content": files})
+    except: return JSONResponse({"status": 'error'})
+
+@router.post("/load_waq")
+async def load_waq(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
+        folder = [PROJECT_STATIC_ROOT, project_name, "output", 'scenarios', f"{body.get('waqName')}.json"]
+        path, data = os.path.normpath(os.path.join(*folder)), {}
+        if not os.path.exists(path): return JSONResponse({"status": 'error', "message": 'Configuration file not found.'})
+        with open(path, 'r', encoding=functions.encoding_detect(path)) as f:
+            files = json.load(f)
+        data['key'], data['name'], data['mode'] = files['key'], files['folderName'], files['mode']
+        data['obs'], data['loads'] = files['obsPoints'], files['loadsData']
+        data['times'], data['usefors'] = files['timeTable'], files['usefors']
+        data['initial'], data['scheme'] = files['initial'], files['scheme']
+        data['maxiter'], data['tolerance'] = files['maxiter'], files['tolerance']
+        data['useforsFrom'], data['useforsTo'] = files['useforsFrom'], files['useforsTo']
+        return JSONResponse({"status": 'ok', "content": data})
+    except: return JSONResponse({"status": 'error'})
+
+@router.post("/wq_time_from_waq")
+async def wq_time_from_waq(request: Request):
+    try:
+        body = await request.json()
+        key = body.get('key')
+        if key == 'Simple_Oxygen': from_ = ['NH4', 'CBOD5', 'OXY', 'SOD']
+        elif key == 'Oxygen_BOD': from_ = ['OXY', 'CBOD5']
+        elif key == 'Cadmium': from_ = ['IM1', 'Cd', 'IM1S1', 'CdS1']
+        elif key == 'Eutrophication': from_ = ['A', 'DP', 'NORG', 'NH4', 'NO3']
+        elif key == 'Trace_Metals': from_ = ['ASWTOT', 'CUWTOT', 'NIWTOT', 'PBWTOT', 'POCW', 'AOCW', 'DOCW', 'SSW', 'ZNWTOT',
+                    'ASREDT', 'ASSTOT', 'ASSUBT', 'CUREDT', 'CUSTOT', 'CUSUBT', 'NIREDT', 'NISTOT', 'NISUBT',
+                    'PBREDT', 'PBSTOT', 'PBSUBT', 'DOCB', 'DOCSUB', 'POCB', 'POCSUB', 'S', 'ZNREDT', 'ZNSTOT', 'ZNSUBT']
+        elif key == 'Conservative_Tracers': from_ = ['cTR1', 'cTR2', 'cTR3', 'dTR1', 'dTR2', 'dTR3']
+        elif key == 'Suspend_Sediment': from_ = ['IM1', 'IM2', 'IM3', 'IM1S1', 'IM2S1', 'IM3S1']
+        elif key == 'Coliform': from_ = ['Salinity', 'EColi']
+        return JSONResponse({"status": 'ok', "froms": from_})
+    except Exception as e:
+        return JSONResponse({"status": 'error', "message":  f"Error: {str(e)}"})
+
+@router.post("/wq_time_to_waq")
+async def wq_time(request: Request):
+    try:
+        body = await request.json()
+        load_data, time_data, folder = body.get('loadsData'), body.get('timeData'), body.get('folderName')
+        # Check whether the location in time-series is in the load data
+        loads, times = [x[0] for x in load_data], [x[1] for x in time_data]
+        if not any(x in times for x in loads):
+            return JSONResponse({"status": 'error', 
+                "message": 'Error: No Location found in the table.\nThe field "Location" has to be defined in the table "List of Loads".'})        
         # Read file and prepare data
         time_data = np.array(time_data)
         idx = [datetime.fromtimestamp(int(x)/1000.0, tz=timezone.utc) for x in time_data[:, 0]]
         df = pd.DataFrame(time_data[:, 1:], index=idx, columns=['source', 'substance', 'value'])
         # Sort data
         df = df.sort_index(ascending=True)
-        status, message, data = 'ok', "", None
         # Structure data
-        groups = df.groupby(['source'])
-        if len(groups) == 0: return JSONResponse({"status": 'error', "content": data,
-                "message": 'The inputed time-series data No Location/Substance found in the table.'})
-        result = []
+        groups, result = df.groupby(['source']), []
+        if len(groups) == 0: return JSONResponse({"status": 'error',
+                "message": 'The inputed time-series data is not found in the table.'})
         for name, group in groups:
             if (len(group) == 0 or name[0] not in loads): continue
             gr_substance = [x[0][0] for x in group.groupby(['substance'])]
@@ -73,16 +102,6 @@ async def wq_time(request: Request):
             temp = ["DATA_ITEM", name[0], "CONCENTRATIONS",
                 f"INCLUDE 'includes_deltashell\\load_data_tables\\{folder}.usefors'",
                 "TIME LINEAR DATA", subs]
-            if key == 'simple-oxygen': from_ = ['NH4', 'CBOD5', 'OXY', 'SOD']
-            elif key == 'oxygen-bod-water': from_ = ['OXY', 'CBOD5']
-            elif key == 'cadmium': from_ = ['IM1', 'Cd', 'IM1S1', 'CdS1']
-            elif key == 'eutrophication': from_ = ['A', 'DP', 'NORG', 'NH4', 'NO3']
-            elif key == 'trace-metals': from_ = ['ASWTOT', 'CUWTOT', 'NIWTOT', 'PBWTOT', 'POCW', 'AOCW', 'DOCW', 'SSW', 'ZNWTOT',
-                        'ASREDT', 'ASSTOT', 'ASSUBT', 'CUREDT', 'CUSTOT', 'CUSUBT', 'NIREDT', 'NISTOT', 'NISUBT',
-                        'PBREDT', 'PBSTOT', 'PBSUBT', 'DOCB', 'DOCSUB', 'POCB', 'POCSUB', 'S', 'ZNREDT', 'ZNSTOT', 'ZNSUBT']
-            elif key == 'conservative-tracers': from_ = ['cTR1', 'cTR2', 'cTR3', 'dTR1', 'dTR2', 'dTR3']
-            elif key == 'suspend-sediment': from_ = ['IM1', 'IM2', 'IM3', 'IM1S1', 'IM2S1', 'IM3S1']
-            elif key == 'coliform': from_ = ['Salinity', 'EColi']
             # Assign data
             temp_df = pd.DataFrame()
             for item in gr_substance:
@@ -96,48 +115,111 @@ async def wq_time(request: Request):
             lst = [' '.join(x) for x in lst]
             temp += lst
             result.append('\n'.join(temp))
-        status, message, data, to_ = 'ok', "", '\n\n\n'.join(result), gr_substance
-    except Exception as e:
-        status, message, data, from_, to_ = 'error', f"Error: {str(e)}", None, None, None
-    return JSONResponse({"status": status, "message": message, "content": data, "froms": from_, "tos": to_})
+        return JSONResponse({"status": 'ok',"content": '\n\n\n'.join(result), "tos": gr_substance})
+    except Exception as e: return JSONResponse({"status": 'error', "message":  f"Error: {str(e)}"})
+
+@router.post("/waq_config_writer")
+async def waq_config_writer(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
+        project_name, project_id = functions.project_definer(body.get('projectName'), user)
+        redis = request.app.state.redis
+        lock = redis.lock(f"{project_id}:waq_config", timeout=10)
+        async with lock:
+            config_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "scenarios"))
+            if not os.path.exists(config_path): os.makedirs(config_path)
+            config_file = os.path.normpath(os.path.join(config_path, f"{body.get('folderName')}.json"))
+            if os.path.exists(config_file): os.remove(config_file)
+            with open(config_file, 'w', encoding=functions.encoding_detect(config_file)) as f:
+                json.dump(body, f, indent=4)
+            return JSONResponse({"status": 'ok', "message": 'Model configuration saved successfully.'})
+    except Exception as e: return JSONResponse({"status": 'error', "message":  f"Error: {str(e)}"})
 
 # Check if simulation is running
 @router.post("/check_sim_status_waq")
-async def check_sim_status_waq(request: Request):
+async def check_sim_status_waq(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name = body.get("projectName")
-    if project_name in processes:
-        info = processes[project_name]
-        status = "stopped" if info.get("stopped") else info.get("status", "none")
-        return JSONResponse({ "status": status,
-            "progress": info.get("progress", 0), "logs": info.get("logs", [])
-        })
-    return JSONResponse({"status": "none", "progress": 0, "logs": []})
+    project_name, _ = functions.project_definer(body.get('projectName'), user)
+    info = processes.get(project_name)
+    if not info:
+        return JSONResponse({"status": "not_started", "progress": 0, "message": 'Simulation not started yet'})
+    if info["status"] == "finished":
+        return JSONResponse({"status": "finished", "progress": 100,
+            "message": info.get("message", 'Simulation completed successfully')})
+    if info["status"] == "reorganizing":
+        return JSONResponse({"status": "reorganizing", "progress": 100, "message": 'Reorganizing outputs. Please wait...'})
+    return JSONResponse({"status": info["status"], "progress": info["progress"],
+        "message": f"WAQ simulation completed: {info['progress']}%"})
 
-@router.websocket("/sim_progress_waq/{project_name}")
-async def sim_progress_waq(websocket: WebSocket, project_name: str):
-    await websocket.accept()
-    try:
-        body = await websocket.receive_json()
+@router.get("/sim_log_tail_waq/{project_name}")
+async def sim_log_tail_waq(project_name: str, offset: int = Query(0), log_file: str = Query(""), user=Depends(functions.basic_auth)):
+    project_name, _ = functions.project_definer(project_name, user)
+    log_path, lines = os.path.join(PROJECT_STATIC_ROOT, project_name, log_file), []
+    if not os.path.exists(log_path): return {"lines": lines, "offset": offset}
+    with open(log_path, "r", encoding=functions.encoding_detect(log_path), errors="replace") as f:
+        f.seek(offset)
+        for line in f:
+            lines.append(line.rstrip())
+    return {"lines": lines, "offset": os.path.getsize(log_path)}
+
+# Start a waq simulation
+@router.post("/start_sim_waq")
+async def start_sim_waq(request: Request, user=Depends(functions.basic_auth)):
+    body = await request.json()
+    project_name, project_id = functions.project_definer(body.get('projectName'), user)
+    waq_name = body.get('waqName')
+    redis = request.app.state.redis
+    lock = redis.lock(f"{project_id}:{waq_name}", timeout=500, blocking_timeout=10)
+    async with lock:
         if project_name in processes and processes[project_name]["status"] == "running":
-            await websocket.send_json({"error": "Simulation for this project is already running."})
-            return
-        processes[project_name] = {"progress": 0, "logs": [], "status": "running", "process": None, "stopped": False}
+            old = processes[project_name]["status"]
+            if old in ("finished", "error"): processes.pop(project_name)
+            return JSONResponse({"status": old, "message": processes[project_name]["message"]})
+        asyncio.create_task(run_waq_simulation(project_name, waq_name))
+    return JSONResponse({"status": "ok", "message": "Simulation started"})
+
+async def run_waq_simulation(project_name, waq_name):
+    processes[project_name] = {"status": "not_started", "progress": 0, "message": "", "process": None}
+    log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log_waq.txt"))
+    if os.path.exists(log_path): os.remove(log_path)
+    log_file = open(log_path, "a", encoding=functions.encoding_detect(log_path), errors="replace")
+    log_file.write(f"Project: {project_name}\n")
+    log_file.write(f"Simulation started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+    log_file.write("===============================================\n\n")
+    # Check if configuration exists
+    config_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "scenarios")
+    config_file = os.path.normpath(os.path.join(config_path, f"{waq_name}.json"))
+    if not os.path.exists(config_file):
+        log_file.write("Configuration file not found.\n")
+        processes[project_name]["status"] = "error"
+        processes[project_name]["message"] = "Configuration file not found."
+        log_file.flush(); log_file.close()
+        return
+    log_file.write("Configuration file found. Reading configuration ...\n")
+    with open(config_file, "r", encoding=functions.encoding_detect(config_file), errors="replace") as f:
+        body = json.load(f)
+    # Start simulation
+    try:
         key, file_name, time_data, usefors = body['key'], body['folderName'], body['timeTable'], body['usefors']
         t_start = datetime.fromtimestamp(int(body['startTime']/1000.0), tz=timezone.utc)
         t_stop = datetime.fromtimestamp(int(body['stopTime']/1000.0), tz=timezone.utc)
-        hyd_path = os.path.join(PROJECT_STATIC_ROOT, project_name, "DFM_DELWAQ", body['hydName'])
-        hyd_folder = os.path.dirname(hyd_path)
-        sal_path, attr_path = os.path.join(hyd_folder, body['salPath']), os.path.join(hyd_folder, body['attrPath'])
-        vol_path, ptr_path = os.path.join(hyd_folder, body['volPath']), os.path.join(hyd_folder, body['ptrPath'])
-        area_path, flow_path = os.path.join(hyd_folder, body['areaPath']), os.path.join(hyd_folder, body['flowPath'])
-        length_path, srf_path = os.path.join(hyd_folder, body['lengthPath']), os.path.join(hyd_folder, body['srfPath'])
-        vdf_path, tem_path = os.path.join(hyd_folder, body['vdfPath']), os.path.join(hyd_folder, body['temPath'])
-        wq_folder = os.path.join(PROJECT_STATIC_ROOT, project_name, "WAQ")
+        hyd_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "DFM_DELWAQ"))
+        hyd_path = os.path.normpath(os.path.join(hyd_folder, body['hydName']))
+        sal_path = os.path.normpath(os.path.join(hyd_folder, body['salPath']))
+        attr_path = os.path.normpath(os.path.join(hyd_folder, body['attrPath']))
+        vol_path = os.path.normpath(os.path.join(hyd_folder, body['volPath']))
+        ptr_path = os.path.normpath(os.path.join(hyd_folder, body['ptrPath']))
+        area_path = os.path.normpath(os.path.join(hyd_folder, body['areaPath']))
+        flow_path = os.path.normpath(os.path.join(hyd_folder, body['flowPath']))
+        length_path = os.path.normpath(os.path.join(hyd_folder, body['lengthPath']))
+        srf_path = os.path.normpath(os.path.join(hyd_folder, body['srfPath']))
+        vdf_path = os.path.normpath(os.path.join(hyd_folder, body['vdfPath']))
+        tem_path = os.path.normpath(os.path.join(hyd_folder, body['temPath']))
+        wq_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "WAQ"))
         os.makedirs(wq_folder, exist_ok=True)
         # Clear data if exists
-        output_folder = os.path.join(wq_folder, file_name)
-        if os.path.exists(output_folder): shutil.rmtree(output_folder, ignore_errors=True)
+        output_folder = os.path.normpath(os.path.join(wq_folder, file_name))
+        if os.path.exists(output_folder): shutil.rmtree(output_folder, onerror=functions.remove_readonly)
         os.makedirs(output_folder, exist_ok=True)
         parameters = {'hyd_path': hyd_path, "t_start": t_start, "t_stop": t_stop, 'sal_path': sal_path,
             "maxiter": body['maxiter'], "tolerance": body['tolerance'], "scheme": body['scheme'], 'srf_path': srf_path, 
@@ -146,165 +228,118 @@ async def sim_progress_waq(websocket: WebSocket, project_name: str):
             'exchange_y': body['exchangeY'], 'exchange_z': body['exchangeZ'], 'folder_name': file_name,
             'ptr_path': ptr_path, 'area_path': area_path, 'flow_path': flow_path, 'length_path': length_path,
             'n_layers': body['nLayers'], 'sources': body['sources'], 'loads_data': body['loadsData'],
-            'vdf_path': vdf_path, 'tem_path': tem_path, 'initial_list': body['initialList'], 'initial_set': body['initial'].split('\n')
+            'vdf_path': vdf_path, 'tem_path': tem_path, 'initial_list': body['useforsFrom'], 'initial_set': body['initial'].split('\n')
         }
-        includes_folder = os.path.join(output_folder, "includes_deltashell")
+        includes_folder = os.path.normpath(os.path.join(output_folder, "includes_deltashell"))
         os.makedirs(includes_folder, exist_ok=True)
-        table_folder = os.path.join(includes_folder, "load_data_tables")
+        table_folder = os.path.normpath(os.path.join(includes_folder, "load_data_tables"))
         os.makedirs(table_folder, exist_ok=True)
         # Write *.tbl file
-        tbl_path = os.path.join(table_folder, f"{file_name}.tbl")
-        with open(tbl_path, 'w', encoding='ascii', newline='\n') as f:
+        tbl_path = os.path.normpath(os.path.join(table_folder, f"{file_name}.tbl"))
+        with open(tbl_path, 'w', encoding=functions.encoding_detect(tbl_path), newline='\n') as f:
             f.write(time_data)
         # Write *.usefors file
-        usefor_path = os.path.join(table_folder, f"{file_name}.usefors")
-        with open(usefor_path, 'w', encoding='ascii', newline='\n') as f:
+        usefor_path = os.path.normpath(os.path.join(table_folder, f"{file_name}.usefors"))
+        with open(usefor_path, 'w', encoding=functions.encoding_detect(usefor_path), newline='\n') as f:
             f.write(usefors)
         # Prepare external inputs
-        inp_file, ms = wq_functions.wqPreparation(parameters, key, output_folder, includes_folder)
-        if not inp_file:
-            await websocket.send_json({'error': ms})
+        inp_file = wq_functions.wqPreparation(parameters, key, output_folder, includes_folder)
+        if inp_file is None:
+            log_file.write("Error creating *.inp file.\n")
+            processes[project_name]['status'] = "error"
+            processes[project_name]['message'] = "Error creating *.inp file"
+            log_file.flush(); log_file.close()
             return
-        # Run WAQ simulation
-        delwaq1_path = os.path.normpath(os.path.join(DELFT_PATH, 'dwaq/bin/delwaq1.exe'))
-        delwaq2_path = os.path.normpath(os.path.join(DELFT_PATH, 'dwaq/bin/delwaq2.exe'))
+        # Check if all paths are valid to run the simulation
+        bat_path = os.path.normpath(os.path.join(DELFT_PATH, "dwaq/scripts/run_delwaq.bat"))
         bloom_path = os.path.normpath(os.path.join(DELFT_PATH, 'dwaq/default/bloom.spe'))
         proc_path = os.path.normpath(os.path.join(DELFT_PATH, 'dwaq/default/proc_def.def'))
-        paths_to_check = [ delwaq1_path, delwaq2_path, proc_path, bloom_path ]
-        # Check if all paths exist and are valid to run the simulation
+        paths_to_check = [bat_path, proc_path, bloom_path]
         for path in paths_to_check:
-            if not os.path.exists(path):
-                await websocket.send_json({'error': f"File not found: {path_process(path)}"})
-                processes[project_name]["status"] = "finished"
-                return
             if not os.access(path, os.R_OK):
-                await websocket.send_json({'error': f"No read permission: {path_process(path)}"})
-                processes[project_name]["status"] = "finished"
+                log_file.write(f"No read permission: {path}\n")
+                processes[project_name]["status"] = "error"
+                processes[project_name]["message"] = "No read permission"
+                log_file.flush(); log_file.close()
                 return
-        # Add dll path
-        dll_path = os.path.join(DELFT_PATH, 'share/bin')
-        os.environ["PATH"] += os.pathsep + dll_path
         # Run Simulation and get output
         inp_name = os.path.basename(inp_file)
         progress_regex = re.compile(r"(\d+(?:\.\d+)?)% Completed")
-        if websocket.app.state.env == "development":
-            # === Run delwaq1 ===
-            await websocket.send_json({'status': "Checking inputs for WAQ simulation..."})
-            print('=== Run delwaq1 ===')
-            cmd1 = [delwaq1_path, inp_name, "-p", proc_path, "-eco", bloom_path]
-            ok1 = await subprocessRunner(cmd1, output_folder, websocket, project_name)
-            if not ok1:
-                await websocket.send_json({'error': "Prepare inputs failed."})
-                processes[project_name]["status"] = "finished"
-                return
-            # === Run delwaq2 ===
-            await websocket.send_json({'status': "Running WAQ simulation..."})
-            print('=== Run delwaq2 ===')
-            cmd2 = [delwaq2_path, inp_name]
-            ok2 = await subprocessRunner(cmd2, output_folder, websocket, project_name, progress_regex, "ERROR in GMRES")
-            if not ok2:
-                await websocket.send_json({'error': "Run failed."})
-                processes[project_name]["status"] = "finished"
-                return
-        else:
-            # === Run delwaq1 ===
-            await websocket.send_json({'status': "Checking inputs for WAQ simulation..."})
-            print('=== Run delwaq1 ===')
-            cmd1 = [delwaq1_path, inp_name, "-p", proc_path, "-eco", bloom_path]
-            payload = {"action": "run_waq", "cmd": cmd1, "project_name": project_name,
-                       "cwd": output_folder, "websocket": websocket}
-            res = requests.post(WINDOWS_AGENT_URL, json=payload, timeout=10)
-            res.raise_for_status()
-            ok1 = res.json()
-            if ok1['status'] != "ok":
-                await websocket.send_json({'error': "Prepare inputs failed."})
-                processes[project_name]["status"] = "finished"
-                return
-            # === Run delwaq2 ===
-            await websocket.send_json({'status': "Running WAQ simulation..."})
-            print('=== Run delwaq2 ===')
-            progress_regex = re.compile(r"(\d+(?:\.\d+)?)% Completed")
-            payload = {"action": "run_waq", "cmd": cmd2, "project_name": project_name, "cwd": output_folder,
-                       "websocket": websocket, "progress_regex": progress_regex, "stop_on_error": "ERROR in GMRES"}
-            res = requests.post(WINDOWS_AGENT_URL, json=payload, timeout=10)
-            res.raise_for_status()
-            ok2 = res.json()
-            if ok2['status'] != "ok":
-                await websocket.send_json({'error': "Run failed."})
-                processes[project_name]["status"] = "finished"
-                return
-        print('=== Finished ===')
-        # Move WAQ output files to output folder
-        await websocket.send_json({'status': "Reorganizing output files ..."})
-        try:
-            output_dir = os.path.join(PROJECT_STATIC_ROOT, project_name, "output")
-            if not os.path.exists(output_dir): os.makedirs(output_dir)
-            output_WAQ_dir = os.path.join(output_dir, 'WAQ')
-            if not os.path.exists(output_WAQ_dir): os.makedirs(output_WAQ_dir)
-            for suffix in ["_his.nc", "_map.nc", ".json"]:
-                filename = f"{file_name}{suffix}"
-                src = os.path.join(output_folder, filename)
-                if os.path.exists(src):
-                    if suffix == ".json": shutil.copy(src, os.path.join(output_WAQ_dir, filename))
-                    else: # Convert .nc files to .zarr
-                        ds = xr.open_dataset(src, chunks={'nTimesDlwq': 1})
-                        zarr_path = os.path.join(output_WAQ_dir, filename.replace('.nc', '.zarr'))
-                        ds.to_zarr(zarr_path, mode='w', consolidated=True)
-                        ds.close()
-            # Delete folder
-            shutil.rmtree(wq_folder, ignore_errors=True)
-        except Exception as e: await websocket.send_json({'status': str(e)})
-        processes[project_name]["status"] = "finished"
-        await websocket.send_json({'status': "Simulation completed successfully."})
-    except WebSocketDisconnect: pass
-    finally:
-        if project_name in processes and not processes[project_name].get("stopped", False):
-            processes.pop(project_name, None)
-        elif project_name in processes and processes[project_name].get("stopped", False):
-            await asyncio.sleep(2)
-            processes.pop(project_name, None)
-
-async def subprocessRunner(cmd, cwd, websocket, project_name, progress_regex=None, stop_on_error=None):
-    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=cwd, bufsize=1,
-                                universal_newlines=True, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
-    processes[project_name]["process"], success = process, False
-    try:
-        while True:
-            # Check if simulation is stopped
-            if processes[project_name]["status"] == "stopped":
-                res = kill_process(process)
-                await websocket.send_json({"status": res["message"]})                
-                return False
-            line = process.stdout.readline()
-            if not line:
-                if process.poll() is not None: break
-                await asyncio.sleep(0.1)
-                continue
-            line = line.strip()
-            if not line: continue
-            print("[OUT]", line)
-            # Check for progress
-            if progress_regex:
-                match = progress_regex.search(line)
-                if match:
-                    percent = float(match.group(1))
-                    processes[project_name]["progress"] = percent
-                    await websocket.send_json({"progress": percent})     
-            # Check special errors
-            if stop_on_error and stop_on_error in line:
-                if "ERROR in GMRES" in line: await websocket.send_json({"error": "GMRES solver failed.\nConsider increasing the maximum number of iterations."})
-                await websocket.send_json({"error": f"Error detected: {line}"})
-                kill_process(process)
-                processes[project_name]["status"] = "error"
-                return False
-            if "Normal end" in line: success = True
-        for line in process.stdout:
-            if not line.strip(): continue
-            print("[ERR]", line.strip())
-            await websocket.send_json({"error": line.strip()}) 
-    finally:
-        process.stdout.close()
-        try: process.wait(timeout=3)
-        except subprocess.TimeoutExpired: kill_process(process)
-        if process.poll() is None: kill_process(process)
-    return success
+        command = [bat_path, inp_name, "-p", proc_path.replace(".def", ""), "-eco", bloom_path]
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, encoding="utf-8", errors="replace", bufsize=1, cwd=output_folder)
+        processes[project_name] = {"process": process, "progress": 0.0, 
+            "status": "running", "message": 'Checking inputs for WAQ simulation...'}
+        log_file.write("Checking inputs for WAQ simulation\n\n")
+        log_file.write("=== Starting simulation ===\n\n")
+        # Stream logs
+        def stream_logs():
+            try:
+                for line in process.stdout:
+                    line = line.strip()
+                    if not line: continue
+                    log_file.write(line + "\n")
+                    if "ERROR in GMRES" in line:
+                        log_file.write(line + "\n")
+                        processes[project_name]["status"] = "error" 
+                        processes[project_name]["message"] = "GMRES solver failed.Consider increasing the maximum number of iterations."
+                        res = functions.kill_process(process)
+                        log_file.write(f'{res["message"]}\n')
+                        log_file.write("\n\nGMRES solver failed.\nConsider increasing the maximum number of iterations.\n")
+                        break
+                    # Check for progress
+                    match_pct = progress_regex.search(line)
+                    if match_pct: processes[project_name]["progress"] = float(match_pct.group(1))
+            finally:
+                process.wait()
+                if processes[project_name]["status"] != "error":
+                    try:
+                        processes[project_name]["progress"] = 100.0
+                        processes[project_name]["status"] = "reorganizing"
+                        processes[project_name]["message"] = "Reorganizing outputs. Please wait..."
+                        output_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "output"))
+                        if not os.path.exists(output_dir): os.makedirs(output_dir)
+                        output_WAQ_dir = os.path.normpath(os.path.join(output_dir, 'WAQ'))
+                        if not os.path.exists(output_WAQ_dir): os.makedirs(output_WAQ_dir)
+                        for suffix in ["_his.nc", "_map.nc", ".json"]:
+                            new_name = f"{file_name}{suffix}"
+                            src = os.path.normpath(os.path.join(output_folder, new_name))
+                            if os.path.exists(src):
+                                # # Using .nc format
+                                # dst = os.path.normpath(os.path.join(output_WAQ_dir, new_name))
+                                # shutil.copy2(src, dst)
+                                
+                                # Using .zarr format
+                                zarr_path = os.path.normpath(os.path.join(output_WAQ_dir, new_name.replace('.nc', '.zarr')))
+                                if suffix != ".json":
+                                    tmp_path = zarr_path + "_tmp"
+                                    if os.path.exists(tmp_path): shutil.rmtree(tmp_path, onerror=functions.remove_readonly)
+                                    with xr.open_dataset(src, chunks='auto') as ds:
+                                        ds.to_zarr(tmp_path, mode='w', consolidated=True, compute=True)
+                                    if os.path.exists(zarr_path): shutil.rmtree(zarr_path, onerror=functions.remove_readonly)
+                                    os.rename(tmp_path, zarr_path)                      
+                                else: shutil.copy2(src, zarr_path)
+                                functions.safe_remove(src)
+                        # Delete folder
+                        if os.path.exists(wq_folder): shutil.rmtree(wq_folder, onerror=functions.remove_readonly)
+                        processes[project_name]["status"] = "finished"
+                        processes[project_name]["message"] = f"Simulation completed successfully"
+                        log_file.write(f"\n=== Simulation {project_name} completed successfully ===")
+                        log_file.flush(); log_file.close()
+                    except Exception as e:
+                        processes[project_name]["status"] = "error"
+                        processes[project_name]["message"] = str(e)
+                        log_file.write(f"Exception: {str(e)}")
+                        log_file.flush(); log_file.close()
+                def cleanup_later(ttl=60):
+                    time.sleep(ttl)
+                    processes.pop(project_name, None)
+                threading.Thread(target=cleanup_later, daemon=True).start()
+        threading.Thread(target=stream_logs, daemon=True).start()
+    except Exception as e:
+        processes[project_name]["status"], processes[project_name]["message"] = "error", str(e)
+        print('/run_waq_simulation:\n==============')
+        traceback.print_exc()
+        log_file.write(f"Error running simulation: {str(e)}")
+        log_file.flush(); log_file.close()
+        return

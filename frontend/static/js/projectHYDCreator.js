@@ -1,11 +1,17 @@
-import { fillTable, getDataFromTable, addRowToTable, removeRowFromTable, deleteTable, copyPaste } from "./tableManager.js";
-import { csvUploader, mapPicker, renderProjects, pointUpdate, updateTable, plotTable, sendQuery } from "./tableManager.js";
+import { fillTable, getDataFromTable, addRowToTable, removeRowFromTable,
+    deleteTable, copyPaste, csvUploader, mapPicker, renderProjects, 
+    pointUpdate, updateTable, plotTable, sendQuery } from "./tableManager.js";
 import { saveProject, timeStepCalculator } from "./projectSaver.js";
+import { getState } from "./constants.js";
+import { loadList } from "./utils.js";
 
 const sectionDescription = () => document.getElementById('desription-tab');
 const sectionTab = () => document.getElementById('parent-tab');
 const projects = () => document.getElementById("project-list");
+const projectName = () => document.getElementById('project-name');
 const projectCreator = () => document.getElementById('create-project-button');
+const projectCloner = () => document.getElementById('duplicate-project-button');
+const projectRemover = () => document.getElementById('remove-project-button');
 const saveProjectBtn = () => document.getElementById('complete-button');
 const getLocation = () => document.getElementById('location-picker');
 const userTimestepDate = () => document.getElementById('user-time-step-date');
@@ -19,7 +25,8 @@ const obsPointPicker = () => document.getElementById('observation-point-picker')
 const obsPointAddList = () => document.getElementById('observation-point-add-list');
 const obsPointAddRow = () => document.getElementById('observation-point-add-row');
 const obsPointRemove = () => document.getElementById('observation-point-remove');
-const obsPointUpload = () => document.getElementById('observation-point-csv');
+const obsPointUploadFile = () => document.getElementById('observation-point-file');
+const obsPointUploadText = () => document.getElementById('observation-point-text');
 const obsPointUpdate = () => document.getElementById('observation-point-update');
 const crossSectionPicker = () => document.getElementById('observation-cross-section-picker');
 const crossSectionRemove = () => document.getElementById('observation-cross-section-remove');
@@ -27,6 +34,9 @@ const boundaryPicker = () => document.getElementById('boundary-picker');
 const boundaryRemove = () => document.getElementById('boundary-remove');
 const boundarySelector = () => document.getElementById('option-boundary-edit');
 const boundaryTypeSelector = () => document.getElementById('option-boundary-type');
+const boundaryUploadFile = () => document.getElementById('boundary-picker-file');
+const boundaryUploadText = () => document.getElementById('boundary-picker-text');
+const boundaryCSV = () => document.getElementById('boundary-upload-csv');
 const boundaryAddRow = () => document.getElementById('boundary-add-row');
 const boundaryEditTable = () => document.getElementById('boundary-edit-table');
 const boundaryEditUpdate = () => document.getElementById('boundary-update');
@@ -37,28 +47,33 @@ const boundaryText = () => document.getElementById('data-view');
 const sourceName = () => document.getElementById('source-name');
 const sourceOptionNew = () => document.getElementById('source-sink-new');
 const sourceOptionExist = () => document.getElementById('source-sink-exist');
-const sourceOptionList = () => document.getElementById('source-sink-list');
 const sourceOptionPicker = () => document.getElementById('source-picker');
 const sourceLatitude = () => document.getElementById('source-latitude');
 const sourceLongitude = () => document.getElementById('source-longitude');
 const sourceTable = () => document.getElementById('source-table');
-const sourceSelectionList = () => document.getElementById('option-source');
-const sourceUpload = () => document.getElementById('source-csv-file');
+const sourceUploadFile = () => document.getElementById('source-csv-file');
+const sourceUploadText = () => document.getElementById('source-csv-text');
+const sourceAddBtn = () => document.getElementById('add-source-btn');
 const sourcePlotBtn = () => document.getElementById('plot-source-btn');
 const sourceSaveBtn = () => document.getElementById('save-source-btn');
 const sourceSelectorRemove = () => document.getElementById('option-source-remove');
 const sourceRemoveBtn = () => document.getElementById('source-remove');
 const sourceRemoveTable = () => document.getElementById('source-remove-table');
 const sourceDeleteTableBtn = () => document.getElementById('delete-source-btn');
+const meteoAddBtn = () => document.getElementById('add-meteo-btn');
 const meteoPlotBtn = () => document.getElementById('plot-meteo-btn');
 const meteoDeleteBtn = () => document.getElementById('delete-meteo-btn');
 const meteoSaveBtn = () => document.getElementById('save-meteo-btn');
 const meteoTable = () => document.getElementById('edit-meteo-table');
-const meteoUpload = () => document.getElementById('meteo-picker-csv');
+const meteoUploadFile = () => document.getElementById('meteo-picker-file');
+const meteoUploadText = () => document.getElementById('meteo-picker-text');
+const weatherPanel = () => document.getElementById('weather-upload-panel');
 const weatherSelector = () => document.getElementById('option-weather');
 const weatherUpload = () => document.getElementById('weather-update');
 const weatherAddRow = () => document.getElementById('weather-add-row');
-const weatherCSVUpload = () => document.getElementById('weather-update-csv');
+const weatherRemove = () => document.getElementById('weather-remove');
+const weatherCSVUploadFile = () => document.getElementById('weather-update-file');
+const weatherCSVUploadText = () => document.getElementById('weather-update-text');
 const weatherTable = () => document.getElementById('weather-edit-table');
 const hisIntervalDate = () => document.getElementById('his-output-interval-date');
 const hisIntervalTime = () => document.getElementById('his-output-interval-time');
@@ -72,11 +87,10 @@ const statisticDate = () => document.getElementById('statistic-output-interval-d
 const statisticTime = () => document.getElementById('statistic-output-interval-time');
 const timingDate = () => document.getElementById('timing-statistic-output-interval-date');
 const timingTime = () => document.getElementById('timing-statistic-output-interval-time');
-const projectName = () => document.getElementById('project-name');
 const latitude = () => document.getElementById('latitude');
 const nLayers = () => document.getElementById('n-layer');
-const gridPath = () => document.getElementById('unstructured-grid');
-const gridTool = () => document.getElementById('activate-grid');
+const gridPathFile = () => document.getElementById('unstructured-grid-file');
+const gridPathText = () => document.getElementById('unstructured-grid-text');
 const startDate = () => document.getElementById('start-date');
 const stopDate = () => document.getElementById('stop-date');
 const obsPointTable = () => document.getElementById('observation-point-table');
@@ -102,7 +116,7 @@ const outputRestart = () => document.getElementById('write-restart-file');
 const rtsStart = () => document.getElementById('restart-output-start');
 const rtsStop = () => document.getElementById('restart-output-end');
 
-let projectList = [];
+let projectList = [], BCChecked = 0;
 
 function setupTabs(root) {
     const buttonPanels = root.querySelectorAll('#main-tabs button');
@@ -194,8 +208,8 @@ function setupTabs(root) {
 }
 
 async function getProjectList(){
-    const data = await sendQuery('select_project', {filename: '', key: 'getProjects', folder_check: ''});
-    if (data.status === "ok") projectList = data.content;
+    const data = await loadList(getState().projectName, 'getProjects', 'input');
+    if (data.status === "ok") {projectList = data.content;} else {projectList = [];}
 }
 function sourceChange(target){
     const check = target.checked;
@@ -203,7 +217,7 @@ function sourceChange(target){
     sourceLatitude().value = ''; sourceLongitude().value = '';
     // Clear table and name
     const tbody = sourceTable().querySelector("tbody");
-    tbody.innerHTML = ""; sourceName().value = ''; sourceUpload().value = '';
+    tbody.innerHTML = ""; sourceName().value = ''; sourceUploadText().value = '';
 }
 
 function assignOutput(target, start, end, startDate, stopDate){
@@ -214,18 +228,20 @@ function assignOutput(target, start, end, startDate, stopDate){
     });
 }
 
-async function fileUploader(target, projectName, gridName){
+async function fileUploader(targetFile, targetText, projectName, gridName){
     if (projectName === '') return;
     window.parent.postMessage({type: 'showOverlay', message: 'Uploading grid to project...'}, '*');
-    const file = target.files[0];
+    const file = targetFile.files[0];
     const formData = new FormData();
     formData.append('file', file);
     formData.append('projectName', projectName);
     formData.append('gridName', gridName);
+    targetText.value = file?.name || "";
     const response = await fetch('/upload_data', { method: 'POST', body: formData });
     const data = await response.json();
     window.parent.postMessage({type: 'hideOverlay'}, '*');
-    if (data.status === "error") {alert(data.message), target.value = ''; return;}
+    if (data.status === "error") {alert(data.message), targetFile.value = '', targetText.value = ''; return;}
+    alert(data.message);
 }
 
 function updateOption(){
@@ -233,20 +249,38 @@ function updateOption(){
     mapPicker(getLocation(), 'pickLocation');
     mapPicker(obsPointPicker(), 'pickPoint', () => getDataFromTable(obsPointTable(), true), 'obsPoint');
     mapPicker(crossSectionPicker(), 'pickCrossSection', () => getDataFromTable(crossSectionTable(), true));
-    mapPicker(boundaryPicker(), 'pickBoundary', () => getDataFromTable(boundaryTable(), true));
+    mapPicker(boundaryPicker(), 'pickBoundary', () => {BCChecked = 1; getDataFromTable(boundaryTable(), true);});
     mapPicker(sourceOptionPicker(), 'pickSource');
     // Event when user uploads CSV file
-    csvUploader(obsPointUpload(), obsPointTable(), 3);
-    csvUploader(sourceUpload(), sourceTable(), 5, false, sourceName(), sourceLatitude(), sourceLongitude());
-    csvUploader(meteoUpload(), meteoTable(), 5);
-    csvUploader(weatherCSVUpload(), weatherTable(), 3);
+    obsPointUploadText().addEventListener('click', () => { obsPointUploadFile().click(); });
+    obsPointUploadFile().addEventListener('change', async (event) => { 
+        await csvUploader(event, obsPointUploadText(), obsPointTable(), 3);
+        obsPointUploadFile().value = '';
+    });
+    sourceUploadText().addEventListener('click', () => { sourceUploadFile().click(); });
+    sourceUploadFile().addEventListener('change', async (event) => { 
+        deleteTable(sourceTable());
+        await csvUploader(event, sourceUploadText(), sourceTable(), 5, false, sourceName(), sourceLatitude(), sourceLongitude()); 
+        sourceUploadFile().value = '';
+    });
+    meteoUploadText().addEventListener('click', () => { meteoUploadFile().click(); });
+    meteoUploadFile().addEventListener('change', async (event) => {
+        await csvUploader(event, meteoUploadText(), meteoTable(), 5);
+        meteoUploadFile().value = '';
+    });
+    weatherCSVUploadText().addEventListener('click', () => { weatherCSVUploadFile().click(); });
+    weatherCSVUploadFile().addEventListener('change', async (event) => {
+        await csvUploader(event, weatherCSVUploadText(), weatherTable(), 3);
+        weatherCSVUploadFile().value = '';
+    });
     // Upload file to server
-    gridPath().addEventListener('change', () => {
-        fileUploader(gridPath(), projectName().value, 'FlowFM_net.nc')
+    gridPathText().addEventListener('click', () => { gridPathFile().click(); });
+    gridPathFile().addEventListener('change', async() => {
+        await fileUploader(gridPathFile(), gridPathText(), projectName().value, 'FlowFM_net.nc')
         window.parent.postMessage({type: 'showGrid', projectName: projectName().value, 
             gridName: 'FlowFM_net.nc', message: 'Uploading grid to project...'}, '*');
+        gridPathFile().value = '';
     });
-    gridTool().addEventListener('click', () => { window.parent.postMessage({type: 'showGridTool'}, '*'); });
     // Copy and paste to tables
     copyPaste(boundaryEditTable(), 2); copyPaste(sourceTable(), 5); 
     copyPaste(meteoTable(), 5); copyPaste(weatherTable(), 3); copyPaste(obsPointTable(), 3);
@@ -304,10 +338,11 @@ function updateOption(){
         obsPointName().value = ''; obsPointLatitude().value = ''; obsPointLongitude().value = '';
     });
     // Add a new row to the table
-    obsPointAddRow().addEventListener('click', () => addRowToTable(obsPointTable(), ['PointName', 'PointLatitude', 'PointLongitude']));
+    obsPointAddRow().addEventListener('click', () => addRowToTable(obsPointTable(), ['Name', 'Latitude', 'Longitude']));
     boundaryAddRow().addEventListener('click', () => addRowToTable(boundaryEditTable(), ['YYYY-MM-DD HH:MM:SS', 'Value']));
+    sourceAddBtn().addEventListener('click', () => addRowToTable(sourceTable(), ['YYYY-MM-DD HH:MM:SS', 'Discharge', 'Salinity', 'Temperature', 'Contaminant']));
+    meteoAddBtn().addEventListener('click', () => addRowToTable(meteoTable(), ['YYYY-MM-DD HH:MM:SS', 'Humidity', 'Air temperature', 'Cloud coverage', 'Solar radiation']));
     weatherAddRow().addEventListener('click', () => addRowToTable(weatherTable(), ['YYYY-MM-DD HH:MM:SS', 'Magnitude', 'Direction']));
-
     // Remove point from table
     obsPointRemove().addEventListener('click', () => {
         const name = obsPointName().value.trim();
@@ -315,7 +350,7 @@ function updateOption(){
     });
     // Event when user change radio button for observation points
     pointUpdate(document.getElementById('observation-point-new'), obsPointTable(),
-        false, ["PointName", "PointLatitude", "PointLongitude"]);
+        false, ["Name", "Latitude", "Longitude"]);
     pointUpdate(document.getElementById('observation-point-exist'), 
         obsPointTable(), true, [obsPointName(), obsPointLatitude(), obsPointLongitude()]);
     // Update observation point on map
@@ -325,20 +360,17 @@ function updateOption(){
         window.parent.postMessage({type: 'updateObsPoint', data: content}, '*');
     });
     // Event when user delete
-    deleteTable(crossSectionRemove(), crossSectionTable(), crossSectionName(), 'clearCrossSection');
-    deleteTable(boundaryRemove(), boundaryTable(), undefined, 'clearBoundary');
-    deleteTable(boundaryEditRemove(), boundaryEditTable());
-    deleteTable(sourceDeleteTableBtn(), sourceTable());
-    deleteTable(meteoDeleteBtn(), meteoTable());
+    crossSectionRemove().addEventListener('click', () => deleteTable(crossSectionTable(), crossSectionName(), 'clearCrossSection'));
+    boundaryEditRemove().addEventListener('click', () => { deleteTable(boundaryEditTable()); boundaryAddRow().click(); });
+    sourceDeleteTableBtn().addEventListener('click', () => { deleteTable(sourceTable()); sourceAddBtn().click(); });
+    meteoDeleteBtn().addEventListener('click', () => { deleteTable(meteoTable()); meteoAddBtn().click(); });
+    weatherRemove().addEventListener('click', () => { deleteTable(weatherTable()); weatherAddRow().click(); });
     // Event when user plot table
-    plotTable(sourcePlotBtn(), sourceTable());
-    plotTable(meteoPlotBtn(), meteoTable());
+    plotTable(sourcePlotBtn(), sourceTable()); plotTable(meteoPlotBtn(), meteoTable());
     // Update boundary option
     boundaryEditUpdate().addEventListener('click', async () => {
-        const nameProject = projectName().value.trim();
-        const nameBoundary = boundaryName().value.trim();
-        const subBoundary = boundarySelector().value;
-        const boundaryType = boundaryTypeSelector().value;
+        const nameProject = projectName().value.trim(), nameBoundary = boundaryName().value.trim();
+        const subBoundary = boundarySelector().value, boundaryType = boundaryTypeSelector().value;
         if (nameProject === '' || nameBoundary === '' || subBoundary === '' || boundaryType === '') {
             alert('Please check: \n     1. Name of project/boundary/sub-boundary option is required.' + 
                 '\n     2. Boundary type is required.' + '\n     3. Reference date is required.'); return;
@@ -351,9 +383,32 @@ function updateOption(){
         const content = {projectName: nameProject, boundaryName: nameBoundary, boundaryData: boundaryData.rows,
             subBoundaryName: subBoundary, boundaryType: boundaryType, subBoundaryData: subBoundaryData.rows}
         const data = await sendQuery('update_boundary', content);
-        alert(data.message);
-        boundarySelectorView().value = '';
+        alert(data.message); boundarySelectorView().value = '';
         boundaryViewContainer().style.display = 'none'; boundaryText().value = '';
+    });
+    // Update parameters of boundary from file
+    boundarySelector().addEventListener('change', async () => {
+        const boundaryName = boundarySelector().value, boundaryType = boundaryTypeSelector().value;
+        const content = {projectName: projectName().value.trim(), boundaryName: boundaryName, boundaryType: boundaryType};
+        const data = await sendQuery('get_boundary_params', content);
+        console.log(data);
+        if (data.status === 'new') { boundaryEditRemove().click(); return; }
+        if (data.status === 'error') { alert(data.message); return; }
+        boundaryEditRemove().click(); fillTable(data.content, boundaryEditTable());
+    });
+    boundaryTypeSelector().addEventListener('change', async () => {
+        const boundaryName = boundarySelector().value, boundaryType = boundaryTypeSelector().value;
+        const content = {projectName: projectName().value.trim(), boundaryName: boundaryName, boundaryType: boundaryType};
+        const data = await sendQuery('get_boundary_params', content);
+        if (data.status === 'new') { boundaryEditRemove().click(); return; }
+        if (data.status === 'error') { alert(data.message); return; }
+        boundaryEditRemove().click(); fillTable(data.content, boundaryEditTable());
+    });
+    // Upload boundary condition from CSV
+    boundaryCSV().addEventListener('click', () => { boundaryUploadFile().click(); });
+    boundaryUploadFile().addEventListener('change', async (event) => { 
+        await csvUploader(event, boundaryUploadText(), boundaryEditTable(), 2);
+        boundaryUploadFile().value = '';
     });
     // View boundary condition
     boundarySelectorView().addEventListener('change', async () => {
@@ -378,63 +433,26 @@ function updateOption(){
         if (nameBoundary === '') { alert('Name of boundary is required.'); return; }
         // Delete boundary
         const data = await sendQuery('delete_boundary', {projectName: projectName().value, boundaryName: nameBoundary});
-        alert(data.message);
+        alert(data.message); deleteTable(boundaryTable(), undefined, 'clearBoundary'); BCChecked = 0;
         const tbody = boundaryEditTable().querySelector("tbody"); tbody.innerHTML = "";
         boundarySelectorView().value = ''; boundarySelector().value = ''; boundarySelector().innerHTML = '';
         boundaryViewContainer().style.display = 'none'; boundaryText().value = ''; boundaryName().value = '';
     });
     // Working on source/sink option
     sourceOptionNew().addEventListener('change', () => {
-        sourceChange(sourceOptionNew());
+        sourceChange(sourceOptionNew()); deleteTable(sourceTable()); sourceAddBtn().click();
         sourceOptionPicker().style.display = 'block';
     });
     sourceOptionExist().addEventListener('change', () => {
-        sourceChange(sourceOptionExist());
+        sourceChange(sourceOptionExist()); deleteTable(sourceTable()); sourceAddBtn().click();
         sourceOptionPicker().style.display = 'none';
-    });
-    sourceOptionList().addEventListener('change', async () => {
-        sourceChange(sourceOptionList());
-        sourceOptionPicker().style.display = 'none';
-        const data = await sendQuery('get_files', {});
-        if (data.status === "error") { alert(data.message); return; }
-        const sourceSelector = sourceSelectionList();
-        sourceSelector.innerHTML = '';
-        // Add hint to the velocity object
-        const hint = document.createElement('option');
-        hint.value = ''; hint.selected = true;
-        hint.text = '- No Selection -'; 
-        sourceSelector.add(hint);
-        // Add options
-        data.content.forEach(item => {
-            const option = document.createElement('option');
-            option.value = item; option.text = item;
-            sourceSelector.add(option);
-        });
-    });
-    // Select source from list
-    sourceSelectionList().addEventListener('change', async () => {
-        const value = sourceSelectionList().value;
-        if (value === '') return;
-        window.parent.postMessage({type: 'showOverlay', 
-            message: 'Reading source/sink and exacting data to table...'}, '*'); // Show overlay
-        const data = await sendQuery('get_source', {filename: value});
-        if (data.status === "error") alert(data.message);
-        sourceLatitude().value = data.content.lat;
-        sourceLongitude().value = data.content.lon;
-        sourceName().value = value;
-        // Convert to 2D array
-        const lines = data.content.data;
-        const data_arr = lines.map(line => line.trim().split(","));
-        fillTable(data_arr, sourceTable());
-        window.parent.postMessage({type: 'hideOverlay'}, '*');  // Hide overlay
     });
     // Remove source from project
     sourceRemoveBtn().addEventListener('click', async () => {
         const nameProject = projectName().value.trim();
         if (nameProject === ''){ alert('Please check project name.'); return; }
         const name = sourceSelectorRemove().value;
-        removeRowFromTable(sourceRemoveTable(), name);
-        deleteTable(sourceRemoveBtn(), sourceTable());
+        removeRowFromTable(sourceRemoveTable(), name); deleteTable(sourceTable());
         const content = getDataFromTable(sourceRemoveTable(), true).rows;
         updateTable(sourceRemoveTable(), sourceSelectorRemove(), nameProject, content);
     });
@@ -443,7 +461,6 @@ function updateOption(){
     assignOutput(outputMap(), mapStart(), mapStop(), startDate(), stopDate());
     assignOutput(outputWQ(), wqStart(), wqStop(), startDate(), stopDate());
     assignOutput(outputRestart(), rtsStart(), rtsStop(), startDate(), stopDate());
-
     // Save source to project
     sourceSaveBtn().addEventListener('click', async () => {
         const nameProject = projectName().value.trim();
@@ -454,7 +471,7 @@ function updateOption(){
         const lon = sourceLongitude().value;
         if (table.rows.length === 0) { alert('No data to save. Please check the table.'); return; }
         if (lat === '' || lon === '' || name === ''){ alert('Please check Name/Latitude/Longitude.'); return; }
-        const content = {projectName: nameProject, nameSource: name, lat: lat, lon: lon, data: table.rows}
+        const content = {projectName: nameProject, nameSource: name, lat: lat, lon: lon, data: table.rows, BC: BCChecked};
         const data = await sendQuery('save_source', content);
         updateTable(sourceRemoveTable(), sourceSelectorRemove(), nameProject);
         alert(data.message);
@@ -471,13 +488,14 @@ function updateOption(){
     // Weather data
     weatherSelector().addEventListener('change', () => {
         if (weatherSelector().value === '') {
-            weatherCSVUpload().style.display = 'none';
-            weatherAddRow().style.display = 'none';
-            weatherUpload().style.display = 'none'; return;}
-        deleteTable(weatherSelector(), weatherTable());
-        weatherCSVUpload().style.display = 'block'; 
-        weatherAddRow().style.display = 'block';
-        weatherUpload().style.display = 'block';
+            weatherPanel().style.display = 'none'; weatherTable().style.display = 'none';
+            weatherRemove().style.display = 'none'; weatherUpload().style.display = 'none'; return;
+        }
+        weatherPanel().style.display = 'block'; weatherTable().style.display = 'block'; 
+        weatherRemove().style.display = 'block'; weatherUpload().style.display = 'block'; 
+        deleteTable(weatherTable());
+        // Add row after above function finished
+        requestAnimationFrame(() => { weatherAddRow().click(); });
     });
     weatherUpload().addEventListener('click', async () => {
         const nameProject = projectName().value.trim();
@@ -497,28 +515,85 @@ function updateOption(){
         const rtsInterval = timeStepCalculator(rstIntervalDate().value, rstIntervalTime().value);
         const sttInterval = timeStepCalculator(statisticDate().value, statisticTime().value);
         const timingInterval = timeStepCalculator(timingDate().value, timingTime().value);
-        const elements = { projectName, latitude, nLayers, gridPath, startDate, stopDate,
+        const elements = { projectName, latitude, nLayers, gridPathText, startDate, stopDate,
             userTimeSec, nodalTimeSec, obsPointTable, crossSectionName, crossSectionTable, salinity, 
             temperature, initWaterLevel, initSalinity, initTemperature , outputHis, hisInterval, hisStart, 
             hisStop, outputMap, mapInterval, mapStart, mapStop, outputWQ, wqInterval, wqStart, wqStop, 
             outputRestart, rtsInterval, rtsStart, rtsStop, sttInterval, timingInterval };
-        saveProject(elements); 
+        await saveProject(elements); 
     });
 }
 
-function initializeProject(){
+async function loadScenario(scenarioName){
+    // Get average latitude
+    const data = await sendQuery('get_scenario', {projectName: scenarioName});
+    if (data.status === 'new') { return; }
+    if (data.status === 'error') { alert(data.message); return; }
+    latitude().value = data.content.avgLat;
+    gridPathText().value = data.content.gridPath;
+    nLayers().value = data.content.nLayers;
+    startDate().value = data.content.startDate;
+    stopDate().value = data.content.stopDate;
+    userTimestepDate().value = data.content.userTimestepDate;
+    userTimestepTime().value = data.content.userTimestepTime;
+    nodalTimestepDate().value = data.content.nodalTimestepDate;
+    nodalTimestepTime().value = data.content.nodalTimestepTime;
+    fillTable(data.content.obsPointTable, obsPointTable());
+    fillTable(data.content.crossSectionTable, crossSectionTable());
+    fillTable(data.content.boundaryTable, boundaryTable());
+    // Update boundary option
+    const options = data.content.boundaryTable.map(row => `<option value="${row[0]}">${row[0]}</option>`).join(' ');
+    const defaultOption = `<option value="" selected>--- No selected ---</option>`;
+    boundarySelector().innerHTML = defaultOption + options;
+    initWaterLevel().value = data.content.initWaterLevel;
+    initSalinity().value = data.content.initSalinity;
+    initTemperature().value = data.content.initTemperature;
+    // Get source data if exist
+    updateTable(sourceRemoveTable(), sourceSelectorRemove(), scenarioName);
+    if (data.content.meteoPath !== '') { 
+        meteoUploadText().value = data.content.meteoName;
+        fillTable(data.content.meteoPath, meteoTable());
+    }
+    if (data.content.weatherPath !== '') { 
+        weatherSelector().value = data.content.weatherType;
+        weatherCSVUploadText().value = data.content.weatherName;
+        weatherPanel().style.display = 'block'; weatherTable().style.display = 'block';
+        weatherUpload().style.display = 'block'; weatherRemove().style.display = 'block';
+        fillTable(data.content.weatherPath, weatherTable());
+    } else { 
+        weatherPanel().style.display = 'none'; weatherTable().style.display = 'none';
+        weatherUpload().style.display = 'none'; weatherRemove().style.display = 'none';
+    }
+    hisIntervalDate().value = data.content.hisIntervalDate;
+    hisIntervalTime().value = data.content.hisIntervalTime;
+    hisStart().value = data.content.hisStart; hisStop().value = data.content.hisStop;
+    if (hisStart().value !== '' || hisStop().value !== '') { outputHis().checked = true; }
+    mapIntervalDate().value = data.content.mapIntervalDate;
+    mapIntervalTime().value = data.content.mapIntervalTime;
+    mapStart().value = data.content.mapStart; mapStop().value = data.content.mapStop;
+    if (mapStart().value !== '' || mapStop().value !== '') { outputMap().checked = true; }
+    wqIntervalDate().value = data.content.wqIntervalDate;
+    wqIntervalTime().value = data.content.wqIntervalTime;
+    wqStart().value = data.content.wqStart; wqStop().value = data.content.wqStop;
+    if (wqStart().value !== '' || wqStop().value !== '') { outputWQ().checked = true; }
+    statisticDate().value = data.content.statisticDate; statisticTime().value = data.content.statisticTime;
+    timingDate().value = data.content.timingDate; timingTime().value = data.content.timingTime;
+}
+
+async function initializeProject(){
     // Update project name
-    projectName().addEventListener('click', () => {
-        if (projects().children.length === 0) {
-            projectList.forEach(p => {
-                const li = document.createElement("li");
-                li.textContent = p;
-                li.addEventListener('mousedown', () => {
-                    projectName().value = p; projects().style.display = "none";
-                });
-                projects().appendChild(li);
+    projectName().addEventListener('click', async () => {
+        await getProjectList();
+        if (projectList.length === 0) return;
+        projects().innerHTML = '';
+        projectList.forEach(p => {
+            const li = document.createElement("li");
+            li.textContent = p;
+            li.addEventListener('mousedown', () => {
+                projectName().value = p; projects().style.display = "none";
             });
-        }
+            projects().appendChild(li);
+        })
         projects().style.display = "block";
     });
     projectName().addEventListener('input', (e) => { 
@@ -533,16 +608,40 @@ function initializeProject(){
         setTimeout(() => { projects().style.display = "none"; }, 100);
      });
     // Create new project
-    projectCreator().addEventListener('click', () => {
-        const name = projectName().value.trim();
-        if (!name || name.trim() === '') { alert('Please define project name.'); return; }
-        window.parent.postMessage({type: 'projectPreparation', name: name}, '*')
+    projectCreator().addEventListener('click', async () => {
+        const name = projectName().value.trim(); let project = '';
+        if (!name || name.trim() === '') { alert('Please define scenario name.'); return; }
+        if (name.includes('/')) { project = name.split('/').pop(); } else { project = name; }
+        window.parent.postMessage({type: 'projectPreparation', name: project}, '*')
         // Show tabs
         sectionTab().style.display = "block"; sectionDescription().style.display = "none";
-        // Get source data if exist
-        updateTable(sourceRemoveTable(), sourceSelectorRemove(), name);
+        // If project name already exist, load parameters
+        await loadScenario(name);
+    });
+    // Copy project
+    projectCloner().addEventListener('click', async () => {
+        const name = projectName().value.trim();
+        if (!name || name === '') { alert('Please select scenario first.'); return; }
+        // Ask for a new name
+        const newName = prompt('Please enter a name for the new scenario.\nCloning a scenario will take some time. Please be patient.');
+        if (!newName || newName === '') { alert('Please define clone scenario name.'); return; }
+        projectCloner().innerHTML = 'Cloning...';
+        const data = await sendQuery('copy_project', {oldName: name, newName: newName});
+        alert(data.message); projectList = []; projectName().value = ''; 
+        await getProjectList(); projectCloner().innerHTML = 'Clone Scenario';
+    })
+    // Delete project
+    projectRemover().addEventListener('click', async () => {
+        const name = projectName().value.trim();
+        if (!name || name.trim() === '') { alert('Please define scenario.'); return; }
+        // Ask for confirmation
+        if (!confirm('Are you sure you want to delete this scenario?')) { return; }
+        projectRemover().innerHTML = 'Deleting...';
+        const data = await sendQuery('delete_project', {projectName: name});
+        alert(data.message); projectList = []; projectName().value = ''; 
+        await getProjectList(); projectRemover().innerHTML = 'Delete Scenario';
     });
 }
 
-await getProjectList(); initializeProject();
+await getProjectList(); await initializeProject();
 setupTabs(document); updateOption();
