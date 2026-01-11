@@ -359,7 +359,11 @@ async def initiate_options(request: Request, user=Depends(functions.basic_auth))
                 config_raw = await redis.hget(project_name, "config")
                 config = msgpack.unpackb(config_raw, raw=False)
                 item = [x for x in config.keys() if x.startswith('waq_map_') and x.endswith('_selector')]
-                if len(item) > 0: data = config[item[0]]
+                if len(item) > 0: 
+                    temp, temp_data = config[item[0]], []
+                    for i in temp:
+                        temp_data.append((i, i))
+                    data = temp_data
             return JSONResponse({"status": 'ok', "content": data})
     except Exception as e:
         print('/initiate_options:\n==============')
