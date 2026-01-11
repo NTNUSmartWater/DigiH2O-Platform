@@ -18,9 +18,9 @@ async def auth_check(user=Depends(functions.basic_auth)):
 async def reset_config(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
-        project_name, project_id = functions.project_definer(body.get('projectName'), user)
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
         redis = request.app.state.redis
-        lock = redis.lock(f"{project_id}:reset_config", timeout=20)        
+        lock = redis.lock(f"{project_name}:reset_config", timeout=20)        
         async with lock:
             # Reset project data in Redis
             folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name))
@@ -32,7 +32,7 @@ async def reset_config(request: Request, user=Depends(functions.basic_auth)):
             except Exception as e:
                 return JSONResponse({"message": f"Failed: {e}"})
             # Delete config in Redis
-            await redis.hdel(project_id, "config", "layer_reverse_hyd", "layer_reverse_waq")
+            await redis.hdel(project_name, "config", "layer_reverse_hyd", "layer_reverse_waq")
             return JSONResponse({"message": "Configuration reset successfully!"})
     except Exception as e:
         print('/reset_config:\n==============')
@@ -236,9 +236,9 @@ async def get_scenario(request: Request, user=Depends(functions.basic_auth)):
 async def setup_database(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
-        project_name, project_id = functions.project_definer(body.get('projectName'), user)
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
         redis, params = request.app.state.redis, body.get('params')
-        extend_task, lock = None, redis.lock(f"{project_id}:setup_database", timeout=600)
+        extend_task, lock = None, redis.lock(f"{project_name}:setup_database", timeout=600)
         async with lock:
             extend_task = asyncio.create_task(functions.auto_extend(lock, interval=10))
             project_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name))
@@ -272,8 +272,6 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
             else:
                 print('Config doesn\'t exist. Creating...')
                 config = {"hyd": {}, "waq": {}, "meta": {"hyd_scanned": False, "waq_scanned": False}, "model_type": ''}
-                if os.path.exists(config_path): os.remove(config_path)
-                open(config_path, "w", encoding=functions.encoding_detect(config_path)).write(json.dumps(config))
             # ---------------- Grid & Layer ----------------
             layer_reverse_hyd, layer_reverse_waq = {}, {}
             if hyd_map:
@@ -382,11 +380,11 @@ async def copy_project(request: Request, user=Depends(functions.basic_auth)):
 async def clone_waq(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
-        project_name, project_id = functions.project_definer(body.get('projectName'), user)
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
         old_name, new_name = body.get('oldName'), body.get('newName')
         project_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'output', 'scenarios'))
         redis = request.app.state.redis
-        extend_task, lock = None, redis.lock(f"{project_id}:clone_waq", timeout=100, blocking_timeout=10)
+        extend_task, lock = None, redis.lock(f"{project_name}:clone_waq", timeout=100, blocking_timeout=10)
         async with lock:
             extend_task = asyncio.create_task(functions.auto_extend(lock))
             old_path = os.path.normpath(os.path.join(project_folder, f"{old_name}.json"))
@@ -395,6 +393,7 @@ async def clone_waq(request: Request, user=Depends(functions.basic_auth)):
                 return JSONResponse({"status": 'error', "message": f"Path '{old_path}' does not exist."})
             data = json.load(open(old_path, 'r', encoding=functions.encoding_detect(old_path)))
             data['folderName'] = new_name.replace('.json', '')
+            data['timeTable'] = data['timeTable'].replace(old_name, new_name)
             json.dump(data, open(new_path, 'w', encoding=functions.encoding_detect(new_path)))
             return JSONResponse({"message": f"Scenario '{new_name}' was cloned successfully!"})
     except Exception as e:
@@ -412,11 +411,11 @@ async def clone_waq(request: Request, user=Depends(functions.basic_auth)):
 async def delete_file(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
-        project_name, project_id = functions.project_definer(body.get('projectName'), user)
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
         scenario_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'output', 'scenarios'))
         waq_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'output', 'WAQ'))
         redis, file = request.app.state.redis, body.get('name')
-        extend_task, lock = None, redis.lock(f"{project_id}:delete_file", timeout=300)
+        extend_task, lock = None, redis.lock(f"{project_name}:delete_file", timeout=300)
         async with lock:
             extend_task = asyncio.create_task(functions.auto_extend(lock))
             file_name = os.path.normpath(os.path.join(scenario_folder, f"{file}.json"))
@@ -445,10 +444,10 @@ async def delete_file(request: Request, user=Depends(functions.basic_auth)):
 async def delete_project(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
-        project_name, project_id = functions.project_definer(body.get('projectName'), user)
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
         redis = request.app.state.redis
         name = project_name if '/' not in project_name else project_name.split('/')[-1]
-        lock = redis.lock(f"{project_id}:delete_project", timeout=600)
+        lock = redis.lock(f"{project_name}:delete_project", timeout=600)
         project_folder, extend_task = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name)), None        
         async with lock:
             # Optional: auto-extend lock if deletion may take long
@@ -524,9 +523,14 @@ async def select_project(request: Request, user=Depends(functions.basic_auth)):
                 hyd_files = [f for f in os.listdir(hyd_folder) if f.endswith(".zarr")]
                 hyd_files = set([f.replace('_his.zarr', '').replace('_map.zarr', '') for f in hyd_files])
             if os.path.exists(waq_folder):
-                waq_files = [f for f in os.listdir(waq_folder) if f.endswith(".json")]
-                waq_files = set([f.replace('.json', '') for f in waq_files])
-            data = {'hyd': list(hyd_files), 'waq': sorted(list(waq_files))}
+                waq_files = [
+                    (entry.name, entry.stat().st_ctime)
+                    for entry in os.scandir(waq_folder)
+                    if entry.is_file() and entry.name.endswith(".json")
+                ]
+                waq_files.sort(key=lambda x: x[1], reverse=True)
+                waq_files = [name.replace('.json', '') for name, _ in waq_files]
+            data = {'hyd': list(hyd_files), 'waq': waq_files}
         status, message = 'ok', 'JSON loaded successfully.'
     except Exception as e:
         print('/select_project:\n==============')
@@ -570,11 +574,11 @@ async def get_source(request: Request):
 async def save_obs(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
-        project_name, project_id = functions.project_definer(body.get('projectName'), user)
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
         data, key, file_name = body.get('data'), body.get('key'), body.get('fileName')
         path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
         redis = request.app.state.redis
-        lock = redis.lock(f"{project_id}:save_obs:{file_name}", timeout=10)
+        lock = redis.lock(f"{project_name}:save_obs:{file_name}", timeout=10)
         def write_file(path, file_name, data, key):
             file_path = os.path.normpath(os.path.join(path, file_name))
             with open(file_path, 'w', encoding=functions.encoding_detect(file_path)) as f:
@@ -600,11 +604,11 @@ async def save_obs(request: Request, user=Depends(functions.basic_auth)):
 async def save_source(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
-        project_name, project_id = functions.project_definer(body.get('projectName'), user)
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
         lat, lon, BCCheck = body.get('lat'), body.get('lon'), body.get('BC')
         data, source_name = body.get('data'), body.get('nameSource')
         redis = request.app.state.redis
-        lock = redis.lock(f"{project_id}:save_source:{source_name}", timeout=10)
+        lock = redis.lock(f"{project_name}:save_source:{source_name}", timeout=10)
         path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))        
         async with lock:
             os.makedirs(path, exist_ok=True)

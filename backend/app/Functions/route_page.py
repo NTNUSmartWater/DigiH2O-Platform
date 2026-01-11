@@ -40,7 +40,7 @@ async def load_popupMenu(request: Request, htmlFile: str, project_name: str = No
         return HTMLResponse(f"<p>Project '{project_name}' not found</p>", status_code=404)
     # Acquire Redis lock to prevent race condition
     redis = request.app.state.redis
-    project_name, project_id = functions.project_definer(project_name, user)
+    project_name, _ = functions.project_definer(project_name, user)
     path = os.path.normpath(os.path.join(STATIC_DIR_FRONTEND, "templates", htmlFile))
     if not os.path.exists(path):
         return HTMLResponse(f"<p>Popup menu template not found</p>", status_code=404)
@@ -50,7 +50,7 @@ async def load_popupMenu(request: Request, htmlFile: str, project_name: str = No
     if config_raw:
         config = msgpack.unpackb(config_raw, raw=False)
         return templates.TemplateResponse(htmlFile, {"request": request, 'configuration': config})
-    lock = redis.lock(f"{project_id}:init_config", timeout=10)  # 10s lock
+    lock = redis.lock(f"{project_name}:init_config", timeout=10)  # 10s lock
     async with lock:
         # Double check: Is there anyone else running?
         config_raw = await redis.hget(project_name, "config")
