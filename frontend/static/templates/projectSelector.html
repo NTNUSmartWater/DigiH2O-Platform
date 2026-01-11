@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <link rel="stylesheet" href="/static_frontend/css/projectSelection.css?v=12">
+  <link rel="stylesheet" href="/static_frontend/css/projectSelection.css?v=002">
 </head>
 <body>
     <div class="container">
@@ -13,25 +13,30 @@
                 <option value="" selected>--- No selected ---</option>
             </select>
         </div>
-        <!-- Hydrodynamic Options -->
-        <fieldset class="groupbox">
-            <legend>Hydrodynamic Simulation</legend>
-            <div class="input-row">
-                <label for="hyd-option">Select:</label>
-                <select id="hyd-option">
-                    <option value="" selected>--- No selected ---</option>
-                </select>
-            </div>
-        </fieldset>
-        <!-- Water Quality Options -->
-        <fieldset class="groupbox">
-            <legend>Water Quality Simulation</legend>
-            <div class="checkbox-column">
-                <div class="checkbox-list" id="waq-option">
-                    <p style="font-size: 15px; text-align: center;">No Water Quality files found</p>
+        <!-- OPTIONS WRAPPER -->
+        <div class="options-wrapper">
+            <!-- Hydrodynamic Options -->
+            <fieldset class="groupbox hyd-box" hidden>
+                <legend>Hydrodynamic Simulation</legend>
+                <div class="input-row">
+                    <label for="hyd-option">Select:</label>
+                    <select id="hyd-option">
+                        <option value="" selected>--- No selected ---</option>
+                    </select>
                 </div>
-            </div>
-        </fieldset>
+            </fieldset>
+            <!-- Water Quality Options -->
+            <fieldset class="groupbox waq-box">
+                <legend>Water Quality Simulation</legend>
+                <div class="checkbox-column">
+                    <div class="checkbox-list" id="waq-option">
+                        <p style="font-size: 15px; text-align: center;">
+                            No Water Quality files found
+                        </p>
+                    </div>
+                </div>
+            </fieldset>
+        </div>
         <!-- Button -->
         <div class="btn-row">
             <button type="button" id="button">Open Project</button>
