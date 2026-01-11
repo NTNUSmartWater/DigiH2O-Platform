@@ -448,25 +448,15 @@ async def delete_project(request: Request, user=Depends(functions.basic_auth)):
         redis = request.app.state.redis
         name = project_name if '/' not in project_name else project_name.split('/')[-1]
         lock = redis.lock(f"{project_name}:delete_project", timeout=600)
-        project_folder, extend_task = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name)), None        
+        project_folder, extend_task = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name)), None
         async with lock:
             # Optional: auto-extend lock if deletion may take long
             extend_task = asyncio.create_task(functions.auto_extend(lock))
             if not os.path.exists(project_folder): 
                 return JSONResponse({"status": 'error', "message": f"Project '{project_name}' does not exist."})
-            try:
-                shutil.rmtree(project_folder, onerror=functions.remove_readonly)
-                # Optional: remove project cache in app.state if exists
-                if hasattr(request.app.state, "project_cache"): request.app.state.project_cache.pop(project_name, None)
-                return JSONResponse({"status": "ok", "message": f"Project '{name}' was deleted successfully."})
-            except PermissionError as e:
-                try:
-                    subprocess.run(['rmdir', '/s', '/q', project_folder], shell=True, check=True)
-                    return JSONResponse({"status": "ok", "message": f"Project '{name}' was deleted successfully."})
-                except subprocess.CalledProcessError as e2:
-                    return JSONResponse({"status": "error", "message": f"Error: {str(e2)}"})
-            except Exception as e:
-                return JSONResponse({"status": "error", "message": f"Error: {str(e)}"})
+            shutil.rmtree(project_folder, onerror=functions.remove_readonly)
+            if hasattr(request.app.state, "project_cache"): request.app.state.project_cache.pop(project_name, None)
+            return JSONResponse({"status": "ok", "message": f"Project '{name}' was deleted successfully."})
     except Exception as e:
         print('/delete_project:\n==============')
         traceback.print_exc()
