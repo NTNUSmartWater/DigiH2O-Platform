@@ -294,6 +294,9 @@ async def select_thermocline(request: Request, user=Depends(functions.basic_auth
                 layer_reverse_raw = await redis.hget(project_name, layer_key)
                 layer_reverse = msgpack.unpackb(layer_reverse_raw, raw=False)
                 layers_values = [float(v.split(' ')[1]) for k, v in layer_reverse.items() if int(k) >= 0]
+                if not is_hyd:
+                    max_ = max(np.array(layers_values, dtype=float), key=abs)
+                    layers_values = [round(max_*float(v.split(' ')[1])/100, 2) for k, v in layer_reverse.items() if int(k) >= 0]
                 max_values = int(abs(np.min(layers_values)))
                 new_depth = [x + max_values for x in layers_values]
                 arr, idx = data_ds[name].values, int(idx)
