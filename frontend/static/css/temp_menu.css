@@ -30,7 +30,7 @@
   transform: scaleY(0); transform-origin: top; opacity: 0;
   transition: transform 0.3s ease, opacity 0.25s ease;   
 }
-#popup-menu.show { transform: scaleY(1); opacity: 1; pointer-events: auto; }
+.popup-menu.show { transform: scaleY(1); opacity: 1; pointer-events: auto; }
 .popup-menu a {
   padding: 5px 5px 5px 15px; color: #030303; cursor: pointer;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
