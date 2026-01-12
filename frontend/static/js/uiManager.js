@@ -465,7 +465,7 @@ function updateEvents() {
                                             query: query, idx: index, type: 'thermocline_init', projectName: getState().projectName});
                                         layer.closePopup(); setState({isThemocline: false});
                                         if (initData.status === "error") { alert(initData.message); return; }
-                                        thermoclinePlotter(initData.content, newName, titleX, titleY, chartTitle);
+                                        thermoclinePlotter(key, initData.content, newName, titleX, titleY, chartTitle);
                                     } else { alert('Please enter a name.'); return; }
                                 });
                             }
