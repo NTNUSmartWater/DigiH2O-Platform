@@ -9,10 +9,11 @@ import { getState, resetState, setState } from './constants.js';
 
 let pickerState = { location: false, point: false, crosssection: false, boundary: false, source: false },
     cachedMenus = {}, markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [],
-    pathLineBoundary = null, gridLayer = null, timeOut = null, userName = false,
+    pathLineBoundary = null, gridLayer = null, timeOut = null, userName = false, hideTimeoutHelp = null,
     markersCrosssection = [], crosssectionContainer = [], pathLineCrosssection = null, hideTimeout = null;
 
 const popupMenu = () => document.getElementById('popup-menu');
+const popupMenuHelp = () => document.getElementById('popup-menu-help');
 const popupContent = () => document.getElementById('popup-content');
 const contactInfo = () => document.getElementById('informationContact');
 const contactInfoHeader = () => document.getElementById('informationContactHeader');
@@ -83,9 +84,9 @@ async function showPopupMenu(projectName, id, htmlFile) {
             cachedMenus[htmlFile] = html;
         }
         popupContent().innerHTML = html;
-        if (id === '1') generalOptionsManager(projectName); // Events on general options submenu
-        if (id === '2') timeSeriesManager(); // Events on time series measurement submenu
-        if (id === '3') spatialMapManager(); // Events on spatial map submenu
+        if (id === '1') generalOptionsManager(projectName); // Events on General Options submenu
+        if (id === '2') timeSeriesManager(); // Events on Time series Measurement submenu
+        if (id === '3') spatialMapManager(); // Events on Map submenu
     } catch (error) {alert(error + ': ' + htmlFile);}
 }
 
@@ -114,7 +115,32 @@ async function initializeMenu(){
             if (pm.classList.contains('show')) pm.classList.remove('show');
             const info = link.dataset.info;
             if (info === 'home') { window.location.href = "https://ntnusmartwater.github.io/"; return; }
-            if (info === 'help') { contactInformation(); return;}
+            if (info === 'help') { 
+                const pmHelp = popupMenuHelp();
+                if (pmHelp.classList.contains('show')) pmHelp.classList.remove('show');
+                const body = document.body;
+                const content = document.getElementById('popup-content-help');
+                body.appendChild(pmHelp);
+                content.innerHTML = `
+                    <ul class="sub-menu" style="display:block; z-index: 100000;">
+                        <li><a id="help-contact">About Us</a></li>
+                        <li><a id="help-docs">Manual</a></li>
+                    </ul>
+                `;
+                const aboutLink = document.getElementById('help-contact');
+                const docsLink = document.getElementById('help-docs');
+                aboutLink.onclick = (e) => { e.preventDefault(); contactInformation(); };
+                docsLink.onclick = (e) => { 
+                    e.preventDefault(); 
+                    const win = window.open('static_frontend/pdfs/QuickManual.pdf', '_blank');
+                    if (!win) alert('Please allow popups for this document');
+                };
+                const rectHelp = link.getBoundingClientRect();
+                pmHelp.style.top  = `${rectHelp.bottom + 15 + window.scrollY}px`;
+                pmHelp.style.left = 'auto';
+                pmHelp.style.right = `${window.innerWidth - rect.right}px`;
+                pmHelp.classList.add('show'); return;
+            }
             const [id, htmlFile, _] = info.split('|');
             startLoading('Getting Information. Please wait...');
             await showPopupMenu(getState().projectName, id, htmlFile);
@@ -196,11 +222,24 @@ function updateEvents() {
                 pm.classList.remove('show');
             }, 500);
         });
+    };
+    const pmHelp = popupMenuHelp();
+    // Show popup menu on click or leave
+    if (pmHelp) {
+        pmHelp.addEventListener('mouseenter', () => {
+            pmHelp.classList.add('show');
+            if (hideTimeoutHelp) { clearTimeout(hideTimeoutHelp); hideTimeoutHelp = null; }
+        });
+        pmHelp.addEventListener('mouseleave', () => {
+            hideTimeoutHelp = setTimeout(() => {
+                pmHelp.classList.remove('show');
+            }, 500);
+        });
     }
     document.addEventListener('click', (e) => {
         // Close the popup menu if clicked outside
         if (pm && !pm.contains(e.target)) pm.classList.remove('show');
-        
+        if (pmHelp && !pmHelp.contains(e.target)) pmHelp.classList.remove('show');
         // Toogle the menu if click on menu-link
         const link = e.target.closest('.menu-link');
         if (link){
@@ -633,3 +672,25 @@ function contactInformation() {
     }
     contactInfo().style.display = 'flex';
 }
+
+async function showGitHubLastUpdate(username, repo, branch='main') {
+    const url = `https://api.github.com/repos/${username}/${repo}/commits?sha=${branch}&per_page=1`;
+    const displayDiv = document.getElementById('github-last-update');
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('GitHub API error');
+        const data = await response.json();
+        if (data.length > 0) {
+            const lastCommit = data[0].commit;
+            const date = new Date(lastCommit.committer.date);
+            const formatted = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+            displayDiv.textContent = `Last update: ${formatted}`;
+        } else {
+            displayDiv.textContent = 'Last update: unknown';
+        }
+    } catch (err) {
+        console.error(err);
+        displayDiv.textContent = 'Last update: error';
+    }
+}
+showGitHubLastUpdate('NTNUSmartWater', 'DigiH2O-Platform');
