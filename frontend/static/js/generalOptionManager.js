@@ -77,7 +77,7 @@ export function generalOptionsManager(projectName){
         }
     })
     thermoclineWAQ().addEventListener('change', () => {
-        const selected = thermoclineWAQ().value, titleY = 'Depth (m)';
+        const selected = thermoclineWAQ().value, titleY = 'Sigma (%)';
         if (selected === '') { window.parent.postMessage({type: 'thermoclineGridClear'}, '*'); return; };
         setState({isThemocline: true}); if (getState().isPathQuery) { deActivePathQuery(); }
         const titleX = thermoclineWAQ().options[thermoclineWAQ().selectedIndex].text;
