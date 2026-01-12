@@ -122,9 +122,9 @@ async def wq_time(request: Request):
 async def waq_config_writer(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
-        project_name, project_id = functions.project_definer(body.get('projectName'), user)
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
         redis = request.app.state.redis
-        lock = redis.lock(f"{project_id}:waq_config", timeout=10)
+        lock = redis.lock(f"{project_name}:waq_config", timeout=10)
         async with lock:
             config_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "scenarios"))
             if not os.path.exists(config_path): os.makedirs(config_path)
@@ -169,7 +169,7 @@ async def start_sim_waq(request: Request, user=Depends(functions.basic_auth)):
     project_name, project_id = functions.project_definer(body.get('projectName'), user)
     waq_name = body.get('waqName')
     redis = request.app.state.redis
-    lock = redis.lock(f"{project_id}:{waq_name}", timeout=500, blocking_timeout=10)
+    lock = redis.lock(f"{project_id}:{waq_name}", timeout=1000, blocking_timeout=10)
     async with lock:
         if project_name in processes and processes[project_name]["status"] == "running":
             old = processes[project_name]["status"]

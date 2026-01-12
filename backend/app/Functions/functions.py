@@ -283,16 +283,16 @@ def checkVariables(data: xr.Dataset, variablesNames: str) -> bool:
     if np.isnan(var.data.compute()).all(): return False
     # Check if min and max are the same value
     vmin, vmax = var.min(skipna=True).compute(), var.max(skipna=True).compute()
-    if float(vmin) < 0 and float(vmax) < 0: return False
+    if float(vmin) < -900 and float(vmax) < -900: return False
     return bool(float(vmin) != float(vmax))
 
-def getVariablesNames(Out_files: list, model_type: str='') -> dict:
+def getVariablesNames(out_files: list, model_type: str='') -> dict:
     """
     Get the names of the variables in the dataset received from *.nc file.
 
     Parameters:
     ----------
-    Out_files: list
+    out_files: list
         The list of the *.nc files (in xr.Dataset format).
     model_type: str
         The type of the model used.
@@ -303,7 +303,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
         The dictionary containing the names of the variables.
     """
     result = {}
-    for data in Out_files:
+    for data in out_files:
         if data is None: continue
         # This is a hydrodynamic his file
         if 'time' in data.sizes and any(k in data.sizes for k in ['stations', 'cross_section', 'source_sink']):
@@ -624,7 +624,7 @@ def dialogReader(dialog_file: str) -> dict:
             result["volume"] = float(temp.strip())
     return result
 
-def getSummary(dialog_path: str, Out_files: list) -> list:
+def getSummary(dialog_path: str, out_files: list) -> list:
     """
     Get the summary of the dataset received from *.nc file.
 
@@ -632,7 +632,7 @@ def getSummary(dialog_path: str, Out_files: list) -> list:
     ----------
     dialog_path: str
         The path of the dialog *.dia file.
-    Out_files: list
+    out_files: list
         List of _his.nc files.
 
     Returns:
@@ -647,8 +647,8 @@ def getSummary(dialog_path: str, Out_files: list) -> list:
         result.append({'parameter': 'Computation finished', 'value': dialog['computation_finish']})
         result.append({'parameter': 'Area (m2)', 'value': dialog['area']})
         result.append({'parameter': 'Volume (m3)', 'value': dialog['volume']})
-    if len(Out_files) == 0: return result
-    for data_his in Out_files:
+    if len(out_files) == 0: return result
+    for data_his in out_files:
         if data_his is None: continue
         sizes = data_his.sizes
         # --- Hydrodynamic ---
@@ -1007,7 +1007,7 @@ def layerCounter(data_map: xr.Dataset, type: str='hyd') -> dict:
     else:
         z_layer = np.round([100*x for x in data_map['mesh2d_layer_dlwq'].data.compute()], 0)
         layers['-1'] = 'Average'
-        for i in reversed(range(len(z_layer))):
+        for i in range(len(z_layer)):
             layers[str(len(z_layer)-i-1)] = f'Sigma: {z_layer[i]} %'
     return layers
 
