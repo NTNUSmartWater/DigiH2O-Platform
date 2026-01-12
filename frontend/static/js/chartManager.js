@@ -60,7 +60,6 @@ export function plotEvents() {
     });
     // Resize the chart window
     document.addEventListener("mouseup", function() { 
-        if (chartDiv()) Plotly.Plots.resize(chartDiv()); 
         Dragging = false; 
     });
     // Open dropdown
