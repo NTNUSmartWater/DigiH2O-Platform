@@ -43,8 +43,6 @@ const initialAreaPhysical = () => document.getElementById('wq-initial-physical')
 const schemePhysical = () => document.getElementById('wq-scheme-physical');
 const maxInterPhysical = () => document.getElementById('max-iterations-physical');
 const tolerancePhysical = () => document.getElementById('tolerance-physical');
-
-
 const chemicalSelector = () => document.getElementById('wq-chemical');
 const chemicalName = () => document.getElementById('wq-chemical-name');
 const useforsFromChemical = () => document.getElementById('wq-chemical-usefors-from');
@@ -56,8 +54,6 @@ const initialAreaChemical = () => document.getElementById('wq-initial-chemical')
 const schemeChemical = () => document.getElementById('wq-scheme-chemical');
 const maxInterChemical = () => document.getElementById('max-iterations-chemical');
 const toleranceChemical = () => document.getElementById('tolerance-chemical');
-
-
 const microbialSelector = () => document.getElementById('wq-microbial');
 const microbialName = () => document.getElementById('wq-microbial-name');
 const useforsFromMirobial = () =>document.getElementById('wq-microbial-usefors-from');
@@ -69,12 +65,6 @@ const initialAreaMirobial = () => document.getElementById('wq-initial-microbial'
 const schemeMirobial = () => document.getElementById('wq-scheme-microbial');
 const maxInterMirobial = () => document.getElementById('max-iterations-microbial');
 const toleranceMirobial = () => document.getElementById('tolerance-microbial');
-
-
-
-
-
-
 
 let projectList=[], subKey='', folderName='', usefors=null, from_usefors=null, to_usefors=null, pointSelected=null, nPoints=0,
     timeStep1=0, timeStep2=0, nSegments=0, n_layers='', attrPath_='', volPath='', exchange_x=0, exchange_y=0, exchange_z=0, nLoads=0,

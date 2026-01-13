@@ -43,6 +43,7 @@ const mapContainer = () => map.getContainer();
 
 initializeMap(); baseMapButtonFunctionality(); plotEvents(); initializeMenu();
 projectChecker(); updateEvents(); openDemoProject('demo'); await login();
+showGitHubLastUpdate('NTNUSmartWater', 'DigiH2O-Platform');
 
 async function login() {
     const data = await sendQuery('auth_check', {});
@@ -132,8 +133,8 @@ async function initializeMenu(){
                 aboutLink.onclick = (e) => { e.preventDefault(); contactInformation(); };
                 docsLink.onclick = (e) => { 
                     e.preventDefault(); 
-                    const win = window.open('static_frontend/pdfs/QuickManual.pdf', '_blank');
-                    if (!win) alert('Please allow popups for this document');
+                    // const win = window.open('static_frontend/pdfs/QuickManual.pdf', '_blank');
+                    // if (!win) alert('Please allow popups for this document');
                 };
                 const rectHelp = link.getBoundingClientRect();
                 pmHelp.style.top  = `${rectHelp.bottom + 15 + window.scrollY}px`;
@@ -310,11 +311,20 @@ function updateEvents() {
                 projectChecker();
                 iframeInit("run_WQ_project", simulationWindow(), simulationHeader(), 
                     simulationContent(), "Run a Water Quality Simulation");
-            } else if (name === 'grid-generation') {
+            } else if (name === 'gis-uploader') { 
+                // GIS Uploader
                 projectChecker();
-                // Grid Generation
-                iframeInit("grid_generation", projectSetting(), projectSettingHeader(), 
-                    projectSettingContent(), "Grid Generation");
+                
+
+
+
+
+            } else if (name === 'grid-generation') {
+                // projectChecker();
+                // // Grid Generation
+                // iframeInit("grid_generation", projectSetting(), projectSettingHeader(), 
+                //     projectSettingContent(), "Grid Generation");
+                return;
             } 
         }
     });
@@ -693,4 +703,3 @@ async function showGitHubLastUpdate(username, repo, branch='main') {
         displayDiv.textContent = 'Last update: error';
     }
 }
-showGitHubLastUpdate('NTNUSmartWater', 'DigiH2O-Platform');

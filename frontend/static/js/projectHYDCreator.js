@@ -599,8 +599,7 @@ async function initializeProject(){
     projectName().addEventListener('input', (e) => { 
         const value = e.target.value.trim();
         if (value === '') {
-            sectionTab().style.display = "none"; 
-            sectionDescription().style.display = "block";
+            sectionTab().style.display = "none"; sectionDescription().style.display = "block";
         }
         renderProjects(projects(), projectList, value);
     });
@@ -611,6 +610,9 @@ async function initializeProject(){
     projectCreator().addEventListener('click', async () => {
         const name = projectName().value.trim(); let project = '';
         if (!name || name.trim() === '') { alert('Please define scenario name.'); return; }
+        if (name.includes('/') || name.includes('\\') || name.includes(':') || name.includes(' ') || name.includes('.')) { 
+            alert('Name of scenario is invalid.'); return;
+        }
         if (name.includes('/')) { project = name.split('/').pop(); } else { project = name; }
         window.parent.postMessage({type: 'projectPreparation', name: project}, '*')
         // Show tabs
@@ -625,6 +627,9 @@ async function initializeProject(){
         // Ask for a new name
         const newName = prompt('Please enter a name for the new scenario.\nCloning a scenario will take some time. Please be patient.');
         if (!newName || newName === '') { alert('Please define clone scenario name.'); return; }
+        if (newName.includes('/') || newName.includes('\\') || newName.includes(':') || newName.includes(' ') || name.includes('.')) { 
+            alert('Name of clone scenario is invalid.'); return;
+        }
         projectCloner().innerHTML = 'Cloning...';
         const data = await sendQuery('copy_project', {oldName: name, newName: newName});
         alert(data.message); projectList = []; projectName().value = ''; 
