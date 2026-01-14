@@ -96,21 +96,21 @@
     <hr style="border-top: 1px solid #0516f8; margin: 2px 0 2px 0;">
     <!-- Physical -->
     <a class="menu-link waq_his {% if not configuration.waq_his_conservative_decay %}hidden{% endif %}"
-        data-info="waq_his_conservative_selector">Conservative and decaying tracers</a>
+        data-info="waq_his_conservative_selector">{{ configuration.waq_his_conservative_decay_name }}</a>
     <a class="menu-link waq_his {% if not configuration.waq_his_suspended_sediment %}hidden{% endif %}"
-        data-info="waq_his_suspended_sediment_selector">Suspended sediment (three fractions)</a>
+        data-info="waq_his_suspended_sediment_selector">{{ configuration.waq_his_suspended_sediment_name }}</a>
     <!-- Chemical -->
     <a class="menu-link waq_his {% if not configuration.waq_his_simple_oxygen %}hidden{% endif %}"
-        data-info="waq_his_simple_oxygen_selector">Simple Oxygen</a>
+        data-info="waq_his_simple_oxygen_selector">{{ configuration.waq_his_simple_oxygen_name }}</a>
     <a class="menu-link waq_his {% if not configuration.waq_his_oxygen_bod %}hidden{% endif %}"
-        data-info="waq_his_oxygen_bod_selector">Oxygen and BOD (water phase only)</a>
+        data-info="waq_his_oxygen_bod_selector">{{ configuration.waq_his_oxygen_bod_name }}</a>
     <a class="menu-link waq_his {% if not configuration.waq_his_cadmium %}hidden{% endif %}"
-        data-info="waq_his_cadmium_selector">Cadmium</a>
+        data-info="waq_his_cadmium_selector">{{ configuration.waq_his_cadmium_name }}</a>
     <a class="menu-link waq_his {% if not configuration.waq_his_eutrophication %}hidden{% endif %}"
-        data-info="waq_his_eutrophication_selector">Eutrophication</a>
+        data-info="waq_his_eutrophication_selector">{{ configuration.waq_his_eutrophication_name }}</a>
     <a class="menu-link waq_his {% if not configuration.waq_his_trace_metals %}hidden{% endif %}"
-        data-info="waq_his_trace_metals_selector">Trace metals</a>
+        data-info="waq_his_trace_metals_selector">{{ configuration.waq_his_trace_metals_name }}</a>
     <!-- Microbial -->
     <a class="menu-link waq_his {% if not configuration.waq_his_coliform %}hidden{% endif %}"
-        data-info="waq_his_coliform_selector">Coliform bacteria</a>
+        data-info="waq_his_coliform_selector">{{ configuration.waq_his_coliform_name }}</a>
 </div>

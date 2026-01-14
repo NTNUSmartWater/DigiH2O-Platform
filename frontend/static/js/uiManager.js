@@ -39,6 +39,8 @@ const simulationWindow = () => document.getElementById('simulationWindow');
 const simulationHeader = () => document.getElementById('simulationWindowHeader');
 const simulationContent = () => document.getElementById('simulationWindowContent');
 const simulationCloseBtn = () => document.getElementById('closeSimulationWindow');
+const GISUploadFile = () => document.getElementById('gis-file');
+const menuLeft = () => document.getElementById('menu-left');
 const mapContainer = () => map.getContainer();
 
 initializeMap(); baseMapButtonFunctionality(); plotEvents(); initializeMenu();
@@ -314,11 +316,36 @@ function updateEvents() {
             } else if (name === 'gis-uploader') { 
                 // GIS Uploader
                 projectChecker();
-                
+                GISUploadFile().click();
+                // Open GIS data
+                if (GISUploadFile()) {
+                    GISUploadFile().addEventListener('change', async (event) => { 
+                        const hasGISMenu = menuLeft().querySelector("#GISMenu") !== null;
+                        if (!hasGISMenu) {
+                            const li = document.createElement("li");
+                            const a = document.createElement("a");
+                            a.className = "menu";
+                            a.setAttribute("data-info", "4|gisLayer.html|subMenu");
+                            a.id = "GISMenu"; a.textContent = "GIS";
+                            li.appendChild(a); menuLeft().appendChild(li);
+                        }
+                        
 
 
 
 
+
+                        
+                        const file = event.target.files[0];
+                        if (!file) return;
+                        const gisFiles = [...getState().GISFiles, file.name];
+                        setState({ GISFiles: gisFiles });
+                        
+                        GISUploadFile().value = '';
+                        // console.log(getState().GISFiles);
+                        console.log(menuLeft());
+                    });
+                }
             } else if (name === 'grid-generation') {
                 // projectChecker();
                 // // Grid Generation

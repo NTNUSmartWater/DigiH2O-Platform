@@ -286,16 +286,18 @@ def checkVariables(data: xr.Dataset, variablesNames: str) -> bool:
     if float(vmin) < -900 and float(vmax) < -900: return False
     return bool(float(vmin) != float(vmax))
 
-def getVariablesNames(out_files: list, model_type: str='') -> dict:
+def getVariablesNames(out_files: list, model_type: str='', filename: str='') -> dict:
     """
-    Get the names of the variables in the dataset received from *.nc file.
+    Get the names of the variables in the dataset received from *.zarr file.
 
     Parameters:
     ----------
     out_files: list
-        The list of the *.nc files (in xr.Dataset format).
+        The list of the *.zarr files (in xr.Dataset format).
     model_type: str
         The type of the model used.
+    filename: str
+        The name of the *.zarr file.
 
     Returns:
     -------
@@ -414,14 +416,24 @@ def getVariablesNames(out_files: list, model_type: str='') -> dict:
                 result['waq_his_conservative_selector'] = []
                 for item in variables:
                     if checkVariables(data, item): result['waq_his_conservative_selector'].append(item)
-                result['waq_his_conservative_decay'] = True if len(result['waq_his_conservative_selector']) > 0 else False
+                if len(result['waq_his_conservative_selector']) > 0:
+                    result['waq_his_conservative_decay'] = True
+                    result['waq_his_conservative_decay_name'] = filename
+                else:
+                    result['waq_his_conservative_decay'] = False
+                    result['waq_his_conservative_decay_name'] = 'Conservative and decaying tracers'
                 result['waq_his'] = result['waq_his_conservative_decay']
             # 2. Suspended Sediment
             elif model_type == 'suspend-sediment':
                 result['waq_his_suspended_sediment_selector'] = []
                 for item in variables:
                     if checkVariables(data, item): result['waq_his_suspended_sediment_selector'].append(item)
-                result['waq_his_suspended_sediment'] = True if len(result['waq_his_suspended_sediment_selector']) > 0 else False
+                if len(result['waq_his_suspended_sediment_selector']) > 0:
+                    result['waq_his_suspended_sediment'] = True
+                    result['waq_his_suspended_sediment_name'] = filename
+                else:
+                    result['waq_his_suspended_sediment'] = False
+                    result['waq_his_suspended_sediment_name'] = 'Suspended Sediment (three fractions)'
                 result['waq_his'] = result['waq_his_suspended_sediment']
             # Prepare data for Chemical option
             # 1. Simple Oxygen
@@ -429,42 +441,72 @@ def getVariablesNames(out_files: list, model_type: str='') -> dict:
                 result['waq_his_simple_oxygen_selector'] = []
                 for item in variables:
                     if checkVariables(data, item): result['waq_his_simple_oxygen_selector'].append(item)
-                result['waq_his_simple_oxygen'] = True if len(result['waq_his_simple_oxygen_selector']) > 0 else False
+                if len(result['waq_his_simple_oxygen_selector']) > 0:
+                    result['waq_his_simple_oxygen'] = True
+                    result['waq_his_simple_oxygen_name'] = filename
+                else:
+                    result['waq_his_simple_oxygen'] = False
+                    result['waq_his_simple_oxygen_name'] = 'Simple Oxygen'
                 result['waq_his'] = result['waq_his_simple_oxygen']
             # 2. Oxygen and BOD (water phase only)
             elif model_type == 'oxygen-bod-water':
                 result['waq_his_oxygen_bod_selector'] = []
                 for item in variables:
                     if checkVariables(data, item): result['waq_his_oxygen_bod_selector'].append(item)            
-                result['waq_his_oxygen_bod'] = True if (len(result['waq_his_oxygen_bod_selector'])) else False
+                if len(result['waq_his_oxygen_bod_selector']) > 0:
+                    result['waq_his_oxygen_bod'] = True
+                    result['waq_his_oxygen_bod_name'] = filename
+                else:
+                    result['waq_his_oxygen_bod'] = False
+                    result['waq_his_oxygen_bod_name'] = 'Oxygen and BOD (water phase only)'
                 result['waq_his'] = result['waq_his_oxygen_bod']
             # 3. Cadmium
             elif model_type == 'cadmium':
                 result['waq_his_cadmium_selector'] = []
                 for item in variables:
                     if checkVariables(data, item): result['waq_his_cadmium_selector'].append(item)
-                result['waq_his_cadmium'] = True if len(result['waq_his_cadmium_selector']) > 0 else False
+                if len(result['waq_his_cadmium_selector']) > 0:
+                    result['waq_his_cadmium'] = True
+                    result['waq_his_cadmium_name'] = filename
+                else:
+                    result['waq_his_cadmium'] = False
+                    result['waq_his_cadmium_name'] = 'Cadmium'
                 result['waq_his'] = result['waq_his_cadmium']
             # 4. Eutrophication
             elif model_type == 'eutrophication':
                 result['waq_his_eutrophication_selector'] = []
                 for item in variables:
                     if checkVariables(data, item): result['waq_his_eutrophication_selector'].append(item)
-                result['waq_his_eutrophication'] = True if len(result['waq_his_eutrophication_selector']) > 0 else False
+                if len(result['waq_his_eutrophication_selector']) > 0:
+                    result['waq_his_eutrophication'] = True
+                    result['waq_his_eutrophication_name'] = filename
+                else:
+                    result['waq_his_eutrophication'] = False
+                    result['waq_his_eutrophication_name'] = 'Eutrophication'
                 result['waq_his'] = result['waq_his_eutrophication']
             # 5. Trace Metals
             elif model_type == 'trace-metals':
                 result['waq_his_trace_metals_selector'] = []
                 for item in variables:
                     if checkVariables(data, item): result['waq_his_trace_metals_selector'].append(item)
-                result['waq_his_trace_metals'] = True if len(result['waq_his_trace_metals_selector']) > 0 else False
+                if len(result['waq_his_trace_metals_selector']) > 0:
+                    result['waq_his_trace_metals'] = True
+                    result['waq_his_trace_metals_name'] = filename
+                else:
+                    result['waq_his_trace_metals'] = False
+                    result['waq_his_trace_metals_name'] = 'Trace Metals'
                 result['waq_his'] = result['waq_his_trace_metals']
             # Prepare data for Microbial option
             elif model_type == 'coliform':
                 result['waq_his_coliform_selector'] = []
                 for item in variables:
                     if checkVariables(data, item): result['waq_his_coliform_selector'].append(item)
-                result['waq_his_coliform'] = True if len(result['waq_his_coliform_selector']) > 0 else False
+                if len(result['waq_his_coliform_selector']) > 0:
+                    result['waq_his_coliform'] = True
+                    result['waq_his_coliform_name'] = filename
+                else:
+                    result['waq_his_coliform'] = False
+                    result['waq_his_coliform_name'] = 'Coliform Bacteria'
                 result['waq_his'] = result['waq_his_coliform']
         # This is a water quality map file      
         elif ('nTimesDlwq' in data.sizes and any(k in data.sizes for k in ['mesh2d_nNodes', 'mesh2d_nEdges'])):
@@ -477,6 +519,7 @@ def getVariablesNames(out_files: list, model_type: str='') -> dict:
             # 1. Conservative and Decaying Tracers
             if model_type == 'conservative-tracers':
                 result['waq_map_conservative_selector'], result['waq_map_conservative_decay'] = [], False
+                result['waq_map_conservative_decay_name'] = 'Conservative and decaying tracers'
                 for item in variables:
                     item1 = item.replace('mesh2d_', '').replace('2d_', '')
                     if checkVariables(data, item): 
@@ -484,10 +527,12 @@ def getVariablesNames(out_files: list, model_type: str='') -> dict:
                         if item1 not in elements_check: result['waq_map_conservative_selector'].append(item1)
                 result['waq_map_conservative_selector'] = list(dict.fromkeys(result['waq_map_conservative_selector']))
                 if len(result['waq_map_conservative_selector']) > 0:
-                    result['wq_map'] = result['waq_map_conservative_decay'] = result['thermocline_waq'] = True              
+                    result['wq_map'] = result['waq_map_conservative_decay'] = result['thermocline_waq'] = True
+                    result['waq_map_conservative_decay_name'] = filename
             # 2. Suspended Sediment
             elif model_type == 'suspend-sediment':
                 result['waq_map_suspended_sediment_selector'], result['waq_map_suspended_sediment'] = [], False
+                result['waq_map_suspended_sediment_name'] = 'Suspended sediment (three fractions)'
                 for item in variables:
                     item1 = item.replace('mesh2d_', '').replace('2d_', '')
                     if checkVariables(data, item):
@@ -496,10 +541,12 @@ def getVariablesNames(out_files: list, model_type: str='') -> dict:
                 result['waq_map_suspended_sediment_selector'] = list(dict.fromkeys(result['waq_map_suspended_sediment_selector']))
                 if len(result['waq_map_suspended_sediment_selector']) > 0:
                     result['wq_map'] = result['waq_map_suspended_sediment'] = result['thermocline_waq'] = True
+                    result['waq_map_suspended_sediment_name'] = filename
             # Prepare data for Chemical option
             # 1. Simple Oxygen
             elif model_type == 'simple-oxygen':
                 result['waq_map_simple_oxygen_selector'], result['waq_map_simple_oxygen'] = [], False
+                result['waq_map_simple_oxygen_name'] = 'Simple Oxygen'
                 for item in variables:
                     item1 = item.replace('mesh2d_', '').replace('2d_', '')
                     if checkVariables(data, item):
@@ -508,9 +555,11 @@ def getVariablesNames(out_files: list, model_type: str='') -> dict:
                 result['waq_map_simple_oxygen_selector'] = list(dict.fromkeys(result['waq_map_simple_oxygen_selector']))
                 if len(result['waq_map_simple_oxygen_selector']) > 0:
                     result['wq_map'] = result['waq_map_simple_oxygen'] = result['thermocline_waq'] = True
+                    result['waq_map_simple_oxygen_name'] = filename
             # 2. Oxygen and BOD (water phase only)
             elif model_type == 'oxygen-bod-water':
                 result['waq_map_oxygen_bod_selector'], result['waq_map_oxygen_bod'] = [], False
+                result['waq_map_oxygen_bod_name'] = 'Oxygen and BOD (water phase only)'
                 for item in variables:
                     item1 = item.replace('mesh2d_', '').replace('2d_', '')
                     if checkVariables(data, item):
@@ -519,9 +568,11 @@ def getVariablesNames(out_files: list, model_type: str='') -> dict:
                 result['waq_map_oxygen_bod_selector'] = list(dict.fromkeys(result['waq_map_oxygen_bod_selector']))
                 if len(result['waq_map_oxygen_bod_selector']) > 0:  
                     result['wq_map'] = result['waq_map_oxygen_bod'] = result['thermocline_waq'] = True
+                    result['waq_map_oxygen_bod_name'] = filename
             # 3. Cadmium
             elif model_type == 'cadmium':
                 result['waq_map_cadmium_selector'], result['waq_map_cadmium'] = [], False
+                result['waq_map_cadmium_name'] = 'Cadmium'
                 for item in variables:
                     item1 = item.replace('mesh2d_', '').replace('2d_', '')
                     if checkVariables(data, item):
@@ -530,9 +581,11 @@ def getVariablesNames(out_files: list, model_type: str='') -> dict:
                 result['waq_map_cadmium_selector'] = list(dict.fromkeys(result['waq_map_cadmium_selector']))
                 if len(result['waq_map_cadmium_selector']) > 0:
                     result['wq_map'] = result['waq_map_cadmium'] = result['thermocline_waq'] = True
+                    result['waq_map_cadmium_name'] = filename
             # 4. Eutrophication
             elif model_type == 'eutrophication':
                 result['waq_map_eutrophication_selector'], result['waq_map_eutrophication'] = [], False
+                result['waq_map_eutrophication_name'] = 'Eutrophication'
                 for item in variables:
                     item1 = item.replace('mesh2d_', '').replace('2d_', '')
                     if checkVariables(data, item):
@@ -541,9 +594,11 @@ def getVariablesNames(out_files: list, model_type: str='') -> dict:
                 result['waq_map_eutrophication_selector'] = list(dict.fromkeys(result['waq_map_eutrophication_selector']))
                 if len(result['waq_map_eutrophication_selector']) > 0:
                     result['wq_map'] = result['waq_map_eutrophication'] = result['thermocline_waq'] = True
+                    result['waq_map_eutrophication_name'] = filename
             # 5. Trace Metals
             elif model_type == 'trace-metals':
                 result['waq_map_trace_metals_selector'], result['waq_map_trace_metals'] = [], False
+                result['waq_map_trace_metals_name'] = 'Trace Metals'
                 for item in variables:
                     item1 = item.replace('mesh2d_', '').replace('2d_', '')
                     if checkVariables(data, item):
@@ -552,9 +607,11 @@ def getVariablesNames(out_files: list, model_type: str='') -> dict:
                 result['waq_map_trace_metals_selector'] = list(dict.fromkeys(result['waq_map_trace_metals_selector']))
                 if len(result['waq_map_trace_metals_selector']) > 0:
                     result['wq_map'] = result['waq_map_trace_metals'] = result['thermocline_waq'] = True
+                    result['waq_map_trace_metals_name'] = filename
             # Prepare data for Microbial option
             elif model_type == 'coliform':
                 result['waq_map_coliform_selector'], result['waq_map_coliform'] = [], False
+                result['waq_map_coliform_name'] = 'Coliform Bacteria'
                 for item in variables:
                     item1 = item.replace('mesh2d_', '').replace('2d_', '')
                     if checkVariables(data, item):
@@ -563,6 +620,7 @@ def getVariablesNames(out_files: list, model_type: str='') -> dict:
                 result['waq_map_coliform_selector'] = list(dict.fromkeys(result['waq_map_coliform_selector']))
                 if len(result['waq_map_coliform_selector']) > 0:
                     result['wq_map'] = result['waq_map_coliform'] = result['thermocline_waq'] = True
+                    result['waq_map_coliform_name'] = filename
             result['spatial_map'] = result['single_layer'] = result['multi_layer'] = result['wq_map']
             result['hide_map'] = result['spatial_map']
     return result
@@ -626,14 +684,14 @@ def dialogReader(dialog_file: str) -> dict:
 
 def getSummary(dialog_path: str, out_files: list) -> list:
     """
-    Get the summary of the dataset received from *.nc file.
+    Get the summary of the dataset received from *.zarr file.
 
     Parameters:
     ----------
     dialog_path: str
         The path of the dialog *.dia file.
     out_files: list
-        List of _his.nc files.
+        List of _his.zarr files.
 
     Returns:
     -------
