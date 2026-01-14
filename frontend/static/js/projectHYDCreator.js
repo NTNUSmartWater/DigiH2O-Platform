@@ -407,6 +407,7 @@ function updateOption(){
     // Upload boundary condition from CSV
     boundaryCSV().addEventListener('click', () => { boundaryUploadFile().click(); });
     boundaryUploadFile().addEventListener('change', async (event) => { 
+        deleteTable(boundaryEditTable());
         await csvUploader(event, boundaryUploadText(), boundaryEditTable(), 2);
         boundaryUploadFile().value = '';
     });
