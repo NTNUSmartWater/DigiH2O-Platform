@@ -52,6 +52,8 @@ async def setup_new_project(request: Request, user=Depends(functions.basic_auth)
         os.makedirs(project_dir, exist_ok=True)
         input_dir = os.path.normpath(os.path.join(project_dir, "input"))
         os.makedirs(input_dir, exist_ok=True)
+        gis_dir = os.path.normpath(os.path.join(project_dir, "gis"))
+        os.makedirs(gis_dir, exist_ok=True)
         status, message = 'ok', f"Scenario '{body.get('projectName')}' created successfully!"
     except Exception as e:
         print('/setup_new_project:\n==============')
@@ -245,6 +247,8 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
                     print(f"Copying project 'demo' folder to '{project_folder}'")
                     os.makedirs(project_folder, exist_ok=True)
                     shutil.copytree(demo_folder, project_folder, dirs_exist_ok=True)
+            gis_folder = os.path.normpath(os.path.join(project_folder, "GIS"))
+            if not os.path.exists(gis_folder): os.makedirs(gis_folder, exist_ok=True)
             output_dir = os.path.normpath(os.path.join(project_folder, "output"))
             config_dir = os.path.normpath(os.path.join(output_dir, "config"))
             hyd_dir = os.path.normpath(os.path.join(output_dir, 'HYD'))
@@ -292,11 +296,11 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
             # Lazy scan HYD variables only once
             if (hyd_map or hyd_his) and not config['meta']['hyd_scanned']:
                 print('Scanning HYD variables...')
-                hyd_vars = functions.getVariablesNames([hyd_his, hyd_map], 'hyd')
+                hyd_vars = functions.getVariablesNames([hyd_his, hyd_map])
                 config["hyd"], config["meta"]["hyd_scanned"] = hyd_vars, True
             # Get WAQ model
-            temp = params[2].replace('_his.zarr', '') if params[2] != '' else params[3].replace('_map.zarr', '')
-            model_path, waq_model, obs = os.path.normpath(os.path.join(waq_dir, f'{temp}.json')), '', {}
+            temp_name = params[2].replace('_his.zarr', '') if params[2] != '' else params[3].replace('_map.zarr', '')
+            model_path, waq_model, obs = os.path.normpath(os.path.join(waq_dir, f'{temp_name}.json')), '', {}
             if os.path.exists(model_path):
                 print('Loading WAQ model...')
                 temp_data = json.load(open(model_path, "r", encoding=functions.encoding_detect(model_path)))
@@ -308,7 +312,7 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
             # Lazy scan WAQ
             if (waq_map or waq_his) and config['model_type'] != waq_model:
                 print('Scanning WAQ variables...')
-                waq_vars = functions.getVariablesNames([waq_his, waq_map], waq_model)
+                waq_vars = functions.getVariablesNames([waq_his, waq_map], waq_model, temp_name)
                 config["waq"], config["meta"]["waq_scanned"], config['model_type'] = waq_vars, True, waq_model
             # Delete waq option if no waq files
             if waq_his is None and waq_map is None:
@@ -316,6 +320,11 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
                 config['waq'], config['meta']['waq_scanned'], config['model_type'] = {}, False, ''
                 config.pop("wq_obs", None)
                 config.pop("wq_loads", None)
+            # Load GIS layers
+            gis_layers = [f for f in os.listdir(gis_folder) if f.endswith(".geojson")]
+            if len(gis_layers) > 0:
+                print('Loading GIS layers...')
+                config['gis_layers'] = gis_layers
             # Save config
             open(config_path, "w", encoding=functions.encoding_detect(config_path)).write(json.dumps(config))
             # Restructure configuration
