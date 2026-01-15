@@ -376,10 +376,11 @@ async def initiate_options(request: Request, user=Depends(functions.basic_auth))
 # Upload file from local computer to server
 @router.post("/upload_data")
 async def upload_data(file: UploadFile = File(...), projectName: str = Form(...),
-                      gridName: str = Form(...), user=Depends(functions.basic_auth)):
+    fileName: str = Form(...), type: str = Form(...), user=Depends(functions.basic_auth)):
     try:
         project_name, _ = functions.project_definer(projectName, user)
-        file_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input", gridName))
+        if (type == 'grid'): file_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input", fileName))
+        elif (type == 'gis'): file_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "GIS", fileName))
         with open(file_path, "wb") as f:
             while True:
                 chunk = await file.read(1024 * 1024)

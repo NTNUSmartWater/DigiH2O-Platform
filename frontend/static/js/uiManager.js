@@ -4,11 +4,11 @@ import { plotChart, plotEvents, drawChart, plotWindow, thermoclinePlotter } from
 import { timeControl, colorbar_container, colorbar_vector_container, plot2DMapDynamic } from "./map2DManager.js";
 import { generalOptionsManager, summaryWindow } from './generalOptionManager.js';
 import { spatialMapManager, substanceWindowHis, substanceWindowMap } from './spatialMapManager.js';
-import { sendQuery } from './tableManager.js';
-import { getState, resetState, setState } from './constants.js';
+import { eventUpdater } from './gisManager.js'; import { sendQuery } from './tableManager.js';
+import { getState, resetState, setState } from './constants.js'; import { fileUploader } from './utils.js';
 
 let pickerState = { location: false, point: false, crosssection: false, boundary: false, source: false },
-    cachedMenus = {}, markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [],
+    cachedMenus = {}, markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [], gisLayers = {},
     pathLineBoundary = null, gridLayer = null, timeOut = null, userName = false, hideTimeoutHelp = null,
     markersCrosssection = [], crosssectionContainer = [], pathLineCrosssection = null, hideTimeout = null;
 
@@ -79,17 +79,14 @@ function hideMap() {
 async function showPopupMenu(projectName, id, htmlFile) {
     try {
         refresh(); let html;
-        if (cachedMenus[htmlFile]) html = cachedMenus[htmlFile];
-        else {
-            const response = await fetch(`/load_popupMenu?htmlFile=${htmlFile}&project_name=${projectName}`);
-            if (response.status === 'error') {alert(response.message); return;}
-            html = await response.text();
-            cachedMenus[htmlFile] = html;
-        }
+        const response = await fetch(`/load_popupMenu?htmlFile=${htmlFile}&project_name=${projectName}`);
+        if (!response.ok) {alert(response.message); return;}
+        html = await response.text(); cachedMenus[htmlFile] = html;
         popupContent().innerHTML = html;
         if (id === '1') generalOptionsManager(projectName); // Events on General Options submenu
         if (id === '2') timeSeriesManager(); // Events on Time series Measurement submenu
         if (id === '3') spatialMapManager(); // Events on Map submenu
+        // if (id === '4') eventUpdater(); // Events on GIS submenu
     } catch (error) {alert(error + ': ' + htmlFile);}
 }
 
@@ -105,6 +102,17 @@ async function projectChecker(name=null, params=null) {
     startLoading('Reading Simulation Outputs and Setting up Database.\nThis takes a while (especially the first time). Please wait...');
     const data = await sendQuery('setup_database', {projectName: name, params: params});
     if (data.status === "error") { alert(data.message); location.reload(); return; }
+    if (data.content.gis_layers.length > 0) {
+        const hasGISMenu = menuLeft().querySelector("#GISMenu");
+        if (!hasGISMenu) {
+            const li = document.createElement("li");
+            li.style.alignItems = "center"; li.style.display = "flex";
+            const a = document.createElement("a");
+            a.className = "menu"; a.id = "GISMenu"; a.textContent = "GIS Layer";
+            a.setAttribute("data-info", "4|gisLayer.html|subMenu");
+            li.appendChild(a); menuLeft().appendChild(li); initializeMenu();
+        }
+    }
     showLeafletMap();
 }
 
@@ -182,6 +190,36 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
     objContent.appendChild(newIframe);
     objHeader.childNodes[0].nodeValue = title;
     objWindow.style.display = 'flex'; hideMap();
+}
+
+async function GISLayerChange(name, id, checked){
+    console.log('GISLayerChange', name, id, checked);
+    if (!checked) {
+        if (gisLayers[id]) { map.removeLayer(gisLayers[id]); }
+        return;
+    }
+    if (gisLayers[id]) { map.addLayer(gisLayers[id]); return; }
+    // Load gis layer
+    const response = await sendQuery('get_gis_layer', {projectName: name, layer: id});
+    if (response.status === "error") { alert(response.message); return; }
+    const layer = L.geoJSON(response.content, {
+        pointToLayer: function (feature, latlng) {
+            return L.circleMarker(latlng, {
+                radius: 3, fillColor: '#ff3333', color: '#000',
+                weight: 1, opacity: 1, fillOpacity: 0.8
+            });
+        },
+        onEachFeature: (feature, l) => {
+            if (feature.properties) {
+                l.bindPopup(
+                    Object.entries(feature.properties)
+                        .map(([k, v]) => `<b>${k}</b>: ${v}`)
+                        .join('<br>')
+                );
+            }
+        }
+    });
+    gisLayers[id] = layer; map.addLayer(layer); map.fitBounds(layer.getBounds());
 }
 
 function updateEvents() {
@@ -285,8 +323,9 @@ function updateEvents() {
             sugesstionSearcher().style.display = 'none';
         }
     });
-    popupContent().addEventListener('click', (e) => {
+    popupContent().addEventListener('click', async (e) => {
         const project = e.target.closest('.project');
+        const nameProject = projectTitle().textContent.split(':')[1].split('/')[1].trim();
         if (project) {
             const name = project.dataset.info;
             if (name === 'visualization') {
@@ -315,37 +354,25 @@ function updateEvents() {
                     simulationContent(), "Run a Water Quality Simulation");
             } else if (name === 'gis-uploader') { 
                 // GIS Uploader
-                projectChecker();
                 GISUploadFile().click();
                 // Open GIS data
                 if (GISUploadFile()) {
                     GISUploadFile().addEventListener('change', async (event) => { 
+                        const file = event.target.files[0]; if (!file) return;
+                        await fileUploader(GISUploadFile(), null, nameProject, file.name, 'Uploading GIS data to project...', 'gis');
                         const hasGISMenu = menuLeft().querySelector("#GISMenu") !== null;
                         if (!hasGISMenu) {
                             const li = document.createElement("li");
+                            li.style.alignItems = "center"; li.style.display = "flex";
                             const a = document.createElement("a");
-                            a.className = "menu";
+                            a.className = "menu"; a.id = "GISMenu"; a.textContent = "GIS Layer";
                             a.setAttribute("data-info", "4|gisLayer.html|subMenu");
-                            a.id = "GISMenu"; a.textContent = "GIS";
-                            li.appendChild(a); menuLeft().appendChild(li);
+                            li.appendChild(a); menuLeft().appendChild(li); initializeMenu();
                         }
-                        
-
-
-
-
-
-                        
-                        const file = event.target.files[0];
-                        if (!file) return;
-                        const gisFiles = [...getState().GISFiles, file.name];
-                        setState({ GISFiles: gisFiles });
-                        
                         GISUploadFile().value = '';
-                        // console.log(getState().GISFiles);
-                        console.log(menuLeft());
                     });
                 }
+                projectChecker();
             } else if (name === 'grid-generation') {
                 // projectChecker();
                 // // Grid Generation
@@ -353,6 +380,21 @@ function updateEvents() {
                 //     projectSettingContent(), "Grid Generation");
                 return;
             } 
+        }
+        // Delete GIS layer
+        if (e.target.classList.contains('delete-btn')) {
+            e.stopPropagation(); e.preventDefault();
+            const id = e.target.id.replace('delete-', '');
+            const data = await sendQuery('delete_gis', { projectName: nameProject, name: id });
+            if (data.status === "error") { alert(data.message); return; }
+            await GISLayerChange(nameProject, id, false);
+            const rowDiv = e.target.parentNode; if (rowDiv) rowDiv.remove();
+        }
+        // Show/hide GIS layers
+        if (e.target.type === 'checkbox') {
+            e.stopPropagation();
+            const id = e.target.id, value = e.target.checked;
+            await GISLayerChange(nameProject, id, value);
         }
     });
     // Listent events from open project iframe

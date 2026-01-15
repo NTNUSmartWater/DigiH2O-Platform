@@ -321,10 +321,7 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
                 config.pop("wq_obs", None)
                 config.pop("wq_loads", None)
             # Load GIS layers
-            gis_layers = [f for f in os.listdir(gis_folder) if f.endswith(".geojson")]
-            if len(gis_layers) > 0:
-                print('Loading GIS layers...')
-                config['gis_layers'] = gis_layers
+            config['gis_layers'] = [f.replace('.geojson', '') for f in os.listdir(gis_folder) if f.endswith(".geojson")]
             # Save config
             open(config_path, "w", encoding=functions.encoding_detect(config_path)).write(json.dumps(config))
             # Restructure configuration
@@ -344,7 +341,7 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
             await redis.delete(project_name)
             await redis.hset(project_name, mapping=redis_mapping)
             print('Configuration loaded successfully.')
-            return JSONResponse({"status": 'ok'})
+            return JSONResponse({"status": 'ok', "content": result})
     except Exception as e:
         print('/setup_database:\n==============')
         traceback.print_exc()
@@ -418,9 +415,9 @@ async def delete_file(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
         project_name, _ = functions.project_definer(body.get('projectName'), user)
+        redis, file = request.app.state.redis, body.get('name')
         scenario_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'output', 'scenarios'))
         waq_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'output', 'WAQ'))
-        redis, file = request.app.state.redis, body.get('name')
         extend_task, lock = None, redis.lock(f"{project_name}:delete_file", timeout=300)
         async with lock:
             extend_task = asyncio.create_task(functions.auto_extend(lock))
@@ -444,6 +441,45 @@ async def delete_file(request: Request, user=Depends(functions.basic_auth)):
             extend_task.cancel()
             try: await extend_task
             except asyncio.CancelledError: pass
+
+@router.post("/delete_gis")
+async def delete_gis(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
+        gis_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'GIS'))
+        redis, file = request.app.state.redis, body.get('name')
+        lock = redis.lock(f"{project_name}:delete_gis", timeout=200)
+        async with lock:
+            file_name = os.path.normpath(os.path.join(gis_folder, f"{file}.geojson"))
+            if not os.path.exists(file_name): 
+                return JSONResponse({"status": 'error', "message": f"Path '{file_name}' does not exist."})
+            functions.safe_remove(file_name)
+        return JSONResponse({"status": 'ok'})
+    except Exception as e:
+        print('/delete_gis:\n==============')
+        traceback.print_exc()
+        return JSONResponse({"status": 'error', "message": f"Error: {str(e)}"})
+
+@router.post("/get_gis_layer")
+async def get_gis_layer(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
+        gis_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'GIS'))
+        redis, file = request.app.state.redis, body.get('layer')
+        lock = redis.lock(f"{project_name}:get_gis_layer", timeout=200)
+        async with lock:
+            file_name = os.path.normpath(os.path.join(gis_folder, f"{file}.geojson"))
+            if not os.path.exists(file_name): 
+                return JSONResponse({"status": 'error', "message": f"Path '{file_name}' does not exist."})
+        with open(file_name, "r", encoding="utf-8") as f:
+            geojson = json.load(f)    
+        return JSONResponse({"status": 'ok', "content": geojson})
+    except Exception as e:
+        print('/get_gis_layer:\n==============')
+        traceback.print_exc()
+        return JSONResponse({"status": 'error', "message": f"Error: {str(e)}"})
 
 # Delete a project
 @router.post("/delete_project")
