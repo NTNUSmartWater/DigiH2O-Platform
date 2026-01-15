@@ -277,3 +277,22 @@ export async function loadList(fileName, key, folder_check = '') {
     if (data.status === "error") { alert(data.message); return null; }
     return data;
 }
+
+export async function fileUploader(targetFile, targetText, projectName, gridName, message, type){
+    if (projectName === '') return;
+    window.parent.postMessage({type: 'showOverlay', message: message}, '*');
+    const file = targetFile.files[0];
+    const formData = new FormData();
+    formData.append('file', file); formData.append('projectName', projectName);
+    formData.append('fileName', gridName); formData.append('type', type);
+    if (targetText !== null) {targetText.value = file?.name || "";}
+    const response = await fetch('/upload_data', { method: 'POST', body: formData });
+    const data = await response.json();
+    window.parent.postMessage({type: 'hideOverlay'}, '*');
+    if (data.status === "error") {
+        alert(data.message); targetFile.value = '';
+        if (targetText !== null) {targetText.value = '';}
+        return;
+    }
+    alert(data.message);
+}

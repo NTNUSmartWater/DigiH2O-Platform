@@ -3,7 +3,7 @@ import { fillTable, getDataFromTable, addRowToTable, removeRowFromTable,
     pointUpdate, updateTable, plotTable, sendQuery } from "./tableManager.js";
 import { saveProject, timeStepCalculator } from "./projectSaver.js";
 import { getState } from "./constants.js";
-import { loadList } from "./utils.js";
+import { loadList, fileUploader } from "./utils.js";
 
 const sectionDescription = () => document.getElementById('desription-tab');
 const sectionTab = () => document.getElementById('parent-tab');
@@ -228,22 +228,6 @@ function assignOutput(target, start, end, startDate, stopDate){
     });
 }
 
-async function fileUploader(targetFile, targetText, projectName, gridName){
-    if (projectName === '') return;
-    window.parent.postMessage({type: 'showOverlay', message: 'Uploading grid to project...'}, '*');
-    const file = targetFile.files[0];
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('projectName', projectName);
-    formData.append('gridName', gridName);
-    targetText.value = file?.name || "";
-    const response = await fetch('/upload_data', { method: 'POST', body: formData });
-    const data = await response.json();
-    window.parent.postMessage({type: 'hideOverlay'}, '*');
-    if (data.status === "error") {alert(data.message), targetFile.value = '', targetText.value = ''; return;}
-    alert(data.message);
-}
-
 function updateOption(){
     // Update location
     mapPicker(getLocation(), 'pickLocation');
@@ -276,7 +260,7 @@ function updateOption(){
     // Upload file to server
     gridPathText().addEventListener('click', () => { gridPathFile().click(); });
     gridPathFile().addEventListener('change', async() => {
-        await fileUploader(gridPathFile(), gridPathText(), projectName().value, 'FlowFM_net.nc')
+        await fileUploader(gridPathFile(), gridPathText(), projectName().value, 'FlowFM_net.nc', 'Uploading grid to project...', 'grid');
         window.parent.postMessage({type: 'showGrid', projectName: projectName().value, 
             gridName: 'FlowFM_net.nc', message: 'Uploading grid to project...'}, '*');
         gridPathFile().value = '';
