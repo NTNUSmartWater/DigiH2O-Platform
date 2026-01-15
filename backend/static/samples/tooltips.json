@@ -1,4 +1,6 @@
 {
+  "Accepted file formats: .geojson, .zip":["gis-uploader"],
+  "Average longitude of the study area.":["longitude"],
   "Average latitude of the study area.":["latitude"],
   "Number of depth layers.":["n-layer"],
   "Unstructured grid that includes bathymetry.":["unstructured-grid"],

@@ -1,6 +1,6 @@
 import os, shutil, re, json, msgpack
 import asyncio, traceback, datetime
-import numpy as np
+import numpy as np, geopandas as gpd, pandas as pd
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
 from Functions import functions
@@ -473,9 +473,17 @@ async def get_gis_layer(request: Request, user=Depends(functions.basic_auth)):
             file_name = os.path.normpath(os.path.join(gis_folder, f"{file}.geojson"))
             if not os.path.exists(file_name): 
                 return JSONResponse({"status": 'error', "message": f"Path '{file_name}' does not exist."})
-        with open(file_name, "r", encoding="utf-8") as f:
-            geojson = json.load(f)    
-        return JSONResponse({"status": 'ok', "content": geojson})
+            gdf = gpd.read_file(file_name)
+            # Check if the file is empty
+            if gdf.empty: return JSONResponse({"status": 'error', "message": f"File '{file_name}' is empty."})
+            # Convert to WGS84 if not already
+            if gdf.crs is None: gdf.set_crs(epsg=4326, inplace=True)
+            if gdf.crs != '4326': gdf = gdf.to_crs(epsg=4326)
+            gdf["geometry"] = gdf.geometry.simplify(tolerance=0.0001, preserve_topology=True)
+            # Convert datetime to string
+            for col in gdf.columns:
+                if pd.api.types.is_datetime64_any_dtype(gdf[col]): gdf[col] = gdf[col].astype(str)
+        return JSONResponse({"status": 'ok', "content": json.loads(gdf.to_json())})
     except Exception as e:
         print('/get_gis_layer:\n==============')
         traceback.print_exc()

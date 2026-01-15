@@ -45,7 +45,7 @@ async def load_popupMenu(request: Request, htmlFile: str, project_name: str = No
         gis_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "GIS"))
         if not os.path.exists(gis_folder): os.makedirs(gis_folder, exist_ok=True)
         gis_layers = [f.replace('.geojson', '') for f in os.listdir(gis_folder) if f.endswith(".geojson")]
-        html = [f'<div class="menu">']
+        html = [f'<div class="menu" style="max-height: 300px; overflow-y: auto;">']
         if len(gis_layers) > 0:
             for layer in gis_layers:
                 html.append(f'''
@@ -54,7 +54,10 @@ async def load_popupMenu(request: Request, htmlFile: str, project_name: str = No
                             <input type="checkbox" id="{layer.replace(" ", "_")}" value="{layer}">
                             <label for="{layer.replace(" ", "_")}">{layer}</label>
                         </label>
-                        <button class="delete-btn" id="delete-{layer.replace(" ", "_")}" style="margin:5px;">Delete</button>
+                        <button class="delete-btn" id="delete-{layer.replace(" ", "_")}" 
+                            style="margin:5px; border-radius:5px; cursor:pointer; color:red;
+                            font-weight: bold; padding: 3px 6px; background-color: #9acde9;">Delete
+                        </button>
                     </div>
                 ''')
         html.append('</div>')

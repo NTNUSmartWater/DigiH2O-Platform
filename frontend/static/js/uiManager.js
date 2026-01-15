@@ -4,8 +4,9 @@ import { plotChart, plotEvents, drawChart, plotWindow, thermoclinePlotter } from
 import { timeControl, colorbar_container, colorbar_vector_container, plot2DMapDynamic } from "./map2DManager.js";
 import { generalOptionsManager, summaryWindow } from './generalOptionManager.js';
 import { spatialMapManager, substanceWindowHis, substanceWindowMap } from './spatialMapManager.js';
-import { eventUpdater } from './gisManager.js'; import { sendQuery } from './tableManager.js';
-import { getState, resetState, setState } from './constants.js'; import { fileUploader } from './utils.js';
+import { sendQuery } from './tableManager.js';
+import { fileUploader } from './utils.js';
+import { getState, resetState, setState } from './constants.js'; 
 
 let pickerState = { location: false, point: false, crosssection: false, boundary: false, source: false },
     cachedMenus = {}, markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [], gisLayers = {},
@@ -86,7 +87,12 @@ async function showPopupMenu(projectName, id, htmlFile) {
         if (id === '1') generalOptionsManager(projectName); // Events on General Options submenu
         if (id === '2') timeSeriesManager(); // Events on Time series Measurement submenu
         if (id === '3') spatialMapManager(); // Events on Map submenu
-        // if (id === '4') eventUpdater(); // Events on GIS submenu
+        if (id === '4') {
+            const checkBox = popupContent().querySelectorAll('input[type="checkbox"]');
+            for (let i = 0; i < checkBox.length; i++) { 
+                checkBox[i].checked = getState().gisLayers[checkBox[i].id]; 
+            }
+        }
     } catch (error) {alert(error + ': ' + htmlFile);}
 }
 
@@ -193,33 +199,49 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
 }
 
 async function GISLayerChange(name, id, checked){
-    console.log('GISLayerChange', name, id, checked);
+    setState({gisLayers: {...getState().gisLayers, [id]: checked}});
     if (!checked) {
         if (gisLayers[id]) { map.removeLayer(gisLayers[id]); }
         return;
     }
     if (gisLayers[id]) { map.addLayer(gisLayers[id]); return; }
     // Load gis layer
+    startLoading('Loading GIS Layer. Please wait...');
     const response = await sendQuery('get_gis_layer', {projectName: name, layer: id});
     if (response.status === "error") { alert(response.message); return; }
-    const layer = L.geoJSON(response.content, {
+    const hue1 = Math.floor(Math.random() * 360), hue2 = Math.floor(Math.random() * 360);
+    const fillColor = `hsl(${hue1}, 70%, 50%)`, color = `hsl(${hue2}, 70%, 50%)`;
+    const layer = L.geoJSON(response.content, { renderer: L.canvas(),
         pointToLayer: function (feature, latlng) {
             return L.circleMarker(latlng, {
-                radius: 3, fillColor: '#ff3333', color: '#000',
+                radius: 3, fillColor: fillColor, color: color,
                 weight: 1, opacity: 1, fillOpacity: 0.8
             });
         },
-        onEachFeature: (feature, l) => {
-            if (feature.properties) {
-                l.bindPopup(
-                    Object.entries(feature.properties)
-                        .map(([k, v]) => `<b>${k}</b>: ${v}`)
-                        .join('<br>')
-                );
+        style: feature => {
+            switch (feature.geometry.type) {
+                case 'LineString': 
+                case 'MultiLineString':
+                    return { color: color, weight: 2 };
+                case 'Polygon':
+                case 'MultiPolygon':
+                    return { color: color, fillColor: fillColor, fillOpacity: 0.5, weight: 1 };
+                default: return {};
             }
+        },
+        onEachFeature: (feature, l) => {
+            l.on('click', () => {
+                if (!feature.properties) return;
+                const content = Object.entries(feature.properties)
+                    .map(([k, v]) => `<b>${k}</b>: ${v}`).join('<br>')
+                l.bindPopup(`<div style="max-height: 200px; overflow-y: auto;
+                    overflow-x: hidden;">${content}</div>`).openPopup();
+            });
         }
     });
-    gisLayers[id] = layer; map.addLayer(layer); map.fitBounds(layer.getBounds());
+    gisLayers[id] = layer; map.addLayer(layer); 
+    if (layer.getLayers().length < 2000) { map.fitBounds(layer.getBounds()); }
+    showLeafletMap();
 }
 
 function updateEvents() {
@@ -359,7 +381,8 @@ function updateEvents() {
                 if (GISUploadFile()) {
                     GISUploadFile().addEventListener('change', async (event) => { 
                         const file = event.target.files[0]; if (!file) return;
-                        await fileUploader(GISUploadFile(), null, nameProject, file.name, 'Uploading GIS data to project...', 'gis');
+                        await fileUploader(GISUploadFile(), null, nameProject, 
+                            file.name, 'Uploading and Processing GIS data. Please wait...', 'gis');
                         const hasGISMenu = menuLeft().querySelector("#GISMenu") !== null;
                         if (!hasGISMenu) {
                             const li = document.createElement("li");
@@ -388,7 +411,7 @@ function updateEvents() {
             const data = await sendQuery('delete_gis', { projectName: nameProject, name: id });
             if (data.status === "error") { alert(data.message); return; }
             await GISLayerChange(nameProject, id, false);
-            const rowDiv = e.target.parentNode; if (rowDiv) rowDiv.remove();
+            const rowDiv = e.target.parentNode; if (rowDiv) {rowDiv.remove();}
         }
         // Show/hide GIS layers
         if (e.target.type === 'checkbox') {
