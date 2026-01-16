@@ -177,9 +177,8 @@ function substanceChanger(waqModel, target, name, type){
             initial_value = initialToMirobial();
         }
         from_usefors.innerHTML = ''; from_initial.innerHTML = ''; 
-        initial_area.value = ''; initial_value.value = '0';
+        initial_area.value = ''; initial_value.value = '';
         scheme.value = '15'; maxiter.value = '500'; tolerance.value = '1E-07';
-        
         if (target.value === '') {
             timePreviewContainer().style.display = 'none'; timePreview().value = '';
             name.value = ''; to_usefors.innerHTML = ''; usefors.value = ''; return;
@@ -406,8 +405,8 @@ function updateOption(){
             const obsTable = getDataFromTable(obsPointTable(), true);
             const loadTable = getDataFromTable(loadsPointTable(), true);
             if (loadTable.rows.length === 0) { alert('No loads data found. Please add at least one load.'); return; }
-            const timeTable = timePreview().value.trim();
-            if (!timeTable || timeTable === '') { alert("Post-processing field is required"); return; }
+            const timeData = timePreview().value.trim();
+            if (!timeData || timeData === '') { alert("Post-processing field is required"); return; }
             if (btn.dataset.info === 'chemical') {
                 subKey = chemicalSelector().value; folderName = chemicalName().value.trim();
                 useforsFrom = useforsFromChemical(); useforsTo = useforsToChemical();
@@ -438,7 +437,7 @@ function updateOption(){
                 exchangeZ: exchange_z, attrPath: attrPath_, volPath: volPath, ptrPath: ptrPath, areaPath: areaPath, 
                 flowPath: flowPath, lengthPath: lengthPath, srfPath: srfPath, vdfPath: vdfPath, temPath: temPath,
                 salPath: salPath, useforsFrom: valueFrom, useforsTo: valueTo, usefors: userforValue,
-                sources: sourceTable.rows, obsPoints: obsTable.rows, loadsData: loadTable.rows, timeTable: timeTable, 
+                sources: sourceTable.rows, obsPoints: obsTable.rows, loadsData: loadTable.rows, timeTable: timeData, 
                 initial: initialArea, maxiter: maxiter.value, tolerance: tolerance.value, scheme: scheme.value
             }
             const waq_config = await sendQuery('waq_config_writer', params);
@@ -539,8 +538,9 @@ function initializeProject(){
         if (waqValue !== '') { 
             const data = await sendQuery('load_waq', {projectName: name, waqName: waqValue});
             if (data.status === "error") {alert(data.message); return;}
-            fillTable(data.content.obs, obsPointTable(), true);
+            if (data.content.obs.length > 0) { fillTable(data.content.obs, obsPointTable(), true); }
             fillTable(data.content.loads, loadsPointTable(), true);
+            deleteTable(timeTable()); fillTable(data.content.time_data, timeTable(), true);
             if (data.content.mode === 'physical') {
                 physicalSelector().value = data.content.key;
                 physicalName().value = data.content.name;
