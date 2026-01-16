@@ -592,6 +592,7 @@ function initializeProject(){
         if (!name || name === '') { alert('Please select scenario first.'); return; }
         const newName = prompt('Please enter a name for the new WAQ scenario.');
         if (!newName || newName === '') { alert('Please define clone scenario name.'); return; }
+        if (nameChecker(newName)) { alert('Scenario name contains invalid characters.'); return; }
         projectCloner().innerHTML = 'Cloning...';
         const data = await sendQuery('clone_waq', {
             projectName: name, oldName: waqSelector().value, newName: newName

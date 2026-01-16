@@ -5,6 +5,10 @@ function toSuperscript(num) {
     return String(num).split('').map(ch => superscriptMap[ch] || ch).join('');
 }
 
+export function nameChecker(name) {
+    return !/^[A-Za-z0-9_-]+$/.test(name);
+}
+
 export function decodeArray(base64Str, n_decimals=3) {
     // Convert base64 to ArrayBuffer
     const binaryStr = atob(base64Str);
