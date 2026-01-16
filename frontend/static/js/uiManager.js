@@ -790,8 +790,5 @@ async function showGitHubLastUpdate(username, repo, branch='main') {
         } else {
             displayDiv.textContent = 'Last update: unknown';
         }
-    } catch (err) {
-        console.error(err);
-        displayDiv.textContent = 'Last update: error';
-    }
+    } catch (err) { console.error(err); displayDiv.textContent = 'Last update: error'; }
 }

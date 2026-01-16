@@ -3,7 +3,7 @@ import { fillTable, getDataFromTable, addRowToTable, removeRowFromTable,
     pointUpdate, updateTable, plotTable, sendQuery } from "./tableManager.js";
 import { saveProject, timeStepCalculator } from "./projectSaver.js";
 import { getState } from "./constants.js";
-import { loadList, fileUploader } from "./utils.js";
+import { loadList, fileUploader, nameChecker } from "./utils.js";
 
 const sectionDescription = () => document.getElementById('desription-tab');
 const sectionTab = () => document.getElementById('parent-tab');
@@ -375,7 +375,6 @@ function updateOption(){
         const boundaryName = boundarySelector().value, boundaryType = boundaryTypeSelector().value;
         const content = {projectName: projectName().value.trim(), boundaryName: boundaryName, boundaryType: boundaryType};
         const data = await sendQuery('get_boundary_params', content);
-        console.log(data);
         if (data.status === 'new') { boundaryEditRemove().click(); return; }
         if (data.status === 'error') { alert(data.message); return; }
         boundaryEditRemove().click(); fillTable(data.content, boundaryEditTable());
@@ -595,15 +594,11 @@ async function initializeProject(){
     projectCreator().addEventListener('click', async () => {
         const name = projectName().value.trim(); let project = '';
         if (!name || name.trim() === '') { alert('Please define scenario name.'); return; }
-        if (name.includes('/') || name.includes('\\') || name.includes(':') || name.includes(' ') || name.includes('.')) { 
-            alert('Name of scenario is invalid.'); return;
-        }
+        if (nameChecker(name)) { alert('Scenario name contains invalid characters.'); return; }
         if (name.includes('/')) { project = name.split('/').pop(); } else { project = name; }
         window.parent.postMessage({type: 'projectPreparation', name: project}, '*')
-        // Show tabs
-        sectionTab().style.display = "block"; sectionDescription().style.display = "none";
-        // If project name already exist, load parameters
-        await loadScenario(name);
+        sectionTab().style.display = "block"; sectionDescription().style.display = "none"; // Show tabs
+        await loadScenario(name); // If project name already exist, load parameters
     });
     // Copy project
     projectCloner().addEventListener('click', async () => {
@@ -612,9 +607,7 @@ async function initializeProject(){
         // Ask for a new name
         const newName = prompt('Please enter a name for the new scenario.\nCloning a scenario will take some time. Please be patient.');
         if (!newName || newName === '') { alert('Please define clone scenario name.'); return; }
-        if (newName.includes('/') || newName.includes('\\') || newName.includes(':') || newName.includes(' ') || name.includes('.')) { 
-            alert('Name of clone scenario is invalid.'); return;
-        }
+        if (nameChecker(newName)) { alert('Name of clone scenario is invalid.'); return;}
         projectCloner().innerHTML = 'Cloning...';
         const data = await sendQuery('copy_project', {oldName: name, newName: newName});
         alert(data.message); projectList = []; projectName().value = ''; 
