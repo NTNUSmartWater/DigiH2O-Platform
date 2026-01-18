@@ -47,8 +47,20 @@ async def load_waq(request: Request, user=Depends(functions.basic_auth)):
         if not os.path.exists(path): return JSONResponse({"status": 'error', "message": 'Configuration file not found.'})
         with open(path, 'r', encoding=functions.encoding_detect(path)) as f:
             files = json.load(f)
+        parts = re.split('DATA_ITEM', files['timeTable'])
+        parts, time_data = [p.strip() for p in parts if p.strip()], []
+        for part in parts:
+            temp = part.split('\n')
+            location, substances, times = temp[0].strip(), temp[4].strip().split(' '), temp[5:]
+            if len(times) > 0:
+                for idx, substance in enumerate(substances):
+                    for item in times:
+                        temp_item = item.strip().split(' ')
+                        temp_time = pd.to_datetime(temp_item[0], format='%Y/%m/%d-%H:%M:%S').strftime('%Y-%m-%d %H:%M:%S')
+                        time_data.append([temp_time, location, substance.replace("'", ""), temp_item[idx + 1]])
+        result = [item for item in time_data if item[3] != '-999.0']
         data['key'], data['name'], data['mode'] = files['key'], files['folderName'], files['mode']
-        data['obs'], data['loads'] = files['obsPoints'], files['loadsData']
+        data['obs'], data['loads'], data['time_data'] = files['obsPoints'], files['loadsData'], result
         data['times'], data['usefors'] = files['timeTable'], files['usefors']
         data['initial'], data['scheme'] = files['initial'], files['scheme']
         data['maxiter'], data['tolerance'] = files['maxiter'], files['tolerance']
@@ -123,16 +135,16 @@ async def waq_config_writer(request: Request, user=Depends(functions.basic_auth)
     try:
         body = await request.json()
         project_name, _ = functions.project_definer(body.get('projectName'), user)
-        redis = request.app.state.redis
+        redis, file_name = request.app.state.redis, body.get('folderName')
         lock = redis.lock(f"{project_name}:waq_config", timeout=10)
         async with lock:
             config_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "scenarios"))
             if not os.path.exists(config_path): os.makedirs(config_path)
-            config_file = os.path.normpath(os.path.join(config_path, f"{body.get('folderName')}.json"))
+            config_file = os.path.normpath(os.path.join(config_path, f"{file_name}.json"))
             if os.path.exists(config_file): os.remove(config_file)
             with open(config_file, 'w', encoding=functions.encoding_detect(config_file)) as f:
                 json.dump(body, f, indent=4)
-            return JSONResponse({"status": 'ok', "message": 'Model configuration saved successfully.'})
+            return JSONResponse({"status": 'ok', "message": f"Configurations of model '{file_name}' saved successfully."})
     except Exception as e: return JSONResponse({"status": 'error', "message":  f"Error: {str(e)}"})
 
 # Check if simulation is running
@@ -243,11 +255,11 @@ async def run_waq_simulation(project_name, waq_name):
         with open(usefor_path, 'w', encoding=functions.encoding_detect(usefor_path), newline='\n') as f:
             f.write(usefors)
         # Prepare external inputs
-        inp_file = wq_functions.wqPreparation(parameters, key, output_folder, includes_folder)
+        waq_model = wq_functions.wqPreparation(parameters, key, output_folder, includes_folder)
+        inp_file, message = waq_model[0], waq_model[1]
         if inp_file is None:
-            log_file.write("Error creating *.inp file.\n")
-            processes[project_name]['status'] = "error"
-            processes[project_name]['message'] = "Error creating *.inp file"
+            log_file.write(f"Error: {message}.\n")
+            processes[project_name]['status'], processes[project_name]['message'] = "error", message
             log_file.flush(); log_file.close()
             return
         # Check if all paths are valid to run the simulation

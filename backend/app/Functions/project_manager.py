@@ -1,6 +1,6 @@
 import os, shutil, re, json, msgpack
 import asyncio, traceback, datetime
-import numpy as np
+import numpy as np, geopandas as gpd, pandas as pd
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
 from Functions import functions
@@ -43,16 +43,15 @@ async def setup_new_project(request: Request, user=Depends(functions.basic_auth)
         body = await request.json()
         project_name, _ = functions.project_definer(body.get('projectName'), user)
         project_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name))
-        # Check if project already exists
-        if os.path.exists(project_dir):
-            return JSONResponse({"status": 'ok', "message": f"Project '{body.get('projectName')}' already exists."})
         # Create project directories
         user_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, user))
         if not os.path.exists(user_path): os.makedirs(user_path, exist_ok=True)
         os.makedirs(project_dir, exist_ok=True)
         input_dir = os.path.normpath(os.path.join(project_dir, "input"))
         os.makedirs(input_dir, exist_ok=True)
-        status, message = 'ok', f"Scenario '{body.get('projectName')}' created successfully!"
+        gis_dir = os.path.normpath(os.path.join(project_dir, "GIS"))
+        os.makedirs(gis_dir, exist_ok=True)
+        status, message = 'ok', f"Scenario '{body.get('projectName')}' created/loaded successfully!"
     except Exception as e:
         print('/setup_new_project:\n==============')
         traceback.print_exc()
@@ -226,7 +225,7 @@ async def get_scenario(request: Request, user=Depends(functions.basic_auth)):
     except Exception as e:
         print('/get_scenario:\n==============')
         traceback.print_exc()
-        return JSONResponse({"status": 'error', "message": f"Error: {str(e)}\nConsider deleting the scenario and creating a new one."})
+        return JSONResponse({"status": 'error', "message": f"Error: {str(e)}\nConsider running the scenario again."})
 
 # Set up the database depending on the project
 @router.post("/setup_database")
@@ -245,6 +244,8 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
                     print(f"Copying project 'demo' folder to '{project_folder}'")
                     os.makedirs(project_folder, exist_ok=True)
                     shutil.copytree(demo_folder, project_folder, dirs_exist_ok=True)
+            gis_folder = os.path.normpath(os.path.join(project_folder, "GIS"))
+            if not os.path.exists(gis_folder): os.makedirs(gis_folder, exist_ok=True)
             output_dir = os.path.normpath(os.path.join(project_folder, "output"))
             config_dir = os.path.normpath(os.path.join(output_dir, "config"))
             hyd_dir = os.path.normpath(os.path.join(output_dir, 'HYD'))
@@ -271,7 +272,7 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
                 config = {"hyd": {}, "waq": {}, "meta": {"hyd_scanned": False, "waq_scanned": False}, "model_type": ''}
             # ---------------- Grid & Layer ----------------
             layer_reverse_hyd, layer_reverse_waq = {}, {}
-            if hyd_map:
+            if hyd_map is not None:
                 print('Creating grid and layers for hydrodynamic simulation...')
                 # Grid/layers generation
                 grid = functions.unstructuredGridCreator(hyd_map)
@@ -282,8 +283,9 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
                     layer_reverse_hyd = functions.layerCounter(hyd_map, 'hyd')
                     json.dump(layer_reverse_hyd, open(layer_path, "w", encoding=functions.encoding_detect(layer_path)))                    
                 else: layer_reverse_hyd = json.load(open(layer_path, "r", encoding=functions.encoding_detect(layer_path)))
-            if waq_map:
-                print('Creating grid and layers for water quality simulation...')
+            else: return JSONResponse({"status": 'error', "message": "Cannot find hydrodynamic data (map file).\nConsider running the model again."})
+            if waq_map is not None:
+                print('Creating layers for water quality simulation...')
                 layer_path = os.path.normpath(os.path.join(config_dir, 'layers_waq.json'))
                 if not os.path.exists(layer_path):
                     layer_reverse_waq = functions.layerCounter(waq_map, 'waq')
@@ -292,11 +294,11 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
             # Lazy scan HYD variables only once
             if (hyd_map or hyd_his) and not config['meta']['hyd_scanned']:
                 print('Scanning HYD variables...')
-                hyd_vars = functions.getVariablesNames([hyd_his, hyd_map], 'hyd')
+                hyd_vars = functions.getVariablesNames([hyd_his, hyd_map])
                 config["hyd"], config["meta"]["hyd_scanned"] = hyd_vars, True
             # Get WAQ model
-            temp = params[2].replace('_his.zarr', '') if params[2] != '' else params[3].replace('_map.zarr', '')
-            model_path, waq_model, obs = os.path.normpath(os.path.join(waq_dir, f'{temp}.json')), '', {}
+            temp_name = params[2].replace('_his.zarr', '') if params[2] != '' else params[3].replace('_map.zarr', '')
+            model_path, waq_model, obs = os.path.normpath(os.path.join(waq_dir, f'{temp_name}.json')), '', {}
             if os.path.exists(model_path):
                 print('Loading WAQ model...')
                 temp_data = json.load(open(model_path, "r", encoding=functions.encoding_detect(model_path)))
@@ -308,7 +310,7 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
             # Lazy scan WAQ
             if (waq_map or waq_his) and config['model_type'] != waq_model:
                 print('Scanning WAQ variables...')
-                waq_vars = functions.getVariablesNames([waq_his, waq_map], waq_model)
+                waq_vars = functions.getVariablesNames([waq_his, waq_map], waq_model, temp_name)
                 config["waq"], config["meta"]["waq_scanned"], config['model_type'] = waq_vars, True, waq_model
             # Delete waq option if no waq files
             if waq_his is None and waq_map is None:
@@ -316,6 +318,8 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
                 config['waq'], config['meta']['waq_scanned'], config['model_type'] = {}, False, ''
                 config.pop("wq_obs", None)
                 config.pop("wq_loads", None)
+            # Load GIS layers
+            config['gis_layers'] = [f.replace('.geojson', '') for f in os.listdir(gis_folder) if f.endswith(".geojson")]
             # Save config
             open(config_path, "w", encoding=functions.encoding_detect(config_path)).write(json.dumps(config))
             # Restructure configuration
@@ -335,7 +339,7 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
             await redis.delete(project_name)
             await redis.hset(project_name, mapping=redis_mapping)
             print('Configuration loaded successfully.')
-            return JSONResponse({"status": 'ok'})
+            return JSONResponse({"status": 'ok', "content": result})
     except Exception as e:
         print('/setup_database:\n==============')
         traceback.print_exc()
@@ -409,9 +413,9 @@ async def delete_file(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
         project_name, _ = functions.project_definer(body.get('projectName'), user)
+        redis, file = request.app.state.redis, body.get('name')
         scenario_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'output', 'scenarios'))
         waq_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'output', 'WAQ'))
-        redis, file = request.app.state.redis, body.get('name')
         extend_task, lock = None, redis.lock(f"{project_name}:delete_file", timeout=300)
         async with lock:
             extend_task = asyncio.create_task(functions.auto_extend(lock))
@@ -435,6 +439,53 @@ async def delete_file(request: Request, user=Depends(functions.basic_auth)):
             extend_task.cancel()
             try: await extend_task
             except asyncio.CancelledError: pass
+
+@router.post("/delete_gis")
+async def delete_gis(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
+        gis_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'GIS'))
+        redis, file = request.app.state.redis, body.get('name')
+        lock = redis.lock(f"{project_name}:delete_gis", timeout=200)
+        async with lock:
+            file_name = os.path.normpath(os.path.join(gis_folder, f"{file}.geojson"))
+            if not os.path.exists(file_name): 
+                return JSONResponse({"status": 'error', "message": f"Path '{file_name}' does not exist."})
+            functions.safe_remove(file_name)
+        return JSONResponse({"status": 'ok'})
+    except Exception as e:
+        print('/delete_gis:\n==============')
+        traceback.print_exc()
+        return JSONResponse({"status": 'error', "message": f"Error: {str(e)}"})
+
+@router.post("/get_gis_layer")
+async def get_gis_layer(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
+        gis_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'GIS'))
+        redis, file = request.app.state.redis, body.get('layer')
+        lock = redis.lock(f"{project_name}:get_gis_layer", timeout=200)
+        async with lock:
+            file_name = os.path.normpath(os.path.join(gis_folder, f"{file}.geojson"))
+            if not os.path.exists(file_name): 
+                return JSONResponse({"status": 'error', "message": f"Path '{file_name}' does not exist."})
+            gdf = gpd.read_file(file_name)
+            # Check if the file is empty
+            if gdf.empty: return JSONResponse({"status": 'error', "message": f"File '{file_name}' is empty."})
+            # Convert to WGS84 if not already
+            if gdf.crs is None: gdf.set_crs(epsg=4326, inplace=True)
+            if gdf.crs != '4326': gdf = gdf.to_crs(epsg=4326)
+            gdf["geometry"] = gdf.geometry.simplify(tolerance=0.0001, preserve_topology=True)
+            # Convert datetime to string
+            for col in gdf.columns:
+                if pd.api.types.is_datetime64_any_dtype(gdf[col]): gdf[col] = gdf[col].astype(str)
+        return JSONResponse({"status": 'ok', "content": json.loads(gdf.to_json())})
+    except Exception as e:
+        print('/get_gis_layer:\n==============')
+        traceback.print_exc()
+        return JSONResponse({"status": 'error', "message": f"Error: {str(e)}"})
 
 # Delete a project
 @router.post("/delete_project")

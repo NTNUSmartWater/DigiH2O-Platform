@@ -2,7 +2,7 @@ import os, msgpack
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
-from app.config import STATIC_DIR_FRONTEND, STATIC_DIR_BACKEND
+from app.config import STATIC_DIR_FRONTEND, STATIC_DIR_BACKEND, PROJECT_STATIC_ROOT
 from Functions import functions
 
 router = APIRouter()
@@ -41,6 +41,27 @@ async def load_popupMenu(request: Request, htmlFile: str, project_name: str = No
     # Acquire Redis lock to prevent race condition
     redis = request.app.state.redis
     project_name, _ = functions.project_definer(project_name, user)
+    if htmlFile == "gisLayer.html":
+        gis_folder = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "GIS"))
+        if not os.path.exists(gis_folder): os.makedirs(gis_folder, exist_ok=True)
+        gis_layers = [f.replace('.geojson', '') for f in os.listdir(gis_folder) if f.endswith(".geojson")]
+        html = [f'<div class="menu" style="max-height: 300px; overflow-y: auto;">']
+        if len(gis_layers) > 0:
+            for layer in gis_layers:
+                html.append(f'''
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <label class="submenu-label" style="margin:0;">
+                            <input type="checkbox" id="{layer.replace(" ", "_")}" value="{layer}">
+                            <label for="{layer.replace(" ", "_")}">{layer}</label>
+                        </label>
+                        <button class="delete-btn" id="delete-{layer.replace(" ", "_")}" 
+                            style="margin:5px; border-radius:5px; cursor:pointer; color:red;
+                            font-weight: bold; padding: 3px 6px; background-color: #9acde9;">Delete
+                        </button>
+                    </div>
+                ''')
+        html.append('</div>')
+        return ''.join(html)
     path = os.path.normpath(os.path.join(STATIC_DIR_FRONTEND, "templates", htmlFile))
     if not os.path.exists(path):
         return HTMLResponse(f"<p>Popup menu template not found</p>", status_code=404)

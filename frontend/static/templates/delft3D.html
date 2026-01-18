@@ -11,8 +11,8 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
         <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
         <!-- My styles -->
-        <link rel="stylesheet" href="/static_frontend/css/temp_style.css?v=004">
-        <link rel="stylesheet" href="/static_frontend/css/temp_menu.css?v=004">
+        <link rel="stylesheet" href="/static_frontend/css/temp_style.css?v=005">
+        <link rel="stylesheet" href="/static_frontend/css/temp_menu.css?v=005">
         <!-- Favicon -->
         <link rel="icon" type="image/png" href="/static_backend/images/Logo.png">
     </head>
@@ -20,9 +20,9 @@
         <!-- Add the header -->
         <header class="header">
             <nav class="nav">
-                <ul class="nav-left">
+                <ul class="nav-left" id="menu-left">
                     <li><a class="menu" data-info="0|projectMenu.html|mainMenu" id="projectMenu">Project Management</a></li>
-                    <li style="border-left:3px solid #d5d4dd; margin-left:5px; padding-left:5px;">
+                    <li style="border-left:3px solid #d5d4dd;">
                         <a class="menu" data-info="1|generalOptions.html|subMenu" id="generalMenu">General Options</a>
                     </li>
                     <li><a class="menu" data-info="2|timeSeries.html|subMenu" id="timeSeriesMenu">Time-series Measurements</a></li>
@@ -45,6 +45,9 @@
         <!-- Add a popup menu -->
         <div class="popup-menu" id="popup-menu">
             <div id="popup-content"></div>
+        </div>
+        <div class="popup-menu" id="popup-menu-help">
+            <div id="popup-content-help"></div>
         </div>
         <!-- Add the control for the map -->
         <div id="right-side-controls">
@@ -211,6 +214,12 @@
                 <div id="myChart"></div>
             </div>
         </div>
+        <div id="github-last-update" style="
+            position: fixed; bottom: 2px; right: 50px; font-size: 12px;
+            color: #555; background: rgba(255, 255, 255, 0.85); padding: 4px 8px;
+            border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.15); z-index: 9999;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; pointer-events: none;
+        ">Loading last update...</div>
         <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
         <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
         <script src="https://unpkg.com/leaflet-compass/dist/leaflet-compass.min.js"></script>

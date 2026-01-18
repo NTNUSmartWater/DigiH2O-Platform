@@ -1,4 +1,4 @@
-import os, json, re, math, asyncio, traceback, msgpack, datetime
+import os, json, re, math, asyncio, traceback, msgpack, datetime, zipfile, shutil
 from fastapi import APIRouter, Request, File, UploadFile, Form, Depends
 from Functions import functions
 from shapely.geometry import mapping
@@ -376,17 +376,43 @@ async def initiate_options(request: Request, user=Depends(functions.basic_auth))
 # Upload file from local computer to server
 @router.post("/upload_data")
 async def upload_data(file: UploadFile = File(...), projectName: str = Form(...),
-                      gridName: str = Form(...), user=Depends(functions.basic_auth)):
+    fileName: str = Form(...), type: str = Form(...), user=Depends(functions.basic_auth)):
     try:
         project_name, _ = functions.project_definer(projectName, user)
-        file_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input", gridName))
+        if (type == 'grid'): save_dir = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
+        elif (type == 'gis'): save_dir = os.path.join(PROJECT_STATIC_ROOT, project_name, "GIS")
+        file_path = os.path.normpath(os.path.join(save_dir, fileName))
         with open(file_path, "wb") as f:
             while True:
                 chunk = await file.read(1024 * 1024)
                 if not chunk: break
                 f.write(chunk)
-        return JSONResponse({"status": "ok", 
-            "message": f"File {file.filename} uploaded successfully."})
+        if (file_path.endswith('.zip')):
+            temp_dir = os.path.normpath(os.path.join(save_dir, 'temp'))
+            if not os.path.exists(temp_dir): os.makedirs(temp_dir)
+            with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                zip_ref.extractall(temp_dir)
+            files = os.listdir(temp_dir)
+            if (len(files) == 1 and os.path.isdir(os.path.normpath(os.path.join(temp_dir, files[0])))):
+                temp_dir = os.path.normpath(os.path.join(temp_dir, files[0]))
+                files = os.listdir(temp_dir)
+            else: return JSONResponse({"status": 'error', "message": "Invalid zip file. File must contain no more than one folder."})
+            shp_files = [f for f in files if f.endswith('.shp')]
+            if len(shp_files) > 0:
+                for f in shp_files:
+                    file_name = os.path.normpath(os.path.join(temp_dir, f))
+                    gdf = gpd.read_file(file_name)
+                    if gdf.empty: return JSONResponse({"status": 'error', "message": f"File '{f}' is empty."})
+                    # Convert to WGS84 if not already
+                    if gdf.crs is None: gdf.set_crs(epsg=4326, inplace=True)
+                    if gdf.crs != '4326': gdf = gdf.to_crs(epsg=4326)
+                    gdf["geometry"] = gdf.geometry.simplify(tolerance=0.0001, preserve_topology=True)
+                    file_out = os.path.normpath(os.path.join(save_dir, f'{f.replace(".shp", "")}.geojson'))
+                    gdf.to_file(file_out, driver='GeoJSON')
+            functions.safe_remove(file_path); shutil.rmtree(temp_dir)
+            temp_dir = os.path.normpath(os.path.join(save_dir, 'temp'))
+            if os.path.exists(temp_dir): shutil.rmtree(temp_dir)
+        return JSONResponse({"status": "ok", "message": f"File {file.filename} uploaded successfully."})
     except Exception as e:
         print('/upload_data:\n==============')
         traceback.print_exc()
@@ -503,16 +529,17 @@ async def delete_boundary(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
         project_name, _ = functions.project_definer(body.get('projectName'), user)
-        boundary_name = body.get('boundaryName')        
+        boundary_name = body.get('boundaryName')
         path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
         water_lelvel_path = os.path.normpath(os.path.join(path, "WaterLevel.bc"))
         contaminant_path = os.path.normpath(os.path.join(path, "Contaminant.bc"))
-        boundary_path = os.path.normpath(os.path.join(path, f"{boundary_name}.pli"))
         ext_path = os.path.normpath(os.path.join(path, "FlowFM_bnd.ext"))
         # Delete file
-        if os.path.exists(boundary_path):
-            os.remove(boundary_path)
-            message += f"- Delete successfully: {boundary_name}'.pli.\n"
+        for boundary in boundary_name:
+            boundary_path = os.path.normpath(os.path.join(path, f"{boundary}.pli"))
+            if os.path.exists(boundary_path):
+                os.remove(boundary_path)
+                message += f"- Delete successfully: {boundary}'.pli.\n"
         if os.path.exists(ext_path):
             os.remove(ext_path)
             message += "- Delete successfully: FlowFM_bnd.ext.\n"

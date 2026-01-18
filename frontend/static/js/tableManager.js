@@ -132,7 +132,9 @@ export function getDataFromTable(table, isZeroIndexString=false){
             if (!isNaN(val) && val !== "") return parseFloat(val);
             return val;
         });
-    });
+    })
+    // Remove empty rows
+    .filter(row => row.some(cell => cell !== "" && cell !== null && cell !== undefined));
     return {columns, rows};
 }
 

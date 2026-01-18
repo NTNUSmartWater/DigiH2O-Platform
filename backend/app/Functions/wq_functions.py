@@ -629,5 +629,5 @@ def wqPreparation(parameters:dict, key:str, output_folder:str, includes_folder:s
         inp_path = os.path.normpath(os.path.join(output_folder, f'{parameters["folder_name"]}.inp'))
         with open(inp_path, 'w', encoding=functions.encoding_detect(inp_path)) as f:
             f.write(content_inp)
-        return inp_path
+        return inp_path, ''
     except Exception as e: return None, str(e)

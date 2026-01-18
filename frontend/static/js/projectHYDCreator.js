@@ -3,7 +3,7 @@ import { fillTable, getDataFromTable, addRowToTable, removeRowFromTable,
     pointUpdate, updateTable, plotTable, sendQuery } from "./tableManager.js";
 import { saveProject, timeStepCalculator } from "./projectSaver.js";
 import { getState } from "./constants.js";
-import { loadList } from "./utils.js";
+import { loadList, fileUploader, nameChecker } from "./utils.js";
 
 const sectionDescription = () => document.getElementById('desription-tab');
 const sectionTab = () => document.getElementById('parent-tab');
@@ -228,22 +228,6 @@ function assignOutput(target, start, end, startDate, stopDate){
     });
 }
 
-async function fileUploader(targetFile, targetText, projectName, gridName){
-    if (projectName === '') return;
-    window.parent.postMessage({type: 'showOverlay', message: 'Uploading grid to project...'}, '*');
-    const file = targetFile.files[0];
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('projectName', projectName);
-    formData.append('gridName', gridName);
-    targetText.value = file?.name || "";
-    const response = await fetch('/upload_data', { method: 'POST', body: formData });
-    const data = await response.json();
-    window.parent.postMessage({type: 'hideOverlay'}, '*');
-    if (data.status === "error") {alert(data.message), targetFile.value = '', targetText.value = ''; return;}
-    alert(data.message);
-}
-
 function updateOption(){
     // Update location
     mapPicker(getLocation(), 'pickLocation');
@@ -276,7 +260,7 @@ function updateOption(){
     // Upload file to server
     gridPathText().addEventListener('click', () => { gridPathFile().click(); });
     gridPathFile().addEventListener('change', async() => {
-        await fileUploader(gridPathFile(), gridPathText(), projectName().value, 'FlowFM_net.nc')
+        await fileUploader(gridPathFile(), gridPathText(), projectName().value, 'FlowFM_net.nc', 'Uploading grid to project...', 'grid');
         window.parent.postMessage({type: 'showGrid', projectName: projectName().value, 
             gridName: 'FlowFM_net.nc', message: 'Uploading grid to project...'}, '*');
         gridPathFile().value = '';
@@ -332,8 +316,7 @@ function updateOption(){
         if (name === '' || lat === '' || lon === '' || isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
             alert('Please check name, latitude, and longitude of the observation point.'); return;}
         // Add to table
-        const data_arr = [[name, lat, lon]];
-        fillTable(data_arr, obsPointTable(), false);
+        fillTable([[name, lat, lon]], obsPointTable(), false);
         // Clear input
         obsPointName().value = ''; obsPointLatitude().value = ''; obsPointLongitude().value = '';
     });
@@ -391,7 +374,6 @@ function updateOption(){
         const boundaryName = boundarySelector().value, boundaryType = boundaryTypeSelector().value;
         const content = {projectName: projectName().value.trim(), boundaryName: boundaryName, boundaryType: boundaryType};
         const data = await sendQuery('get_boundary_params', content);
-        console.log(data);
         if (data.status === 'new') { boundaryEditRemove().click(); return; }
         if (data.status === 'error') { alert(data.message); return; }
         boundaryEditRemove().click(); fillTable(data.content, boundaryEditTable());
@@ -407,6 +389,7 @@ function updateOption(){
     // Upload boundary condition from CSV
     boundaryCSV().addEventListener('click', () => { boundaryUploadFile().click(); });
     boundaryUploadFile().addEventListener('change', async (event) => { 
+        deleteTable(boundaryEditTable());
         await csvUploader(event, boundaryUploadText(), boundaryEditTable(), 2);
         boundaryUploadFile().value = '';
     });
@@ -427,11 +410,11 @@ function updateOption(){
         };
         boundaryText().value = data.content; boundaryViewContainer().style.display = 'flex';
     });
-    // Reset sub-boundary condition
+    // Delete boundary
     boundaryRemove().addEventListener('click', async () => {
-        const nameBoundary = boundaryName().value.trim();
-        if (nameBoundary === '') { alert('Name of boundary is required.'); return; }
-        // Delete boundary
+        const content = getDataFromTable(boundaryTable(), true).rows;
+        // Delete the last part and get unique name
+        const nameBoundary = [...new Set(content.map(p => p[0].replace(/_\d+$/, '')))];
         const data = await sendQuery('delete_boundary', {projectName: projectName().value, boundaryName: nameBoundary});
         alert(data.message); deleteTable(boundaryTable(), undefined, 'clearBoundary'); BCChecked = 0;
         const tbody = boundaryEditTable().querySelector("tbody"); tbody.innerHTML = "";
@@ -538,23 +521,30 @@ async function loadScenario(scenarioName){
     userTimestepTime().value = data.content.userTimestepTime;
     nodalTimestepDate().value = data.content.nodalTimestepDate;
     nodalTimestepTime().value = data.content.nodalTimestepTime;
-    fillTable(data.content.obsPointTable, obsPointTable());
-    fillTable(data.content.crossSectionTable, crossSectionTable());
-    fillTable(data.content.boundaryTable, boundaryTable());
-    // Update boundary option
-    const options = data.content.boundaryTable.map(row => `<option value="${row[0]}">${row[0]}</option>`).join(' ');
-    const defaultOption = `<option value="" selected>--- No selected ---</option>`;
-    boundarySelector().innerHTML = defaultOption + options;
+    if (data.content.obsPointTable !== undefined && data.content.obsPointTable !== '') {
+        fillTable(data.content.obsPointTable, obsPointTable());
+    }
+    if (data.content.crossSectionTable !== undefined && data.content.crossSectionTable !== '') {
+        fillTable(data.content.crossSectionTable, crossSectionTable()); 
+    }
+    let defaultOption = `<option value="" selected>--- No selected ---</option>`;
+    if (data.content.boundaryTable !== undefined && data.content.boundaryTable !== '') {
+        fillTable(data.content.boundaryTable, boundaryTable());
+        // Update boundary option
+        const options = data.content.boundaryTable.map(row => `<option value="${row[0]}">${row[0]}</option>`).join(' ');
+        defaultOption = defaultOption + options;
+    }
+    boundarySelector().innerHTML = defaultOption;
     initWaterLevel().value = data.content.initWaterLevel;
     initSalinity().value = data.content.initSalinity;
     initTemperature().value = data.content.initTemperature;
     // Get source data if exist
     updateTable(sourceRemoveTable(), sourceSelectorRemove(), scenarioName);
-    if (data.content.meteoPath !== '') { 
+    if (data.content.meteoPath !== '' || data.content.meteoPath.length > 0) { 
         meteoUploadText().value = data.content.meteoName;
         fillTable(data.content.meteoPath, meteoTable());
     }
-    if (data.content.weatherPath !== '') { 
+    if (data.content.weatherPath !== '' || data.content.weatherPath.length > 0) {
         weatherSelector().value = data.content.weatherType;
         weatherCSVUploadText().value = data.content.weatherName;
         weatherPanel().style.display = 'block'; weatherTable().style.display = 'block';
@@ -599,8 +589,7 @@ async function initializeProject(){
     projectName().addEventListener('input', (e) => { 
         const value = e.target.value.trim();
         if (value === '') {
-            sectionTab().style.display = "none"; 
-            sectionDescription().style.display = "block";
+            sectionTab().style.display = "none"; sectionDescription().style.display = "block";
         }
         renderProjects(projects(), projectList, value);
     });
@@ -611,12 +600,11 @@ async function initializeProject(){
     projectCreator().addEventListener('click', async () => {
         const name = projectName().value.trim(); let project = '';
         if (!name || name.trim() === '') { alert('Please define scenario name.'); return; }
+        if (nameChecker(name)) { alert('Scenario name contains invalid characters.'); return; }
         if (name.includes('/')) { project = name.split('/').pop(); } else { project = name; }
         window.parent.postMessage({type: 'projectPreparation', name: project}, '*')
-        // Show tabs
-        sectionTab().style.display = "block"; sectionDescription().style.display = "none";
-        // If project name already exist, load parameters
-        await loadScenario(name);
+        sectionTab().style.display = "block"; sectionDescription().style.display = "none"; // Show tabs
+        await loadScenario(name); // If project name already exist, load parameters
     });
     // Copy project
     projectCloner().addEventListener('click', async () => {
@@ -625,6 +613,7 @@ async function initializeProject(){
         // Ask for a new name
         const newName = prompt('Please enter a name for the new scenario.\nCloning a scenario will take some time. Please be patient.');
         if (!newName || newName === '') { alert('Please define clone scenario name.'); return; }
+        if (nameChecker(newName)) { alert('Name of clone scenario is invalid.'); return;}
         projectCloner().innerHTML = 'Cloning...';
         const data = await sendQuery('copy_project', {oldName: name, newName: newName});
         alert(data.message); projectList = []; projectName().value = ''; 
