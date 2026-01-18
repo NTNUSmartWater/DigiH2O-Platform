@@ -414,7 +414,7 @@ function updateEvents() {
             const rowDiv = e.target.parentNode; if (rowDiv) {rowDiv.remove();}
         }
         // Show/hide GIS layers
-        if (e.target.type === 'checkbox') {
+        if (e.target.type === 'checkbox' && e.target.className === 'layer-gis') {
             e.stopPropagation();
             const id = e.target.id, value = e.target.checked;
             await GISLayerChange(nameProject, id, value);

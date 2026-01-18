@@ -51,7 +51,7 @@ async def load_popupMenu(request: Request, htmlFile: str, project_name: str = No
                 html.append(f'''
                     <div style="display:flex; align-items:center; justify-content:space-between;">
                         <label class="submenu-label" style="margin:0;">
-                            <input type="checkbox" id="{layer.replace(" ", "_")}" value="{layer}">
+                            <input type="checkbox" class="layer-gis" id="{layer.replace(" ", "_")}" value="{layer}">
                             <label for="{layer.replace(" ", "_")}">{layer}</label>
                         </label>
                         <button class="delete-btn" id="delete-{layer.replace(" ", "_")}" 
