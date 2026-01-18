@@ -10,8 +10,9 @@ const checkboxContainer = () => document.getElementById('checkbox-container');
 const showCheckbox = () => document.getElementById('show-checkbox');
 const textareaWrapper = () => document.getElementById('form-row-textarea');
 
-let currentProject = null, height = 0, logIntervalHYD = null, HYDRunning = false, activeHYDProject = null,
-    activeWAQProject = null, WAQRunning = false, logIntervalWAQ = null, lastOffsetHYD = 0, lastOffsetWAQ = 0;
+let currentProject = null, height = 0, logIntervalHYD = null, HYDRunning = false,
+    activeHYDProject = null, activeWAQProject = null, WAQRunning = false, 
+    logIntervalWAQ = null, lastOffsetHYD = 0, lastOffsetWAQ = 0;
 const APP_MODE = window.APP_MODE; 
 
 async function sendQuery(functionName, content){
@@ -39,9 +40,7 @@ async function checkboxUpdate(){
 async function getProjectList(target){
     // Update project
     const data = await sendQuery('select_project', {filename: '', key: 'getProjects', folder_check: 'input'});
-    if (!data || !data.content) {
-        target.innerHTML = `<option value="">--- No projects found ---</option>`; return;
-    }
+    if (!data || !data.content) { target.innerHTML = `<option value="">--- No projects found ---</option>`; return; }
     const options = data.content.map(name => `<option value="${name}">${name}</option>`).join('');
     const defaultOption = `<option value="" selected>--- No selected ---</option>`;
     target.innerHTML = defaultOption + options;
@@ -54,13 +53,9 @@ function updateLogHYD(hydProject, progress_bar, progress_text, info, seconds){
         if (activeHYDProject !== hydProject) { clearInterval(logIntervalHYD); logIntervalHYD = null; }
         try {
             const statusRes = await sendQuery('check_sim_status_hyd', {projectName: hydProject});
-            if (statusRes.status === "running" || statusRes.status === "reorganizing") {
-                progress_text.innerText = statusRes.message;
-                progress_bar.value = statusRes.progress;
-            } else {
-                progress_text.innerText = statusRes.message;
+            progress_text.innerText = statusRes.message; progress_bar.value = statusRes.progress;
+            if (statusRes.status !== "running" && statusRes.status !== "reorganizing") {
                 info.value += statusRes.message;
-                progress_bar.value = statusRes.progress;
                 if (logIntervalHYD) { clearInterval(logIntervalHYD); logIntervalHYD = null; }
             }
             const res = await fetch(`/sim_log_tail_hyd/${hydProject}?offset=${lastOffsetHYD}&log_file=log_hyd.txt`);
@@ -78,12 +73,9 @@ function updateLogWAQ(hydProject, waqProject, progress_bar, progress_text, info,
         if (activeWAQProject !== `${hydProject}_${waqProject}`) { clearInterval(logIntervalWAQ); logIntervalWAQ = null; }
         try {
             const statusRes = await sendQuery('check_sim_status_waq', {projectName: hydProject});
-            if (statusRes.status === "running" || statusRes.status === "reorganizing") {
-                progress_text.innerText = statusRes.message;
-                progress_bar.value = statusRes.progress;
-            } else {
-                progress_text.innerText = statusRes.message;
-                progress_bar.value = statusRes.progress;
+            progress_text.innerText = statusRes.message; progress_bar.value = statusRes.progress;
+            if (statusRes.status !== "running" && statusRes.status !== "reorganizing") {
+                info.value += statusRes.message;
                 if (logIntervalWAQ) { clearInterval(logIntervalWAQ); logIntervalWAQ = null; }
             }
             const res = await fetch(`/sim_log_tail_waq/${hydProject}?offset=${lastOffsetWAQ}&log_file=log_waq.txt`);
@@ -109,7 +101,7 @@ function updateSelection(){
             if (logIntervalHYD) { clearInterval(logIntervalHYD); logIntervalHYD = null; }
             lastOffsetHYD = 0; activeHYDProject = projectName;
             const statusRes = await sendQuery('check_sim_status_hyd', {projectName: projectName});
-            if (statusRes.status === "running") {
+            if (statusRes.status === "running" || statusRes.status === "reorganizing") {
                 const res = await fetch(`/sim_log_full/${projectName}?log_file=log_hyd.txt`);
                 if (res.ok) {
                     const data = await res.json();
@@ -131,7 +123,7 @@ function updateSelection(){
             labelWAQ().style.display = 'flex'; waqSelector().style.display = 'flex'; showCheckbox().checked = false;
             waqSelector().innerHTML = data.content.map(name => `<option value="${name}">${name}</option>`).join('');
             const statusRes = await sendQuery('check_sim_status_waq', {projectName: projectName});
-            if (statusRes.status === "running") {
+            if (statusRes.status === "running" || statusRes.status === "reorganizing") {
                 const res = await fetch(`/sim_log_full/${projectName}?log_file=log_waq.txt`);
                 if (res.ok) {
                     const data = await res.json();
@@ -156,7 +148,7 @@ function updateSelection(){
             const res = await sendQuery('check_folder', {projectName: currentProject, folder: 'output', key: 'hyd'});
             if (res.status === "ok") { if (!confirm("Output exists. Re-run will overwrite it. Continue?")) return; }
             const start = await sendQuery('start_sim_hyd', {projectName: currentProject});
-            if (start.status === "error") {alert(start.message); return;}
+            if (start.status === "error") { alert(start.message); return; }
             infoArea().value = ''; progressbar().value = 0;
             progressText().innerText = 'Preparing data for the HYD simulation...';
             updateLogHYD(currentProject, progressbar(), progressText(), infoArea(), 10);
@@ -170,7 +162,7 @@ function updateSelection(){
             infoArea().value = ''; progressbar().value = 0;
             const start = await sendQuery('start_sim_waq', {projectName: currentProject, waqName: waqSelector().value});
             if (start.status === "error") {alert(start.message); return;}
-            updateLogWAQ(currentProject, waqSelector().value, progressbar(), progressText(), infoArea(), 0.5);
+            updateLogWAQ(currentProject, waqSelector().value, progressbar(), progressText(), infoArea(), 1);
         }
     });
 }

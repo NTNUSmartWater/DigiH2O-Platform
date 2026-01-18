@@ -68,7 +68,7 @@ export async function saveProject(elements) {
         if (output.error) { alert(output.error); return; }
         // Add to data
         data.set('obs_file', obsFileName);
-    } else data.set('obs_file', '');
+    } else { data.set('obs_file', ''); }
     // Get cross sections
     const crossSections = getDataFromTable(crossSectionTable(), true);
     const crossName = crossSectionName().value.trim();
@@ -81,7 +81,7 @@ export async function saveProject(elements) {
         if (output.error) { alert(output.error); return; }
         // Add to data
         data.set('crs_file', crossFileName);
-    } else data.set('crs_file', '');
+    } else { data.set('crs_file', ''); }
     // Get boundary conditions
     const query = {projectName: name, forceName: 'FlowFM_bnd.ext'};
     const checkBoundary = await sendQuery('check_condition', query);
@@ -157,7 +157,6 @@ export async function saveProject(elements) {
     data.set('stats_interval', sttInterval);
     data.set('timings_interval', timingInterval);
     // Generate MDU file
-    // Convert to object
     const dataObj = Object.fromEntries(data);
     const content = await sendQuery('generate_mdu', {params: dataObj});
     alert(content.message);

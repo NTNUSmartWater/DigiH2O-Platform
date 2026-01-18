@@ -43,18 +43,15 @@ async def setup_new_project(request: Request, user=Depends(functions.basic_auth)
         body = await request.json()
         project_name, _ = functions.project_definer(body.get('projectName'), user)
         project_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name))
-        # Check if project already exists
-        if os.path.exists(project_dir):
-            return JSONResponse({"status": 'ok', "message": f"Project '{body.get('projectName')}' already exists."})
         # Create project directories
         user_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, user))
         if not os.path.exists(user_path): os.makedirs(user_path, exist_ok=True)
         os.makedirs(project_dir, exist_ok=True)
         input_dir = os.path.normpath(os.path.join(project_dir, "input"))
         os.makedirs(input_dir, exist_ok=True)
-        gis_dir = os.path.normpath(os.path.join(project_dir, "gis"))
+        gis_dir = os.path.normpath(os.path.join(project_dir, "GIS"))
         os.makedirs(gis_dir, exist_ok=True)
-        status, message = 'ok', f"Scenario '{body.get('projectName')}' created successfully!"
+        status, message = 'ok', f"Scenario '{body.get('projectName')}' created/loaded successfully!"
     except Exception as e:
         print('/setup_new_project:\n==============')
         traceback.print_exc()
@@ -228,7 +225,7 @@ async def get_scenario(request: Request, user=Depends(functions.basic_auth)):
     except Exception as e:
         print('/get_scenario:\n==============')
         traceback.print_exc()
-        return JSONResponse({"status": 'error', "message": f"Error: {str(e)}\nConsider deleting the scenario and creating a new one."})
+        return JSONResponse({"status": 'error', "message": f"Error: {str(e)}\nConsider running the scenario again."})
 
 # Set up the database depending on the project
 @router.post("/setup_database")
@@ -275,7 +272,7 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
                 config = {"hyd": {}, "waq": {}, "meta": {"hyd_scanned": False, "waq_scanned": False}, "model_type": ''}
             # ---------------- Grid & Layer ----------------
             layer_reverse_hyd, layer_reverse_waq = {}, {}
-            if hyd_map:
+            if hyd_map is not None:
                 print('Creating grid and layers for hydrodynamic simulation...')
                 # Grid/layers generation
                 grid = functions.unstructuredGridCreator(hyd_map)
@@ -286,8 +283,9 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
                     layer_reverse_hyd = functions.layerCounter(hyd_map, 'hyd')
                     json.dump(layer_reverse_hyd, open(layer_path, "w", encoding=functions.encoding_detect(layer_path)))                    
                 else: layer_reverse_hyd = json.load(open(layer_path, "r", encoding=functions.encoding_detect(layer_path)))
-            if waq_map:
-                print('Creating grid and layers for water quality simulation...')
+            else: return JSONResponse({"status": 'error', "message": "Cannot find hydrodynamic data (map file).\nConsider running the model again."})
+            if waq_map is not None:
+                print('Creating layers for water quality simulation...')
                 layer_path = os.path.normpath(os.path.join(config_dir, 'layers_waq.json'))
                 if not os.path.exists(layer_path):
                     layer_reverse_waq = functions.layerCounter(waq_map, 'waq')

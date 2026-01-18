@@ -1,4 +1,4 @@
-import os, subprocess, threading, re, time
+import os, subprocess, threading, re
 from Functions import functions
 from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import JSONResponse
@@ -36,9 +36,13 @@ async def check_sim_status_hyd(request: Request, user=Depends(functions.basic_au
     info = processes.get(project_name)
     if not info: 
         return JSONResponse({"status": "not_started", "progress": 0, "message": 'No simulation running'})
+    if info["status"] in ("finished", "failed", "error"): processes.pop(project_name, None)
     if info["status"] == "finished":
         return JSONResponse({"status": "finished", "progress": 100,
             "message": info.get("message", 'Simulation completed successfully')})
+    if info["status"] == "failed":
+        return JSONResponse({"status": "failed", "progress": info["progress"],
+            "message": info.get("message", 'Simulation failed')})
     if info["status"] == "reorganizing":
         return JSONResponse({"status": "reorganizing", "progress": 100, "message": 'Reorganizing outputs. Please wait...'})
     complete = f'HYD simulation completed: {info["progress"]}% [Time used: {info["time_used"]} → Time left: {info["time_left"]}]'
@@ -55,7 +59,7 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
         # Check if simulation already running
         if project_name in processes and processes[project_name]["status"] == "running":
             info = processes[project_name]
-            complete = f'Completed: {info["progress"]}% [Time used: {info["time_used"]} → Time left: {info["time_left"]}]'
+            complete = f'HYD simulation completed: {info["progress"]}% [Time used: {info["time_used"]} → Time left: {info["time_left"]}]'
             return JSONResponse({"status": "running", "progress": info["progress"], "message": complete})
         path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
         mdu_path = os.path.normpath(os.path.join(path, "FlowFM.mdu"))
@@ -75,11 +79,13 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
             encoding="utf-8", errors="replace", bufsize=1, cwd=path)
         processes[project_name] = {"process": process, "progress": 0.0, "status": "running", 
-            "message": 'Preparing data for simulation...', "time_used": "", "time_left": ""}
+            "message": 'Preparing data for simulation...', "time_used": "N/A", "time_left": "N/A"}
         # Stream logs
         def stream_logs():
             try:
                 for line in process.stdout:
+                    proc_info = processes.get(project_name)
+                    if not proc_info: return
                     line = line.strip()
                     if not line: continue
                     append_log(log_path, line)
@@ -90,6 +96,7 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
                         append_log(log_path, line)
                         res = functions.kill_process(process)
                         append_log(log_path, res["message"])
+                        return
                     # Check for progress
                     match_pct = percent_re.search(line)
                     if match_pct: processes[project_name]["progress"] = float(match_pct.group("percent"))
@@ -101,12 +108,20 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
                     elif len(times) == 3:
                         processes[project_name]["time_used"] = times[1]
                         processes[project_name]["time_left"] = times[2]
+            except Exception as e:
+                proc_info = processes.get(project_name)
+                if proc_info:
+                    processes[project_name]["status"] = "failed"
+                    processes[project_name]["message"] = f"Internal error: {e}"
+                append_log(log_path, f"[INTERNAL ERROR] {e}")
             finally:
                 process.wait()
-                if processes[project_name]["status"] != "error":
-                    processes[project_name]["progress"] = 100.0
-                    processes[project_name]["status"] = "reorganizing"
-                    processes[project_name]["message"] = "Reorganizing outputs. Please wait..."
+                proc_info = processes.get(project_name)
+                if not proc_info or proc_info["status"] == "error": return
+                processes[project_name]["status"] = "reorganizing"
+                processes[project_name]["message"] = "Reorganizing outputs. Please wait..."
+                processes[project_name]["progress"] = 100.0
+                try:
                     post_result = functions.postProcess(path)
                     if post_result["status"] != "ok":
                         processes[project_name]["status"] = "error"
@@ -114,10 +129,9 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
                     else:
                         processes[project_name]["status"] = "finished"
                         processes[project_name]["message"] = "Simulation completed successfully"
-                def cleanup_later(ttl=60):
-                    time.sleep(ttl)
-                    processes.pop(project_name, None)
-                threading.Thread(target=cleanup_later, daemon=True).start()
+                except Exception as e:
+                    processes[project_name]["status"] = "failed"
+                    processes[project_name]["message"] = f"Simulation failed: {e}"
         threading.Thread(target=stream_logs, daemon=True).start()
     return JSONResponse({"status": "ok", "message": f"Simulation {project_name} started"})
 

@@ -38,7 +38,7 @@ const useforsFromPhysical = () => document.getElementById('wq-physical-usefors-f
 const useforsToPhysical = () => document.getElementById('wq-physical-usefors-to');
 const useforsPhysical = () => document.getElementById('wq-usefors-physical');
 const initialFromPhysical = () => document.getElementById('wq-physical-initial-from');
-const initialToPhysical = () => document.getElementById('wq-initial-physical');
+const initialToPhysical = () => document.getElementById('wq-physical-initial');
 const initialAreaPhysical = () => document.getElementById('wq-initial-physical');
 const schemePhysical = () => document.getElementById('wq-scheme-physical');
 const maxInterPhysical = () => document.getElementById('max-iterations-physical');
@@ -49,7 +49,7 @@ const useforsFromChemical = () => document.getElementById('wq-chemical-usefors-f
 const useforsToChemical = () => document.getElementById('wq-chemical-usefors-to');
 const useforsChemical = () => document.getElementById('wq-usefors-chemical');
 const initialFromChemical = () => document.getElementById('wq-chemical-initial-from');
-const initialToChemical = () => document.getElementById('wq-initial-chemical');
+const initialToChemical = () => document.getElementById('wq-chemical-initial');
 const initialAreaChemical = () => document.getElementById('wq-initial-chemical');
 const schemeChemical = () => document.getElementById('wq-scheme-chemical');
 const maxInterChemical = () => document.getElementById('max-iterations-chemical');
@@ -177,38 +177,34 @@ function substanceChanger(waqModel, target, name, type){
             initial_value = initialToMirobial();
         }
         from_usefors.innerHTML = ''; from_initial.innerHTML = ''; 
-        initial_area.value = ''; initial_value.value = '';
+        initial_area.value = ''; initial_value.value = '0';
         scheme.value = '15'; maxiter.value = '500'; tolerance.value = '1E-07';
-        if (target.value === '') {
+        const key = target.value;        
+        if (key === 'simple-oxygen') {subKey = 'Simple_Oxygen';}
+        else if (key === 'oxygen-bod-water') { subKey = 'Oxygen_BOD'; }
+        else if (key === 'cadmium') { subKey = 'Cadmium'; }
+        else if (key === 'eutrophication') { subKey = 'Eutrophication'; }
+        else if (key === 'trace-metals') { subKey = 'Trace_Metals'; }
+        else if (key === 'conservative-tracers') { subKey = 'Conservative_Tracers'; }
+        else if (key === 'suspend-sediment') { subKey = 'Suspend_Sediment'; }
+        else if (key === 'coliform') { subKey = 'Coliform'; }
+        else { 
             timePreviewContainer().style.display = 'none'; timePreview().value = '';
             name.value = ''; to_usefors.innerHTML = ''; usefors.value = ''; return;
         }
-        const key = target.value;
-        if (key === 'simple-oxygen') subKey = 'Simple_Oxygen';
-        else if (key === 'oxygen-bod-water') subKey = 'Oxygen_BOD';
-        else if (key === 'cadmium') subKey = 'Cadmium';
-        else if (key === 'eutrophication') subKey = 'Eutrophication';
-        else if (key === 'trace-metals') subKey = 'Trace_Metals';
-        else if (key === 'conservative-tracers') subKey = 'Conservative_Tracers';
-        else if (key === 'suspend-sediment') subKey = 'Suspend_Sediment';
-        else if (key === 'coliform') subKey = 'Coliform';
         if (waqModel.value !== '') { subKey = waqModel.value; }
-        name.value = subKey;
         const data = await sendQuery('wq_time_from_waq', { key: subKey });
         if (data.status === "error") {
             timePreviewContainer().style.display = 'none'; 
             timePreview().value = ''; alert(data.message); return;
         };
-        useforsFrom = data.froms;
-        data.froms.forEach(item => {
-            const option = document.createElement('option');
-            option.value = item; option.text = item;
-            from_usefors.add(option); 
-        });
-        data.froms.forEach(item => {
-            const option = document.createElement('option');
-            option.value = item; option.text = item;
-            from_initial.add(option);
+        name.value = subKey; useforsFrom = data.froms;
+        [from_usefors, from_initial].forEach(select => { 
+            data.froms.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item; option.text = item;
+                select.add(option);
+            }); 
         });
     });
 }
@@ -305,7 +301,6 @@ function updateOption(){
     // Check function to process time-series
     document.querySelectorAll('.wq-process-time-series').forEach(btn => {
         btn.addEventListener('click', async () => {
-            timePreview().value = '';
             const loadsData = getDataFromTable(loadsPointTable(), true);
             if (loadsData.rows.length === 0) {
                 alert("No loads data found in the table.\nPlease check the load table in tab 'Point Settings'."); 
@@ -318,11 +313,18 @@ function updateOption(){
             }
             if (btn.id === 'wq-chemical') {
                 subKey = chemicalSelector().value; folderName = chemicalName().value.trim();
+                initial_area = initialAreaChemical(); usefors = useforsChemical();
+                to_usefors = useforsToChemical(); initial_value = initialToChemical();
             } else if (btn.id === 'wq-physical') {
                 subKey = physicalSelector().value; folderName = physicalName().value.trim();
+                initial_area = initialAreaPhysical(); usefors = useforsPhysical();
+                to_usefors = useforsToPhysical(); initial_value = initialToPhysical();
             } else if (btn.id === 'wq-microbial') {
                 subKey = microbialSelector().value; folderName = microbialName().value.trim();
+                initial_area = initialAreaMirobial(); usefors = useforsMicrobial();
+                to_usefors = useforsToMirobial(); initial_value = initialToMirobial();
             }
+            timePreview().value = ''; initial_area.value = ''; usefors.value = ''; initial_value.value = '0';
             if (subKey === '') { alert('Please specify type of simulation.'); return; }
             if (folderName === '') { alert('Please specify name of substance.'); return; }
             const data = await sendQuery('wq_time_to_waq', { folderName: folderName, 
@@ -332,16 +334,7 @@ function updateOption(){
                 timePreview().value = ''; alert(data.message); return;
             };
             timePreview().value = data.content; useforsTo = data.tos;
-            timePreviewContainer().style.display = 'flex';
-            // Assign value to USEFORS
-            if (btn.id === 'wq-physical') {
-                to_usefors = useforsToPhysical(); usefors = useforsPhysical();
-            } else if (btn.id === 'wq-chemical') {
-                to_usefors = useforsToChemical(); usefors = useforsChemical();
-            } else if (btn.id === 'wq-microbial') {
-                to_usefors = useforsToMirobial(); usefors = useforsMicrobial();
-            }
-            to_usefors.innerHTML = ''; usefors.value = ''; 
+            timePreviewContainer().style.display = 'flex'; to_usefors.innerHTML = '';
             data.tos.forEach(item => {
                 const option = document.createElement('option');
                 option.value = item; option.text = item;
@@ -352,12 +345,21 @@ function updateOption(){
     // Update USEFORS data
     document.querySelectorAll('.wq-usefors').forEach(btn => {
         btn.addEventListener('click', () => {
+            if (btn.dataset.info === 'physical') {
+                from_usefors = useforsFromPhysical(); to_usefors = useforsToPhysical();
+                usefors = useforsPhysical();
+            } else if (btn.dataset.info === 'chemical') {
+                from_usefors = useforsFromChemical(); to_usefors = useforsToChemical();
+                usefors = useforsChemical();
+            } else if (btn.dataset.info === 'microbial') {
+                from_usefors = useforsFromMirobial(); to_usefors = useforsToMirobial();
+                usefors = useforsMicrobial();
+            }
             const txt = `USEFOR '${from_usefors.value}' '${to_usefors.value}'`;
             let content = usefors.value;
             content = content === '' ? txt : content + '\n' + txt;
             // Split and remove duplicates
-            content = [...new Set(content.split('\n'))].join('\n');
-            usefors.value = content;
+            usefors.value = [...new Set(content.split('\n'))].join('\n');
         });
     });
     // Update initial data
