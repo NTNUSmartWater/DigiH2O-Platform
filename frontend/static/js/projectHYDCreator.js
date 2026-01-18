@@ -316,8 +316,7 @@ function updateOption(){
         if (name === '' || lat === '' || lon === '' || isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
             alert('Please check name, latitude, and longitude of the observation point.'); return;}
         // Add to table
-        const data_arr = [[name, lat, lon]];
-        fillTable(data_arr, obsPointTable(), false);
+        fillTable([[name, lat, lon]], obsPointTable(), false);
         // Clear input
         obsPointName().value = ''; obsPointLatitude().value = ''; obsPointLongitude().value = '';
     });
@@ -411,11 +410,11 @@ function updateOption(){
         };
         boundaryText().value = data.content; boundaryViewContainer().style.display = 'flex';
     });
-    // Reset sub-boundary condition
+    // Delete boundary
     boundaryRemove().addEventListener('click', async () => {
-        const nameBoundary = boundaryName().value.trim();
-        if (nameBoundary === '') { alert('Name of boundary is required.'); return; }
-        // Delete boundary
+        const content = getDataFromTable(boundaryTable(), true).rows;
+        // Delete the last part and get unique name
+        const nameBoundary = [...new Set(content.map(p => p[0].replace(/_\d+$/, '')))];
         const data = await sendQuery('delete_boundary', {projectName: projectName().value, boundaryName: nameBoundary});
         alert(data.message); deleteTable(boundaryTable(), undefined, 'clearBoundary'); BCChecked = 0;
         const tbody = boundaryEditTable().querySelector("tbody"); tbody.innerHTML = "";
@@ -522,23 +521,30 @@ async function loadScenario(scenarioName){
     userTimestepTime().value = data.content.userTimestepTime;
     nodalTimestepDate().value = data.content.nodalTimestepDate;
     nodalTimestepTime().value = data.content.nodalTimestepTime;
-    fillTable(data.content.obsPointTable, obsPointTable());
-    fillTable(data.content.crossSectionTable, crossSectionTable());
-    fillTable(data.content.boundaryTable, boundaryTable());
-    // Update boundary option
-    const options = data.content.boundaryTable.map(row => `<option value="${row[0]}">${row[0]}</option>`).join(' ');
-    const defaultOption = `<option value="" selected>--- No selected ---</option>`;
-    boundarySelector().innerHTML = defaultOption + options;
+    if (data.content.obsPointTable !== undefined && data.content.obsPointTable !== '') {
+        fillTable(data.content.obsPointTable, obsPointTable());
+    }
+    if (data.content.crossSectionTable !== undefined && data.content.crossSectionTable !== '') {
+        fillTable(data.content.crossSectionTable, crossSectionTable()); 
+    }
+    let defaultOption = `<option value="" selected>--- No selected ---</option>`;
+    if (data.content.boundaryTable !== undefined && data.content.boundaryTable !== '') {
+        fillTable(data.content.boundaryTable, boundaryTable());
+        // Update boundary option
+        const options = data.content.boundaryTable.map(row => `<option value="${row[0]}">${row[0]}</option>`).join(' ');
+        defaultOption = defaultOption + options;
+    }
+    boundarySelector().innerHTML = defaultOption;
     initWaterLevel().value = data.content.initWaterLevel;
     initSalinity().value = data.content.initSalinity;
     initTemperature().value = data.content.initTemperature;
     // Get source data if exist
     updateTable(sourceRemoveTable(), sourceSelectorRemove(), scenarioName);
-    if (data.content.meteoPath !== '') { 
+    if (data.content.meteoPath !== '' || data.content.meteoPath.length > 0) { 
         meteoUploadText().value = data.content.meteoName;
         fillTable(data.content.meteoPath, meteoTable());
     }
-    if (data.content.weatherPath !== '') { 
+    if (data.content.weatherPath !== '' || data.content.weatherPath.length > 0) {
         weatherSelector().value = data.content.weatherType;
         weatherCSVUploadText().value = data.content.weatherName;
         weatherPanel().style.display = 'block'; weatherTable().style.display = 'block';

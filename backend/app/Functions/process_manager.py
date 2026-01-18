@@ -529,16 +529,17 @@ async def delete_boundary(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
         project_name, _ = functions.project_definer(body.get('projectName'), user)
-        boundary_name = body.get('boundaryName')        
+        boundary_name = body.get('boundaryName')
         path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
         water_lelvel_path = os.path.normpath(os.path.join(path, "WaterLevel.bc"))
         contaminant_path = os.path.normpath(os.path.join(path, "Contaminant.bc"))
-        boundary_path = os.path.normpath(os.path.join(path, f"{boundary_name}.pli"))
         ext_path = os.path.normpath(os.path.join(path, "FlowFM_bnd.ext"))
         # Delete file
-        if os.path.exists(boundary_path):
-            os.remove(boundary_path)
-            message += f"- Delete successfully: {boundary_name}'.pli.\n"
+        for boundary in boundary_name:
+            boundary_path = os.path.normpath(os.path.join(path, f"{boundary}.pli"))
+            if os.path.exists(boundary_path):
+                os.remove(boundary_path)
+                message += f"- Delete successfully: {boundary}'.pli.\n"
         if os.path.exists(ext_path):
             os.remove(ext_path)
             message += "- Delete successfully: FlowFM_bnd.ext.\n"
