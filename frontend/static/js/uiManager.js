@@ -108,8 +108,8 @@ async function projectChecker(name=null, params=null) {
     startLoading('Reading Simulation Outputs and Setting up Database.\nThis takes a while (especially the first time). Please wait...');
     const data = await sendQuery('setup_database', {projectName: name, params: params});
     if (data.status === "error") { alert(data.message); location.reload(); return; }
+    const hasGISMenu = menuLeft().querySelector("#GISMenu");
     if (data.content.gis_layers.length > 0) {
-        const hasGISMenu = menuLeft().querySelector("#GISMenu");
         if (!hasGISMenu) {
             const li = document.createElement("li");
             li.style.alignItems = "center"; li.style.display = "flex";
@@ -118,7 +118,7 @@ async function projectChecker(name=null, params=null) {
             a.setAttribute("data-info", "4|gisLayer.html|subMenu");
             li.appendChild(a); menuLeft().appendChild(li); initializeMenu();
         }
-    }
+    } else { if (hasGISMenu) { hasGISMenu.remove(); initializeMenu(); } }
     showLeafletMap();
 }
 
