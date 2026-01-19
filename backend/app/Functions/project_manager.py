@@ -486,7 +486,7 @@ async def get_gis_layer(request: Request, user=Depends(functions.basic_auth)):
         print('/get_gis_layer:\n==============')
         traceback.print_exc()
         return JSONResponse({"status": 'error', "message": f"Error: {str(e)}"})
-
+    
 # Delete a project
 @router.post("/delete_project")
 async def delete_project(request: Request, user=Depends(functions.basic_auth)):
