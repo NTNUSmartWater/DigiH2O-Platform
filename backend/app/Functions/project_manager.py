@@ -271,7 +271,7 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
                 print('Config doesn\'t exist. Creating...')
                 config = {"hyd": {}, "waq": {}, "meta": {"hyd_scanned": False, "waq_scanned": False}, "model_type": ''}
             # ---------------- Grid & Layer ----------------
-            layer_reverse_hyd, layer_reverse_waq = {}, {}
+            layer_reverse_hyd, layer_reverse_waq, layer_reverse_waq_depth = {}, {}, {}
             if hyd_map is not None:
                 print('Creating grid and layers for hydrodynamic simulation...')
                 # Grid/layers generation
@@ -294,7 +294,13 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
             # Convert sigma layer to depth layer
             depth_values = [float(v.split(' ')[1]) for k, v in layer_reverse_hyd.items() if int(k) >= 0]
             max_depth = max(np.array(depth_values, dtype=float), key=abs)
-            layer_reverse_waq_depth = None
+            for k, v in layer_reverse_waq.items():
+                if int(k) < 0: layer_reverse_waq_depth[k] = v
+                else:
+                    note, val = '', round(max_depth*float(v.split(':')[1].strip().split(' ')[0].strip())/100, 2)
+                    if int(k) == 0: note = ' (surface)'
+                    elif int(k) == len(layer_reverse_hyd)-2: note = ' (bottom)'
+                    layer_reverse_waq_depth[k] = f'Depth: {val} m{note}'
             # Lazy scan HYD variables only once
             if (hyd_map or hyd_his) and not config['meta']['hyd_scanned']:
                 print('Scanning HYD variables...')
