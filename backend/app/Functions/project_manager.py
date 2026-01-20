@@ -291,6 +291,10 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
                     layer_reverse_waq = functions.layerCounter(waq_map, 'waq')
                     json.dump(layer_reverse_waq, open(layer_path, "w", encoding=functions.encoding_detect(layer_path)))                    
                 else: layer_reverse_waq = json.load(open(layer_path, "r", encoding=functions.encoding_detect(layer_path)))
+            # Convert sigma layer to depth layer
+            depth_values = [float(v.split(' ')[1]) for k, v in layer_reverse_hyd.items() if int(k) >= 0]
+            max_depth = max(np.array(depth_values, dtype=float), key=abs)
+            layer_reverse_waq_depth = None
             # Lazy scan HYD variables only once
             if (hyd_map or hyd_his) and not config['meta']['hyd_scanned']:
                 print('Scanning HYD variables...')
@@ -331,7 +335,7 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
             redis_mapping = {
                 "hyd_his_path": params[0], "hyd_map_path": params[1], "waq_his_path": params[2], "waq_map_path": params[3],
                 "layer_reverse_hyd": msgpack.packb(layer_reverse_hyd, use_bin_type=True),
-                "layer_reverse_waq": msgpack.packb(layer_reverse_waq, use_bin_type=True),
+                "layer_reverse_waq": msgpack.packb(layer_reverse_waq_depth, use_bin_type=True),
                 "config": msgpack.packb(result, use_bin_type=True),
                 "waq_obs": msgpack.packb(obs, use_bin_type=True), "waq_model": waq_model
             }
