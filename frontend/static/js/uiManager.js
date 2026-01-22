@@ -43,6 +43,7 @@ const simulationCloseBtn = () => document.getElementById('closeSimulationWindow'
 const GISUploadFile = () => document.getElementById('gis-file');
 const menuLeft = () => document.getElementById('menu-left');
 const mapContainer = () => map.getContainer();
+const updateStatus = () => document.getElementById('update-menu');
 
 initializeMap(); baseMapButtonFunctionality(); plotEvents(); initializeMenu();
 projectChecker(); updateEvents(); openDemoProject('demo'); await login();
@@ -354,29 +355,30 @@ function updateEvents() {
                 // Open project for visualization
                 iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
                     projectOpenWindowContent(), "Select Scenario with Simulation Result");
+                updateStatus().innerHTML = 'Last Option: Visualization';
             } else if (name === 'new-hyd-project') { 
                 // Create new hyd project
-                projectChecker();
+                projectChecker(); updateStatus().innerHTML = 'Last Option: HYD Scenario Modification';
                 iframeInit("new_HYD_project", projectSetting(), projectSettingHeader(), 
                     projectSettingContent(), "Create/Modify/Delete a new Hydrodynamic Scenario");
             } else if (name === 'run-hyd-simulation') {
                 // Run hyd simulation
-                projectChecker();
+                projectChecker(); updateStatus().innerHTML = 'Last Option: Run HYD Simulation';
                 iframeInit("run_hyd_simulation", simulationWindow(), simulationHeader(), 
                     simulationContent(), "Run a Hydrodynamic Simulation");
             } else if (name === 'new-waq-project') { 
                 // Create a new waq project
-                projectChecker();
+                projectChecker(); updateStatus().innerHTML = 'Last Option: WAQ Scenario Modification';
                 iframeInit("new_WQ_project", projectSetting(), projectSettingHeader(), 
                     projectSettingContent(), "Set up a Water Quality Simulation");
             } else if (name === 'run-waq-project') { 
                 // Run a new waq project
-                projectChecker();
+                projectChecker(); updateStatus().innerHTML = 'Last Option: Run WAQ Simulation';
                 iframeInit("run_WQ_project", simulationWindow(), simulationHeader(), 
                     simulationContent(), "Run a Water Quality Simulation");
             } else if (name === 'gis-uploader') { 
                 // GIS Uploader
-                GISUploadFile().click();
+                GISUploadFile().click(); updateStatus().innerHTML = 'Last Option: Upload GIS data';
                 // Open GIS data
                 if (GISUploadFile()) {
                     GISUploadFile().addEventListener('change', async (event) => { 
@@ -561,10 +563,6 @@ function updateEvents() {
             gridLayer = L.geoJSON(data.content, {style: {color: 'black', weight: 1}}).addTo(map);
             showLeafletMap();
         }
-        if (event.data?.type === 'thermoclineGridClear') { 
-            if (gridLayer) map.removeLayer(gridLayer); gridLayer = null;
-            if (plotWindow().style.display !== 'none') plotWindow().style.display = 'none';
-        }
         if (event.data?.type === 'thermoclineGrid') {
             startLoading(event.data.message);
             const key = event.data.key, query = event.data.query;
@@ -738,6 +736,7 @@ function timeSeriesManager() {
     document.querySelectorAll('.function').forEach(plot => {
         plot.addEventListener('click', () => {
             const [key, titleY, chartTitle] = plot.dataset.info.split('|');
+            updateStatus().innerHTML = `Last Option: Time-Series Plot (Hydrodynamic): ${chartTitle}`;
             plotChart('', key, chartTitle, 'Time', titleY);
         });
     });
@@ -754,6 +753,7 @@ function timeSeriesManager() {
                 `<label for="his-${substance}"><input type="radio" name="waq-substance-his" id="his-${substance}"
                     value="${data.message[i]}" ${i === 0 ? 'checked' : ''}>${data.message[i]}</label>`).join('');
             hideMap(); plotChart(data.content[0], 'substance', `Substance: ${data.message[0]}`, 'Time', data.message[0]);
+            updateStatus().innerHTML = `Last Option: Time-Series Plot (Water Quality): ${data.message[0].split('(')[0].trim()}`;
         });
     });
     // Listen to substance selection
@@ -761,6 +761,7 @@ function timeSeriesManager() {
         if (e.target && e.target.name === "waq-substance-his") {
             const id = e.target.id, value = e.target.value;
             hideMap(); plotChart(id.replace('his-', ''), 'substance', `Substance: ${value}`, 'Time', value);
+            updateStatus().innerHTML = `Last Option: Time-Series Plot (Water Quality): ${value.split('(')[0].trim()}`;
         }
     });
 }

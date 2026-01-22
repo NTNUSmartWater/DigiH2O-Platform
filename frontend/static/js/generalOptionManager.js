@@ -1,10 +1,9 @@
 import { loadData, initOptions, splitLines } from './utils.js';
-import { colorbar_title } from './map2DManager.js';
+import { colorbar_title, timeControl, colorbar_container, colorbar_vector_container } from './map2DManager.js';
 import { plotChart, plotProfileSingleLayer, plotProfileMultiLayer } from "./chartManager.js";
 import { getState, setState } from "./constants.js";
 import { startLoading, showLeafletMap, map, L, ZOOM } from "./mapManager.js";
 import { sendQuery } from './tableManager.js';
-import { timeControl, colorbar_container, colorbar_vector_container } from "./map2DManager.js";
 
 
 export const summaryWindow = () => document.getElementById("summaryWindow");
@@ -23,6 +22,7 @@ const thermoclineHYD = () => document.getElementById('hyd-thermocline-selector')
 const waqSelector = () => document.getElementById('waq-thermocline');
 const thermoclineWAQ = () => document.getElementById('waq-thermocline-selector');
 const configReset = () => document.getElementById('reset-config');
+const updateStatus = () => document.getElementById('update-menu');
 
 let Dragging = false, pathLine = null, selectedMarkers = [], pointContainer = [], marker = null;
 
@@ -49,15 +49,14 @@ function checkUpdater(setLayer, objCheckbox, checkFunction){
 
 export function generalOptionsManager(projectName){
     projectSummaryEvents(); updateHYDManager(); updateWAQManager(); updatePathManager();
-    document.querySelector('.thermocline-clear-grid').addEventListener('click', () => { 
-        window.parent.postMessage({type: 'thermoclineGridClear'}, '*');
-    });
     configReset().addEventListener('click', async() => { 
         const data = await sendQuery('reset_config', {projectName: projectName});
-        alert(data.message); return;
+        if (updateStatus()) { updateStatus().innerHTML = 'Last Option: Reset Configuration'; }
+        alert(data.message); window.location.reload(); return;
     });
     // Plot thermocline for hydrodynamic simulation
     thermoclineHYD().addEventListener('click', () => {
+        if (updateStatus()) { updateStatus().innerHTML = 'Last Option: Thermocline for Hydrodynamic Simulation'; }
         const titleX = 'Temperature (°C)', titleY = 'Depth (m)';
         setState({isThemocline: true}); if (getState().isPathQuery) { deActivePathQuery(); }
         const chartTitle = 'Thermocline for Hydrodynamic Simulation';
@@ -65,19 +64,19 @@ export function generalOptionsManager(projectName){
         window.parent.postMessage({type: 'thermoclineGrid', key: key, query: query,
             titleX: titleX, titleY: titleY, chartTitle: chartTitle, 
             message: 'Preparing grid for hydrodynamic thermocline plot...'}, '*');
-    })
+    });
     // Plot thermocline for water quality
     waqSelector().addEventListener('click', () => {
-        hideMap();
+        hideMap(); if (updateStatus()) { updateStatus().innerHTML = 'Last Option: Vertical Profile for Water Quality Simulation'; }
         const item = document.getElementById('thermocline-row');
         if (item) {
             item.style.display = item.style.display === 'none' ? 'block' : 'none';
             // Load water quality data
             initOptions(thermoclineWAQ, 'thermocline_waq'); return;
         }
-    })
+    });
     thermoclineWAQ().addEventListener('change', () => {
-        const selected = thermoclineWAQ().value, titleY = 'Sigma (%)';
+        const selected = thermoclineWAQ().value, titleY = 'Depth (m)';
         if (selected === '') { window.parent.postMessage({type: 'thermoclineGridClear'}, '*'); return; };
         setState({isThemocline: true}); if (getState().isPathQuery) { deActivePathQuery(); }
         const titleX = thermoclineWAQ().options[thermoclineWAQ().selectedIndex].text;
@@ -91,7 +90,9 @@ export function generalOptionsManager(projectName){
 
 // ============================ Project Summary ============================
 function projectSummaryEvents(){
-    projectSummaryOption().addEventListener('click', () => { openProjectSummary(); });
+    projectSummaryOption().addEventListener('click', () => { 
+        openProjectSummary(); if (updateStatus()) { updateStatus().innerHTML = 'Last Option: Project Summary'; }
+    });
     closeSummaryOption().addEventListener('click', () => { summaryWindow().style.display = "none"; });
     // Move summary window
     let offsetX = 0, offsetY = 0;
@@ -223,8 +224,7 @@ async function loadSourceStations() {
             return marker;
         }
     });
-    map.addLayer(layer);
-    map.setView(layer.getBounds().getCenter(), ZOOM);
+    map.addLayer(layer); map.setView(layer.getBounds().getCenter(), ZOOM);
     showLeafletMap();
     return layer;
 }
@@ -257,8 +257,7 @@ async function loadCrossSection() {
             layer.bindPopup(popupContent, {offset: [0, 40]});      
         }
     });
-    map.addLayer(layer);
-    map.setView(layer.getBounds().getCenter(), ZOOM);
+    map.addLayer(layer); map.setView(layer.getBounds().getCenter(), ZOOM);
     showLeafletMap();
     return layer;
 }
@@ -294,8 +293,7 @@ async function loadWAQStations() {
             return marker;
         }
     });
-    map.addLayer(layer);
-    map.setView(layer.getBounds().getCenter(), ZOOM);
+    map.addLayer(layer); map.setView(layer.getBounds().getCenter(), ZOOM);
     showLeafletMap();
     return layer;
 }
@@ -323,8 +321,7 @@ async function loadWAQLoads() {
             return marker;
         }
     });
-    map.addLayer(layer);
-    map.setView(layer.getBounds().getCenter(), ZOOM);
+    map.addLayer(layer); map.setView(layer.getBounds().getCenter(), ZOOM);
     showLeafletMap();
     return layer;
 }
