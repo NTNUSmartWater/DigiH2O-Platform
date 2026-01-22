@@ -220,11 +220,6 @@ async def select_meshes(request: Request, user=Depends(functions.basic_auth)):
                 layer_reverse_raw = await redis.hget(project_name, f"layer_reverse_{dataset_type}")
                 layer_reverse = msgpack.unpackb(layer_reverse_raw, raw=False)
                 depth_values = [float(v.split(' ')[1]) for k, v in layer_reverse.items() if int(k) >= 0]
-                # if not is_hyd:
-                #     # max_ = max(np.array(depth_values, dtype=float), key=abs)
-                #     # depth_values = [round(max_*float(v.split(' ')[1])/100, 2) for k, v in layer_reverse.items() if int(k) >= 0]
-                #     depth_values = [float(v.split(' ')[1]) for k, v in layer_reverse.items() if int(k) >= 0]
-                
                 max_layer = float(max(np.array(depth_values), key=abs))
                 n_rows = math.ceil(abs(max_layer)/10)*10+1 if max_layer < 0 else -(math.ceil(abs(max_layer)/10)*10+1)
                 mesh_cache = { "depth_values": depth_values, "n_rows": n_rows, "df": None}
@@ -244,7 +239,7 @@ async def select_meshes(request: Request, user=Depends(functions.basic_auth)):
                 df_serialized = gdf_filtered.drop(columns=['geometry'])
                 mesh_cache["df"] = df_serialized.to_dict(orient='split')
                 # Compute frame in thread to avoid blocking
-                frame = await asyncio.to_thread(functions.meshProcess, arr, mesh_cache)
+                frame = await asyncio.to_thread(functions.meshProcess, is_hyd, arr, mesh_cache)
                 vmin, vmax = fnm(np.nanmin(frame)).tolist(), fnm(np.nanmax(frame)).tolist()
                 depths_idx = np.arange(0, frame.shape[0]) if mesh_cache["n_rows"] > 0 else np.arange(0, -frame.shape[0], -1)
                 data = {"timestamps": time_stamps, "distance": np.round(points_arr[:, 0], 0).tolist(),
@@ -255,7 +250,7 @@ async def select_meshes(request: Request, user=Depends(functions.basic_auth)):
                 if raw_cache is None: return JSONResponse({"status": 'error', "message": "Mesh cache is not initialized."})
                 mesh_cache = msgpack.unpackb(raw_cache, raw=False)
                 arr = values[int(idx),:,:] if is_hyd else values[int(idx),:,:].T
-                frame = await asyncio.to_thread(functions.meshProcess, arr, mesh_cache)
+                frame = await asyncio.to_thread(functions.meshProcess, is_hyd, arr, mesh_cache)
                 vmin, vmax = fnm(np.nanmin(frame)).tolist(), fnm(np.nanmax(frame)).tolist()
                 data = {"values": fnm(frame).tolist(), "local_minmax": [vmin, vmax]}
         return JSONResponse({'content': data, 'status': 'ok'})
