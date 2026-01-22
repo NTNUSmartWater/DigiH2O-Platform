@@ -41,18 +41,13 @@
         <div class="submenu-label {% if not configuration.thermocline_waq %}hidden{% endif %}" style="display: block;">
             <label id="waq-thermocline" class="thermocline">• Depth vs. Water Quality
             </label>
-            <div id="thermocline-row" style="display: none;">
+            <div id="thermocline-row" style="display: none; margin-top: 5px;">
                 <span style="margin-left: 5px; font-size: 15px;">Select:</span>
                 <select id="waq-thermocline-selector" style="flex: 1; margin-right: 5px;">
                     <option value="" disabled selected hidden>- No Selection -</option>
                 </select>
             </div>
         </div> 
-        <div class="thermocline-clear {% if not (configuration.thermocline_hyd or configuration.thermocline_waq) %}hidden{% endif %}">
-            <hr style="border-top: 1px solid #0414f5; margin: 0 25px 0 25px;">
-            <label class="submenu-label thermocline-clear-grid"> Clear Thermocline Grid
-            </label>
-        </div>
     </div>
 </div>
 <!-- Remove Configuration folder -->

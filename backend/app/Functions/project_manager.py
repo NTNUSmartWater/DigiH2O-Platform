@@ -30,11 +30,11 @@ async def reset_config(request: Request, user=Depends(functions.basic_auth)):
             shutil.rmtree(config_dir, onerror=functions.remove_readonly)
             # Delete config in Redis
             await redis.hdel(project_name, "config", "layer_reverse_hyd", "layer_reverse_waq")
-            return JSONResponse({"message": "Configuration reset successfully!"})
+            return JSONResponse({"status": "ok", "message": "Configuration reset successfully!"})
     except Exception as e:
         print('/reset_config:\n==============')
         traceback.print_exc()
-        return JSONResponse({"message": f"Error: {e}"})
+        return JSONResponse({"status": "error", "message": f"Error: {e}"})
 
 # Create a new project with necessary folders
 @router.post("/setup_new_project")
@@ -295,12 +295,12 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
             depth_values = [float(v.split(' ')[1]) for k, v in layer_reverse_hyd.items() if int(k) >= 0]
             max_depth = max(np.array(depth_values, dtype=float), key=abs)
             for k, v in layer_reverse_waq.items():
-                if int(k) < 0: layer_reverse_waq_depth[k] = v
-                else:
+                if int(k) >= 0: 
                     note, val = '', round(max_depth*float(v.split(':')[1].strip().split(' ')[0].strip())/100, 2)
                     if int(k) == 0: note = ' (surface)'
                     elif int(k) == len(layer_reverse_hyd)-2: note = ' (bottom)'
                     layer_reverse_waq_depth[k] = f'Depth: {val} m{note}'
+                else: layer_reverse_waq_depth[k] = v
             # Lazy scan HYD variables only once
             if (hyd_map or hyd_his) and not config['meta']['hyd_scanned']:
                 print('Scanning HYD variables...')
