@@ -1268,7 +1268,7 @@ def postProcess(directory: str) -> dict:
         return {'status': 'ok', 'message': 'Simulation completed successfully'}
     except Exception as e: return {'status': 'error', 'message': str(e)}
 
-def meshProcess(arr: np.ndarray, cache: dict) -> np.ndarray:
+def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
     """
     Optimized mesh processing using vectorization and interp1d interpolation.
 
@@ -1292,7 +1292,8 @@ def meshProcess(arr: np.ndarray, cache: dict) -> np.ndarray:
     df_depth = np.array(df["depth"].values, dtype=float)
     depth_values = np.array(cache_copy["depth_values"], dtype=float)
     depth_rounded, n_rows = abs(np.round(depth_values, 0)), cache_copy["n_rows"]
-    index_map = {int(v): len(depth_rounded)-i-1 for i, v in enumerate(depth_rounded)}
+    if is_hyd: index_map = {int(v): len(depth_rounded)-i-1 for i, v in enumerate(depth_rounded)}
+    else: index_map = {int(v): i for i, v in enumerate(depth_rounded)}
     # Pre-allocate frame
     frame = np.full((len(df), abs(n_rows)), np.nan, float)
     values_filtered = arr[df.index.values, :]
