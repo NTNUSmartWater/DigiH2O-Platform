@@ -46,7 +46,7 @@ const mapContainer = () => map.getContainer();
 const updateStatus = () => document.getElementById('update-menu');
 
 initializeMap(); baseMapButtonFunctionality(); plotEvents(); initializeMenu();
-projectChecker(); updateEvents(); openDemoProject('demo'); await login();
+projectChecker(); updateEvents(); openDemoProject(); await login();
 showGitHubLastUpdate('NTNUSmartWater', 'DigiH2O-Platform');
 
 async function login() {
@@ -54,8 +54,9 @@ async function login() {
     if (data.user==='admin') { userName = ''; } else { userName = `${data.user}/`; }
 }
 
-async function openDemoProject(name='demo', params=['FlowFM_his.zarr', 'FlowFM_map.zarr', 'Coliform_his.zarr', 'Coliform_map.zarr']) { 
-    await projectChecker(name, params);
+export async function openDemoProject() { 
+    const currentProject = getState().currentProject, currentParams = getState().currentParams;
+    await projectChecker(currentProject, currentParams);
     // Load temperature dynamic map
     const query = '|-1', key = 'temp_multi_dynamic', titleColorbar = 'Temperature (°C)';
     const colorbarKey = 'Layer: Average temperature';
@@ -102,9 +103,10 @@ async function projectChecker(name=null, params=null) {
     const projectMenu = document.querySelectorAll('.menu');
     projectMenu.forEach(menu => { menu.style.display = 'block'; });
     const project = document.querySelector('.menu[id="projectMenu"]');
-    if (name === null) return;    
+    if (name === null) return;
     project.style.display = 'block'; projectTitle().textContent = '';
     refresh(); hideMap(); resetState(); await login();  // Reset variables
+    setState({currentProject: name}); setState({currentParams: params});
     setState({projectName: name}); projectTitle().textContent = `Project: ${userName}${name}`;
     startLoading('Reading Simulation Outputs and Setting up Database.\nThis takes a while (especially the first time). Please wait...');
     const data = await sendQuery('setup_database', {projectName: name, params: params});
@@ -424,6 +426,7 @@ function updateEvents() {
     });
     // Listent events from open project iframe
     window.addEventListener('message', async (event) => {
+        if (event.data?.type === 'reset_config') { openDemoProject(event.data.projectName, event.data.params); }
         if (event.data?.type === 'resize-simulation') {
             const frameHeight = event.data.height;
             if (simulationWindow()) { simulationWindow().style.height = frameHeight + 'px'; }
