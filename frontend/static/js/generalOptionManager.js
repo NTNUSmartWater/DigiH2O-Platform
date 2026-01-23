@@ -50,9 +50,12 @@ function checkUpdater(setLayer, objCheckbox, checkFunction){
 export function generalOptionsManager(projectName){
     projectSummaryEvents(); updateHYDManager(); updateWAQManager(); updatePathManager();
     configReset().addEventListener('click', async() => { 
+        const currentProject = getState().currentProject, currentParams = getState().currentParams;
         const data = await sendQuery('reset_config', {projectName: projectName});
         if (updateStatus()) { updateStatus().innerHTML = 'Last Option: Reset Configuration'; }
-        alert(data.message); window.location.reload(); return;
+        alert(data.message);
+        window.parent.postMessage({type: 'reset_config', projectName: currentProject, params: currentParams}, '*');
+        return;
     });
     // Plot thermocline for hydrodynamic simulation
     thermoclineHYD().addEventListener('click', () => {
