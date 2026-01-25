@@ -152,8 +152,8 @@ async function initializeMenu(){
                 aboutLink.onclick = (e) => { e.preventDefault(); contactInformation(); };
                 docsLink.onclick = (e) => { 
                     e.preventDefault(); 
-                    // const win = window.open('static_frontend/pdfs/QuickManual.pdf', '_blank');
-                    // if (!win) alert('Please allow popups for this document');
+                    const win = window.open('static_frontend/pdfs/QuickManual.pdf', '_blank');
+                    if (!win) alert('Please allow popups for this document');
                 };
                 const rectHelp = link.getBoundingClientRect();
                 pmHelp.style.top  = `${rectHelp.bottom + 15 + window.scrollY}px`;
