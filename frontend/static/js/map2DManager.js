@@ -335,12 +335,13 @@ export async function plot2DMapDynamic(waterQuality, query, key, colorbarTitle, 
     if (waterQuality) {getState().vectorSelected = ''; }
     if (getState().vectorSelected !== '' && key.includes('multi')) {
         const vector = document.getElementById("vector-selector"), layer = document.getElementById("layer-selector");
+        key_above = layer.value;         
         if (vector.selectedOptions[0].text === 'Velocity') { // Process above data for velocity
-            const title = layer.value==='-1' ? `Layer: ${layer.selectedOptions[0].text}` : `${layer.selectedOptions[0].text}`;
+            const title = key_above==='-1' ? `Layer: ${layer.selectedOptions[0].text}` : `${layer.selectedOptions[0].text}`;
             colorbarTitleAbove = `${vector.selectedOptions[0].text} (m/s)\n${title}`; colorbarKeyAbove = 'vector';
         }
         const dataAbove = await sendQuery('load_vector_dynamic', {query: 'load', key: key_above, projectName: getState().projectName});
-        data_above = dataAbove.content; key_above = layer.value;
+        data_above = dataAbove.content; 
     }
     initDynamicMap(query, key_below, key_above, data_below, data_above, colorbarTitle, colorbarTitleAbove, colorbarKey, colorbarKeyAbove, scale);
     showLeafletMap();
