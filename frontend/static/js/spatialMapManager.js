@@ -144,5 +144,10 @@ export async function spatialMapManager() {
         colorbar_vector_container().style.display = 'none';
         if (substanceWindowHis().style.display !== 'none') {substanceWindowHis().style.display = 'none';}
         if (substanceWindowMap().style.display !== 'none') {substanceWindowMap().style.display = 'none';}
+        Object.keys(getState().gisLayers).forEach(layerName => {
+            setState({gisLayers: {...getState().gisLayers, [layerName]: false}});
+        });
+        setState({hydLayer: null, sourceLayer: null, wqLoadsLayer: null, wqObsLayer: null, isMultiLayer: false,
+            isClickedInsideLayer: false, isThemocline: false, crosssectionLayer: null, isPathQuery: false});
     });
 }
