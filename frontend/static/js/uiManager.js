@@ -43,9 +43,10 @@ const simulationCloseBtn = () => document.getElementById('closeSimulationWindow'
 const GISUploadFile = () => document.getElementById('gis-file');
 const menuLeft = () => document.getElementById('menu-left');
 const mapContainer = () => map.getContainer();
+const updateStatus = () => document.getElementById('update-menu');
 
 initializeMap(); baseMapButtonFunctionality(); plotEvents(); initializeMenu();
-projectChecker(); updateEvents(); openDemoProject('demo'); await login();
+projectChecker(); updateEvents(); openDemoProject(); await login();
 showGitHubLastUpdate('NTNUSmartWater', 'DigiH2O-Platform');
 
 async function login() {
@@ -53,8 +54,9 @@ async function login() {
     if (data.user==='admin') { userName = ''; } else { userName = `${data.user}/`; }
 }
 
-async function openDemoProject(name='demo', params=['FlowFM_his.zarr', 'FlowFM_map.zarr', 'Coliform_his.zarr', 'Coliform_map.zarr']) { 
-    await projectChecker(name, params);
+export async function openDemoProject() { 
+    const currentProject = getState().currentProject, currentParams = getState().currentParams;
+    await projectChecker(currentProject, currentParams);
     // Load temperature dynamic map
     const query = '|-1', key = 'temp_multi_dynamic', titleColorbar = 'Temperature (°C)';
     const colorbarKey = 'Layer: Average temperature';
@@ -101,15 +103,16 @@ async function projectChecker(name=null, params=null) {
     const projectMenu = document.querySelectorAll('.menu');
     projectMenu.forEach(menu => { menu.style.display = 'block'; });
     const project = document.querySelector('.menu[id="projectMenu"]');
-    if (name === null) return;    
+    if (name === null) return;
     project.style.display = 'block'; projectTitle().textContent = '';
     refresh(); hideMap(); resetState(); await login();  // Reset variables
+    setState({currentProject: name}); setState({currentParams: params});
     setState({projectName: name}); projectTitle().textContent = `Project: ${userName}${name}`;
     startLoading('Reading Simulation Outputs and Setting up Database.\nThis takes a while (especially the first time). Please wait...');
     const data = await sendQuery('setup_database', {projectName: name, params: params});
     if (data.status === "error") { alert(data.message); location.reload(); return; }
+    const hasGISMenu = menuLeft().querySelector("#GISMenu");
     if (data.content.gis_layers.length > 0) {
-        const hasGISMenu = menuLeft().querySelector("#GISMenu");
         if (!hasGISMenu) {
             const li = document.createElement("li");
             li.style.alignItems = "center"; li.style.display = "flex";
@@ -118,7 +121,7 @@ async function projectChecker(name=null, params=null) {
             a.setAttribute("data-info", "4|gisLayer.html|subMenu");
             li.appendChild(a); menuLeft().appendChild(li); initializeMenu();
         }
-    }
+    } else { if (hasGISMenu) { hasGISMenu.remove(); initializeMenu(); } }
     showLeafletMap();
 }
 
@@ -149,8 +152,8 @@ async function initializeMenu(){
                 aboutLink.onclick = (e) => { e.preventDefault(); contactInformation(); };
                 docsLink.onclick = (e) => { 
                     e.preventDefault(); 
-                    // const win = window.open('static_frontend/pdfs/QuickManual.pdf', '_blank');
-                    // if (!win) alert('Please allow popups for this document');
+                    const win = window.open('static_frontend/pdfs/QuickManual.pdf', '_blank');
+                    if (!win) alert('Please allow popups for this document');
                 };
                 const rectHelp = link.getBoundingClientRect();
                 pmHelp.style.top  = `${rectHelp.bottom + 15 + window.scrollY}px`;
@@ -354,29 +357,30 @@ function updateEvents() {
                 // Open project for visualization
                 iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
                     projectOpenWindowContent(), "Select Scenario with Simulation Result");
+                updateStatus().innerHTML = 'Last Option: Visualization';
             } else if (name === 'new-hyd-project') { 
                 // Create new hyd project
-                projectChecker();
+                projectChecker(); updateStatus().innerHTML = 'Last Option: HYD Scenario Modification';
                 iframeInit("new_HYD_project", projectSetting(), projectSettingHeader(), 
                     projectSettingContent(), "Create/Modify/Delete a new Hydrodynamic Scenario");
             } else if (name === 'run-hyd-simulation') {
                 // Run hyd simulation
-                projectChecker();
+                projectChecker(); updateStatus().innerHTML = 'Last Option: Run HYD Simulation';
                 iframeInit("run_hyd_simulation", simulationWindow(), simulationHeader(), 
                     simulationContent(), "Run a Hydrodynamic Simulation");
             } else if (name === 'new-waq-project') { 
                 // Create a new waq project
-                projectChecker();
+                projectChecker(); updateStatus().innerHTML = 'Last Option: WAQ Scenario Modification';
                 iframeInit("new_WQ_project", projectSetting(), projectSettingHeader(), 
                     projectSettingContent(), "Set up a Water Quality Simulation");
             } else if (name === 'run-waq-project') { 
                 // Run a new waq project
-                projectChecker();
+                projectChecker(); updateStatus().innerHTML = 'Last Option: Run WAQ Simulation';
                 iframeInit("run_WQ_project", simulationWindow(), simulationHeader(), 
                     simulationContent(), "Run a Water Quality Simulation");
             } else if (name === 'gis-uploader') { 
                 // GIS Uploader
-                GISUploadFile().click();
+                GISUploadFile().click(); updateStatus().innerHTML = 'Last Option: Upload GIS data';
                 // Open GIS data
                 if (GISUploadFile()) {
                     GISUploadFile().addEventListener('change', async (event) => { 
@@ -422,6 +426,7 @@ function updateEvents() {
     });
     // Listent events from open project iframe
     window.addEventListener('message', async (event) => {
+        if (event.data?.type === 'reset_config') { openDemoProject(event.data.projectName, event.data.params); }
         if (event.data?.type === 'resize-simulation') {
             const frameHeight = event.data.height;
             if (simulationWindow()) { simulationWindow().style.height = frameHeight + 'px'; }
@@ -560,10 +565,6 @@ function updateEvents() {
             if (gridLayer) map.removeLayer(gridLayer); gridLayer = null;
             gridLayer = L.geoJSON(data.content, {style: {color: 'black', weight: 1}}).addTo(map);
             showLeafletMap();
-        }
-        if (event.data?.type === 'thermoclineGridClear') { 
-            if (gridLayer) map.removeLayer(gridLayer); gridLayer = null;
-            if (plotWindow().style.display !== 'none') plotWindow().style.display = 'none';
         }
         if (event.data?.type === 'thermoclineGrid') {
             startLoading(event.data.message);
@@ -738,6 +739,7 @@ function timeSeriesManager() {
     document.querySelectorAll('.function').forEach(plot => {
         plot.addEventListener('click', () => {
             const [key, titleY, chartTitle] = plot.dataset.info.split('|');
+            updateStatus().innerHTML = `Last Option: Time-Series Plot (Hydrodynamic): ${chartTitle}`;
             plotChart('', key, chartTitle, 'Time', titleY);
         });
     });
@@ -754,6 +756,7 @@ function timeSeriesManager() {
                 `<label for="his-${substance}"><input type="radio" name="waq-substance-his" id="his-${substance}"
                     value="${data.message[i]}" ${i === 0 ? 'checked' : ''}>${data.message[i]}</label>`).join('');
             hideMap(); plotChart(data.content[0], 'substance', `Substance: ${data.message[0]}`, 'Time', data.message[0]);
+            updateStatus().innerHTML = `Last Option: Time-Series Plot (Water Quality): ${data.message[0].split('(')[0].trim()}`;
         });
     });
     // Listen to substance selection
@@ -761,6 +764,7 @@ function timeSeriesManager() {
         if (e.target && e.target.name === "waq-substance-his") {
             const id = e.target.id, value = e.target.value;
             hideMap(); plotChart(id.replace('his-', ''), 'substance', `Substance: ${value}`, 'Time', value);
+            updateStatus().innerHTML = `Last Option: Time-Series Plot (Water Quality): ${value.split('(')[0].trim()}`;
         }
     });
 }

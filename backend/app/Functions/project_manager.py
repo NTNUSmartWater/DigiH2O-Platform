@@ -30,11 +30,11 @@ async def reset_config(request: Request, user=Depends(functions.basic_auth)):
             shutil.rmtree(config_dir, onerror=functions.remove_readonly)
             # Delete config in Redis
             await redis.hdel(project_name, "config", "layer_reverse_hyd", "layer_reverse_waq")
-            return JSONResponse({"message": "Configuration reset successfully!"})
+            return JSONResponse({"status": "ok", "message": "Configuration reset successfully!"})
     except Exception as e:
         print('/reset_config:\n==============')
         traceback.print_exc()
-        return JSONResponse({"message": f"Error: {e}"})
+        return JSONResponse({"status": "error", "message": f"Error: {e}"})
 
 # Create a new project with necessary folders
 @router.post("/setup_new_project")
@@ -271,7 +271,7 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
                 print('Config doesn\'t exist. Creating...')
                 config = {"hyd": {}, "waq": {}, "meta": {"hyd_scanned": False, "waq_scanned": False}, "model_type": ''}
             # ---------------- Grid & Layer ----------------
-            layer_reverse_hyd, layer_reverse_waq = {}, {}
+            layer_reverse_hyd, layer_reverse_waq, layer_reverse_waq_depth = {}, {}, {}
             if hyd_map is not None:
                 print('Creating grid and layers for hydrodynamic simulation...')
                 # Grid/layers generation
@@ -291,6 +291,16 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
                     layer_reverse_waq = functions.layerCounter(waq_map, 'waq')
                     json.dump(layer_reverse_waq, open(layer_path, "w", encoding=functions.encoding_detect(layer_path)))                    
                 else: layer_reverse_waq = json.load(open(layer_path, "r", encoding=functions.encoding_detect(layer_path)))
+            # Convert sigma layer to depth layer
+            depth_values = [float(v.split(' ')[1]) for k, v in layer_reverse_hyd.items() if int(k) >= 0]
+            max_depth = max(np.array(depth_values, dtype=float), key=abs)
+            for k, v in layer_reverse_waq.items():
+                if int(k) >= 0: 
+                    note, val = '', round(max_depth*float(v.split(':')[1].strip().split(' ')[0].strip())/100, 2)
+                    if int(k) == 0: note = ' (surface)'
+                    elif int(k) == len(layer_reverse_hyd)-2: note = ' (bottom)'
+                    layer_reverse_waq_depth[k] = f'Depth: {val} m{note}'
+                else: layer_reverse_waq_depth[k] = v
             # Lazy scan HYD variables only once
             if (hyd_map or hyd_his) and not config['meta']['hyd_scanned']:
                 print('Scanning HYD variables...')
@@ -303,8 +313,12 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
                 print('Loading WAQ model...')
                 temp_data = json.load(open(model_path, "r", encoding=functions.encoding_detect(model_path)))
                 waq_model = temp_data['model_type']
-                if 'wq_obs' in temp_data: config['wq_obs'], obs['wq_obs'] = True, temp_data['wq_obs']
-                if 'wq_loads' in temp_data: config['wq_loads'], obs['wq_loads'] = True, temp_data['wq_loads']
+                if 'wq_obs' in temp_data: 
+                    config['wq_obs'], obs['wq_obs'] = True, temp_data['wq_obs']
+                else: config['wq_obs'] = False
+                if 'wq_loads' in temp_data:
+                    config['wq_loads'], obs['wq_loads'] = True, temp_data['wq_loads']
+                else: config['wq_loads'] = False
             if (waq_his or waq_map) and waq_model == '':
                 return JSONResponse({"status": 'error', "message": "Some WAQ-related parameters are missing.\nConsider running the model again."})  
             # Lazy scan WAQ
@@ -331,7 +345,7 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
             redis_mapping = {
                 "hyd_his_path": params[0], "hyd_map_path": params[1], "waq_his_path": params[2], "waq_map_path": params[3],
                 "layer_reverse_hyd": msgpack.packb(layer_reverse_hyd, use_bin_type=True),
-                "layer_reverse_waq": msgpack.packb(layer_reverse_waq, use_bin_type=True),
+                "layer_reverse_waq": msgpack.packb(layer_reverse_waq_depth, use_bin_type=True),
                 "config": msgpack.packb(result, use_bin_type=True),
                 "waq_obs": msgpack.packb(obs, use_bin_type=True), "waq_model": waq_model
             }
@@ -486,7 +500,7 @@ async def get_gis_layer(request: Request, user=Depends(functions.basic_auth)):
         print('/get_gis_layer:\n==============')
         traceback.print_exc()
         return JSONResponse({"status": 'error', "message": f"Error: {str(e)}"})
-
+    
 # Delete a project
 @router.post("/delete_project")
 async def delete_project(request: Request, user=Depends(functions.basic_auth)):

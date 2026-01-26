@@ -111,10 +111,10 @@ async def load_general_dynamic(request: Request, user=Depends(functions.basic_au
         else: dynamic_cache = msgpack.unpackb(raw_cache, raw=False)
         layer_reverse = dynamic_cache["layer_reverse"]
         # Process data
-        if 'single' in key: arr = values
-        else:
+        if not 'single' in key: 
             value_type, n_layers = layer_reverse[temp[1]], len(layer_reverse)
             row_idx = n_layers - int(temp[1]) - 2
+            if not is_hyd: row_idx = int(temp[1])
             lock = redis.lock(f"{project_name}:{value_type}", timeout=10)
             async with lock:
                 layer_info = dynamic_cache['layers'].get(value_type)
@@ -126,7 +126,9 @@ async def load_general_dynamic(request: Request, user=Depends(functions.basic_au
                     dynamic_cache['layers'][value_type] = {'data': functions.encode_array(arr), 'shape': arr.shape}
                     await redis.set(dynamic_cache_key, msgpack.packb(dynamic_cache, use_bin_type=True), ex=600)
                 else: arr = functions.decode_array(layer_info["data"], layer_info["shape"])
+        else: arr = values
         if temp[2] == 'load': # Initiate skeleton polygon for the first load
+            await redis.delete(dynamic_cache_key)
             grid = project_cache.get("grid")
             if grid is None: return JSONResponse({"status": "error", "message": "Grid data not found in cache."})
             # Construct GeoJSON features
@@ -157,7 +159,7 @@ async def load_vector_dynamic(request: Request, user=Depends(functions.basic_aut
         project_name, _ = functions.project_definer(body.get('projectName'), user)
         redis, vector_cache_key = request.app.state.redis, f"{project_name}:vector_cache"
         project_cache = request.app.state.project_cache.setdefault(project_name)
-        if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory"})        
+        if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory"})  
         layer_reverse_raw = await redis.hget(project_name, "layer_reverse_hyd")
         layer_reverse = msgpack.unpackb(layer_reverse_raw, raw=False)
         value_type, row_idx = layer_reverse[key], len(layer_reverse) - int(key) - 2
@@ -173,6 +175,7 @@ async def load_vector_dynamic(request: Request, user=Depends(functions.basic_aut
                 await redis.set(vector_cache_key, msgpack.packb(vector_cache, use_bin_type=True), ex=600)
         else: layer_dict = vector_cache['layers'][value_type]
         if query == 'load': # Initiate skeleton polygon for the first load
+            await redis.delete(vector_cache_key)
             # Get global vmin and vmax
             data = layer_dict
             if value_type == 'Average':
@@ -214,14 +217,9 @@ async def select_meshes(request: Request, user=Depends(functions.basic_auth)):
             if idx == 'load':
                 # Initialize mesh cache in Redis if not exists
                 await redis.delete(mesh_cache_key)
-                layer_reverse_raw = await redis.hget(project_name, "layer_reverse_hyd")
+                layer_reverse_raw = await redis.hget(project_name, f"layer_reverse_{dataset_type}")
                 layer_reverse = msgpack.unpackb(layer_reverse_raw, raw=False)
                 depth_values = [float(v.split(' ')[1]) for k, v in layer_reverse.items() if int(k) >= 0]
-                if not is_hyd:
-                    layer_reverse_raw = await redis.hget(project_name, "layer_reverse_waq")
-                    layer_reverse = msgpack.unpackb(layer_reverse_raw, raw=False)
-                    max_ = max(np.array(depth_values, dtype=float), key=abs)
-                    depth_values = [round(max_*float(v.split(' ')[1])/100, 2) for k, v in layer_reverse.items() if int(k) >= 0]
                 max_layer = float(max(np.array(depth_values), key=abs))
                 n_rows = math.ceil(abs(max_layer)/10)*10+1 if max_layer < 0 else -(math.ceil(abs(max_layer)/10)*10+1)
                 mesh_cache = { "depth_values": depth_values, "n_rows": n_rows, "df": None}
@@ -241,7 +239,7 @@ async def select_meshes(request: Request, user=Depends(functions.basic_auth)):
                 df_serialized = gdf_filtered.drop(columns=['geometry'])
                 mesh_cache["df"] = df_serialized.to_dict(orient='split')
                 # Compute frame in thread to avoid blocking
-                frame = await asyncio.to_thread(functions.meshProcess, arr, mesh_cache)
+                frame = await asyncio.to_thread(functions.meshProcess, is_hyd, arr, mesh_cache)
                 vmin, vmax = fnm(np.nanmin(frame)).tolist(), fnm(np.nanmax(frame)).tolist()
                 depths_idx = np.arange(0, frame.shape[0]) if mesh_cache["n_rows"] > 0 else np.arange(0, -frame.shape[0], -1)
                 data = {"timestamps": time_stamps, "distance": np.round(points_arr[:, 0], 0).tolist(),
@@ -252,7 +250,7 @@ async def select_meshes(request: Request, user=Depends(functions.basic_auth)):
                 if raw_cache is None: return JSONResponse({"status": 'error', "message": "Mesh cache is not initialized."})
                 mesh_cache = msgpack.unpackb(raw_cache, raw=False)
                 arr = values[int(idx),:,:] if is_hyd else values[int(idx),:,:].T
-                frame = await asyncio.to_thread(functions.meshProcess, arr, mesh_cache)
+                frame = await asyncio.to_thread(functions.meshProcess, is_hyd, arr, mesh_cache)
                 vmin, vmax = fnm(np.nanmin(frame)).tolist(), fnm(np.nanmax(frame)).tolist()
                 data = {"values": fnm(frame).tolist(), "local_minmax": [vmin, vmax]}
         return JSONResponse({'content': data, 'status': 'ok'})
@@ -294,9 +292,6 @@ async def select_thermocline(request: Request, user=Depends(functions.basic_auth
                 layer_reverse_raw = await redis.hget(project_name, layer_key)
                 layer_reverse = msgpack.unpackb(layer_reverse_raw, raw=False)
                 layers_values = [float(v.split(' ')[1]) for k, v in layer_reverse.items() if int(k) >= 0]
-                if not is_hyd:
-                    max_ = max(np.array(layers_values, dtype=float), key=abs)
-                    layers_values = [round(max_*float(v.split(' ')[1])/100, 2) for k, v in layer_reverse.items() if int(k) >= 0]
                 max_values = int(abs(np.min(layers_values)))
                 new_depth = [x + max_values for x in layers_values]
                 arr, idx = data_ds[name].values, int(idx)
