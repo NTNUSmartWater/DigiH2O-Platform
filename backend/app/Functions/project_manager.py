@@ -313,8 +313,12 @@ async def setup_database(request: Request, user=Depends(functions.basic_auth)):
                 print('Loading WAQ model...')
                 temp_data = json.load(open(model_path, "r", encoding=functions.encoding_detect(model_path)))
                 waq_model = temp_data['model_type']
-                if 'wq_obs' in temp_data: config['wq_obs'], obs['wq_obs'] = True, temp_data['wq_obs']
-                if 'wq_loads' in temp_data: config['wq_loads'], obs['wq_loads'] = True, temp_data['wq_loads']
+                if 'wq_obs' in temp_data: 
+                    config['wq_obs'], obs['wq_obs'] = True, temp_data['wq_obs']
+                else: config['wq_obs'] = False
+                if 'wq_loads' in temp_data:
+                    config['wq_loads'], obs['wq_loads'] = True, temp_data['wq_loads']
+                else: config['wq_loads'] = False
             if (waq_his or waq_map) and waq_model == '':
                 return JSONResponse({"status": 'error', "message": "Some WAQ-related parameters are missing.\nConsider running the model again."})  
             # Lazy scan WAQ
