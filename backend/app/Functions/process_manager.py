@@ -1,9 +1,9 @@
-import os, json, re, math, asyncio, traceback, subprocess, msgpack, datetime, time
+import os, json, re, math, asyncio, traceback, msgpack, datetime, zipfile, shutil
 from fastapi import APIRouter, Request, File, UploadFile, Form, Depends
 from Functions import functions
 from shapely.geometry import mapping
 from fastapi.responses import JSONResponse
-from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND, DELFT_PATH, PROJECT_DES
+from config import PROJECT_STATIC_ROOT, STATIC_DIR_BACKEND
 import xarray as xr, pandas as pd, numpy as np, geopandas as gpd
 
 router = APIRouter()
@@ -35,11 +35,12 @@ async def process_internal(query: str, key: str, redis, project_cache, project_n
     elif key == 'substance_check':
         substance_raw = await redis.hget(project_name, 'config')
         substance = msgpack.unpackb(substance_raw, raw=False)[query]
-        if len(substance) > 0:
-            data, message = sorted(substance), functions.valueToKeyConverter(substance)
+        if len(substance) > 0: 
+            data = sorted(substance)
+            message = functions.valueToKeyConverter(data)
         else: data, message = None, f"No substance defined."
     elif key == 'substance':
-        temp = functions.timeseriesCreator(project_cache.get("waq_his"), query.split(' ')[0], timeColumn='nTimesDlwq')
+        temp = functions.timeseriesCreator(project_cache.get("waq_his"), query, timeColumn='nTimesDlwq')
         data = json.loads(temp.to_json(orient='split', date_format='iso', indent=3))
     elif key == 'static':
         # Create static data for map
@@ -67,9 +68,9 @@ async def process_data(request: Request, user=Depends(functions.basic_auth)):
         # Get body data
         body = await request.json()
         query, key, redis = body.get('query'), body.get('key'), request.app.state.redis
-        project_name = functions.project_definer(body.get('projectName'), user)
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
         project_cache = request.app.state.project_cache.setdefault(project_name)
-        lock = redis.lock(f"{project_name}:{key}", timeout=10)        
+        lock = redis.lock(f"{project_name}:{key}", timeout=10)
         async with lock:
             message, data = await process_internal(query, key, redis, project_cache, project_name)
             if data is None: return JSONResponse({'status': 'error', 'message': message})
@@ -86,9 +87,9 @@ async def load_general_dynamic(request: Request, user=Depends(functions.basic_au
         # Get body data
         body = await request.json()
         redis, query, key = request.app.state.redis, body.get('query'), body.get('key')
-        project_name = functions.project_definer(body.get('projectName'), user)
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
         project_cache = request.app.state.project_cache.setdefault(project_name)
-        if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory."})
+        if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory"})
         hyd_his, hyd_map = project_cache.get("hyd_his"), project_cache.get("hyd_map")
         waq_his, waq_map = project_cache.get("waq_his"), project_cache.get("waq_map")
         if not any([hyd_his, hyd_map, waq_his, waq_map]): return JSONResponse({"status": "error", "message": "Project not initialized."})        
@@ -110,11 +111,10 @@ async def load_general_dynamic(request: Request, user=Depends(functions.basic_au
         else: dynamic_cache = msgpack.unpackb(raw_cache, raw=False)
         layer_reverse = dynamic_cache["layer_reverse"]
         # Process data
-        if 'single' in key: arr = values
-        else:
-            value_type = layer_reverse[temp[1]]
-            n_layers = len(layer_reverse)
+        if not 'single' in key: 
+            value_type, n_layers = layer_reverse[temp[1]], len(layer_reverse)
             row_idx = n_layers - int(temp[1]) - 2
+            if not is_hyd: row_idx = int(temp[1])
             lock = redis.lock(f"{project_name}:{value_type}", timeout=10)
             async with lock:
                 layer_info = dynamic_cache['layers'].get(value_type)
@@ -126,7 +126,9 @@ async def load_general_dynamic(request: Request, user=Depends(functions.basic_au
                     dynamic_cache['layers'][value_type] = {'data': functions.encode_array(arr), 'shape': arr.shape}
                     await redis.set(dynamic_cache_key, msgpack.packb(dynamic_cache, use_bin_type=True), ex=600)
                 else: arr = functions.decode_array(layer_info["data"], layer_info["shape"])
+        else: arr = values
         if temp[2] == 'load': # Initiate skeleton polygon for the first load
+            await redis.delete(dynamic_cache_key)
             grid = project_cache.get("grid")
             if grid is None: return JSONResponse({"status": "error", "message": "Grid data not found in cache."})
             # Construct GeoJSON features
@@ -154,10 +156,10 @@ async def load_vector_dynamic(request: Request, user=Depends(functions.basic_aut
     try:
         body = await request.json()
         query, key = body.get('query'), body.get('key')
-        project_name = functions.project_definer(body.get('projectName'), user)
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
         redis, vector_cache_key = request.app.state.redis, f"{project_name}:vector_cache"
         project_cache = request.app.state.project_cache.setdefault(project_name)
-        if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory."})        
+        if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory"})  
         layer_reverse_raw = await redis.hget(project_name, "layer_reverse_hyd")
         layer_reverse = msgpack.unpackb(layer_reverse_raw, raw=False)
         value_type, row_idx = layer_reverse[key], len(layer_reverse) - int(key) - 2
@@ -173,6 +175,7 @@ async def load_vector_dynamic(request: Request, user=Depends(functions.basic_aut
                 await redis.set(vector_cache_key, msgpack.packb(vector_cache, use_bin_type=True), ex=600)
         else: layer_dict = vector_cache['layers'][value_type]
         if query == 'load': # Initiate skeleton polygon for the first load
+            await redis.delete(vector_cache_key)
             # Get global vmin and vmax
             data = layer_dict
             if value_type == 'Average':
@@ -196,17 +199,16 @@ async def select_meshes(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
         key, query, idx = body.get('key'), body.get('query'), body.get('idx')
-        project_name = functions.project_definer(body.get('projectName'), user)
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
         redis, points = request.app.state.redis, body.get('points')
         project_cache = request.app.state.project_cache.setdefault(project_name)
-        if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory."})
+        if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory"})
         hyd_map, waq_map = project_cache.get("hyd_map"), project_cache.get("waq_map")
-        extend_task, lock = None, redis.lock(f"{project_name}:select_meshes", timeout=20)
+        lock = redis.lock(f"{project_name}:select_meshes", timeout=20)
         is_hyd = key == 'hyd'
         dataset_type = "hyd" if is_hyd else "waq"
-        mesh_cache_key = f"{project_name}:mesh_cache:{dataset_type}"        
+        mesh_cache_key = f"{project_name}:mesh_cache:{dataset_type}"
         async with lock:
-            extend_task = asyncio.create_task(functions.auto_extend(lock))
             if '_waq_multi_dynamic' in query: query = 'mesh2d_' + query[:-len('_waq_multi_dynamic')]
             data_ds = hyd_map if is_hyd else waq_map
             name = functions.variablesNames.get(query, query)
@@ -215,18 +217,18 @@ async def select_meshes(request: Request, user=Depends(functions.basic_auth)):
             if idx == 'load':
                 # Initialize mesh cache in Redis if not exists
                 await redis.delete(mesh_cache_key)
-                layer_reverse_raw = await redis.hget(project_name, "layer_reverse_hyd")
+                layer_reverse_raw = await redis.hget(project_name, f"layer_reverse_{dataset_type}")
                 layer_reverse = msgpack.unpackb(layer_reverse_raw, raw=False)
                 depth_values = [float(v.split(' ')[1]) for k, v in layer_reverse.items() if int(k) >= 0]
                 max_layer = float(max(np.array(depth_values), key=abs))
-                n_rows = math.ceil(abs(max_layer)/10)*10 + 1 if max_layer < 0 else -(math.ceil(abs(max_layer)/10)*10 + 1)
+                n_rows = math.ceil(abs(max_layer)/10)*10+1 if max_layer < 0 else -(math.ceil(abs(max_layer)/10)*10+1)
                 mesh_cache = { "depth_values": depth_values, "n_rows": n_rows, "df": None}
                 await redis.set(mesh_cache_key, msgpack.packb(mesh_cache, use_bin_type=True), ex=600)
                 time_column = 'time' if is_hyd else 'nTimesDlwq'
                 time_stamps = pd.to_datetime(data_ds[time_column]).strftime('%Y-%m-%d %H:%M:%S').tolist()
-                points_arr, arr = np.array(points), values[0,:,:]
+                arr = values[0,:,:] if is_hyd else values[0,:,:].T
                 # Create GeoDataFrame for interpolation
-                grid = project_cache.get("grid")
+                grid, points_arr = project_cache.get("grid"), np.array(points)
                 x_coords, y_coords = points_arr[:, 2], points_arr[:, 1]
                 gdf = gpd.GeoDataFrame(geometry=gpd.points_from_xy(x_coords, y_coords), crs=grid.crs)
                 gdf['depth'] = functions.interpolation_Z(gdf, hyd_map['mesh2d_node_x'].values, 
@@ -235,7 +237,7 @@ async def select_meshes(request: Request, user=Depends(functions.basic_auth)):
                 gdf_filtered = gpd.sjoin(gdf, grid, how="left", predicate="intersects")
                 gdf_filtered.set_index('index_right', inplace=True)
                 df_serialized = gdf_filtered.drop(columns=['geometry'])
-                mesh_cache["df"] = df_serialized.to_dict(orient='list')
+                mesh_cache["df"] = df_serialized.to_dict(orient='split')
                 # Compute frame in thread to avoid blocking
                 frame = await asyncio.to_thread(functions.meshProcess, is_hyd, arr, mesh_cache)
                 vmin, vmax = fnm(np.nanmin(frame)).tolist(), fnm(np.nanmax(frame)).tolist()
@@ -246,7 +248,8 @@ async def select_meshes(request: Request, user=Depends(functions.basic_auth)):
             else: # Load next frame
                 raw_cache = await redis.get(mesh_cache_key)
                 if raw_cache is None: return JSONResponse({"status": 'error', "message": "Mesh cache is not initialized."})
-                mesh_cache, arr = msgpack.unpackb(raw_cache, raw=False), values[int(idx),:,:]
+                mesh_cache = msgpack.unpackb(raw_cache, raw=False)
+                arr = values[int(idx),:,:] if is_hyd else values[int(idx),:,:].T
                 frame = await asyncio.to_thread(functions.meshProcess, is_hyd, arr, mesh_cache)
                 vmin, vmax = fnm(np.nanmin(frame)).tolist(), fnm(np.nanmax(frame)).tolist()
                 data = {"values": fnm(frame).tolist(), "local_minmax": [vmin, vmax]}
@@ -255,11 +258,6 @@ async def select_meshes(request: Request, user=Depends(functions.basic_auth)):
         print('/select_meshes:\n==============')
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
-    finally:
-        if extend_task:
-            extend_task.cancel()
-            try: await extend_task
-            except asyncio.CancelledError: pass
 
 # Working with thermocline plots
 @router.post("/select_thermocline")
@@ -267,11 +265,11 @@ async def select_thermocline(request: Request, user=Depends(functions.basic_auth
     try:
         body = await request.json()
         key, query, typ, idx = body.get('key'), body.get('query'), body.get('type'), body.get('idx')
-        project_name = functions.project_definer(body.get('projectName'), user)
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
         redis, thermo_cache_key = request.app.state.redis, f"{project_name}:thermocline_cache"
         project_cache = request.app.state.project_cache.setdefault(project_name)
         hyd_map, waq_map = project_cache.get("hyd_map"), project_cache.get("waq_map")
-        lock = redis.lock(f"{project_name}:{typ}", timeout=10)        
+        lock = redis.lock(f"{project_name}:thermocline", timeout=30, blocking_timeout=25)
         async with lock:
             is_hyd = key == 'thermocline_hyd'
             data_ds = hyd_map if is_hyd else waq_map
@@ -324,7 +322,7 @@ async def open_grid(request: Request, user=Depends(functions.basic_auth)):
     try:
         # Get body data
         body = await request.json()
-        project_name = functions.project_definer(body.get('projectName'), user)
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
         path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input", body.get('gridName')))
         def load_grid(path):
             temp_grid = xr.open_dataset(path, chunks='auto')
@@ -342,7 +340,7 @@ async def open_grid(request: Request, user=Depends(functions.basic_auth)):
 async def initiate_options(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
-        project_name = functions.project_definer(body.get('projectName'), user)
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
         key, data, redis = body.get('key'), [], request.app.state.redis
         lock = redis.lock(f"{project_name}:initiate_options", timeout=10)
         async with lock:
@@ -359,7 +357,11 @@ async def initiate_options(request: Request, user=Depends(functions.basic_auth))
                 config_raw = await redis.hget(project_name, "config")
                 config = msgpack.unpackb(config_raw, raw=False)
                 item = [x for x in config.keys() if x.startswith('waq_map_') and x.endswith('_selector')]
-                if len(item) > 0: data = config[item[0]]
+                if len(item) > 0: 
+                    temp, temp_data = config[item[0]], []
+                    for i in temp:
+                        temp_data.append((i, i))
+                    data = temp_data
             return JSONResponse({"status": 'ok', "content": data})
     except Exception as e:
         print('/initiate_options:\n==============')
@@ -369,29 +371,64 @@ async def initiate_options(request: Request, user=Depends(functions.basic_auth))
 # Upload file from local computer to server
 @router.post("/upload_data")
 async def upload_data(file: UploadFile = File(...), projectName: str = Form(...),
-                      gridName: str = Form(...), user=Depends(functions.basic_auth)):
+    fileName: str = Form(...), type: str = Form(...), user=Depends(functions.basic_auth)):
+    project_name, _ = functions.project_definer(projectName, user)
+    if (type == 'grid'): save_dir = os.path.join(PROJECT_STATIC_ROOT, project_name, "input")
+    elif (type == 'gis'): save_dir = os.path.join(PROJECT_STATIC_ROOT, project_name, "GIS")
+    file_path = os.path.normpath(os.path.join(save_dir, fileName))
     try:
-        project_name = functions.project_definer(projectName, user)
-        file_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input", gridName))
+        zip_files = [f for f in os.listdir(save_dir) if f.endswith('.zip')]
+        if len(zip_files) > 0:
+            for f in zip_files: functions.safe_remove(os.path.normpath(os.path.join(save_dir, f)))
+        temp_dir = os.path.normpath(os.path.join(save_dir, 'temp'))
+        if os.path.exists(temp_dir): shutil.rmtree(temp_dir)
         with open(file_path, "wb") as f:
             while True:
                 chunk = await file.read(1024 * 1024)
                 if not chunk: break
                 f.write(chunk)
-        return JSONResponse({"status": "ok", 
-            "message": f"File {file.filename} uploaded successfully."})
+        if (file_path.endswith('.zip')):
+            if not os.path.exists(temp_dir): os.makedirs(temp_dir)
+            else: shutil.rmtree(temp_dir)
+            with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                zip_ref.extractall(temp_dir)
+            files = os.listdir(temp_dir)
+            if (len(files) == 1 and os.path.isdir(os.path.normpath(os.path.join(temp_dir, files[0])))):
+                temp_dir = os.path.normpath(os.path.join(temp_dir, files[0]))
+                files = os.listdir(temp_dir)
+            else: return JSONResponse({"status": 'error', "message": "Invalid zip file. File must contain one subfolder."})
+            shp_files = [f for f in files if f.endswith('.shp')]
+            if len(shp_files) > 0:
+                for f in shp_files:
+                    file_name = os.path.normpath(os.path.join(temp_dir, f))
+                    gdf = gpd.read_file(file_name)
+                    if gdf.empty: return JSONResponse({"status": 'error', "message": f"File '{f}' is empty."})
+                    # Convert to WGS84 if not already
+                    if gdf.crs is None: gdf.set_crs(epsg=4326, inplace=True)
+                    if gdf.crs != '4326': gdf = gdf.to_crs(epsg=4326)
+                    gdf["geometry"] = gdf.geometry.simplify(tolerance=0.0001, preserve_topology=True)
+                    file_out = os.path.normpath(os.path.join(save_dir, f'{f.replace(".shp", "")}.geojson'))
+                    gdf.to_file(file_out, driver='GeoJSON')
+            functions.safe_remove(file_path); shutil.rmtree(temp_dir)
+            temp_dir = os.path.normpath(os.path.join(save_dir, 'temp'))
+            if os.path.exists(temp_dir): shutil.rmtree(temp_dir)
+        return JSONResponse({"status": "ok", "message": f"File {file.filename} uploaded successfully."})
     except Exception as e:
         print('/upload_data:\n==============')
         traceback.print_exc()
         return JSONResponse({"status": "error", "message": str(e)})
-    finally: await file.close()
+    finally: 
+        if os.path.exists(file_path): functions.safe_remove(file_path)
+        temp_dir = os.path.normpath(os.path.join(save_dir, 'temp'))
+        if os.path.exists(temp_dir): shutil.rmtree(temp_dir)
+        await file.close()
     
 # Update boundary conditions
 @router.post("/update_boundary")
 async def update_boundary(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
-        project_name = functions.project_definer(body.get('projectName'), user)
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
         subBoundaryName = body.get('subBoundaryName')
         boundary_name, data_boundary = body.get('boundaryName'), body.get('boundaryData')
         boundary_type, data_sub = body.get('boundaryType'), body.get('subBoundaryData')
@@ -408,10 +445,10 @@ async def update_boundary(request: Request, user=Depends(functions.basic_auth)):
         path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
         # Write new format boundary file (*_bnd.ext)
         ext_path = os.path.normpath(os.path.join(path, "FlowFM_bnd.ext"))
-        file_content = '[boundary]\n' + f'quantity={quantity}\n' + f'locationFile={boundary_name}.pli\n' + \
-            f'forcingFile={boundary_type}.bc\n' + 'returnTime=0.0000000e+000'
+        file_content = '[boundary]\n' + f'quantity={quantity}\n' + \
+            f'locationFile={boundary_name}.pli\n' + f'forcingFile={boundary_type}.bc'
         if os.path.exists(ext_path):
-            with open(ext_path, encoding="utf-8") as f:
+            with open(ext_path, encoding=functions.encoding_detect(ext_path)) as f:
                 content = f.read()
             parts = re.split(r'(?=\[boundary\])', content)
             parts = [p.strip() for p in parts if p.strip()]
@@ -419,13 +456,13 @@ async def update_boundary(request: Request, user=Depends(functions.basic_auth)):
                 index = parts.index([part for part in parts if boundary_type in part][0])
                 parts[index] = file_content
             else: parts.append(file_content)
-            with open(ext_path, 'w', encoding="utf-8") as file:
+            with open(ext_path, 'w', encoding=functions.encoding_detect(ext_path)) as file:
                 joined_parts = '\n\n'.join(parts)
                 file.write(f"\n{joined_parts}\n")
                 file.flush()
                 os.fsync(file.fileno())
         else:   
-            with open(ext_path, 'w', encoding="utf-8") as file:
+            with open(ext_path, 'w', encoding=functions.encoding_detect(ext_path)) as file:
                 file.write(f"\n{file_content}\n")
                 file.flush()
                 os.fsync(file.fileno())
@@ -435,7 +472,7 @@ async def update_boundary(request: Request, user=Depends(functions.basic_auth)):
         for row in data_boundary:
             temp = f'{row[2]}    {row[1]}    {row[0]}'
             bc.append(temp)
-        with open(boundary_file, 'w', encoding="utf-8") as file:
+        with open(boundary_file, 'w', encoding=functions.encoding_detect(boundary_file)) as file:
             file.write('\n'.join(bc))
             file.flush()
             os.fsync(file.fileno())
@@ -443,7 +480,7 @@ async def update_boundary(request: Request, user=Depends(functions.basic_auth)):
         file_path = os.path.normpath(os.path.join(path, f"{boundary_type}.bc"))
         update_content = functions.fileWriter(temp_file, config)
         if os.path.exists(file_path):
-            with open(file_path, encoding="utf-8") as f:
+            with open(file_path, encoding=functions.encoding_detect(file_path)) as f:
                 content = f.read()
             parts = re.split(r'(?=\[forcing\])', content)  # Split the file content
             parts = [p.strip() for p in parts if p.strip()]  # Remove empty parts
@@ -451,14 +488,14 @@ async def update_boundary(request: Request, user=Depends(functions.basic_auth)):
                 index = parts.index([part for part in parts if subBoundaryName in part][0])
                 parts[index] = update_content
             else: parts.append(update_content)                
-            with open(file_path, 'w', encoding="utf-8") as file:
+            with open(file_path, 'w', encoding=functions.encoding_detect(file_path)) as file:
                 joined_parts = '\n\n'.join(parts)
                 file.write(joined_parts)
                 file.flush()
                 os.fsync(file.fileno())
         else:
             file_content = functions.fileWriter(temp_file, config)
-            with open(file_path, 'w', encoding="utf-8") as file:
+            with open(file_path, 'w', encoding=functions.encoding_detect(file_path)) as file:
                 file.write(file_content + '\n')
                 file.flush()
                 os.fsync(file.fileno())
@@ -474,11 +511,12 @@ async def update_boundary(request: Request, user=Depends(functions.basic_auth)):
 async def view_boundary(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
-        project_name = functions.project_definer(body.get('projectName'), user)
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
         boundary_type = body.get('boundaryType')        
         path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
         # Read file
-        with open(os.path.normpath(os.path.join(path, f"{boundary_type}.bc")), 'r') as f:
+        path = os.path.normpath(os.path.join(path, f"{boundary_type}.bc"))
+        with open(path, 'r', encoding=functions.encoding_detect(path)) as f:
             data = ''.join(f.readlines())
         status, message = 'ok', ""
     except FileNotFoundError:
@@ -494,17 +532,18 @@ async def view_boundary(request: Request, user=Depends(functions.basic_auth)):
 async def delete_boundary(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
-        project_name = functions.project_definer(body.get('projectName'), user)
-        boundary_name = body.get('boundaryName')        
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
+        boundary_name = body.get('boundaryName')
         path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
         water_lelvel_path = os.path.normpath(os.path.join(path, "WaterLevel.bc"))
         contaminant_path = os.path.normpath(os.path.join(path, "Contaminant.bc"))
-        boundary_path = os.path.normpath(os.path.join(path, f"{boundary_name}.pli"))
         ext_path = os.path.normpath(os.path.join(path, "FlowFM_bnd.ext"))
         # Delete file
-        if os.path.exists(boundary_path):
-            os.remove(boundary_path)
-            message += f"- Delete successfully: {boundary_name}'.pli.\n"
+        for boundary in boundary_name:
+            boundary_path = os.path.normpath(os.path.join(path, f"{boundary}.pli"))
+            if os.path.exists(boundary_path):
+                os.remove(boundary_path)
+                message += f"- Delete successfully: {boundary}'.pli.\n"
         if os.path.exists(ext_path):
             os.remove(ext_path)
             message += "- Delete successfully: FlowFM_bnd.ext.\n"
@@ -525,12 +564,12 @@ async def delete_boundary(request: Request, user=Depends(functions.basic_auth)):
 async def get_boundary_params(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
-        project_name = functions.project_definer(body.get('projectName'), user)
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
         boundary_name, boundary_type = body.get('boundaryName'), body.get('boundaryType')     
         input_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
         type_path = os.path.normpath(os.path.join(input_dir, f"{boundary_type}.bc"))
         if not os.path.exists(type_path): return JSONResponse({"status": 'new'})
-        with open(type_path, 'r', encoding="utf-8") as f:
+        with open(type_path, 'r', encoding=functions.encoding_detect(type_path)) as f:
             lines = f.readlines()
         current_data, check, content = [], False, []
         for line in lines:
@@ -555,7 +594,7 @@ async def get_boundary_params(request: Request, user=Depends(functions.basic_aut
 @router.post("/check_condition")
 async def check_condition(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
-    project_name = functions.project_definer(body.get('projectName'), user)
+    project_name, _ = functions.project_definer(body.get('projectName'), user)
     force_name = body.get('forceName')
     path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
     status, ext_path = 'error', os.path.normpath(os.path.join(path, force_name))
@@ -568,14 +607,15 @@ async def generate_mdu(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
         params = dict(body.get('params'))
-        project_name = functions.project_definer(params['project_name'], user)      
+        project_name, _ = functions.project_definer(params['project_name'], user)      
         status, message = 'ok', f"Scenario '{project_name}' is created/modified successfully!"
         # Create MDU file
         project_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, 'input'))
         mdu_path = os.path.normpath(os.path.join(STATIC_DIR_BACKEND, 'samples', 'MDUFile.mdu'))
         file_content = functions.fileWriter(mdu_path, params)
         # Write file
-        with open(os.path.normpath(os.path.join(project_path, 'FlowFM.mdu')), 'w') as file:
+        path = os.path.normpath(os.path.join(project_path, 'FlowFM.mdu'))
+        with open(path, 'w', encoding=functions.encoding_detect(path)) as file:
             file.write(file_content)
     except Exception as e:
         print('/generate_mdu:\n==============')

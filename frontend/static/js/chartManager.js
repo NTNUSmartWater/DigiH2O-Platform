@@ -60,7 +60,6 @@ export function plotEvents() {
     });
     // Resize the chart window
     document.addEventListener("mouseup", function() { 
-        if (chartDiv()) Plotly.Plots.resize(chartDiv()); 
         Dragging = false; 
     });
     // Open dropdown
@@ -451,24 +450,15 @@ function renderPlot(plotDiv, distance, depths, values, vmin, vmax, nColors, titl
 }
 
 function colorbarTicks(min, max, numStops){
-    const epsilon = 1e-6, minDiff = Math.abs(max - min);
     if (Math.abs(max - min) < 1e-4) return [min];
-    const ticks = [];
-    if (minDiff < 1e-2) max = min + 1e-2;
+    const ticks = [], step = (max - min) / (numStops - 1);
     for (let i = 0; i < numStops; i++) {
-        const t = i / (numStops - 1);
-        let value;
-        if (min + epsilon > 0 && max + epsilon > 0) {
-            const logMin = Math.log(min + epsilon);
-            const logMax = Math.log(max + epsilon);
-            value = Math.exp(logMin + t * (logMax - logMin));
-        } else { value = min + t * (max - min); }
-        ticks.push(value);
+        ticks.push(min + i * step);
     }
     return ticks;
 }
 
-export function thermoclinePlotter(data, name, titleX, titleY, chartTitle) {
+export function thermoclinePlotter(key, data, name, titleX, titleY, chartTitle) {
     animationToken++;
     const myToken = animationToken;
     chartDivProfile().style.border = "1px solid #aaa"; 
@@ -487,7 +477,7 @@ export function thermoclinePlotter(data, name, titleX, titleY, chartTitle) {
     timeLabelEnd().textContent = `End: ${timestamps[timestamps.length - 1]}`;
     timeLabel().textContent = `Time: ${timestamps[0]}`;
     // Render plot
-    profileWindow()._resizeObserver = renderThermocline(chartDivProfile(), values,
+    profileWindow()._resizeObserver = renderThermocline(key, chartDivProfile(), values,
             depths, name, titleX, titleY, chartTitle);
     // Change header title of window
     profileWindowHeader().childNodes[0].nodeValue = 'Thermocline Plot';
@@ -540,7 +530,7 @@ export function thermoclinePlotter(data, name, titleX, titleY, chartTitle) {
     profileWindow().style.display = "flex"; setState({isThemocline: false});
 }
 
-function renderThermocline(plotDiv, xValues, yValues, legend, xTitle, yTitle, title){
+function renderThermocline(key, plotDiv, xValues, yValues, legend, xTitle, yTitle, title){
     // === Layout ===
     const layout = { title: { text: title, font: { color: 'black', weight: 'bold', size: 20 } },
         paper_bgcolor: '#c2bdbdff', plot_bgcolor: '#c2bdbdff', showlegend: true,
@@ -551,7 +541,8 @@ function renderThermocline(plotDiv, xValues, yValues, legend, xTitle, yTitle, ti
         },
         yaxis: {
             title: {text: yTitle, font: { color: 'black' }}, automargin: true, zeroline: false,
-            mirror: true, showline: true, linewidth: 1, linecolor: 'black', autorange: 'reversed',
+            mirror: true, showline: true, linewidth: 1, linecolor: 'black', 
+            autorange: key === 'thermocline_hyd' ? 'reversed' : true,
             showgrid: false, tickfont: { color: 'black' }, tickmode: 'auto', ticks: 'outside'
         },
         margin: { l: 70, r: true ? 60 : 20, t: 50, b: 50 }

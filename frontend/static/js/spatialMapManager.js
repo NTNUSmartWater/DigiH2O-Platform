@@ -1,5 +1,5 @@
-import { plot2DMapStatic, plot2DVectorMap, plot2DMapDynamic } from "./map2DManager.js";
-import { timeControl, colorbar_container, colorbar_vector_container } from "./map2DManager.js";
+import { plot2DMapStatic, plot2DVectorMap, plot2DMapDynamic, 
+    timeControl, colorbar_container, colorbar_vector_container } from "./map2DManager.js";
 import { map } from './mapManager.js';
 import { initOptions } from './utils.js';
 import { setState, getState } from './constants.js';
@@ -13,14 +13,15 @@ const sigmaSelector = () => document.getElementById("sigma-selector");
 export const substanceWindowHis = () => document.getElementById('substance-window-his');
 export const substanceWindowMap = () => document.getElementById('substance-window-map');
 const substanceWindowContentMap = () => document.getElementById('substance-window-content-map');
+const updateStatus = () => document.getElementById('update-menu');
 
-let newKey = '', newQuery = '', colorbarTitle = ''; 
+let newKey = '', newQuery = '', titleColorbar = '', colorbarKey = ''; 
 
 async function checkVectorComponents() {
     // Initiate objects for vector object
-    if (getState().layerSelected !== '') layerSelector().value = getState().layerSelected; 
-    if (getState().vectorSelected !== '') vectorSelector().value = getState().vectorSelected; 
-    if (getState().sigmaSelected !== '') sigmaSelector().value = getState().sigmaSelected; 
+    if (getState().layerSelected !== '') {layerSelector().value = getState().layerSelected; }
+    if (getState().vectorSelected !== '') { vectorSelector().value = getState().vectorSelected; }
+    if (getState().sigmaSelected !== '') { sigmaSelector().value = getState().sigmaSelected; }
 }
 
 function reAssign(target, key){
@@ -31,10 +32,8 @@ function reAssign(target, key){
 }
 
 export async function spatialMapManager() {
-    await initOptions(layerSelector, 'layer_hyd');
-    await initOptions(vectorSelector, 'vector');
-    await initOptions(sigmaSelector, 'sigma_waq');
-    await checkVectorComponents();
+    await initOptions(layerSelector, 'layer_hyd'); await initOptions(vectorSelector, 'vector');
+    await initOptions(sigmaSelector, 'sigma_waq'); await checkVectorComponents();
     setState({layerSelected: layerSelector().value});
     setState({vectorSelected: vectorSelector().value});
     setState({sigmaSelected: sigmaSelector().value});
@@ -49,8 +48,13 @@ export async function spatialMapManager() {
             document.querySelector('.hide-maps').click(); return;
         }
         const vectorName = vectorSelector().value, layerName = layerSelector().value;
-        let colorbarTitle = '', colorbarKey = '';
-        if (vectorName === '0') {colorbarTitle = 'Velocity (m/s)'; colorbarKey = 'vector';}
+        titleColorbar = '', colorbarKey = '';
+        if (vectorName === '0') {titleColorbar = 'Velocity (m/s)'; colorbarKey = 'vector';}
+        const colorbarTitle = layerSelector().value==='-1' ? `${titleColorbar}\nLayer: ${layerSelector().selectedOptions[0].text}` 
+            : `${titleColorbar}\n${layerSelector().selectedOptions[0].text}`;
+        if (updateStatus()) { 
+            updateStatus().innerHTML = `Last Option: Plot Vector Map: ${titleColorbar.split('(')[0].trim()} - ${layerSelector().selectedOptions[0].text}`; 
+        }
         plot2DVectorMap('load', layerName, colorbarTitle, colorbarKey);
     });    
     // Set function for 2D dynamic map plot
@@ -59,12 +63,14 @@ export async function spatialMapManager() {
             if (substanceWindowHis().style.display !== 'none') {substanceWindowHis().style.display = 'none';}
             if (substanceWindowMap().style.display !== 'none') {substanceWindowMap().style.display = 'none';}
             const [key, colorbarTitle, colorbarKey] = plot.dataset.info.split('|');
-            let titleColorbar = colorbarTitle;
             if (!key.includes('single')) {
                 titleColorbar = layerSelector().value==='-1' ? `${colorbarTitle}\nLayer: ${layerSelector().selectedOptions[0].text}`
                     : `${colorbarTitle}\n${layerSelector().selectedOptions[0].text}`;
-            }
+            } else { titleColorbar = colorbarTitle; }
             const query = `|${layerSelector().value}`;
+            if (updateStatus()) { 
+                updateStatus().innerHTML = `Last Option: Plot Dynamic Hydrodynamic Map: ${colorbarTitle.split('(')[0].trim()} - ${layerSelector().selectedOptions[0].text}`; 
+            }
             plot2DMapDynamic(false, query, key, titleColorbar, colorbarKey);
         });
     });
@@ -82,19 +88,22 @@ export async function spatialMapManager() {
             substanceWindowContentMap().innerHTML = ''; substanceWindowMap().style.display = 'flex'; 
             // Add content
             substanceWindowContentMap().innerHTML = data.content.map((substance, i) => {
-                return `<label for="map-${substance[0]}"><input type="radio" name="waq-substance-map" id="map-${substance[0]}"
-                    value="${substance[0]}|${type}" ${i === 0 ? 'checked' : ''}>${substance[1]}</label>`;
+                return `<label for="map-${substance}"><input type="radio" name="waq-substance-map" id="map-${substance}"
+                    value="${data.content[i]}|${type}" ${i === 0 ? 'checked' : ''}>${data.message[i]}</label>`;
             }).join('');
-            const name = data.content[0][0]; colorbarTitle = data.content[0][1];
+            const name = data.content[0]; titleColorbar = data.message[0];
             if (type === 'single') {
                 newKey = `${name}_waq_single_dynamic`; newQuery = `mesh2d_2d_${name}|${sigmaSelector().value}`;
             } else {
                 newKey = `${name}_waq_multi_dynamic`; newQuery = `mesh2d_${name}|${sigmaSelector().value}`;
-                colorbarTitle = sigmaSelector().value==='-1' ? `${colorbarTitle}\nSigma layer: ${sigmaSelector().selectedOptions[0].text}`
-                    : `${colorbarTitle}\n${sigmaSelector().selectedOptions[0].text}`;
+                titleColorbar = sigmaSelector().value==='-1' ? `${titleColorbar}\nSigma layer: ${sigmaSelector().selectedOptions[0].text}`
+                    : `${titleColorbar}\n${sigmaSelector().selectedOptions[0].text}`;
             }
-            setState({sigma: sigmaSelector()});
-            plot2DMapDynamic(true, newQuery, newKey, colorbarTitle, '');
+            setState({sigma: sigmaSelector()}); 
+            if (updateStatus()) { 
+                updateStatus().innerHTML = `Last Option: Plot Dynamic Water Quality Map: ${titleColorbar.split('(')[0].trim()} - ${sigmaSelector().selectedOptions[0].text}`; 
+            }
+            plot2DMapDynamic(true, newQuery, newKey, titleColorbar, '');
         });
     });
     // Listen to substance selection
@@ -103,23 +112,27 @@ export async function spatialMapManager() {
             if (plotWindow().style.display !== 'none') plotWindow().style.display = 'none';
             const [value, type] = e.target.value.split('|');
             const label = e.target.closest('label');
-            let colorbarTitle = label ? label.textContent.trim() : value;
+            titleColorbar = label ? label.textContent.trim() : value;
             const sigma = getState().sigma;
             if (type === 'single') {
                 newKey = `${value}_waq_single_dynamic`; newQuery = `mesh2d_2d_${value}|${sigma.value}`;
             } else {
                 newKey = `${value}_waq_multi_dynamic`; newQuery = `mesh2d_${value}|${sigma.value}`;
-                colorbarTitle = sigma.value==='-1'
-                    ? `${colorbarTitle}\nLayer: ${sigma.selectedOptions[0].text}`
-                    : `${colorbarTitle}\n${sigma.selectedOptions[0].text}`;
+                titleColorbar = sigma.value==='-1'
+                    ? `${titleColorbar}\nLayer: ${sigma.selectedOptions[0].text}`
+                    : `${titleColorbar}\n${sigma.selectedOptions[0].text}`;
             }
-            plot2DMapDynamic(true, newQuery, newKey, colorbarTitle, '');
+            if (updateStatus()) { 
+                updateStatus().innerHTML = `Last Option: Plot Dynamic Water Quality Map: ${titleColorbar.split('(')[0].trim()} - ${sigma.selectedOptions[0].text}`; 
+            }
+            plot2DMapDynamic(true, newQuery, newKey, titleColorbar, '');
         }
     });
     // Select static map
     document.querySelectorAll('.map2D_static').forEach(plot => {
         plot.addEventListener('click', () => {
             const [key, colorbarTitle, colorbarKey] = plot.dataset.info.split('|');
+            if (updateStatus()) { updateStatus().innerHTML = `Last Option: Plot Static Map: ${colorbarTitle.split('(')[0].trim()}`; }
             plot2DMapStatic(key, colorbarTitle, colorbarKey);
         });
     });
@@ -131,5 +144,10 @@ export async function spatialMapManager() {
         colorbar_vector_container().style.display = 'none';
         if (substanceWindowHis().style.display !== 'none') {substanceWindowHis().style.display = 'none';}
         if (substanceWindowMap().style.display !== 'none') {substanceWindowMap().style.display = 'none';}
+        Object.keys(getState().gisLayers).forEach(layerName => {
+            setState({gisLayers: {...getState().gisLayers, [layerName]: false}});
+        });
+        setState({hydLayer: null, sourceLayer: null, wqLoadsLayer: null, wqObsLayer: null, isMultiLayer: false,
+            isClickedInsideLayer: false, isThemocline: false, crosssectionLayer: null, isPathQuery: false});
     });
 }

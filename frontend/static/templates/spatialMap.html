@@ -1,4 +1,4 @@
-    <!-- Single Layer Hydrodynamics -->
+<!-- Single Layer Hydrodynamics -->
 <div class="menu {% if not configuration.spatial_map %}hidden{% endif %}">
     <a class="menu-link">Single Layer<span class="arrow">&#x25B8;</span></a>
     <div class="submenu">
@@ -7,21 +7,21 @@
         <a class="map2D_dynamic {% if not configuration.hyd_wd_dynamic %}hidden{% endif %}" 
             data-info="wd_single_dynamic|Water Depth (m)|depth">• Water Depth</a>
         <a class="waq-function {% if not configuration.waq_map_conservative_decay %}hidden{% endif %}"
-            data-info="waq_map_conservative_selector|single">• Conservative and decaying tracers</a>
+            data-info="waq_map_conservative_selector|single">• {{ configuration.conservative_decay_name }}</a>
         <a class="waq-function {% if not configuration.waq_map_suspended_sediment %}hidden{% endif %}"
-            data-info="waq_map_suspended_sediment_selector|single">• Suspended sediment (three fractions)</a>
+            data-info="waq_map_suspended_sediment_selector|single">• {{ configuration.waq_map_suspended_sediment_name }}</a>
         <a class="waq-function {% if not configuration.waq_map_simple_oxygen %}hidden{% endif %}"
-            data-info="waq_map_simple_oxygen_selector|single">• Simple Oxygen</a>
+            data-info="waq_map_simple_oxygen_selector|single">• {{ configuration.waq_map_simple_oxygen_name }}</a>
         <a class="waq-function {% if not configuration.waq_map_oxygen_bod %}hidden{% endif %}"
-            data-info="waq_map_oxygen_bod_selector|single">• Oxygen and BOD (water phase only)</a>
+            data-info="waq_map_oxygen_bod_selector|single">• {{ configuration.waq_map_oxygen_bod_name }}</a>
         <a class="waq-function {% if not configuration.waq_map_cadmium %}hidden{% endif %}"
-            data-info="waq_map_cadmium_selector|single">• Cadmium</a>
+            data-info="waq_map_cadmium_selector|single">• {{ configuration.waq_map_cadmium_name }}</a>
         <a class="waq-function {% if not configuration.waq_map_eutrophication %}hidden{% endif %}"
-            data-info="waq_map_eutrophication_selector|single">• Eutrophication</a>
+            data-info="waq_map_eutrophication_selector|single">• {{ configuration.waq_map_eutrophication_name }}</a>
         <a class="waq-function {% if not configuration.waq_map_trace_metals %}hidden{% endif %}"
-            data-info="waq_map_trace_metals_selector|single">• Trace metals</a>
+            data-info="waq_map_trace_metals_selector|single">• {{ configuration.waq_map_trace_metals_name }}</a>
         <a class="waq-function {% if not configuration.waq_map_coliform %}hidden{% endif %}"
-            data-info="waq_map_coliform_selector|single">• Coliform bacteria</a>
+            data-info="waq_map_coliform_selector|single">• {{ configuration.waq_map_coliform_name }}</a>
     </div>
 </div>
 
@@ -32,7 +32,7 @@
         <div class="layer {% if not configuration.z_layers %}hidden{% endif %}">
             <hr style="border-top: 1px solid #0616f3; margin: 5px 10px 10px 20px;">
             <div style="display: flex; flex: 1; padding-left: 17px; margin-bottom: 5px;">
-                <span style="margin: 10px 10px 5px 0; color: #0616f3; font-weight: bold; font-size: 16px;">• Depth Layer:</span>
+                <span style="margin: 10px 10px 5px 0; color: #0616f3; font-weight: bold; font-size: 16px;">• HYD Layer:</span>
                 <select id="layer-selector" style="flex: 1; margin: 10px 10px 5px 0;">
                     <option value="" disabled selected hidden>- No Selection -</option>
                 </select>
@@ -61,28 +61,28 @@
             <a class="waq {% if not configuration.wq_map %}hidden{% endif %}">
                 <hr style="border-top: 1px solid #0616f3; margin: 5px 10px 10px 0;">
                 <div style="display: flex;">
-                    <span style="color: #0616f3; padding-right: 10px; font-weight: bold; font-size: 16px;">• Sigma Layer:</span>
+                    <span style="color: #0616f3; padding-right: 10px; font-weight: bold; font-size: 16px;">• WAQ Layer:</span>
                     <select id="sigma-selector" style="flex: 1; margin-right: 10px;">
                         <option value="" disabled selected hidden>- No Selection -</option>
                     </select>
                 </div>
             </a>
-            <a class="wq-function {% if not configuration.waq_map_conservative_decay %}hidden{% endif %}"
-                data-info="waq_map_conservative_selector|multi">- Conservative and decaying tracers</a>
+            <a class="waq-function {% if not configuration.waq_map_conservative_decay %}hidden{% endif %}"
+                data-info="waq_map_conservative_selector|multi">- {{ configuration.conservative_decay_name }}</a>
             <a class="waq-function {% if not configuration.waq_map_suspended_sediment %}hidden{% endif %}"
-                data-info="waq_map_suspended_sediment_selector|multi">- Suspended sediment (three fractions)</a>
+                data-info="waq_map_suspended_sediment_selector|multi">- {{ configuration.waq_map_suspended_sediment_name }}</a>
             <a class="waq-function {% if not configuration.waq_map_simple_oxygen %}hidden{% endif %}"
-                data-info="waq_map_simple_oxygen_selector|multi">- Simple Oxygen</a>
+                data-info="waq_map_simple_oxygen_selector|multi">- {{ configuration.waq_map_simple_oxygen_name }}</a>
             <a class="waq-function {% if not configuration.waq_map_oxygen_bod %}hidden{% endif %}"
-                data-info="waq_map_oxygen_bod_selector|multi">- Oxygen and BOD (water phase only)</a>
+                data-info="waq_map_oxygen_bod_selector|multi">- {{ configuration.waq_map_oxygen_bod_name }}</a>
             <a class="waq-function {% if not configuration.waq_map_cadmium %}hidden{% endif %}"
-                data-info="waq_map_cadmium_selector|multi">- Cadmium</a>
+                data-info="waq_map_cadmium_selector|multi">- {{ configuration.waq_map_cadmium_name }}</a>
             <a class="waq-function {% if not configuration.waq_map_eutrophication %}hidden{% endif %}"
-                data-info="waq_map_eutrophication_selector|multi">- Eutrophication</a>
+                data-info="waq_map_eutrophication_selector|multi">- {{ configuration.waq_map_eutrophication_name }}</a>
             <a class="waq-function {% if not configuration.waq_map_trace_metals %}hidden{% endif %}"
-                data-info="waq_map_trace_metals_selector|multi">- Trace metals</a>
+                data-info="waq_map_trace_metals_selector|multi">- {{ configuration.waq_map_trace_metals_name }}</a>
             <a class="waq-function {% if not configuration.waq_map_coliform %}hidden{% endif %}"
-                data-info="waq_map_coliform_selector|multi">- Coliform bacteria</a>
+                data-info="waq_map_coliform_selector|multi">- {{ configuration.waq_map_coliform_name }}</a>
         </div>
     </div>
 </div>

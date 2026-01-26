@@ -5,14 +5,16 @@ import { timeControl, colorbar_container, colorbar_vector_container, plot2DMapDy
 import { generalOptionsManager, summaryWindow } from './generalOptionManager.js';
 import { spatialMapManager, substanceWindowHis, substanceWindowMap } from './spatialMapManager.js';
 import { sendQuery } from './tableManager.js';
-import { getState, resetState, setState } from './constants.js';
+import { fileUploader } from './utils.js';
+import { getState, resetState, setState } from './constants.js'; 
 
 let pickerState = { location: false, point: false, crosssection: false, boundary: false, source: false },
-    cachedMenus = {}, markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [],
-    pathLineBoundary = null, gridLayer = null, timeOut = null, userName = false,
+    cachedMenus = {}, markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [], gisLayers = {},
+    pathLineBoundary = null, gridLayer = null, timeOut = null, userName = false, hideTimeoutHelp = null,
     markersCrosssection = [], crosssectionContainer = [], pathLineCrosssection = null, hideTimeout = null;
 
 const popupMenu = () => document.getElementById('popup-menu');
+const popupMenuHelp = () => document.getElementById('popup-menu-help');
 const popupContent = () => document.getElementById('popup-content');
 const contactInfo = () => document.getElementById('informationContact');
 const contactInfoHeader = () => document.getElementById('informationContactHeader');
@@ -38,19 +40,23 @@ const simulationWindow = () => document.getElementById('simulationWindow');
 const simulationHeader = () => document.getElementById('simulationWindowHeader');
 const simulationContent = () => document.getElementById('simulationWindowContent');
 const simulationCloseBtn = () => document.getElementById('closeSimulationWindow');
+const GISUploadFile = () => document.getElementById('gis-file');
+const menuLeft = () => document.getElementById('menu-left');
 const mapContainer = () => map.getContainer();
+const updateStatus = () => document.getElementById('update-menu');
 
 initializeMap(); baseMapButtonFunctionality(); plotEvents(); initializeMenu();
-projectChecker(); initializeMenu(); updateEvents(); openDemoProject('demo');
-await login();
+projectChecker(); updateEvents(); openDemoProject(); await login();
+showGitHubLastUpdate('NTNUSmartWater', 'DigiH2O-Platform');
 
 async function login() {
     const data = await sendQuery('auth_check', {});
     if (data.user==='admin') { userName = ''; } else { userName = `${data.user}/`; }
 }
 
-async function openDemoProject(name='demo', params=['FlowFM_his.zarr', 'FlowFM_map.zarr', 'Cadmium_his.zarr', 'Cadmium_map.zarr']) { 
-    await projectChecker(name, params);
+export async function openDemoProject() { 
+    const currentProject = getState().currentProject, currentParams = getState().currentParams;
+    await projectChecker(currentProject, currentParams);
     // Load temperature dynamic map
     const query = '|-1', key = 'temp_multi_dynamic', titleColorbar = 'Temperature (°C)';
     const colorbarKey = 'Layer: Average temperature';
@@ -76,17 +82,19 @@ function hideMap() {
 async function showPopupMenu(projectName, id, htmlFile) {
     try {
         refresh(); let html;
-        if (cachedMenus[htmlFile]) html = cachedMenus[htmlFile];
-        else {
-            const response = await fetch(`/load_popupMenu?htmlFile=${htmlFile}&project_name=${projectName}`);
-            if (response.status === 'error') {alert(response.message); return;}
-            html = await response.text();
-            cachedMenus[htmlFile] = html;
-        }
+        const response = await fetch(`/load_popupMenu?htmlFile=${htmlFile}&project_name=${projectName}`);
+        if (!response.ok) {alert(response.message); return;}
+        html = await response.text(); cachedMenus[htmlFile] = html;
         popupContent().innerHTML = html;
-        if (id === '1') generalOptionsManager(projectName); // Events on general options submenu
-        if (id === '2') timeSeriesManager(); // Events on time series measurement submenu
-        if (id === '3') spatialMapManager(); // Events on spatial map submenu
+        if (id === '1') generalOptionsManager(projectName); // Events on General Options submenu
+        if (id === '2') timeSeriesManager(); // Events on Time series Measurement submenu
+        if (id === '3') spatialMapManager(); // Events on Map submenu
+        if (id === '4') {
+            const checkBox = popupContent().querySelectorAll('input[type="checkbox"]');
+            for (let i = 0; i < checkBox.length; i++) { 
+                checkBox[i].checked = getState().gisLayers[checkBox[i].id]; 
+            }
+        }
     } catch (error) {alert(error + ': ' + htmlFile);}
 }
 
@@ -95,13 +103,25 @@ async function projectChecker(name=null, params=null) {
     const projectMenu = document.querySelectorAll('.menu');
     projectMenu.forEach(menu => { menu.style.display = 'block'; });
     const project = document.querySelector('.menu[id="projectMenu"]');
-    if (name === null) return;    
+    if (name === null) return;
     project.style.display = 'block'; projectTitle().textContent = '';
     refresh(); hideMap(); resetState(); await login();  // Reset variables
+    setState({currentProject: name}); setState({currentParams: params});
     setState({projectName: name}); projectTitle().textContent = `Project: ${userName}${name}`;
     startLoading('Reading Simulation Outputs and Setting up Database.\nThis takes a while (especially the first time). Please wait...');
     const data = await sendQuery('setup_database', {projectName: name, params: params});
     if (data.status === "error") { alert(data.message); location.reload(); return; }
+    const hasGISMenu = menuLeft().querySelector("#GISMenu");
+    if (data.content.gis_layers.length > 0) {
+        if (!hasGISMenu) {
+            const li = document.createElement("li");
+            li.style.alignItems = "center"; li.style.display = "flex";
+            const a = document.createElement("a");
+            a.className = "menu"; a.id = "GISMenu"; a.textContent = "GIS Layer";
+            a.setAttribute("data-info", "4|gisLayer.html|subMenu");
+            li.appendChild(a); menuLeft().appendChild(li); initializeMenu();
+        }
+    } else { if (hasGISMenu) { hasGISMenu.remove(); initializeMenu(); } }
     showLeafletMap();
 }
 
@@ -115,7 +135,32 @@ async function initializeMenu(){
             if (pm.classList.contains('show')) pm.classList.remove('show');
             const info = link.dataset.info;
             if (info === 'home') { window.location.href = "https://ntnusmartwater.github.io/"; return; }
-            if (info === 'help') { contactInformation(); return;}
+            if (info === 'help') { 
+                const pmHelp = popupMenuHelp();
+                if (pmHelp.classList.contains('show')) pmHelp.classList.remove('show');
+                const body = document.body;
+                const content = document.getElementById('popup-content-help');
+                body.appendChild(pmHelp);
+                content.innerHTML = `
+                    <ul class="sub-menu" style="display:block; z-index: 100000;">
+                        <li><a id="help-contact">About Us</a></li>
+                        <li><a id="help-docs">Manual</a></li>
+                    </ul>
+                `;
+                const aboutLink = document.getElementById('help-contact');
+                const docsLink = document.getElementById('help-docs');
+                aboutLink.onclick = (e) => { e.preventDefault(); contactInformation(); };
+                docsLink.onclick = (e) => { 
+                    e.preventDefault(); 
+                    const win = window.open('static_frontend/pdfs/QuickManual.pdf', '_blank');
+                    if (!win) alert('Please allow popups for this document');
+                };
+                const rectHelp = link.getBoundingClientRect();
+                pmHelp.style.top  = `${rectHelp.bottom + 15 + window.scrollY}px`;
+                pmHelp.style.left = 'auto';
+                pmHelp.style.right = `${window.innerWidth - rect.right}px`;
+                pmHelp.classList.add('show'); return;
+            }
             const [id, htmlFile, _] = info.split('|');
             startLoading('Getting Information. Please wait...');
             await showPopupMenu(getState().projectName, id, htmlFile);
@@ -154,6 +199,52 @@ function iframeInit(scr, objWindow, objHeader, objContent, title){
     objContent.appendChild(newIframe);
     objHeader.childNodes[0].nodeValue = title;
     objWindow.style.display = 'flex'; hideMap();
+}
+
+async function GISLayerChange(name, id, checked){
+    setState({gisLayers: {...getState().gisLayers, [id]: checked}});
+    if (!checked) {
+        if (gisLayers[id]) { map.removeLayer(gisLayers[id]); }
+        return;
+    }
+    if (gisLayers[id]) { map.addLayer(gisLayers[id]); return; }
+    // Load gis layer
+    startLoading('Loading GIS Layer. Please wait...');
+    const response = await sendQuery('get_gis_layer', {projectName: name, layer: id});
+    if (response.status === "error") { alert(response.message); return; }
+    const hue1 = Math.floor(Math.random() * 360), hue2 = Math.floor(Math.random() * 360);
+    const fillColor = `hsl(${hue1}, 70%, 50%)`, color = `hsl(${hue2}, 70%, 50%)`;
+    const layer = L.geoJSON(response.content, { renderer: L.canvas(),
+        pointToLayer: function (feature, latlng) {
+            return L.circleMarker(latlng, {
+                radius: 3, fillColor: fillColor, color: color,
+                weight: 1, opacity: 1, fillOpacity: 0.8
+            });
+        },
+        style: feature => {
+            switch (feature.geometry.type) {
+                case 'LineString': 
+                case 'MultiLineString':
+                    return { color: color, weight: 2 };
+                case 'Polygon':
+                case 'MultiPolygon':
+                    return { color: color, fillColor: fillColor, fillOpacity: 0.5, weight: 1 };
+                default: return {};
+            }
+        },
+        onEachFeature: (feature, l) => {
+            l.on('click', () => {
+                if (!feature.properties) return;
+                const content = Object.entries(feature.properties)
+                    .map(([k, v]) => `<b>${k}</b>: ${v}`).join('<br>')
+                l.bindPopup(`<div style="max-height: 200px; overflow-y: auto;
+                    overflow-x: hidden;">${content}</div>`).openPopup();
+            });
+        }
+    });
+    gisLayers[id] = layer; map.addLayer(layer); 
+    if (layer.getLayers().length < 2000) { map.fitBounds(layer.getBounds()); }
+    showLeafletMap();
 }
 
 function updateEvents() {
@@ -197,11 +288,24 @@ function updateEvents() {
                 pm.classList.remove('show');
             }, 500);
         });
+    };
+    const pmHelp = popupMenuHelp();
+    // Show popup menu on click or leave
+    if (pmHelp) {
+        pmHelp.addEventListener('mouseenter', () => {
+            pmHelp.classList.add('show');
+            if (hideTimeoutHelp) { clearTimeout(hideTimeoutHelp); hideTimeoutHelp = null; }
+        });
+        pmHelp.addEventListener('mouseleave', () => {
+            hideTimeoutHelp = setTimeout(() => {
+                pmHelp.classList.remove('show');
+            }, 500);
+        });
     }
     document.addEventListener('click', (e) => {
         // Close the popup menu if clicked outside
         if (pm && !pm.contains(e.target)) pm.classList.remove('show');
-        
+        if (pmHelp && !pmHelp.contains(e.target)) pmHelp.classList.remove('show');
         // Toogle the menu if click on menu-link
         const link = e.target.closest('.menu-link');
         if (link){
@@ -244,44 +348,85 @@ function updateEvents() {
             sugesstionSearcher().style.display = 'none';
         }
     });
-    popupContent().addEventListener('click', (e) => {
+    popupContent().addEventListener('click', async (e) => {
         const project = e.target.closest('.project');
+        const nameProject = projectTitle().textContent.split(':')[1].split('/')[1].trim();
         if (project) {
             const name = project.dataset.info;
             if (name === 'visualization') {
                 // Open project for visualization
                 iframeInit("open_project", projectOpenWindow(), projectOpenWindowHeader(), 
                     projectOpenWindowContent(), "Select Scenario with Simulation Result");
+                updateStatus().innerHTML = 'Last Option: Visualization';
             } else if (name === 'new-hyd-project') { 
                 // Create new hyd project
-                projectChecker();
+                projectChecker(); updateStatus().innerHTML = 'Last Option: HYD Scenario Modification';
                 iframeInit("new_HYD_project", projectSetting(), projectSettingHeader(), 
                     projectSettingContent(), "Create/Modify/Delete a new Hydrodynamic Scenario");
             } else if (name === 'run-hyd-simulation') {
                 // Run hyd simulation
-                projectChecker();
+                projectChecker(); updateStatus().innerHTML = 'Last Option: Run HYD Simulation';
                 iframeInit("run_hyd_simulation", simulationWindow(), simulationHeader(), 
                     simulationContent(), "Run a Hydrodynamic Simulation");
             } else if (name === 'new-waq-project') { 
                 // Create a new waq project
-                projectChecker();
+                projectChecker(); updateStatus().innerHTML = 'Last Option: WAQ Scenario Modification';
                 iframeInit("new_WQ_project", projectSetting(), projectSettingHeader(), 
                     projectSettingContent(), "Set up a Water Quality Simulation");
             } else if (name === 'run-waq-project') { 
                 // Run a new waq project
-                projectChecker();
+                projectChecker(); updateStatus().innerHTML = 'Last Option: Run WAQ Simulation';
                 iframeInit("run_WQ_project", simulationWindow(), simulationHeader(), 
                     simulationContent(), "Run a Water Quality Simulation");
-            } else if (name === 'grid-generation') {
+            } else if (name === 'gis-uploader') { 
+                // GIS Uploader
+                GISUploadFile().click(); updateStatus().innerHTML = 'Last Option: Upload GIS data';
+                // Open GIS data
+                if (GISUploadFile()) {
+                    GISUploadFile().addEventListener('change', async (event) => { 
+                        const file = event.target.files[0]; if (!file) return;
+                        await fileUploader(GISUploadFile(), null, nameProject, 
+                            file.name, 'Uploading and Processing GIS data. Please wait...', 'gis');
+                        const hasGISMenu = menuLeft().querySelector("#GISMenu") !== null;
+                        if (!hasGISMenu) {
+                            const li = document.createElement("li");
+                            li.style.alignItems = "center"; li.style.display = "flex";
+                            const a = document.createElement("a");
+                            a.className = "menu"; a.id = "GISMenu"; a.textContent = "GIS Layer";
+                            a.setAttribute("data-info", "4|gisLayer.html|subMenu");
+                            li.appendChild(a); menuLeft().appendChild(li); initializeMenu();
+                        }
+                        GISUploadFile().value = '';
+                    });
+                }
                 projectChecker();
-                // Grid Generation
-                iframeInit("grid_generation", projectSetting(), projectSettingHeader(), 
-                    projectSettingContent(), "Grid Generation");
+            } else if (name === 'grid-generation') {
+                // projectChecker();
+                // // Grid Generation
+                // iframeInit("grid_generation", projectSetting(), projectSettingHeader(), 
+                //     projectSettingContent(), "Grid Generation");
+                return;
             } 
+        }
+        // Delete GIS layer
+        if (e.target.classList.contains('delete-btn')) {
+            e.stopPropagation(); e.preventDefault();
+            const id = e.target.id.replace('delete-', '');
+            const data = await sendQuery('delete_gis', { projectName: nameProject, name: id });
+            if (data.status === "error") { alert(data.message); return; }
+            await GISLayerChange(nameProject, id, false);
+            const rowDiv = e.target.parentNode; if (rowDiv) {rowDiv.remove();}
+        }
+        // Show/hide GIS layers
+        if (e.target.type === 'checkbox' && e.target.className === 'layer-gis') {
+            e.stopPropagation();
+            const id = e.target.id, value = e.target.checked;
+            await GISLayerChange(nameProject, id, value);
         }
     });
     // Listent events from open project iframe
     window.addEventListener('message', async (event) => {
+        if (event.data?.type === 'reset_config') { openDemoProject(event.data.projectName, event.data.params); }
         if (event.data?.type === 'resize-simulation') {
             const frameHeight = event.data.height;
             if (simulationWindow()) { simulationWindow().style.height = frameHeight + 'px'; }
@@ -421,10 +566,6 @@ function updateEvents() {
             gridLayer = L.geoJSON(data.content, {style: {color: 'black', weight: 1}}).addTo(map);
             showLeafletMap();
         }
-        if (event.data?.type === 'thermoclineGridClear') { 
-            if (gridLayer) map.removeLayer(gridLayer); gridLayer = null;
-            if (plotWindow().style.display !== 'none') plotWindow().style.display = 'none';
-        }
         if (event.data?.type === 'thermoclineGrid') {
             startLoading(event.data.message);
             const key = event.data.key, query = event.data.query;
@@ -466,7 +607,7 @@ function updateEvents() {
                                             query: query, idx: index, type: 'thermocline_init', projectName: getState().projectName});
                                         layer.closePopup(); setState({isThemocline: false});
                                         if (initData.status === "error") { alert(initData.message); return; }
-                                        thermoclinePlotter(initData.content, newName, titleX, titleY, chartTitle);
+                                        thermoclinePlotter(key, initData.content, newName, titleX, titleY, chartTitle);
                                     } else { alert('Please enter a name.'); return; }
                                 });
                             }
@@ -530,8 +671,7 @@ function updateEvents() {
             crosssectionContainer.push({ lat: e.latlng.lat, lng: e.latlng.lng });
             // Plot line
             const latlngs = crosssectionContainer.map(p => [p.lat, p.lng]);
-            if (pathLineCrosssection) {
-                pathLineCrosssection.setLatLngs(latlngs);
+            if (pathLineCrosssection) { pathLineCrosssection.setLatLngs(latlngs);
             } else {
                 pathLineCrosssection = L.polyline(latlngs, {
                     color: 'orange', weight: 2, dashArray: '5,5'
@@ -547,8 +687,7 @@ function updateEvents() {
             boundaryContainer.push({ lat: e.latlng.lat, lng: e.latlng.lng });  // Add point
             // Plot line
             const latlngs = boundaryContainer.map(p => [p.lat, p.lng]);
-            if (pathLineBoundary) {
-                pathLineBoundary.setLatLngs(latlngs);
+            if (pathLineBoundary) { pathLineBoundary.setLatLngs(latlngs);
             } else {
                 pathLineBoundary = L.polyline(latlngs, {
                     color: 'orange', weight: 2, dashArray: '5,5'
@@ -600,6 +739,7 @@ function timeSeriesManager() {
     document.querySelectorAll('.function').forEach(plot => {
         plot.addEventListener('click', () => {
             const [key, titleY, chartTitle] = plot.dataset.info.split('|');
+            updateStatus().innerHTML = `Last Option: Time-Series Plot (Hydrodynamic): ${chartTitle}`;
             plotChart('', key, chartTitle, 'Time', titleY);
         });
     });
@@ -607,16 +747,16 @@ function timeSeriesManager() {
     document.querySelectorAll('.waq_his').forEach(item => {
         item.addEventListener('click', async() => {
             substanceWindowMap().style.display = 'none';
-            const query = item.dataset.info;
-            const data = await sendQuery('process_data', {query: query, 
+            const data = await sendQuery('process_data', {query: item.dataset.info, 
                 key: 'substance_check', projectName: getState().projectName});
             if (data.status === "error") {alert(data.message); substanceWindowHis().style.display = 'none'; return;}
             substanceWindowContentHis().innerHTML = ''; substanceWindowHis().style.display = 'flex';
             // Add content
-            substanceWindowContentHis().innerHTML = data.message.map((substance, i) => 
+            substanceWindowContentHis().innerHTML = data.content.map((substance, i) => 
                 `<label for="his-${substance}"><input type="radio" name="waq-substance-his" id="his-${substance}"
-                    value="${data.content[i]}" ${i === 0 ? 'checked' : ''}>${data.content[i]}</label>`).join('');
-            hideMap(); plotChart(data.message[0], 'substance', `Substance: ${data.content[0]}`, 'Time', data.content[0]);
+                    value="${data.message[i]}" ${i === 0 ? 'checked' : ''}>${data.message[i]}</label>`).join('');
+            hideMap(); plotChart(data.content[0], 'substance', `Substance: ${data.message[0]}`, 'Time', data.message[0]);
+            updateStatus().innerHTML = `Last Option: Time-Series Plot (Water Quality): ${data.message[0].split('(')[0].trim()}`;
         });
     });
     // Listen to substance selection
@@ -624,6 +764,7 @@ function timeSeriesManager() {
         if (e.target && e.target.name === "waq-substance-his") {
             const id = e.target.id, value = e.target.value;
             hideMap(); plotChart(id.replace('his-', ''), 'substance', `Substance: ${value}`, 'Time', value);
+            updateStatus().innerHTML = `Last Option: Time-Series Plot (Water Quality): ${value.split('(')[0].trim()}`;
         }
     });
 }
@@ -636,4 +777,22 @@ function contactInformation() {
         contactInfoContent().appendChild(iframe);
     }
     contactInfo().style.display = 'flex';
+}
+
+async function showGitHubLastUpdate(username, repo, branch='main') {
+    const url = `https://api.github.com/repos/${username}/${repo}/commits?sha=${branch}&per_page=1`;
+    const displayDiv = document.getElementById('github-last-update');
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('GitHub API error');
+        const data = await response.json();
+        if (data.length > 0) {
+            const lastCommit = data[0].commit;
+            const date = new Date(lastCommit.committer.date);
+            const formatted = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+            displayDiv.textContent = `Last update: ${formatted}`;
+        } else {
+            displayDiv.textContent = 'Last update: unknown';
+        }
+    } catch (err) { console.error(err); displayDiv.textContent = 'Last update: error'; }
 }

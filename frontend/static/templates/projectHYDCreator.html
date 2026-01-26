@@ -24,6 +24,7 @@
       </p>
       <ul style="text-align: left; margin-left: 80px; line-height: 2.5;">
         <li>A clear and easy-to-remember scenario name.</li>
+        <li><strong>DON'T use special punctuations in the scenario name (e.g., /, \, ., *, etc). A name with english-based characters is highly recommended.</strong></li>
         <li>A grid file with bathymetry included.</li>
         <li>List of measured points/Cross-Section (inside the grid).</li>
         <li>Time-series data for Boundary conditions.</li>
@@ -125,7 +126,7 @@
                     <div class="radio-panel" data-panel="observation-point-new" style="display: block;">
                       <div class="row">
                         <label for="observation-point">Name:</label>
-                        <input type="text" id="observation-point" placeholder="Enter name">
+                        <input type="text" id="observation-point" placeholder="Enter name to add/remove">
                       </div>
                       <div class="row">
                         <label for="observation-point-latitude">Latitude (°):</label>
@@ -218,6 +219,9 @@
                       </select>
                     </div>
                     <div class="row">
+                      <input type="file" id="boundary-picker-file" accept=".csv" hidden>
+                      <input type="text" id="boundary-picker-text" hidden>
+                      <button type="button" id="boundary-upload-csv">Upload CSV</button>
                       <button type="button" id="boundary-add-row">Add row</button>
                     </div>
                     <table class="attributes-table" id="boundary-edit-table">
@@ -383,12 +387,35 @@
                 </div>
                 <div class="tabpanel" data-panel="hydro-meteo-2">
                   <div class="grid">
-                    <div class="tile"><h3>Meteo data</h3>
-                       <div class="row">
+                    <div class="tile" style="grid-column: span 8;"><h3>Meteo data</h3>
+                      <div class="row">
                         <label for="meteo-picker-file">Click to Upload CSV:</label>
                         <input type="file" id="meteo-picker-file" accept=".csv" hidden>
                         <input type="text" id="meteo-picker-text" placeholder="Click to Upload Meteo data">
-                       </div>
+                      </div>
+                      <div class="table-header" style="margin-top: 20px;">
+                        <h3>Attribute Table</h3>
+                        <button class="tile-btn" id="add-meteo-btn">Add row</button>
+                        <button class="tile-btn" id="plot-meteo-btn">Plot data</button>
+                        <button class="tile-btn" id="delete-meteo-btn"
+                          style="color: crimson; background-color: aliceblue;">Delete table</button>
+                        <button class="tile-btn" id="save-meteo-btn">Create/Update meteo data</button>
+                      </div>
+                      <table class="attributes-table" id="edit-meteo-table">
+                        <thead>
+                          <tr><th>Time</th><th>Humidity (%)</th><th>Air temperature (°C)</th>
+                            <th>Cloud coverage (%)</th><th>Solar radiation (W/m²)</th></tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td><input type="text" placeholder="YYYY-MM-DD HH:MM:SS"></td>
+                            <td><input type="text" placeholder="Humidity"></td>
+                            <td><input type="text" placeholder="Air temperature"></td>
+                            <td><input type="text" placeholder="Cloud coverage"></td>
+                            <td><input type="text" placeholder="Solar radiation"></td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
                     <div class="tile"><h3>Weather data</h3>
                       <div class="row">
@@ -426,32 +453,6 @@
                         <button type="button" id="weather-remove" 
                             style="display: none; color: crimson; background-color: aliceblue;">Delete table</button>
                       </div>
-
-                    </div>
-                    <div class="tile tile-double">
-                      <div class="table-header">
-                        <h3>Attribute Table</h3>
-                        <button class="tile-btn" id="add-meteo-btn">Add row</button>
-                        <button class="tile-btn" id="plot-meteo-btn">Plot data</button>
-                        <button class="tile-btn" id="delete-meteo-btn"
-                          style="color: crimson; background-color: aliceblue;">Delete table</button>
-                        <button class="tile-btn" id="save-meteo-btn">Create/Update meteo data</button>
-                      </div>
-                      <table class="attributes-table" id="edit-meteo-table">
-                        <thead>
-                          <tr><th>Time</th><th>Humidity (%)</th><th>Air temperature (°C)</th>
-                            <th>Cloud coverage (%)</th><th>Solar radiation (W/m²)</th></tr>
-                        </thead>
-                        <tbody>
-                          <tr>
-                            <td><input type="text" placeholder="YYYY-MM-DD HH:MM:SS"></td>
-                            <td><input type="text" placeholder="Humidity"></td>
-                            <td><input type="text" placeholder="Air temperature"></td>
-                            <td><input type="text" placeholder="Cloud coverage"></td>
-                            <td><input type="text" placeholder="Solar radiation"></td>
-                          </tr>
-                        </tbody>
-                      </table>
                     </div>
                   </div>
                 </div>
@@ -571,10 +572,13 @@
   <script>
     flatpickr(".datetime-interval",{ 
       noCalendar: true, enableSeconds: true, time_24hr: true,
-      enableTime: true, dateFormat: "H:i:S" });
+      enableTime: true, dateFormat: "H:i:S", 
+      defaultHour: 0, defaultMinute: 0, defaultSecond: 0
+    });
     flatpickr(".datetime", {
-      enableTime: true, enableSeconds: true,
-      dateFormat: "Y-m-d H:i:S", time_24hr: true});
+      enableTime: true, enableSeconds: true, time_24hr: true, dateFormat: "Y-m-d H:i:S", 
+      defaultHour: 0, defaultMinute: 0, defaultSecond: 0
+    });
   </script>
   <!-- Load the newest version of the script -->
   <script type="module">

@@ -5,6 +5,10 @@ function toSuperscript(num) {
     return String(num).split('').map(ch => superscriptMap[ch] || ch).join('');
 }
 
+export function nameChecker(name) {
+    return !/^[A-Za-z0-9_-]+$/.test(name);
+}
+
 export function decodeArray(base64Str, n_decimals=3) {
     // Convert base64 to ArrayBuffer
     const binaryStr = atob(base64Str);
@@ -276,4 +280,21 @@ export async function loadList(fileName, key, folder_check = '') {
     const data = await response.json();
     if (data.status === "error") { alert(data.message); return null; }
     return data;
+}
+
+export async function fileUploader(targetFile, targetText, projectName, gridName, message, type){
+    if (projectName === '') return;
+    window.parent.postMessage({type: 'showOverlay', message: message}, '*');
+    const file = targetFile.files[0], formData = new FormData();
+    formData.append('file', file); formData.append('projectName', projectName);
+    formData.append('fileName', gridName); formData.append('type', type);
+    if (targetText !== null) {targetText.value = file?.name || "";}
+    const response = await fetch('/upload_data', { method: 'POST', body: formData });
+    const data = await response.json();
+    window.parent.postMessage({type: 'hideOverlay'}, '*');
+    if (data.status === "error") {
+        if (targetText !== null) {targetText.value = '';}
+        alert(data.message); targetFile.value = ''; return;
+    }
+    alert(data.message);
 }

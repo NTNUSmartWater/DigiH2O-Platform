@@ -1,15 +1,28 @@
-import shapely, os, re, shutil, stat, json, asyncio, base64, time, subprocess, signal
+import shapely, os, re, shutil, stat, json, asyncio
+import base64, time, subprocess, signal, chardet
 import geopandas as gpd, pandas as pd
 import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
-from scipy.interpolate import griddata
+from uuid import uuid4
+from scipy.ndimage import distance_transform_edt, gaussian_filter
 from config import PROJECT_STATIC_ROOT, ALLOWED_USERS_PATH
 from redis.asyncio.lock import Lock
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi import Depends, HTTPException, status
 
 security = HTTPBasic()
-ALLOWED_USERS = json.load(open(ALLOWED_USERS_PATH))
+
+def encoding_detect(file_path: str) -> str:
+    """Detect the encoding of a file."""
+    encoding = 'utf-8'
+    if not os.path.exists(file_path) or not os.path.isfile(file_path): return encoding
+    with open(file_path, 'rb') as f:
+        raw_data = f.read()
+        result = chardet.detect(raw_data)
+        encoding = result['encoding']
+    return encoding
+
+ALLOWED_USERS = json.load(open(ALLOWED_USERS_PATH, "r", encoding=encoding_detect(ALLOWED_USERS_PATH)))
 
 def basic_auth(credentials: HTTPBasicCredentials=Depends(security)):
     username, password = credentials.username, credentials.password
@@ -20,18 +33,10 @@ def basic_auth(credentials: HTTPBasicCredentials=Depends(security)):
         )
     return username
 
-def basic_auth_ws(auth_header: str):
-    if not auth_header or not auth_header.startswith("Basic "): return None
-    token = auth_header.split(" ")[1]
-    try:
-        decoded = base64.b64decode(token).decode("utf-8")
-        username, password = decoded.split(":", 1)
-    except Exception: return None
-    if username not in ALLOWED_USERS or ALLOWED_USERS[username] != password: return None
-    return username
-
 def project_definer(old_name, username='admin'):
-    return f'{username}/{old_name}' if username!='admin' else 'demo'
+    new_name = f'{username}/{old_name}' if username!='admin' else 'demo'
+    name_id = f'{new_name}/{uuid4()}'
+    return new_name, name_id
 
 def remove_readonly(func, path, excinfo):
     # Change the readonly bit, but not the file contents
@@ -70,34 +75,6 @@ def decode_array(b64_str: str, shape, dtype=np.float32) -> np.ndarray:
     """Decode base64 string to numpy array."""
     arr = np.frombuffer(base64.b64decode(b64_str), dtype=dtype)
     return arr.reshape(shape)
-
-async def layer_lock(redis, project_name: str, layer: str, timeout: int = 10):
-    """Context manager lock for a specific layer."""
-    lock = redis.lock(f"project:{project_name}:layer:{layer}", timeout=timeout)
-    await lock.acquire()
-    try: yield
-    finally: await lock.release()
-
-def serialize_geometry(gdf: gpd.GeoDataFrame):
-    """
-    Convert GeoDataFrame to dict GeoJSON (Polygon / MultiPolygon -> coordinates list)
-    """
-    features_serializable = []
-    for _, row in gdf.iterrows():
-        geom = row.geometry
-        if geom is None: geom_serial = None
-        else: geom_serial = shapely.geometry.mapping(geom)
-        properties = {k: v for k, v in row.items() if k != gdf.geometry.name}
-        features_serializable.append({
-            "type": "Feature",
-            "properties": properties,
-            "geometry": geom_serial
-        })
-    grid_dict = {
-        "type": "FeatureCollection",
-        "features": features_serializable
-    }
-    return grid_dict
 
 async def load_dataset_cached(project_cache, key, dm, dir_path, filename):
     """
@@ -141,17 +118,102 @@ variablesNames = {
 }
 
 units = {
-    # Physical
-    'cTR1': 'Conservative Tracer Source 1 (g/m³)', 'cTR2': 'Conservative Tracer Source 2 (g/m³)', 'IM2S1': 'IM2S1 (g/m³)',
-    'cTR3': 'Conservative Tracer Source 3 (g/m³)', 'dTR1': 'Decayable Tracer Source 1 (g/m³)', 'IM3S1': 'IM3S1 (g/m³)',
-    'dTR2': 'Decayable Tracer Source 2 (g/m³)', 'dTR3': 'Decayable Tracer Source 3 (g/m³)', 
-    'IM1': 'Inorganic Matter (g/m³)', 'IM2': 'IM2 (g/m³)', 'IM3': 'IM3 (g/m³)', 'IM1S1': 'IM in S1 (g/m²)',
-    # Chemical
-    'NH4': 'Ammonium (g/m³)', 'CBOD5': 'Carbonaceous BOD (g/m³)', 'OXY': 'Dissolved Oxygen (g/m³)', 'SOD': 'Sediment Oxygen Demand (g/m²)',
-    'DO': 'Dissolved Oxygen Concentration (g/m³)', 'SaturOXY': 'Saturation Concentration (g/m³)', 'SatPercOXY': 'Actual Saturation Percentage O2 (%)',
-    'BOD5': 'BOD5 (g/m³)', 'Cd': 'Cadmium (g/m³)', 'CdS1': 'Cadmium in S1 (g/m²)', 'NO3': 'Nitrate (g/m³)', 'As': 'Arsenic (g/m³)',
-    # Microbial
-    'Salinity': 'Salinity (ppt)', 'EColi': 'E.Coli Bacteria (MPN/m³)', 'volume': 'Volume (m³)'
+    # 1. Physical
+    # 1.1. Conservative and Decaying Tracers
+    'cTR1': 'Conservative Tracer 1 (g/m³)', 'dTR1': 'Decaying Tracer 1 (g/m³)',
+    'cTR2': 'Conservative Tracer 2 (g/m³)', 'dTR2': 'Decaying Tracer 2 (g/m³)',
+    'cTR3': 'Conservative Tracer 3 (g/m³)', 'dTR3': 'Decaying Tracer 3 (g/m³)',
+    'RcDecTR1': 'Decay rate tracer1 for AGE calculations (1/day)',
+    'RcDecTR2': 'Decay rate tracer2 for AGE calculations (1/day)',
+    'RcDecTR3': 'Decay rate tracer3 for AGE calculations (1/day)',
+    # 1.2. Suspended Sediment
+    'IM1': 'Inorganic Matter (IM1) (gDM/m³)', 'IM1S1': 'IM1 in layer S1 (g/m²)',
+    'IM2': 'Inorganic Matter (IM2) (gDM/m³)', 'IM2S1': 'IM2 in layer S1 (g/m²)',
+    'IM3': 'Inorganic Matter (IM3) (gDM/m³)', 'IM3S1': 'IM3 in layer S1 (g/m²)',
+    'VSedIM1': 'Sedimentation velocity IM1 (m/day)', 'TaucSIM1': 'Critical shear stress for sedimentation IM1 (N/m²)',
+    'VSedIM2': 'Sedimentation velocity IM2 (m/day)', 'TaucSIM2': 'Critical shear stress for sedimentation IM2 (N/m²)',
+    'VSedIM3': 'Sedimentation velocity IM3 (m/day)', 'TaucSIM3': 'Critical shear stress for sedimentation IM3 (N/m²)',
+    'TaucRS1DM': 'Critical shear stress for resuspension DM layer S1 (N/m²)',
+    # 2. Chemical 
+    # 2.1. Simple Oxygen
+    'NH4': 'Ammonium (g/m³)', 'CBOD5': 'Carbonaceous BOD (g/m³)', 'DO': 'Dissolved Oxygen concentration (g/m³)',
+    'OXY': 'Dissolved Oxygen (g/m³)', 'SOD': 'Sediment Oxygen Demand (g/m²)',
+    'RcNit': 'First-order Nitrification Rate (1/day)', 'RcBOD': 'Decay rate BOD (first pool) at 20°C (1/day)',
+    'COXBOD': 'Critical oxygen concentration for BOD decay (g/m³)', 'OOXBOD': 'Optimum Oxygen concentration for BOD decay (g/m³)',
+    'CFLBOD': 'Oxygen function level for Oxygen below COXBOD', 'O2FuncBOD': 'Oxygen function for CBOD decay',
+    'BODu': 'Calculated Carbonaceous BOD at ultimate (g/m³)', 'SWRear': 'Switch for Oxygen reaeration formulation',
+    'KLRear': 'Reaeration transfer coefficient (m/day)', 'fSOD': 'Zeroth-order sediment Oxygen demand flux (g/m²/day)',
+    'RcSOD': 'Decay rate SOD at 20°C (1/day)', 'Temp': 'Ambient water Temperature (°C)', 'VWind': 'Wind speed (m/s)',
+    # 2.2. Oxygen with Biochemical Oxygen Demand (BOD) (water phase only)
+    'Salinity': 'Salinity (g/kg)', 'RcBOD': 'Decay rate BOD (first pool) at 20°C (1/day)',
+    'Phyt': 'Total carbon in phytoplankton (g/m³)', 'SaturOXY': 'Saturation Concentration (g/m³)',
+    'SatPercOXY': 'Actual Saturation Percentage O2 (%)',
+    # 2.3. Cadmium
+    'Cd': 'Cadmium (g/m³)', 'CdS1': 'Cadmium in S1 (g/m²)', 'ZResDM': 'Zeroth-order resuspension flux DM (g/m²/day)',
+    # 2.4. Eutrophication (Eutrof 1a model)
+    'AAP': 'Adsorbed Ortho Phosphate (g/m³)', 'DetC': 'Detritus Carbon (g/m³)', 'DetN': 'Detritus Nitrogen (g/m³)',
+    'DetP': 'Detritus Phosphorus (g/m³)', 'GREEN':'Algae (non-Diatoms) (g/m³)', 'NO3':'Nitrate (g/m³)',
+    'PO4': 'Ortho-Phosphate (g/m³)', 'Cl':'Chloride (g/m³)', 'Opal':'Inorganic Silica (g/m³)',
+    'SWAdsP': 'Switch for Adsorbed Phosphate', 'KdPO4AAP': 'distrib. coeff. (-) or ads. eq. const. (m³/g)',
+    'RcDetC': 'First-order mineralisation rate DetC (1/day)', 'TcDetC': 'Temperature coefficient for mineralisation DetC',
+    'CTMin': 'Critical temperature for mineralisation (°C)', 'NCRatGreen': 'N:C ratio Greens (gN/gC)',
+    'PCRatGreen': 'P:C ratio Greens (gP/gC)', 'FrAutGreen': 'Fraction autolysis Greens',
+    'FrDetGreen': 'Fraction to detritus by mortality Greens', 'VSedDetC': 'Sedimentation velocity DetC (m/day)',
+    'TauCSDetC': 'Critical shear stress for sedimentation DetC (N/m²)', 'RcDetN': 'First-order mineralisation rate DetN (1/day)',
+    'TcDetN': 'Temperature coefficient for mineralisation DetN', 'RcDetP': 'First-order mineralisation rate DetP (1/day)',
+    'MRespGreen': 'Maintenance respiration Greens st.temp', 'GRespGreen': 'Growth respiration factor Greens',
+    'Mort0Green': 'Mortality rate constant Greens', 'SalM1Green': 'Lower salinity limit for mortality Greens',
+    'SalM2Green': 'Upper salinity limit for mortality Greens (g/kg)', 'TcNit': 'Temperature coefficient for nitrification',
+    'CTNit': 'Critical Temperature for nitrification (°C)', 'COXNIT': 'Critical Oxygen concentration for nitrification (g/m³)',
+    'OOXNIT': 'Optimum Oxygen concentration for nitrification (g/m³)', 'TcDenWat': 'Temperature coefficient for denitrification',
+    'COXDEN': 'Critical Oxygen concentration for denitrification (g/m³)', 'RcDenWat': 'First-order denitrification rate in water column (1/day)',
+    'OOXDEN': 'Optimum Oxygen concentration for denitrification (g/m³)', 'TCRear': 'Temperature coefficient for rearation',
+    'O2FuncBOD': 'Oxygen function for CBOD decay', 'fResS1DM': 'Total resuspension flux DM from layer S1 (g/m²/day)',
+    'ExtVlIM1': 'VL specific extinction coefficient M1 (m²/gDM)', 'ExtVlBak': 'Background extinction visible light (1/m)',
+    'DayL': 'Daylength (0-1) (day)', 'OptDLGreen': 'Daylength for growth saturation Greens (day)',
+    'PrfNH4gree': 'Ammonium preferency over nitrate Greens', 'KMDINgreen': 'Half-saturation value N Greens (gN/m³)',
+    'KMPgreen': 'Half-saturation value P Greens (gP/m³)', 'RadSatGree': 'Total radiation growth saturation greens (W/m²)',
+    'TcGroGreen': 'Temperature coefficient for processes Greens', 'ExtVlDetC': 'VL specific extinction coefficient DetC (m²/gC)',
+    'ExtVlGreen': 'VL specific extinction coefficient Greens (m²/gC)', 'RadSurf': 'Irradiation at the water surface (W/m²)',
+    'Chezy': 'Chezy coefficient (m^0.5/s)', 'AlgN': 'Total Nitrogen in algae (gN/gC)', 'AlgP': 'Total Phosphorus in algae (gP/gC)',
+    'SS': 'Suspended Solids (g/m³)', 'TotN': 'Total Nitrogen (including algae) (g/m³)', 'TotP': 'Total Phosphorus (including algae) (g/m³)',
+    'KjelN': 'Kjeldahl Nitrogen (g/m³)', 'LimDLGreen': 'Daylength limitation function for Greens (0-1)',
+    'LimNutGree': 'Nutrient limitation function for Greens (0-1)', 'LimRadGree': 'Radiation limitation function for Greens (0-1)',
+    'Chlfa': 'Chlorophyll-a concentration (g/m³)', 'ExtVlPhyt': 'VL extinction by Phytoplankton (m²/gC)',
+    # 2.5. Trace Metals
+    'ASWTOT': 'Total Arsenic (g/m³)', 'CUWTOT': 'Total Copper (g/m³)', 'NIWTOT': 'Total Nickel (g/m³)', 'PBWTOT': 'Total Lead (g/m³)',
+    'POCW': 'POC in water (g/m³)', 'AOCW': 'Algen Koolstof (g/m³)', 'DOCW': 'Opgelost organisch C waterkolom (g/m³)',
+    'SSW': 'Zwevende stof water (g/m³)', 'ZNWTOT': 'Total Zinc (g/m³)', 'ASREDT': 'Arseen total gereduceerde laag (g/m³)',
+    'ASSTOT': 'Arseen total aerobe laag (g/m³)', 'ASSUBT': 'Arseen total in onderlaag (g/m³)', 'CUREDT': 'Koper total gereduceerde laag (g/m³)',
+    'CUSTOT': 'Koper total aerobe laag (g/m³)', 'CUSUBT': 'Koper total in onderlaag (g/m³)', 'NIREDT': 'Nikkel total gereduceerde laag (g/m³)',
+    'NISTOT': 'Nikkel total aerobe laag (g/m³)', 'NISUBT': 'Nikkel total in onderlaag (g/m³)', 'PBREDT': 'Lood total gereduceerde laag (g/m³)',
+    'PBSTOT': 'Lood total aerobe laag (g/m³)', 'PBSUBT': 'Lood total in onderlaag (g/m³)', 'DOCB': 'Opgelost orgamisch C toplaag (g/m³)',
+    'DOCSUB': 'Opgelost orgamisch C sediment onderlaag (g/m³)', 'POCB': 'POC conc. in sediment (g/m³)', 'POCSUB': 'opgelost POC in onderlaag (g/m³)',
+    'S': 'Total S', 'ZNREDT': 'Zink total gereduceerde laag (g/m³)', 'ZNSTOT': 'Zink total aerobe laag (g/m³)', 'ZNSUBT': 'Zink total in onderlaag (g/m³)',
+    'aAs': 'Correctiefactor pH', 'aCu': 'Correctiefactor pH', 'aNi': 'Correctiefactor pH', 'aPb': 'Correctiefactor pH', 'aZn': 'Correctiefactor pH',
+    'bAs': 'Correctiefactor CL', 'bCu': 'Correctiefactor CL', 'bNi': 'Correctiefactor pH', 'bPb': 'Correctiefactor Cl', 'bZn': 'Correctiefactor Cl',
+    'alfa': 'Conversion factor algae in POC (gPOC/gAOC)', 'CUSulf': 'Constant conc. Cu-Sulfide precipitate (g/m³)', 'DZ1': 'Thickness aerobic top layer (m)',
+    'DZ2': 'Thickness reduced sublayer (m)', 'Ez0': 'Effective diffusion coeff sediment/water (m²/day)', 'fbx': 'Percentage sediment < 16um',
+    'fc': 'Carbon;organic matter ratio algae', 'fwx': 'Percentage suspended solids < 16 um', 'KAsDOC': 'Partitioncoeff. As on DOC (m³/gDOC)',
+    'KAsSS': 'Partitioncoeff. As on SS (equivalents) (l/eq*10-6)', 'KAsSSW': 'Partitioncoeff. As on SS (m³/gSSW)', 'KCuDOC': 'Partitioncoeff. Cu on DOC (m³/gDOC)',
+    'KCuSS': 'Partitioncoeff. Cu on SS (equivalents) (l/eq*10-6)', 'KCuSSW': 'Partitioncoeff. Cu on SS (m³/gSSW)', 'KdAOC': 'Phytoplankton decay rate (1/day)',
+    'KHYDW': 'Snelheidsconstante hydrolyse POC water (1/day)', 'KHYDB': 'Snelheidsconstante hydrolyse POC sediment (1/day)',
+    'KDMINW': 'Snelheidsconstante mineralisatie water (1/day)', 'KDMINB': 'Snelheidsconstante mineralisatie sediment (1/day)',
+    'KNiDOC': 'Partitioncoeff. Ni on DOC (m³/gDOC)', 'KNiSS': 'Partitioncoeff. Ni on SS (equivalents) (l/eq*10-6)',
+    'KPbDOC': 'Partitioncoeff. Pb on DOC (m³/gDOC)', 'KPbSS': 'Partitioncoeff. Pb on SS (equivalents) (l/eq*10-6)',
+    'KPbSSW': 'Partitioncoeff. Pb on SS (m³/gSSW)', 'KZnDOC': 'Partitioncoeff. Zn on DOC (m³/gDOC)', 'KZnSS': 'Partitioncoeff. Zn on SS (equivalents) (l/eq*10-6)',
+    'KZnSSW': 'Partitioncoeff. Zn on SS (m³/gSSW)', 'NIsulf': 'Constant conc. Ni-Sulfide precipitate (g/m³)', 'Pbsulf': 'Constant conc. Pb-Sulfide precipitate (g/m³)',
+    'POR': 'Porosity', 'RHOANO': 'Density of organic matter (g/m³)', 'RHOORG': 'Density of inorganic matter (g/m³)', 'Vsp': 'Sedimentatiesnelheid algen (m/day)',
+    'Vss': 'Sedimentatiesnelheid SS (m/day)', 'Vsn': 'Sedimentatiesnelheid organische stof (m/day)', 'Znsulf': 'Constant conc. Zn-Sulfide precipitate (g/m³)',
+    'pHb': 'Zuurgraad waterbodem (pH)', 'PAOC': 'AOC productiesnelheid (g/m³/day)', 'Fres': 'Resuspensie flux (g/m²/day)',
+    'ASatm': 'Gedistribueerde bron As (g/m²/day)', 'CUatm': 'Gedistribueerde bron Cu (g/m²/day)', 'NIatm': 'Gedistribueerde bron Ni (g/m²/day)',
+    'PBatm': 'Gedistribueerde bron Pb (g/m²/day)', 'ZNatm': 'Gedistribueerde bron Zn (g/m²/day)',
+    # 3. Microbial
+    # 3.1. Coliform Bacteria
+    'Salinity': 'Salinity (g/kg)', 'EColi': 'E.Coli bacteria (MPN/m³)', 'RcMrtEColi': 'First-order mortality rate E.Coli (1/day)',
+    'ExtVl': 'Total extinction coefficient visible light (1/m)', 'DayRadSurf': 'Irradiation at the water surface (W/m²)',
+    # 4. Water Quality - General
+    'volume': 'Volume (m³)'
 }
 
 def numberFormatter(arr: np.array, decimals: int=2) -> list:
@@ -221,18 +283,21 @@ def checkVariables(data: xr.Dataset, variablesNames: str) -> bool:
     if np.isnan(var.data.compute()).all(): return False
     # Check if min and max are the same value
     vmin, vmax = var.min(skipna=True).compute(), var.max(skipna=True).compute()
+    if float(vmin) < -900 and float(vmax) < -900: return False
     return bool(float(vmin) != float(vmax))
 
-def getVariablesNames(Out_files: list, model_type: str='') -> dict:
+def getVariablesNames(out_files: list, model_type: str='', filename: str='') -> dict:
     """
-    Get the names of the variables in the dataset received from *.nc file.
+    Get the names of the variables in the dataset received from *.zarr file.
 
     Parameters:
     ----------
-    Out_files: list
-        The list of the *.nc files (in xr.Dataset format).
+    out_files: list
+        The list of the *.zarr files (in xr.Dataset format).
     model_type: str
         The type of the model used.
+    filename: str
+        The name of the *.zarr file.
 
     Returns:
     -------
@@ -240,7 +305,7 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
         The dictionary containing the names of the variables.
     """
     result = {}
-    for data in Out_files:
+    for data in out_files:
         if data is None: continue
         # This is a hydrodynamic his file
         if 'time' in data.sizes and any(k in data.sizes for k in ['stations', 'cross_section', 'source_sink']):
@@ -350,58 +415,98 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
             if model_type == 'conservative-tracers':
                 result['waq_his_conservative_selector'] = []
                 for item in variables:
-                    if checkVariables(data, item): result['waq_his_conservative_selector'].append(units[item] if item in units.keys() else item)
-                result['waq_his_conservative_decay'] = True if len(result['waq_his_conservative_selector']) > 0 else False
+                    if checkVariables(data, item): result['waq_his_conservative_selector'].append(item)
+                if len(result['waq_his_conservative_selector']) > 0:
+                    result['waq_his_conservative_decay'] = True
+                    result['waq_his_conservative_decay_name'] = filename
+                else:
+                    result['waq_his_conservative_decay'] = False
+                    result['waq_his_conservative_decay_name'] = 'Conservative and decaying tracers'
                 result['waq_his'] = result['waq_his_conservative_decay']
             # 2. Suspended Sediment
             elif model_type == 'suspend-sediment':
                 result['waq_his_suspended_sediment_selector'] = []
                 for item in variables:
-                    if checkVariables(data, item): result['waq_his_suspended_sediment_selector'].append(units[item] if item in units.keys() else item)
-                result['waq_his_suspended_sediment'] = True if len(result['waq_his_suspended_sediment_selector']) > 0 else False
+                    if checkVariables(data, item): result['waq_his_suspended_sediment_selector'].append(item)
+                if len(result['waq_his_suspended_sediment_selector']) > 0:
+                    result['waq_his_suspended_sediment'] = True
+                    result['waq_his_suspended_sediment_name'] = filename
+                else:
+                    result['waq_his_suspended_sediment'] = False
+                    result['waq_his_suspended_sediment_name'] = 'Suspended Sediment (three fractions)'
                 result['waq_his'] = result['waq_his_suspended_sediment']
             # Prepare data for Chemical option
             # 1. Simple Oxygen
             elif model_type == 'simple-oxygen':
                 result['waq_his_simple_oxygen_selector'] = []
                 for item in variables:
-                    if checkVariables(data, item): result['waq_his_simple_oxygen_selector'].append(units[item] if item in units.keys() else item)
-                result['waq_his_simple_oxygen'] = True if len(result['waq_his_simple_oxygen_selector']) > 0 else False
+                    if checkVariables(data, item): result['waq_his_simple_oxygen_selector'].append(item)
+                if len(result['waq_his_simple_oxygen_selector']) > 0:
+                    result['waq_his_simple_oxygen'] = True
+                    result['waq_his_simple_oxygen_name'] = filename
+                else:
+                    result['waq_his_simple_oxygen'] = False
+                    result['waq_his_simple_oxygen_name'] = 'Simple Oxygen'
                 result['waq_his'] = result['waq_his_simple_oxygen']
             # 2. Oxygen and BOD (water phase only)
             elif model_type == 'oxygen-bod-water':
                 result['waq_his_oxygen_bod_selector'] = []
                 for item in variables:
-                    if checkVariables(data, item): result['waq_his_oxygen_bod_selector'].append(units[item] if item in units.keys() else item)            
-                result['waq_his_oxygen_bod'] = True if (len(result['waq_his_oxygen_bod_selector'])) else False
+                    if checkVariables(data, item): result['waq_his_oxygen_bod_selector'].append(item)            
+                if len(result['waq_his_oxygen_bod_selector']) > 0:
+                    result['waq_his_oxygen_bod'] = True
+                    result['waq_his_oxygen_bod_name'] = filename
+                else:
+                    result['waq_his_oxygen_bod'] = False
+                    result['waq_his_oxygen_bod_name'] = 'Oxygen and BOD (water phase only)'
                 result['waq_his'] = result['waq_his_oxygen_bod']
             # 3. Cadmium
             elif model_type == 'cadmium':
                 result['waq_his_cadmium_selector'] = []
                 for item in variables:
-                    if checkVariables(data, item): result['waq_his_cadmium_selector'].append(units[item] if item in units.keys() else item)
-                result['waq_his_cadmium'] = True if len(result['waq_his_cadmium_selector']) > 0 else False
+                    if checkVariables(data, item): result['waq_his_cadmium_selector'].append(item)
+                if len(result['waq_his_cadmium_selector']) > 0:
+                    result['waq_his_cadmium'] = True
+                    result['waq_his_cadmium_name'] = filename
+                else:
+                    result['waq_his_cadmium'] = False
+                    result['waq_his_cadmium_name'] = 'Cadmium'
                 result['waq_his'] = result['waq_his_cadmium']
             # 4. Eutrophication
             elif model_type == 'eutrophication':
                 result['waq_his_eutrophication_selector'] = []
                 for item in variables:
-                    if checkVariables(data, item): result['waq_his_eutrophication_selector'].append(units[item] if item in units.keys() else item)
-                result['waq_his_eutrophication'] = True if len(result['waq_his_eutrophication_selector']) > 0 else False
+                    if checkVariables(data, item): result['waq_his_eutrophication_selector'].append(item)
+                if len(result['waq_his_eutrophication_selector']) > 0:
+                    result['waq_his_eutrophication'] = True
+                    result['waq_his_eutrophication_name'] = filename
+                else:
+                    result['waq_his_eutrophication'] = False
+                    result['waq_his_eutrophication_name'] = 'Eutrophication'
                 result['waq_his'] = result['waq_his_eutrophication']
             # 5. Trace Metals
-            elif model_type == 'tracer-metals':
+            elif model_type == 'trace-metals':
                 result['waq_his_trace_metals_selector'] = []
                 for item in variables:
-                    if checkVariables(data, item): result['waq_his_trace_metals_selector'].append(units[item] if item in units.keys() else item)
-                result['waq_his_trace_metals'] = True if len(result['waq_his_trace_metals_selector']) > 0 else False
+                    if checkVariables(data, item): result['waq_his_trace_metals_selector'].append(item)
+                if len(result['waq_his_trace_metals_selector']) > 0:
+                    result['waq_his_trace_metals'] = True
+                    result['waq_his_trace_metals_name'] = filename
+                else:
+                    result['waq_his_trace_metals'] = False
+                    result['waq_his_trace_metals_name'] = 'Trace Metals'
                 result['waq_his'] = result['waq_his_trace_metals']
             # Prepare data for Microbial option
             elif model_type == 'coliform':
                 result['waq_his_coliform_selector'] = []
                 for item in variables:
-                    if checkVariables(data, item): result['waq_his_coliform_selector'].append(units[item] if item in units.keys() else item)
-                result['waq_his_coliform'] = True if len(result['waq_his_coliform_selector']) > 0 else False
+                    if checkVariables(data, item): result['waq_his_coliform_selector'].append(item)
+                if len(result['waq_his_coliform_selector']) > 0:
+                    result['waq_his_coliform'] = True
+                    result['waq_his_coliform_name'] = filename
+                else:
+                    result['waq_his_coliform'] = False
+                    result['waq_his_coliform_name'] = 'Coliform Bacteria'
                 result['waq_his'] = result['waq_his_coliform']
         # This is a water quality map file      
         elif ('nTimesDlwq' in data.sizes and any(k in data.sizes for k in ['mesh2d_nNodes', 'mesh2d_nEdges'])):
@@ -414,100 +519,108 @@ def getVariablesNames(Out_files: list, model_type: str='') -> dict:
             # 1. Conservative and Decaying Tracers
             if model_type == 'conservative-tracers':
                 result['waq_map_conservative_selector'], result['waq_map_conservative_decay'] = [], False
+                result['waq_map_conservative_decay_name'] = 'Conservative and decaying tracers'
                 for item in variables:
                     item1 = item.replace('mesh2d_', '').replace('2d_', '')
                     if checkVariables(data, item): 
                         elements_check = {x[0] for x in result['waq_map_conservative_selector']}
-                        if item1 not in elements_check:
-                            result['waq_map_conservative_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
+                        if item1 not in elements_check: result['waq_map_conservative_selector'].append(item1)
                 result['waq_map_conservative_selector'] = list(dict.fromkeys(result['waq_map_conservative_selector']))
                 if len(result['waq_map_conservative_selector']) > 0:
-                    result['wq_map'] = result['waq_map_conservative_decay'] = result['thermocline_waq'] = True              
+                    result['wq_map'] = result['waq_map_conservative_decay'] = result['thermocline_waq'] = True
+                    result['waq_map_conservative_decay_name'] = filename
             # 2. Suspended Sediment
             elif model_type == 'suspend-sediment':
                 result['waq_map_suspended_sediment_selector'], result['waq_map_suspended_sediment'] = [], False
+                result['waq_map_suspended_sediment_name'] = 'Suspended sediment (three fractions)'
                 for item in variables:
                     item1 = item.replace('mesh2d_', '').replace('2d_', '')
                     if checkVariables(data, item):
                         elements_check = {x[0] for x in result['waq_map_suspended_sediment_selector']}
-                        if item1 not in elements_check:
-                            result['waq_map_suspended_sediment_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
+                        if item1 not in elements_check: result['waq_map_suspended_sediment_selector'].append(item1)
                 result['waq_map_suspended_sediment_selector'] = list(dict.fromkeys(result['waq_map_suspended_sediment_selector']))
                 if len(result['waq_map_suspended_sediment_selector']) > 0:
                     result['wq_map'] = result['waq_map_suspended_sediment'] = result['thermocline_waq'] = True
+                    result['waq_map_suspended_sediment_name'] = filename
             # Prepare data for Chemical option
             # 1. Simple Oxygen
             elif model_type == 'simple-oxygen':
                 result['waq_map_simple_oxygen_selector'], result['waq_map_simple_oxygen'] = [], False
+                result['waq_map_simple_oxygen_name'] = 'Simple Oxygen'
                 for item in variables:
                     item1 = item.replace('mesh2d_', '').replace('2d_', '')
                     if checkVariables(data, item):
                         elements_check = {x[0] for x in result['waq_map_simple_oxygen_selector']}
-                        if item1 not in elements_check:
-                            result['waq_map_simple_oxygen_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
+                        if item1 not in elements_check: result['waq_map_simple_oxygen_selector'].append(item1)
                 result['waq_map_simple_oxygen_selector'] = list(dict.fromkeys(result['waq_map_simple_oxygen_selector']))
                 if len(result['waq_map_simple_oxygen_selector']) > 0:
                     result['wq_map'] = result['waq_map_simple_oxygen'] = result['thermocline_waq'] = True
+                    result['waq_map_simple_oxygen_name'] = filename
             # 2. Oxygen and BOD (water phase only)
             elif model_type == 'oxygen-bod-water':
                 result['waq_map_oxygen_bod_selector'], result['waq_map_oxygen_bod'] = [], False
+                result['waq_map_oxygen_bod_name'] = 'Oxygen and BOD (water phase only)'
                 for item in variables:
                     item1 = item.replace('mesh2d_', '').replace('2d_', '')
                     if checkVariables(data, item):
                         elements_check = {x[0] for x in result['waq_map_oxygen_bod_selector']}
-                        if item1 not in elements_check:
-                            result['waq_map_oxygen_bod_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
+                        if item1 not in elements_check: result['waq_map_oxygen_bod_selector'].append(item1)
                 result['waq_map_oxygen_bod_selector'] = list(dict.fromkeys(result['waq_map_oxygen_bod_selector']))
                 if len(result['waq_map_oxygen_bod_selector']) > 0:  
                     result['wq_map'] = result['waq_map_oxygen_bod'] = result['thermocline_waq'] = True
+                    result['waq_map_oxygen_bod_name'] = filename
             # 3. Cadmium
             elif model_type == 'cadmium':
                 result['waq_map_cadmium_selector'], result['waq_map_cadmium'] = [], False
+                result['waq_map_cadmium_name'] = 'Cadmium'
                 for item in variables:
                     item1 = item.replace('mesh2d_', '').replace('2d_', '')
                     if checkVariables(data, item):
                         elements_check = {x[0] for x in result['waq_map_cadmium_selector']}
-                        if item1 not in elements_check:
-                            result['waq_map_cadmium_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
+                        if item1 not in elements_check: result['waq_map_cadmium_selector'].append(item1)
                 result['waq_map_cadmium_selector'] = list(dict.fromkeys(result['waq_map_cadmium_selector']))
                 if len(result['waq_map_cadmium_selector']) > 0:
                     result['wq_map'] = result['waq_map_cadmium'] = result['thermocline_waq'] = True
+                    result['waq_map_cadmium_name'] = filename
             # 4. Eutrophication
             elif model_type == 'eutrophication':
                 result['waq_map_eutrophication_selector'], result['waq_map_eutrophication'] = [], False
+                result['waq_map_eutrophication_name'] = 'Eutrophication'
                 for item in variables:
                     item1 = item.replace('mesh2d_', '').replace('2d_', '')
                     if checkVariables(data, item):
                         elements_check = {x[0] for x in result['waq_map_eutrophication_selector']}
-                        if item1 not in elements_check:
-                            result['waq_map_eutrophication_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
+                        if item1 not in elements_check: result['waq_map_eutrophication_selector'].append(item1)
                 result['waq_map_eutrophication_selector'] = list(dict.fromkeys(result['waq_map_eutrophication_selector']))
                 if len(result['waq_map_eutrophication_selector']) > 0:
                     result['wq_map'] = result['waq_map_eutrophication'] = result['thermocline_waq'] = True
+                    result['waq_map_eutrophication_name'] = filename
             # 5. Trace Metals
-            elif model_type == 'tracer-metals':
+            elif model_type == 'trace-metals':
                 result['waq_map_trace_metals_selector'], result['waq_map_trace_metals'] = [], False
+                result['waq_map_trace_metals_name'] = 'Trace Metals'
                 for item in variables:
                     item1 = item.replace('mesh2d_', '').replace('2d_', '')
                     if checkVariables(data, item):
                         elements_check = {x[0] for x in result['waq_map_trace_metals_selector']}
-                        if item1 not in elements_check:
-                            result['waq_map_trace_metals_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
+                        if item1 not in elements_check: result['waq_map_trace_metals_selector'].append(item1)
                 result['waq_map_trace_metals_selector'] = list(dict.fromkeys(result['waq_map_trace_metals_selector']))
                 if len(result['waq_map_trace_metals_selector']) > 0:
                     result['wq_map'] = result['waq_map_trace_metals'] = result['thermocline_waq'] = True
+                    result['waq_map_trace_metals_name'] = filename
             # Prepare data for Microbial option
             elif model_type == 'coliform':
                 result['waq_map_coliform_selector'], result['waq_map_coliform'] = [], False
+                result['waq_map_coliform_name'] = 'Coliform Bacteria'
                 for item in variables:
                     item1 = item.replace('mesh2d_', '').replace('2d_', '')
                     if checkVariables(data, item):
                         elements_check = {x for x in result['waq_map_coliform_selector']}
-                        if item1 not in elements_check:
-                            result['waq_map_coliform_selector'].append((item1, units[item1] if item1 in units.keys() else item1))
+                        if item1 not in elements_check: result['waq_map_coliform_selector'].append(item1)
                 result['waq_map_coliform_selector'] = list(dict.fromkeys(result['waq_map_coliform_selector']))
                 if len(result['waq_map_coliform_selector']) > 0:
                     result['wq_map'] = result['waq_map_coliform'] = result['thermocline_waq'] = True
+                    result['waq_map_coliform_name'] = filename
             result['spatial_map'] = result['single_layer'] = result['multi_layer'] = result['wq_map']
             result['hide_map'] = result['spatial_map']
     return result
@@ -528,12 +641,10 @@ def valueToKeyConverter(values: list, dict: dict=units) -> list:
     list
         The list of keys.
     """
+    if not isinstance(values, list): values = [values]
     result = []
     for value in values:
-        for key, val in dict.items():
-            if value == val:
-                result.append(key)
-                break
+        result.append(dict.get(value, value))
     return result
 
 def dialogReader(dialog_file: str) -> dict:
@@ -553,7 +664,7 @@ def dialogReader(dialog_file: str) -> dict:
     # Check if the dialog file exists
     if not os.path.exists(dialog_file): return {}
     result = {}
-    with open(f'{dialog_file}', 'r') as f:
+    with open(f'{dialog_file}', 'r', encoding=encoding_detect(dialog_file)) as f:
         content = f.read()
     content = content.split('\n')
     for line in content:
@@ -571,16 +682,16 @@ def dialogReader(dialog_file: str) -> dict:
             result["volume"] = float(temp.strip())
     return result
 
-def getSummary(dialog_path: str, Out_files: list) -> list:
+def getSummary(dialog_path: str, out_files: list) -> list:
     """
-    Get the summary of the dataset received from *.nc file.
+    Get the summary of the dataset received from *.zarr file.
 
     Parameters:
     ----------
     dialog_path: str
         The path of the dialog *.dia file.
-    Out_files: list
-        List of _his.nc files.
+    out_files: list
+        List of _his.zarr files.
 
     Returns:
     -------
@@ -594,8 +705,8 @@ def getSummary(dialog_path: str, Out_files: list) -> list:
         result.append({'parameter': 'Computation finished', 'value': dialog['computation_finish']})
         result.append({'parameter': 'Area (m2)', 'value': dialog['area']})
         result.append({'parameter': 'Volume (m3)', 'value': dialog['volume']})
-    if len(Out_files) == 0: return result
-    for data_his in Out_files:
+    if len(out_files) == 0: return result
+    for data_his in out_files:
         if data_his is None: continue
         sizes = data_his.sizes
         # --- Hydrodynamic ---
@@ -643,10 +754,11 @@ def checkCoordinateReferenceSystem(name: str, geometry: gpd.GeoSeries, data_his:
     if 'wgs84' in data_his.variables:
         crs_code = data_his['wgs84'].attrs.get('EPSG_code', 'EPSG:4326')
         result = gpd.GeoDataFrame(data={'name': name, 'geometry': geometry}, crs=crs_code)
-    else:
+    elif 'projected_coordinate_system' in data_his.variables:
         crs_code = data_his['projected_coordinate_system'].attrs.get('EPSG_code', 'EPSG:4326')
         result = gpd.GeoDataFrame(data={'name': name, 'geometry': geometry}, crs=crs_code)
         result = result.to_crs(epsg=4326)  # Convert to WGS84 if not already
+    else: result = gpd.GeoDataFrame(data={'name': name, 'geometry': geometry}, crs='EPSG:4326')
     return result
 
 def hydCreator(data_his: xr.Dataset) -> tuple[gpd.GeoDataFrame, list]:
@@ -874,17 +986,19 @@ def unstructuredGridCreator(data_map: xr.Dataset) -> gpd.GeoDataFrame:
     if 'wgs84' in data_map.variables:
         crs_code = data_map['wgs84'].attrs.get('EPSG_code', 4326)
         grid = gpd.GeoDataFrame(geometry=polygons, crs=crs_code)
-    else:
+    elif 'projected_coordinate_system' in data_map.variables:
         crs_code = data_map['projected_coordinate_system'].attrs.get('EPSG_code', 4326)
         # Convert to WGS84 if not already
         grid = gpd.GeoDataFrame(geometry=polygons, crs=crs_code).to_crs(epsg=4326)
+    else: grid = gpd.GeoDataFrame(geometry=polygons, crs="EPSG:4326")
     return grid
 
 def interpolation_Z(grid_net: gpd.GeoDataFrame, x_coords: np.ndarray, y_coords: np.ndarray,
         z_values: np.ndarray, n_neighbors: int=2, geo_type: str='polygon') -> np.ndarray:
     """
     Interpolate or extrapolate z values for grid from known points
-    using Inverse Distance Weighting (IDW) method.
+    using Inverse Distance Weighting (IDW) method 
+    (in a 'plane' coordinate system like EPSG:32632 - WGS 84 / UTM zone 32N).
 
     Parameters:
     ----------
@@ -942,12 +1056,15 @@ def layerCounter(data_map: xr.Dataset, type: str='hyd') -> dict:
         ucm = data_map['mesh2d_ucmag'].data
         for i in reversed(range(len(z_layer))):
             # Use dask to speed up, keep lazy-load
+            note, counter = '', len(z_layer)-i-1
+            if counter == 0: note = ' (surface)'
+            elif counter == len(z_layer)-1: note = ' (bottom)'
             ucx_i = ucx[:, :, i].compute()
             ucy_i = ucy[:, :, i].compute()
             ucm_i = ucm[:, :, i].compute()
             # Check if all values are nan
             if (np.isnan(ucx_i).all() or np.isnan(ucy_i).all() or np.isnan(ucm_i).all()): continue
-            layers[str(len(z_layer)-i-1)] = f'Depth: {z_layer[i]} m'
+            layers[str(counter)] = f'Depth: {z_layer[i]} m{note}'
     else:
         z_layer = np.round([100*x for x in data_map['mesh2d_layer_dlwq'].data.compute()], 0)
         layers['-1'] = 'Average'
@@ -1017,7 +1134,7 @@ def fileWriter(template_path: str, params: dict) -> str:
         The content of saved file
     """
     # Open the file and read its contents
-    with open(template_path, 'r') as file:
+    with open(template_path, 'r', encoding=encoding_detect(template_path)) as file:
         file_content = file.read()
     # Replace placeholders with actual values
     for key, value in params.items():
@@ -1063,7 +1180,8 @@ def contentWriter(project_name: str, filename: str, data: list, content: str, un
     try:
         path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
         # Write weather.tim file
-        with open(os.path.normpath(os.path.join(path, filename)), 'w') as f:
+        tim_path = os.path.normpath(os.path.join(path, filename))
+        with open(tim_path, 'w', encoding=encoding_detect(tim_path)) as f:
             for row in data:
                 if unit == 'sec': row[0] = int(row[0]/1000)
                 elif unit == 'min': row[0] = int(row[0]/(1000*60))
@@ -1072,7 +1190,7 @@ def contentWriter(project_name: str, filename: str, data: list, content: str, un
         # Add weather data to FlowFM.ext file
         ext_path = os.path.normpath(os.path.join(path, "FlowFM.ext"))
         if os.path.exists(ext_path):
-            with open(ext_path, encoding="utf-8") as f:
+            with open(ext_path, 'r', encoding=encoding_detect(ext_path)) as f:
                 update_content = f.read()
             parts = re.split(r'\n\s*\n', update_content)
             parts = [p.strip() for p in parts if p.strip()]
@@ -1080,11 +1198,11 @@ def contentWriter(project_name: str, filename: str, data: list, content: str, un
                 index = parts.index([part for part in parts if filename in part][0])
                 parts[index] = content
             else: parts.append(content)
-            with open(ext_path, 'w') as file:
+            with open(ext_path, 'w', encoding=encoding_detect(ext_path)) as file:
                 joined_parts = '\n\n'.join(parts)
                 file.write(f"\n{joined_parts}\n")
         else:
-            with open(ext_path, 'w') as f:
+            with open(ext_path, 'w', encoding=encoding_detect(ext_path)) as f:
                 f.write(f"\n{content}\n")
         status, message = 'ok', "Data is saved successfully."
     except Exception as e:
@@ -1125,10 +1243,10 @@ def postProcess(directory: str) -> dict:
         # Copy files to the directory output
         DFM_OUTPUT_folder = os.path.normpath(os.path.join(directory, 'DFM_OUTPUT'))
         if not os.path.exists(DFM_OUTPUT_folder):
-            return {'status': 'error', 'message': 'No output folder found.'}
+            return {'status': 'error', 'message': 'No output folder found'}
         select_files = ['FlowFM.dia', 'FlowFM_his.nc', 'FlowFM_map.nc']
         found_files = [f for f in os.listdir(DFM_OUTPUT_folder) if f in select_files]
-        if len(found_files) == 0: return {'status': 'error', 'message': 'No required files found in the output folder.'}
+        if len(found_files) == 0: return {'status': 'error', 'message': 'No required files found in the output folder'}
         # Copy and Remove the outputs
         for f in found_files:
             src = os.path.normpath(os.path.join(DFM_OUTPUT_folder, f))
@@ -1147,7 +1265,7 @@ def postProcess(directory: str) -> dict:
             safe_remove(src)
         # Clean DFM_OUTPUT folder
         if os.path.exists(DFM_OUTPUT_folder): shutil.rmtree(DFM_OUTPUT_folder, onerror=remove_readonly)
-        return {'status': 'ok', 'message': 'Data is saved successfully.'}
+        return {'status': 'ok', 'message': 'Simulation completed successfully'}
     except Exception as e: return {'status': 'error', 'message': str(e)}
 
 def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
@@ -1169,61 +1287,31 @@ def meshProcess(is_hyd: bool, arr: np.ndarray, cache: dict) -> np.ndarray:
         The smoothed values.
     """
     cache_copy = cache.copy()
-    df, n_rows = pd.DataFrame(cache_copy["df"]), cache_copy["n_rows"]
+    data = cache_copy["df"]
+    df = pd.DataFrame(data=data["data"], columns=data["columns"], index=data["index"])
     df_depth = np.array(df["depth"].values, dtype=float)
-    df_depth_rounded = abs(np.round(df_depth, 0))
     depth_values = np.array(cache_copy["depth_values"], dtype=float)
-    depth_rounded = abs(np.round(depth_values, 0))
-    index_map = {int(v): len(depth_rounded)-i-1 for i, v in enumerate(depth_rounded)}
+    depth_rounded, n_rows = abs(np.round(depth_values, 0)), cache_copy["n_rows"]
+    if is_hyd: index_map = {int(v): len(depth_rounded)-i-1 for i, v in enumerate(depth_rounded)}
+    else: index_map = {int(v): i for i, v in enumerate(depth_rounded)}
     # Pre-allocate frame
     frame = np.full((len(df), abs(n_rows)), np.nan, float)
-    values_filtered = arr[df.index.values, :] if is_hyd else arr[:, df.index.values]
-    for i in range(abs(n_rows)):
-        mask_depth = ((df['depth'].values <= -i) & (i in depth_rounded))
-        row_idx = np.where(mask_depth)[0]
-        # Define value for max row
-        if i in df_depth_rounded:
-            pos_row = np.where(df_depth_rounded == i)[0]
-            best_idx = np.argmax(np.where(depth_rounded <= i)[0])
-            pos_col = int(depth_rounded[best_idx])
-            vals = frame[pos_row, pos_col]
-            if np.isnan(vals).any():
-                temp_vals, pos_col_new = [], int(depth_rounded[best_idx])
-                for idx, v in enumerate(vals):
-                    if np.isnan(v):
-                        count = best_idx-1
-                        while count >= 0:
-                            pos_col_new = int(depth_rounded[count])
-                            new_val = frame[pos_row[idx], pos_col_new]
-                            if not np.isnan(new_val): break
-                            count -= 1
-                    else: new_val = v
-                    temp_vals.append(new_val)
-                temp_vals = np.array(temp_vals)
-            else: temp_vals = vals
-            frame[pos_row, i] = temp_vals
-        if len(row_idx) == 0: continue
-        if is_hyd: temp = values_filtered[:, index_map[i]]
-        else: temp = values_filtered[index_map[i], :]
-        frame[row_idx, i] = temp[mask_depth]
-    frame[:, 0] = frame[:, int(depth_rounded[0])]  # Fill the first column
-    # Interpolate
+    values_filtered = arr[df.index.values, :]
+    depth_int = depth_rounded.astype(int)
+    valid_depth = np.unique(depth_int[depth_int < abs(n_rows)])
+    col_idx = np.array([index_map[d] for d in valid_depth])
+    mask = df_depth[:, None] <= -valid_depth[None, :]
+    vals = values_filtered[:, col_idx]
+    frame[:, valid_depth] = np.where(mask, vals, frame[:, valid_depth])
+    # Interpolate and fill missing values row-wise
+    mask = ~np.isnan(frame)
+    _, (ix, iy) = distance_transform_edt(~mask, return_indices=True)
+    frame_filled = gaussian_filter(frame[ix, iy], sigma=(1.2, 0.6))
+    frame = np.clip(frame_filled, 0, None)
     mask_valid = -np.arange(abs(n_rows))[None, :] >= df_depth[:, None]
-    x_idx, y_idx = np.where(~np.isnan(frame))
-    if len(x_idx) > 0:
-        vals = frame[x_idx, y_idx]
-        # If only one point, use that value for the whole grid cell
-        if not (vals.min() == vals.max()):
-            grid_x, grid_y = np.indices(frame.shape)          
-            # rbf = Rbf(x_idx, y_idx, vals, function='cubic')
-            # frame = rbf(grid_x, grid_y)
-            frame = griddata(points=np.column_stack([x_idx, y_idx]), 
-                             values=vals, xi=(grid_x, grid_y), method='cubic')
-        else: frame[:, :] = vals.min()
-    frame[~mask_valid] = np.nan
-    smoothed_transpose = frame.T
     max_row = np.max(np.where(mask_valid.T)[0])
-    smoothed_transpose = smoothed_transpose[:max_row + 2, :]
+    frame[~mask_valid] = np.nan
+    smoothed_transpose = frame.T[:max_row + 2, :]
     return smoothed_transpose
 
 def seconds_datetime(seconds: int) -> tuple:
@@ -1236,14 +1324,14 @@ def seconds_datetime(seconds: int) -> tuple:
     return days, f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 def kill_process(process):
-    if not process: return {"status": "ok", "message": "No process to kill."}
+    if not process: return {"status": "ok", "message": "No process to kill"}
     try:
-        if process.poll() is not None: return {"status": "ok", "message": "Simulation stopped."}
+        if process.poll() is not None: return {"status": "ok", "message": "Simulation stopped"}
         # Try terminate
         try:
             process.send_signal(signal.CTRL_BREAK_EVENT)
             process.wait(timeout=5)
-            return {"status": "ok", "message": "Simulation stopped (graceful)."}
+            return {"status": "ok", "message": "Simulation stopped"}
         except Exception: pass
         try:
             process.terminate()
@@ -1253,6 +1341,6 @@ def kill_process(process):
         # Force kill for Windows
         subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-        return {"status": "ok", "message": "Simulation force killed."}
+        return {"status": "ok", "message": "Simulation force killed"}
     except Exception as e: 
         return {"status": "error", "message": str(e)}

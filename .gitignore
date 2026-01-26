@@ -9,8 +9,9 @@ logs
 # Files
 Variable_names.txt
 *.jpg
-*.csv
 *.ipynb
+output.csv
+points.json
 
 # Additional files
 *.pyc
