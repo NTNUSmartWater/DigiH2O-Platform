@@ -406,7 +406,15 @@ function updateEvents() {
                 // iframeInit("grid_generation", projectSetting(), projectSettingHeader(), 
                 //     projectSettingContent(), "Grid Generation");
                 return;
-            } 
+            } else if (name === 'data-preparation') {
+                // // Data Preparation
+                // iframeInit("data_preparation", projectSetting(), projectSettingHeader(),
+                //     projectSettingContent(), "Data Preparation");
+            } else if (name === 'model-calibration') {
+                // Model Calibration
+                // iframeInit("model_calibration", projectSetting(), projectSettingHeader(),
+                //     projectSettingContent(), "Model Calibration");
+            }
         }
         // Delete GIS layer
         if (e.target.classList.contains('delete-btn')) {
