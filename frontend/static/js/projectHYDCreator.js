@@ -591,7 +591,7 @@ async function initializeProject(){
         if (value === '') {
             sectionTab().style.display = "none"; sectionDescription().style.display = "block";
         }
-        renderProjects(projects(), projectList, value);
+        renderProjects(projects(), projectName(), projectList, value);
     });
     projectName().addEventListener('blur', () => { 
         setTimeout(() => { projects().style.display = "none"; }, 100);
@@ -618,7 +618,7 @@ async function initializeProject(){
         const data = await sendQuery('copy_project', {oldName: name, newName: newName});
         alert(data.message); projectList = []; projectName().value = ''; 
         await getProjectList(); projectCloner().innerHTML = 'Clone Scenario';
-    })
+    });
     // Delete project
     projectRemover().addEventListener('click', async () => {
         const name = projectName().value.trim();

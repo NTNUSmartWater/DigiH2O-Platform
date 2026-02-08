@@ -4,9 +4,9 @@ import { plotChart, plotEvents, drawChart, plotWindow, thermoclinePlotter } from
 import { timeControl, colorbar_container, colorbar_vector_container, plot2DMapDynamic } from "./map2DManager.js";
 import { generalOptionsManager, summaryWindow } from './generalOptionManager.js';
 import { spatialMapManager, substanceWindowHis, substanceWindowMap } from './spatialMapManager.js';
-import { sendQuery } from './tableManager.js';
-import { fileUploader } from './utils.js';
-import { getState, resetState, setState } from './constants.js'; 
+import { sendQuery } from './tableManager.js'; import { fileUploader } from './utils.js';
+import { getState, resetState, setState } from './constants.js';
+
 
 let pickerState = { location: false, point: false, crosssection: false, boundary: false, source: false },
     cachedMenus = {}, markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [], gisLayers = {},
@@ -144,7 +144,7 @@ async function initializeMenu(){
                 content.innerHTML = `
                     <ul class="sub-menu" style="display:block; z-index: 100000;">
                         <li><a id="help-contact">About Us</a></li>
-                        <li><a id="help-docs">Manual</a></li>
+                        <li><a id="help-docs">User Manual</a></li>
                     </ul>
                 `;
                 const aboutLink = document.getElementById('help-contact');
@@ -401,12 +401,21 @@ function updateEvents() {
                 }
                 projectChecker();
             } else if (name === 'grid-generation') {
+                // Grid Generation
+                projectChecker(); updateStatus().innerHTML = 'Last Option: Grid Generation from Lake Database';
+                const win = window.open('static_frontend/templates/gridGenerator.html', '_blank');
+                if (!win) alert('Please allow popups for opening the page.');
+            } else if (name === 'data-preparation') {
+                // // Data Preparation
                 // projectChecker();
-                // // Grid Generation
-                // iframeInit("grid_generation", projectSetting(), projectSettingHeader(), 
-                //     projectSettingContent(), "Grid Generation");
-                return;
-            } 
+                // iframeInit("data_preparation", projectSetting(), projectSettingHeader(),
+                //     projectSettingContent(), "Data Preparation");
+            } else if (name === 'model-calibration') {
+                // Model Calibration
+                // projectChecker();
+                // iframeInit("model_calibration", projectSetting(), projectSettingHeader(),
+                //     projectSettingContent(), "Model Calibration");
+            }
         }
         // Delete GIS layer
         if (e.target.classList.contains('delete-btn')) {

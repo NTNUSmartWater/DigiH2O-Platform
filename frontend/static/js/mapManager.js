@@ -2,7 +2,7 @@ import { getState } from "./constants.js";
 
 export let map;
 let currentTileLayer = null, timerCounter;
-const CENTER = [62.476969, 6.471598];
+export const CENTER = [62.476969, 6.471598];
 export const ZOOM = 13;
 export const L = window.L;
 export const loading = () => document.getElementById('loadingOverlay');
@@ -58,8 +58,7 @@ export function switchBaseMapLayer(url) {
 
 // Generate the map
 export function setupMap() {
-    map = L.map('leaflet_map', {center:CENTER, zoom: ZOOM,
-        zoomControl: false, attributionControl: true});
+    map = L.map('leaflet_map', {center:CENTER, zoom: ZOOM, zoomControl: false, attributionControl: true});
     currentTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     // Add scale bar
     L.control.scale({imperial: false, metric: true, maxWidth: 200}).addTo(map);

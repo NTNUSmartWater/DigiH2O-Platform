@@ -5,7 +5,7 @@ import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
 from uuid import uuid4
 from scipy.ndimage import distance_transform_edt, gaussian_filter
-from config import PROJECT_STATIC_ROOT, ALLOWED_USERS_PATH
+from config import PROJECT_STATIC_ROOT, ALLOWED_USERS_PATH, STATIC_DIR_BACKEND
 from redis.asyncio.lock import Lock
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi import Depends, HTTPException, status
@@ -1344,3 +1344,26 @@ def kill_process(process):
         return {"status": "ok", "message": "Simulation force killed"}
     except Exception as e: 
         return {"status": "error", "message": str(e)}
+
+
+def loadLakes():
+    # Load lake database
+    lake_dir = os.path.join(STATIC_DIR_BACKEND, 'lakes_database')
+    lake_db_path = os.path.normpath(os.path.join(lake_dir, 'lakes.shp'))
+    lake_db = gpd.read_file(lake_db_path)
+    if lake_db.crs != 'epsg:4326': lake_db = lake_db.to_crs(epsg=4326)
+    lake_db = lake_db.dropna(subset=['Name', 'Region', 'geometry'])
+    lake_db['Name'] = lake_db['Name'].fillna('Unnamed Lake')
+    lake_db['Region'] = lake_db['Region'].where(lake_db['Region'].notna(), 
+        'Unknown Region' + lake_db["id"].fillna(-1).astype(str))
+    lake_db['id'] = lake_db['id'].astype('int64')
+    depth_db_path = os.path.normpath(os.path.join(lake_dir, 'depth.shp'))
+    depth_db = gpd.read_file(depth_db_path)
+    depth_db['id'] = depth_db['id'].astype('int64')
+    depth_db.set_index('id', inplace=True)
+    if depth_db.crs != 'epsg:4326': depth_db = depth_db.to_crs(epsg=4326)
+    depth_db['depth'] = depth_db['depth'].astype(float)
+    lake_db['min'] = round(depth_db['depth'].min(), 2)
+    lake_db['max'] = round(depth_db['depth'].max(), 2)
+    lake_db['avg'] = round(depth_db['depth'].mean(), 2)
+    return lake_db, depth_db

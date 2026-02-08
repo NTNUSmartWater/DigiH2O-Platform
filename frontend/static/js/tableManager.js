@@ -173,15 +173,18 @@ export function plotTable(target, table){
     });
 }
 
-export function renderProjects(object, fullList, filter) {
-    object.innerHTML = ""; // clear
+export function renderProjects(objectList, objectInput, fullList, filter) {
+    objectList.innerHTML = "";
     const filtered = fullList.filter(p => p.toLowerCase().includes(filter.toLowerCase()));
     filtered.forEach(p => {
         const li = document.createElement("li");
         li.textContent = p;
-        object.appendChild(li);
+        li.addEventListener('mousedown', () => { 
+            objectInput.value = p; objectList.style.display = "none";
+        });
+        objectList.appendChild(li);
     });
-    object.style.display = filter ? "block" : "none";
+    objectList.style.display = filter ? "block" : "none";
 }
 
 export async function csvUploader(event, targetText, table, nCols, isIgnoreHeader=true,
