@@ -12,6 +12,8 @@ Variable_names.txt
 *.ipynb
 output.csv
 points.json
+depth.geojson
+lake.geojson
 
 # Additional files
 *.pyc

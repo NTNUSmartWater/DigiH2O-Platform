@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Grid Generation</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+    <link rel="stylesheet" href="/static_frontend/css/projectHYDCreator.css?v=002">
+    <link rel="stylesheet" href="/static_frontend/css/temp_style.css?v=001">
+</head>
+<body>
+    <div class="wrapper">
+        <div class="page-title">
+            <label for="project-name">Select Region</label>
+            <div id="project-name-wrapper">
+                <input type="text" id="project-name" style="align-items: center; font-size: 15px; width: 500px;"
+                    placeholder="Enter region's name or Select from the list"/>
+                <ul id="project-list" style="width: 500px; font-size: 15px;"></ul>
+            </div>
+            <label for="lake-name" id="lake-name-label" style="margin-left: 20px; font-size: 20px;" hidden>Select Lake</label>
+            <select id="lake-name" style="min-width: 150px; font-size: 15px; width: 200px;" hidden><option value="">-- No selected --</option></select>
+        </div>
+        <section class="card tabs" style="display: flex; flex-direction: column; height: calc(100vh - 80px);">
+            <div class="tile tile-double" style="margin: 10px; font-size: 20px;" id="table-of-contents">
+                <div class="table-header">
+                    <h3>Table of contents</h3>
+                </div>
+                <table class="attributes-table" id="lake-table" style="font-size: 18px;">
+                    <thead>
+                        <tr>
+                            <th style="font-size: 18px; font-weight: 600;">Name</th>
+                            <th style="font-size: 18px; font-weight: 600;">Region</th>
+                            <th style="font-size: 18px; font-weight: 600;">Area (m²)</th>
+                            <th style="font-size: 18px; font-weight: 600;">Max Depth (m)</th>
+                            <th style="font-size: 18px; font-weight: 600;">Min Depth (m)</th>
+                            <th style="font-size: 18px; font-weight: 600;">Average Depth (m)</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class="tile tile-double" style="margin: 10px; gap: 5px; display: flex; align-items: center;">
+                <div style="display: flex; flex-direction: column; gap: 5px; line-height: 1.5;">
+                    <label><input type="checkbox" id="boundary-checkbox">Show Boundary</label>
+                    <label><input type="checkbox" id="depth-checkbox">Show Depth</label>
+                    <select id="base-map-select" style="min-width: 150px; font-size: 15px; cursor: pointer;">
+                        <option value="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" selected>Open Street Map</option>
+                        <option value="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}">Satellite</option>
+                        <option value="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}">Street</option>
+                        <option value="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png">Carto Light</option>
+                        <option value="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png">Carto Dark</option>
+                    </select>
+                </div>
+                
+                
+                
+                
+                <div style="margin-left: auto; display: flex; gap: 5px; padding-right: 5px; flex-direction: column; line-height: 2.0;">
+                    <button id="generate-grid" style="padding: 8px; border-radius: 10px; 
+                        background-color: #184bd6; color: #fff; cursor: pointer; font-weight: bold;">
+                    Generate Grid<span class="ink"></span></button>
+                    <button id="save-grid" style="padding: 8px; border-radius: 10px; cursor: pointer; font-weight: bold;">
+                        Save Grid<span class="ink"></span></button>
+                </div>
+            </div>
+            <!-- Add the map -->
+            <div id="map_container" style="display: flex; flex: 1; padding: 0 10px 10px 10px; position: relative;">
+                <div id="leaflet_map_lakes" style="flex: 1; height: 100%; border-radius: 20px;"></div>
+                <!-- Legend -->
+                <div id="custom-colorbar-grid" style="position: absolute; top: 15px; right: 15px; z-index: 1000; display: none;">
+                    <div class="colorbar-wrapper">
+                        <div class="colorbar-title" id="colorbar-title-grid">Legend</div>
+                        <div class="colorbar-gradient" id="colorbar-gradient-grid"></div>
+                        <div class="colorbar-labels" id="colorbar-labels-grid">
+                            <div></div> <!-- max -->
+                            <div></div> <!-- 75% -->
+                            <div></div> <!-- 50% -->
+                            <div></div> <!-- 25% -->
+                            <div></div> <!-- min -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+    
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <script>
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = `/static_frontend/js/gridManager.js?v=${Date.now()}`;
+        document.body.appendChild(script);
+    </script>
+</body>
+</html>
