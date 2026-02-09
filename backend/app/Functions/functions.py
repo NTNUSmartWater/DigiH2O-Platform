@@ -1345,25 +1345,25 @@ def kill_process(process):
     except Exception as e: 
         return {"status": "error", "message": str(e)}
 
-
 def loadLakes():
     # Load lake database
     lake_dir = os.path.join(STATIC_DIR_BACKEND, 'lakes_database')
     lake_db_path = os.path.normpath(os.path.join(lake_dir, 'lakes.shp'))
-    lake_db = gpd.read_file(lake_db_path)
-    if lake_db.crs != 'epsg:4326': lake_db = lake_db.to_crs(epsg=4326)
-    lake_db = lake_db.dropna(subset=['Name', 'Region', 'geometry'])
-    lake_db['Name'] = lake_db['Name'].fillna('Unnamed Lake')
-    lake_db['Region'] = lake_db['Region'].where(lake_db['Region'].notna(), 
-        'Unknown Region' + lake_db["id"].fillna(-1).astype(str))
-    lake_db['id'] = lake_db['id'].astype('int64')
+    if os.path.exists(lake_db_path):
+        lake_db = gpd.read_file(lake_db_path)
+        if lake_db.crs != 'epsg:4326': lake_db = lake_db.to_crs(epsg=4326)
+        lake_db = lake_db.dropna(subset=['Name', 'Region', 'geometry'])
+        lake_db['Name'] = lake_db['Name'].fillna('Unnamed Lake')
+        lake_db['Region'] = lake_db['Region'].where(lake_db['Region'].notna(), 
+            'Unknown Region' + lake_db["id"].fillna(-1).astype(str))
+        lake_db['id'] = lake_db['id'].astype('int64')
+    else: lake_db = None
     depth_db_path = os.path.normpath(os.path.join(lake_dir, 'depth.shp'))
-    depth_db = gpd.read_file(depth_db_path)
-    depth_db['id'] = depth_db['id'].astype('int64')
-    depth_db.set_index('id', inplace=True)
-    if depth_db.crs != 'epsg:4326': depth_db = depth_db.to_crs(epsg=4326)
-    depth_db['depth'] = depth_db['depth'].astype(float)
-    lake_db['min'] = round(depth_db['depth'].min(), 2)
-    lake_db['max'] = round(depth_db['depth'].max(), 2)
-    lake_db['avg'] = round(depth_db['depth'].mean(), 2)
+    if os.path.exists(depth_db_path):
+        depth_db = gpd.read_file(depth_db_path)
+        depth_db['id'] = depth_db['id'].astype('int64')
+        depth_db.set_index('id', inplace=True)
+        if depth_db.crs != 'epsg:4326': depth_db = depth_db.to_crs(epsg=4326)
+        depth_db['depth'] = depth_db['depth'].astype(float)
+    else: depth_db = None
     return lake_db, depth_db

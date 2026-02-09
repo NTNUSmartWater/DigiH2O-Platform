@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
     <link rel="stylesheet" href="/static_frontend/css/projectHYDCreator.css?v=002">
-    <link rel="stylesheet" href="/static_frontend/css/temp_style.css?v=001">
+    <link rel="stylesheet" href="/static_frontend/css/temp_style.css?v=002">
 </head>
 <body>
     <div class="wrapper">
@@ -66,6 +66,10 @@
             <!-- Add the map -->
             <div id="map_container" style="display: flex; flex: 1; padding: 0 10px 10px 10px; position: relative;">
                 <div id="leaflet_map_lakes" style="flex: 1; height: 100%; border-radius: 20px;"></div>
+                <div id="loadingOverlay-grid">
+                    <div class="loading-text-grid">Processing Data. Please wait...</div>
+                    <div class="spinner"></div>
+                </div>
                 <!-- Legend -->
                 <div id="custom-colorbar-grid" style="position: absolute; top: 15px; right: 15px; z-index: 1000; display: none;">
                     <div class="colorbar-wrapper">

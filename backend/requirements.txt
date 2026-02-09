@@ -14,3 +14,8 @@ requests==2.32.5
 redis==7.1.0
 msgpack==1.1.2
 chardet==5.2.0
+meshkernel==8.2.2
+# pip install --upgrade dfm-tools hydrolib hydrolib-core
+# dfm_tools==0.36.0
+# hydrolib-core==0.9.9
+# hydrolib==0.4.1
