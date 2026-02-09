@@ -9,7 +9,7 @@ if backend_dir not in sys.path:
 
 # Import internally backend modules
 from config import STATIC_DIR_BACKEND, STATIC_DIR_FRONTEND, PROJECT_STATIC_ROOT, lifespan
-from Functions import route_page, process_manager, wq_process, project_manager, run_simulation
+from Functions import route_page, process_manager, wq_process, project_manager, run_simulation, data_preparation
 
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -29,6 +29,7 @@ app.include_router(process_manager.router)
 app.include_router(project_manager.router)
 app.include_router(run_simulation.router)
 app.include_router(wq_process.router)
+app.include_router(data_preparation.router)
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload_dirs=['.'], reload=True) # Remove reload=True for production

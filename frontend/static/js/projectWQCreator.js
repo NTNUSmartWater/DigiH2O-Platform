@@ -470,7 +470,7 @@ function initializeProject(){
             sectionTab().style.display = "none"; 
             sectionDescription().style.display = "block";
         }
-        renderProjects(projects(), projectList, value);
+        renderProjects(projects(), projectName(), projectList, value);
     });
     projectName().addEventListener('blur', () => { 
         setTimeout(() => { projects().style.display = "none"; }, 100);
