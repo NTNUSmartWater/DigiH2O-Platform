@@ -9,11 +9,12 @@ logs
 # Files
 Variable_names.txt
 *.jpg
-*.ipynb
+# *.ipynb
 output.csv
 points.json
 depth.geojson
 lake.geojson
+lake1.geojson
 
 # Additional files
 *.pyc

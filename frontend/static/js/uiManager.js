@@ -413,9 +413,11 @@ function updateEvents() {
             } else if (name === 'model-calibration') {
                 // Model Calibration
                 // projectChecker();
-                // iframeInit("model_calibration", projectSetting(), projectSettingHeader(),
-                //     projectSettingContent(), "Model Calibration");
-            }
+                // // Grid Generation
+                // iframeInit("grid_generation", projectSetting(), projectSettingHeader(), 
+                //     projectSettingContent(), "Grid Generation");
+                return;
+            } 
         }
         // Delete GIS layer
         if (e.target.classList.contains('delete-btn')) {

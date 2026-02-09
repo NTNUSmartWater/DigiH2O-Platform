@@ -5,6 +5,7 @@ import { getColorFromValue, updateColorbar } from "./utils.js";
 
 const regionList = () => document.getElementById("project-list");
 const regionName = () => document.getElementById('project-name');
+const loadingGrid = () => document.getElementById('loadingOverlay-grid');
 const lakeLabel = () => document.getElementById('lake-name-label');
 const lakeSelector = () => document.getElementById('lake-name');
 const lakeTable = () => document.getElementById('lake-table');
@@ -22,14 +23,20 @@ const createGrid = () => document.getElementById('generate-grid');
 const saveGrid = () => document.getElementById('save-grid');
 
 
-let lakesData = {}, lakeMap = null, lakeLayer = null, dataLake = null,
+let lakesData = {}, lakeMap = null, lakeLayer = null, dataLake = null, entireNorway = false,
     allLakesChecked = false, gridLayer = null, baseMap = null, currentTileLayer = null;
+
+function startLoading(str = '') {
+    loadingGrid().querySelector('.loading-text-grid').textContent = str;
+    loadingGrid().style.display = 'flex';
+}
+function stopLoading() { loadingGrid().style.display = "none"; }
+
 async function loadLakes(){
-    window.parent.postMessage({type: 'showOverlay', 
-        message: 'Initializing Lakes Database for entire Norway. Please wait...'}, '*');
+    startLoading("Initializing Database for entire Norway's Lakes. Please wait...");
     const response = await sendQuery('init_lakes', {projectName: getState().currentProject});
-    lakesData = response.status !== "error" ? response.content : {};
-    window.parent.postMessage({type: 'hideOverlay'}, '*');
+    if (response.status === "error") { alert(response.message); return; }
+    lakesData = response.content; stopLoading();
 }
 
 function createLakeMap() {
@@ -50,8 +57,8 @@ async function initializeProject(){
         regionList().innerHTML = '';
         // Add "All regions" option
         const allLi = document.createElement("li");
-        allLi.textContent = "All regions";
-        allLi.dataset.value = "All regions";
+        allLi.textContent = "All regions"; allLi.style.fontWeight = "bold";
+        allLi.dataset.value = "All regions"; allLi.style.fontSize = "14px";
         allLi.addEventListener('mousedown', () => {
             regionName().value = allLi.dataset.value;
             regionList().style.display = "none"; 
@@ -60,6 +67,9 @@ async function initializeProject(){
             regionName().dispatchEvent(new Event('change'));
         });
         regionList().appendChild(allLi);
+        const allLi1 = document.createElement("hr");
+        allLi1.style.margin = "5px 10px 5px 10px"; allLi1.style.borderTop = "1px solid #0414f5";
+        regionList().appendChild(allLi1);
         Object.keys(lakesData).forEach(p => {
             const li = document.createElement("li");
             li.textContent = p;
@@ -93,7 +103,7 @@ async function initializeProject(){
 function gridPlotter(polygon, points, cellSize, colorbarKey='depth') {
     colorbar_container_grid().style.display = 'block';
     if (window.depthGridLayer) { lakeMap.removeLayer(window.depthGridLayer); window.depthGridLayer = null; }
-    const grid = turf.squareGrid(turf.bbox(polygon), cellSize, {units: 'meters'}), values = [];
+    const grid = turf.squareGrid(turf.bbox(polygon), cellSize, {units: 'meters'});
     grid.features.forEach(cell => {
         const center = turf.center(cell);
         if (!turf.booleanPointInPolygon(center , polygon)) return;
@@ -103,9 +113,9 @@ function gridPlotter(polygon, points, cellSize, colorbarKey='depth') {
             const w = 1 / Math.max(d, 1);
             num += w * p.properties.depth; den += w;
         });
-        if (den > 0) { cell.properties.value = num / den; values.push(num / den); }
+        if (den > 0) { cell.properties.value = num / den; }
     });
-    const vmin = Math.min(...values), vmax = Math.max(...values);
+    const vmin = polygon.properties.min, vmax = polygon.properties.max;
     window.depthGridLayer = L.geoJSON(grid, {
         filter: f => f.properties.value !== undefined,
         style: f => {
@@ -132,15 +142,19 @@ function geoJSONPlotter(data, checker) {
         // Add tooltips or popups if needed
         onEachFeature: (feature, layer) => {
             if (feature.properties) {
-                const tooltip = `
+                let tooltip = `
                     <div style="font-weight: bold; text-align: center;">${feature.properties.Name}</div>
                     <hr style="margin: 5px 0 5px 0;">
                     <strong>Region:</strong> ${feature.properties.Region}<br>
-                    <strong>Area (m²):</strong> ${feature.properties.area}<br>
-                    <strong>Max Depth (m):</strong> ${feature.properties.max}<br>
-                    <strong>Min Depth (m):</strong> ${feature.properties.min}<br>
-                    <strong>Avg Depth (m):</strong> ${feature.properties.avg}
+                    <strong>Area:</strong> ${feature.properties.area} (m²)
                 `;
+                if (!entireNorway) {
+                    tooltip = tooltip + `<br>
+                        <strong>Max. Depth:</strong> ${feature.properties.max} (m)<br>
+                        <strong>Min. Depth:</strong> ${feature.properties.min} (m)<br>
+                        <strong>Avg. Depth:</strong> ${feature.properties.avg} (m)
+                    `;
+                }
                 layer.bindTooltip(tooltip, {sticky: true});
             }
         }
@@ -154,12 +168,12 @@ function geoJSONPlotter(data, checker) {
 async function dataPreparationManager(){
     baseMap = document.getElementById("base-map-select");
     if (!lakeMap) { createLakeMap(); }
+    if (lakeLayer) { lakeMap.removeLayer(lakeLayer); lakeLayer = null; }
     regionName().addEventListener('change', async () => {
-        const selectedLake = regionName().value.trim(); if (!selectedLake) return;
+        const selectedLake = regionName().value.trim(); if (!selectedLake || selectedLake === "") return;
         if (selectedLake === "All regions" ) {
-            window.parent.postMessage({type: 'showOverlay', message: 'Getting Lakes for entire Norway. Please wait...'}, '*');
-            const response = await sendQuery('load_lakes', { projectName: getState().currentProject, lakeName: 'all' });
-            window.parent.postMessage({type: 'hideOverlay'}, '*');
+            startLoading('Loading Lakes for entire Norway. Please wait...'); entireNorway = true;
+            const response = await sendQuery('load_lakes', { projectName: getState().currentProject, lakeName: 'all' }); stopLoading();
             if (response.status === "error") { alert(response.message);  return; }
             tableContent().style.display = "none"; dataLake = response.content;
             depthCheckbox().checked = false; boundaryCheckbox().checked = true; allLakesChecked = false;
@@ -170,9 +184,8 @@ async function dataPreparationManager(){
     });
     lakeSelector().addEventListener('change', async () => {
         const lakeName = lakeSelector().value; if (!lakeName) return;
-        window.parent.postMessage({type: 'showOverlay', message: `Loading data for lake: ${lakeName}`}, '*');
-        const response = await sendQuery('load_lakes', { projectName: getState().currentProject, lakeName: lakeName });
-        window.parent.postMessage({type: 'hideOverlay'}, '*');
+        startLoading(`Loading data for lake: ${lakeName}`); entireNorway = false;
+        const response = await sendQuery('load_lakes', { projectName: getState().currentProject, lakeName: lakeName }); stopLoading();
         if (response.status === "error") { alert(response.message);  return; }
         createLakeMap(); const data = response.content.lake.features[0].properties;
         const contents = [[data.Name, data.Region, data.area, data.min, data.max, data.avg]];
@@ -211,20 +224,18 @@ async function dataPreparationManager(){
     });
     createGrid().addEventListener('click', async () => {
         if (gridLayer) { lakeMap.removeLayer(gridLayer); gridLayer = null; }
+
         const response = await sendQuery('grid_creator', {});
         if (response.status === "error") { alert(response.message); return; }
-        gridLayer = geoJSONPlotter(response.content, false);
+        // gridLayer = geoJSONPlotter(response.content, false);
         // const projectName = getState().currentProject;
         // const regionName = regionName().value.trim();
         // const lakeName = lakeSelector().value.trim();
-        // window.parent.postMessage({type: 'createGrid', projectName, regionName, lakeName}, '*');
     });
-
     saveGrid().addEventListener('click', () => {
         // const projectName = getState().currentProject;
         // const regionName = regionName().value.trim();
         // const lakeName = lakeSelector().value.trim();
-        // window.parent.postMessage({type: 'plotMap', projectName, regionName, lakeName}, '*');
     });
     baseMap.dispatchEvent(new Event('change'));
 }

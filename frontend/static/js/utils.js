@@ -40,8 +40,8 @@ export function valueFormatter(value, minDiff) {
     const absVal = Math.abs(value);
     let decimalPlaces = 2;
     if (minDiff >= 0.01) decimalPlaces = 2;
-    else if (minDiff >= 0.001) decimalPlaces = 3;
-    else if (minDiff >= 0.0001) decimalPlaces = 4;
+    else if (0.001 <= minDiff < 0.01) decimalPlaces = 3;
+    else if (0.0001 <= minDiff < 0.001) decimalPlaces = 4;
     else decimalPlaces = 6;
     if (absVal < 0.01) {
         const expStr = value.toExponential(n_decimals);
