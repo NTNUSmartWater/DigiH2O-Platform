@@ -975,19 +975,15 @@ def unstructuredGridCreator(data_map: xr.Dataset) -> gpd.GeoDataFrame:
         The GeoDataFrame of unstructured grid.
     """
     # Use dask array to speed up, keep lazy-load
-    node_x, node_y = data_map['mesh2d_node_x'].data, data_map['mesh2d_node_y'].data
+    node_x, node_y = data_map['mesh2d_node_x'].values, data_map['mesh2d_node_y'].values
     coords = da.stack([node_x, node_y], axis=1)
-    faces = xr.where(np.isnan(data_map['mesh2d_face_nodes']), 0, data_map['mesh2d_face_nodes']).data.astype(int)-1
+    faces = xr.where(np.isnan(data_map['mesh2d_face_nodes']), 0, data_map['mesh2d_face_nodes']).astype(int)-1
     counts = da.sum(faces != -1, axis=1)
     # Compute to create polygons
-    coords_np, faces_np, counts_np = coords.compute(), faces.compute(), counts.compute()
-    polygons = [shapely.geometry.Polygon(coords_np[face[:count]]) for face, count in zip(faces_np, counts_np)]
+    polygons = [shapely.geometry.Polygon(coords[face[:count]]) for face, count in zip(faces, counts)]
     # Check coordinate reference system
-    if 'wgs84' in data_map.variables:
-        crs_code = data_map['wgs84'].attrs.get('EPSG_code', 4326)
-        grid = gpd.GeoDataFrame(geometry=polygons, crs=crs_code)
-    elif 'projected_coordinate_system' in data_map.variables:
-        crs_code = data_map['projected_coordinate_system'].attrs.get('EPSG_code', 4326)
+    if 'projected_coordinate_system' in data_map.variables:
+        crs_code = data_map['projected_coordinate_system'].attrs.get('EPSG_code')
         # Convert to WGS84 if not already
         grid = gpd.GeoDataFrame(geometry=polygons, crs=crs_code).to_crs(epsg=4326)
     else: grid = gpd.GeoDataFrame(geometry=polygons, crs="EPSG:4326")
@@ -1344,26 +1340,3 @@ def kill_process(process):
         return {"status": "ok", "message": "Simulation force killed"}
     except Exception as e: 
         return {"status": "error", "message": str(e)}
-
-def loadLakes():
-    # Load lake database
-    lake_dir = os.path.join(STATIC_DIR_BACKEND, 'lakes_database')
-    lake_db_path = os.path.normpath(os.path.join(lake_dir, 'lakes.shp'))
-    if os.path.exists(lake_db_path):
-        lake_db = gpd.read_file(lake_db_path)
-        if lake_db.crs != 'epsg:4326': lake_db = lake_db.to_crs(epsg=4326)
-        lake_db = lake_db.dropna(subset=['Name', 'Region', 'geometry'])
-        lake_db['Name'] = lake_db['Name'].fillna('Unnamed Lake')
-        lake_db['Region'] = lake_db['Region'].where(lake_db['Region'].notna(), 
-            'Unknown Region' + lake_db["id"].fillna(-1).astype(str))
-        lake_db['id'] = lake_db['id'].astype('int64')
-    else: lake_db = None
-    depth_db_path = os.path.normpath(os.path.join(lake_dir, 'depth.shp'))
-    if os.path.exists(depth_db_path):
-        depth_db = gpd.read_file(depth_db_path)
-        depth_db['id'] = depth_db['id'].astype('int64')
-        depth_db.set_index('id', inplace=True)
-        if depth_db.crs != 'epsg:4326': depth_db = depth_db.to_crs(epsg=4326)
-        depth_db['depth'] = depth_db['depth'].astype(float)
-    else: depth_db = None
-    return lake_db, depth_db

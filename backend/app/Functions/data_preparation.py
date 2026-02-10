@@ -1,7 +1,7 @@
 import os, traceback, json
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
-from Functions import functions
+from Functions import functions, gridFunctions
 from config import PROJECT_STATIC_ROOT
 
 
@@ -21,7 +21,7 @@ async def init_lakes(request: Request, user=Depends(functions.basic_auth)):
             request.app.state.project_cache = {}
             project_cache_dict = request.app.state.project_cache
             project_cache = project_cache_dict.setdefault(project_name, {})
-            lake_db, depth_db = functions.loadLakes()
+            lake_db, depth_db = gridFunctions.loadLakes()
             project_cache['lake_db'], project_cache['depth_db'] = lake_db, depth_db
         else: lake_db = project_cache.get('lake_db')
         if not os.path.exists(lake_path):
@@ -45,7 +45,7 @@ async def load_lakes(request: Request, user=Depends(functions.basic_auth)):
         if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory"}) 
         lake_db, depth_db = project_cache.get('lake_db'), project_cache.get('depth_db')
         if lake_db is None or depth_db is None:
-            lake_db, depth_db = functions.loadLakes()
+            lake_db, depth_db = gridFunctions.loadLakes()
             project_cache['lake_db'], project_cache['depth_db'] = lake_db, depth_db
         if lake != 'all':
             lake_data = lake_db[lake_db['Name'] == lake].copy()
@@ -88,5 +88,25 @@ async def grid_creator(request: Request, user=Depends(functions.basic_auth)):
 
 
 
+@router.post("/grid_saver")
+async def grid_saver(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
 
+        
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
+        project_cache = request.app.state.project_cache.setdefault(project_name)
+        if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory"}) 
+        
+
+
+
+
+
+
+        return JSONResponse({'status': 'ok', 'message': 'Grid created successfully'})
+    except Exception as e:
+        print('/grid_saver:\n==============')
+        traceback.print_exc()
+        return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
