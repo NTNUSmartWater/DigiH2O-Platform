@@ -18,13 +18,22 @@ const colorbar_color_grid = () => document.getElementById("colorbar-gradient-gri
 const colorbar_label_grid = () => document.getElementById("colorbar-labels-grid");
 
 
+const vertexesCheckbox = () => document.getElementById("vertexes-checkbox");
+const refinementCheckbox = () => document.getElementById("refinement-checkbox");
+const refinementValue = () => document.getElementById("refinement-value");
+const scaleSelector = () => document.getElementById("scale-factor");
+const scaleFactor = () => document.getElementById("custom-scale-factor");
+const orthoCheckbox = () => document.getElementById("orthogonalisation-checkbox");
+
+
+
 
 const createGrid = () => document.getElementById('generate-grid');
 const saveGrid = () => document.getElementById('save-grid');
 
 
 let lakesData = {}, lakeMap = null, lakeLayer = null, dataLake = null, entireNorway = false,
-    allLakesChecked = false, gridLayer = null, baseMap = null, currentTileLayer = null;
+    allLakesChecked = false, gridLayer = null, baseMap = null, currentTileLayer = null, scaleChecker = false;
 
 function startLoading(str = '') {
     loadingGrid().querySelector('.loading-text-grid').textContent = str;
@@ -222,11 +231,33 @@ async function dataPreparationManager(){
         currentTileLayer.addTo(lakeMap);
         setTimeout(() => { lakeMap.invalidateSize(); }, 0);
     });
+    vertexesCheckbox().addEventListener('change', (e) => {
+        if (!e.target.checked) { return; }
+
+
+
+
+        
+    })
+    scaleSelector().addEventListener('change', (e) => {
+        const value = e.target.value;
+        if (value === "auto") { scaleFactor().style.display = "none"; scaleChecker = false; }
+        else { scaleFactor().style.display = "flex"; scaleChecker = true; }
+    });
+    refinementCheckbox().addEventListener('change', (e) => {
+        if (e.target.checked) { refinementValue().style.display = 'flex'; }
+        else { refinementValue().style.display = 'none'; }
+    });
+
+
+
+
+
     createGrid().addEventListener('click', async () => {
         if (gridLayer) { lakeMap.removeLayer(gridLayer); gridLayer = null; }
 
-        const response = await sendQuery('grid_creator', {});
-        if (response.status === "error") { alert(response.message); return; }
+        // const response = await sendQuery('grid_creator', {});
+        // if (response.status === "error") { alert(response.message); return; }
         // gridLayer = geoJSONPlotter(response.content, false);
         // const projectName = getState().currentProject;
         // const regionName = regionName().value.trim();

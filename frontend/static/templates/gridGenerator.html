@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
     <link rel="stylesheet" href="/static_frontend/css/projectHYDCreator.css?v=002">
     <link rel="stylesheet" href="/static_frontend/css/temp_style.css?v=002">
-    <link rel="stylesheet" href="/static_frontend/css/grid_style.css?v=002">
+    <link rel="stylesheet" href="/static_frontend/css/grid_style.css?v=003">
 </head>
 <body>
     <div class="wrapper">
@@ -38,7 +38,7 @@
             </div>
             <div class="tile tile-double">
                 <div class="control-tab">
-                    <label class="checkbox-right"><input type="checkbox" id="boundary-checkbox">Show Boundary</label>
+                    <label class="checkbox-right"><input type="checkbox" id="boundary-checkbox">Show Polygon</label>
                     <label class="checkbox-right"><input type="checkbox" id="depth-checkbox">Show Depth</label>
                     <div class="control-tab-inline">
                         <label for="base-map-select">Background Map</label>
@@ -52,20 +52,29 @@
                     </div>
                 </div>
                 <div class="control-tab">
+                    <label class="checkbox-right"><input type="checkbox" id="vertexes-checkbox">Polygon's vertexes</label>
+                    <label class="checkbox-right"><input type="checkbox" id="refinement-checkbox">Refinement (m)</label>
+                    <input type="text" id="refinement-value" placeholder="Enter refinement value" value="50.0" hidden>
+                </div>
+                <div class="control-tab">
                     <div class="control-tab-inline">
-                        <label for="scale-factor">Scale Factor</label>
+                        <label for="scale-factor">Detailed Level</label>
                         <select id="scale-factor">
-                            <option value="auto">Auto</option>
+                            <option value="auto" selected>Auto</option>
                             <option value="custom">Custom</option>
                         </select>
+                        <input type="number" id="custom-scale-factor" style="width: 80px; text-align: center;"
+                            placeholder="Scale" step="0.1" value="1.0" hidden>
                     </div>
-                    
-                    
+                    <label class="checkbox-right"><input type="checkbox" id="orthogonalisation-checkbox">Orthogonalisation</label>
                 </div>
+
+
                 
-                
-                
-                
+
+
+
+
                 <div class="control-right">
                     <button id="generate-grid">Generate Grid<span class="ink"></span></button>
                     <button id="save-grid">Save Grid<span class="ink"></span></button>
