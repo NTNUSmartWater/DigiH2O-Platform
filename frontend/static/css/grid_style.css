@@ -1,0 +1,71 @@
+#project-name, #project-list {
+    align-items: center; font-size: 15px; width: 500px;
+}
+
+#lake-name {
+    min-width: 150px; font-size: 15px; width: 200px; display: none;
+}
+#lake-name-label {
+    margin-left: 20px; font-size: 20px; display: none;
+}
+
+section.card.tabs {
+    display: flex; flex-direction: column; height: calc(100vh - 80px);
+}
+.tile.tile-double {
+    margin: 10px;  gap: 5px; display: flex; align-items: center;
+}
+
+#base-map-select, #scale-factor {
+    min-width: 150px; font-size: 15px; cursor: pointer;
+}
+
+#table-of-contents { font-size: 20px; margin: 10px; flex-direction: column; align-items: stretch;}
+.attributes-table { font-size: 18px; }
+.attributes-table th { font-size: 15px; font-weight: 600;}
+.attributes-table tbody td { font-size: 20px }
+
+#generate-grid, #save-grid {
+    padding: 8px; border-radius: 10px; cursor: pointer; font-weight: bold;
+}
+#generate-grid {
+    background-color: #184bd6; color: #fff;
+}
+
+#map-container {
+    display: flex; flex: 1;
+    padding: 0 10px 10px 10px; position: relative;
+}
+#leaflet-map-lakes {
+    flex: 1; height: 100%; border-radius: 20px;
+}
+#custom-colorbar-grid {
+    position: absolute; top: 15px;
+    right: 15px; z-index: 1000; display: none;
+}
+
+.control-right {
+    margin-left: auto; display: flex; flex-direction: column;
+    gap: 5px; padding-right: 5px; line-height: 2.0;
+}
+
+.control-tab {
+    margin-left: 10px; display: flex; flex-direction: column;
+    gap: 10px; padding-right: 5px;
+}
+.control-tab label {
+    width: 150px; display: flex;
+    align-items: center; justify-content: space-between;
+}
+
+
+.control-tab-inline {
+    flex-direction: row; align-items: center; gap: 10px;
+}
+.control-tab-inline label { width: 130px; display: inline-block; }
+
+.checkbox-right {
+    display: flex; align-items: center; gap: 8px;
+}
+
+.checkbox-right input { order: 2; }

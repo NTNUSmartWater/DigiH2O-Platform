@@ -41,7 +41,7 @@ async function loadLakes(){
 
 function createLakeMap() {
     if (lakeMap) return;
-    const mapDiv = document.getElementById("leaflet_map_lakes");
+    const mapDiv = document.getElementById("leaflet-map-lakes");
     if (!mapDiv) { console.error("Map container not found"); return; }
     if (lakeMap) { lakeMap.remove(); lakeMap = null; }
     lakeMap = L.map(mapDiv, { center: CENTER, zoom: ZOOM, zoomControl: false, attributionControl: true });

@@ -975,10 +975,11 @@ def unstructuredGridCreator(data_map: xr.Dataset) -> gpd.GeoDataFrame:
         The GeoDataFrame of unstructured grid.
     """
     # Use dask array to speed up, keep lazy-load
-    node_x, node_y = data_map['mesh2d_node_x'].values, data_map['mesh2d_node_y'].values
+    node_x, node_y = data_map['mesh2d_node_x'].data, data_map['mesh2d_node_y'].data
     coords = da.stack([node_x, node_y], axis=1)
-    faces = xr.where(np.isnan(data_map['mesh2d_face_nodes']), 0, data_map['mesh2d_face_nodes']).astype(int)-1
+    faces = xr.where(np.isnan(data_map['mesh2d_face_nodes']), 0, data_map['mesh2d_face_nodes']).data.astype(int)-1
     counts = da.sum(faces != -1, axis=1)
+    coords, faces, counts = coords.compute(), faces.compute(), counts.compute()
     # Compute to create polygons
     polygons = [shapely.geometry.Polygon(coords[face[:count]]) for face, count in zip(faces, counts)]
     # Check coordinate reference system

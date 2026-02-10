@@ -80,7 +80,7 @@ async def grid_creator(request: Request, user=Depends(functions.basic_auth)):
 
 
 
-        return JSONResponse({'status': 'ok', 'message': 'Grid created successfully'})
+        return JSONResponse({'status': 'ok', 'content': grid})
     except Exception as e:
         print('/grid_creator:\n==============')
         traceback.print_exc()
