@@ -1017,8 +1017,9 @@ def interpolation_Z(grid_net: gpd.GeoDataFrame, x_coords: np.ndarray, y_coords: 
     np.ndarray
         The interpolated z values.
     """
-    gdf_known = gpd.GeoDataFrame(geometry=gpd.points_from_xy(x_coords, y_coords), crs = grid_net.crs).to_crs(epsg=32632)
-    gdf_points = grid_net.copy().to_crs(epsg=32632)
+    gdf_known = gpd.GeoDataFrame(geometry=gpd.points_from_xy(x_coords, y_coords), crs = grid_net.crs)
+    gdf_known = gdf_known.to_crs(gdf_known.estimate_utm_crs())
+    gdf_points = grid_net.copy().to_crs(grid_net.estimate_utm_crs())
     if geo_type == 'polygon': gdf_points['geometry'] = gdf_points['geometry'].centroid
     tree = cKDTree(list(zip(gdf_known['geometry'].x, gdf_known['geometry'].y)))
     dists, idx = tree.query(list(zip(gdf_points['geometry'].x, gdf_points['geometry'].y)), k = n_neighbors)

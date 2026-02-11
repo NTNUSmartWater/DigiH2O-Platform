@@ -10,17 +10,16 @@ const lakeLabel = () => document.getElementById('lake-name-label');
 const lakeSelector = () => document.getElementById('lake-name');
 const lakeTable = () => document.getElementById('lake-table');
 const tableContent = () => document.getElementById('table-of-contents');
-const boundaryCheckbox = () => document.getElementById('boundary-checkbox');
+const menuContent = () => document.getElementById('menu-container');
+const polygonCheckbox = () => document.getElementById('polygon-checkbox');
 const depthCheckbox = () => document.getElementById('depth-checkbox');
 const colorbar_container_grid = () => document.getElementById("custom-colorbar-grid");
 const colorbar_title_grid = () => document.getElementById("colorbar-title-grid");
 const colorbar_color_grid = () => document.getElementById("colorbar-gradient-grid");
 const colorbar_label_grid = () => document.getElementById("colorbar-labels-grid");
-
-
 const vertexesCheckbox = () => document.getElementById("vertexes-checkbox");
-const refinementCheckbox = () => document.getElementById("refinement-checkbox");
 const refinementValue = () => document.getElementById("refinement-value");
+const refinementBtn = () => document.getElementById("refinement-btn");
 const scaleSelector = () => document.getElementById("scale-factor");
 const scaleFactor = () => document.getElementById("custom-scale-factor");
 const orthoCheckbox = () => document.getElementById("orthogonalisation-checkbox");
@@ -32,8 +31,8 @@ const createGrid = () => document.getElementById('generate-grid');
 const saveGrid = () => document.getElementById('save-grid');
 
 
-let lakesData = {}, lakeMap = null, lakeLayer = null, dataLake = null, entireNorway = false,
-    allLakesChecked = false, gridLayer = null, baseMap = null, currentTileLayer = null, scaleChecker = false;
+let lakesData = {}, lakeMap = null, lakeLayer = null, pointLayer = null, dataLake = null, levelValue = null, 
+    entireNorway = false, allLakesChecked = false, baseMap = null, currentTileLayer = null;
 
 function startLoading(str = '') {
     loadingGrid().querySelector('.loading-text-grid').textContent = str;
@@ -61,7 +60,9 @@ function createLakeMap() {
 async function initializeProject(){
     // Update region name
     regionName().addEventListener('click', async () => {
-        if (regionName().value.trim() === "") { lakeLabel().style.display = "none"; lakeSelector().style.display = "none"; }
+        if (regionName().value.trim() === "") { 
+            lakeLabel().style.display = "none"; lakeSelector().style.display = "none"; 
+        }
         if (Object.keys(lakesData).length === 0) { await loadLakes(); }
         regionList().innerHTML = '';
         // Add "All regions" option
@@ -145,7 +146,7 @@ function geoJSONPlotter(data, checker) {
         const cellSize = Math.max(1, Math.floor(lakePolygon.properties.area / 60000));
         gridPlotter(lakePolygon, depth, cellSize);
     }
-    // Draw lake boundary
+    // Draw lake polygon
     lakeLayer = L.geoJSON(data.lake, {
         style: { color: 'blue', weight: 2, fillColor: 'cyan', fillOpacity: 0 },
         // Add tooltips or popups if needed
@@ -170,7 +171,11 @@ function geoJSONPlotter(data, checker) {
     }).addTo(lakeMap);
     // Fit map to lake bounds
     const bounds = lakeLayer.getBounds();
-    if (bounds.isValid()) { lakeMap.fitBounds(bounds); }
+    if (bounds.isValid()) { 
+        setTimeout(() => { 
+            lakeMap.invalidateSize(); lakeMap.fitBounds(bounds); 
+        }, 0);
+    }
     return lakeLayer;
 }
 
@@ -184,8 +189,9 @@ async function dataPreparationManager(){
             startLoading('Loading Lakes for entire Norway. Please wait...'); entireNorway = true;
             const response = await sendQuery('load_lakes', { projectName: getState().currentProject, lakeName: 'all' }); stopLoading();
             if (response.status === "error") { alert(response.message);  return; }
-            tableContent().style.display = "none"; dataLake = response.content;
-            depthCheckbox().checked = false; boundaryCheckbox().checked = true; allLakesChecked = false;
+            tableContent().style.display = "none"; menuContent().style.display = "none";
+            colorbar_container_grid().style.display = 'none'; dataLake = response.content;
+            depthCheckbox().checked = false; polygonCheckbox().checked = true; allLakesChecked = false;
             lakeLayer = geoJSONPlotter(response.content, allLakesChecked); return;
         }
         lakeSelector().innerHTML = lakesData[selectedLake].map(name => `<option value="${name}">${name}</option>`).join('');
@@ -198,13 +204,14 @@ async function dataPreparationManager(){
         if (response.status === "error") { alert(response.message);  return; }
         createLakeMap(); const data = response.content.lake.features[0].properties;
         const contents = [[data.Name, data.Region, data.area, data.min, data.max, data.avg]];
-        fillTable(contents, lakeTable(), true); tableContent().style.display = "block";
-        depthCheckbox().checked = true; boundaryCheckbox().checked = true; 
+        tableContent().style.display = "block"; menuContent().style.display = "flex";
+        fillTable(contents, lakeTable(), true);
+        depthCheckbox().checked = true; polygonCheckbox().checked = true; 
         allLakesChecked = true; dataLake = response.content;
         // Plot lake on map
         lakeLayer = geoJSONPlotter(response.content, allLakesChecked);
     });
-    boundaryCheckbox().addEventListener('change', (e) => {
+    polygonCheckbox().addEventListener('change', (e) => {
         if (e.target.checked) { if (lakeLayer) { lakeMap.addLayer(lakeLayer); }
         } else { if (lakeLayer) { lakeMap.removeLayer(lakeLayer); } }
     });
@@ -231,37 +238,117 @@ async function dataPreparationManager(){
         currentTileLayer.addTo(lakeMap);
         setTimeout(() => { lakeMap.invalidateSize(); }, 0);
     });
-    vertexesCheckbox().addEventListener('change', (e) => {
-        if (!e.target.checked) { return; }
-
-
-
-
-        
+    vertexesCheckbox().addEventListener('change', async (e) => {
+        if (!e.target.checked) { 
+            polygonCheckbox().checked = false; 
+            polygonCheckbox().dispatchEvent(new Event('change')); return;
+        }
+        startLoading('Generating Vertexes. Please wait...'); entireNorway = true;
+        const response = await sendQuery('vertex_generator', { projectName: getState().currentProject }); stopLoading();
+        if (response.status === "error") { alert(response.message);  return; }
+        pointLayer = L.geoJSON(response.content, {
+            pointToLayer: (feature, latlng) => {
+                return L.circleMarker(latlng, {
+                    radius: 3, color: 'black', fillColor: 'red', fillOpacity: 1
+                });
+            },
+            onEachFeature: (feature, layer) => {
+                layer.bindTooltip(String(feature.properties.id), {
+                    sticky: true, permanent: false, direction: 'center', opacity: 1
+                });
+            }
+        }).addTo(lakeMap);
+        if (!polygonCheckbox().checked) { polygonCheckbox().checked = true; polygonCheckbox().dispatchEvent(new Event('change')); }
     })
+    refinementBtn().addEventListener('click', async () => {
+        const refineValue = Number(refinementValue().value);
+        if (!Number.isFinite(refineValue) || refineValue <= 0) { alert("Please enter a valid non-negative value."); return; }
+        startLoading('Refining Vertexes. Please wait...');
+        const response = await sendQuery('vertex_refiner', { projectName: getState().currentProject, distance: refineValue }); stopLoading();
+        if (response.status === "error") { alert(response.message);  return; }
+        const polygon = response.content.polygon, point = response.content.point;
+        if (lakeLayer) { lakeMap.removeLayer(lakeLayer); lakeLayer = null; }
+        if (polygonCheckbox().checked) { polygonCheckbox().checked = false; }
+        lakeLayer = L.geoJSON(polygon, {
+            style: feature => {
+                switch (feature.geometry.type) {
+                    case 'LineString': 
+                    case 'MultiLineString':
+                        return { color: 'black', weight: 2 };
+                    case 'Polygon':
+                    case 'MultiPolygon':
+                        return { color: 'black', fillColor: 'red', fillOpacity: 0.5, weight: 1 };
+                    default: return {};
+                }
+            }
+        }).addTo(lakeMap);
+        if (pointLayer) { lakeMap.removeLayer(pointLayer); pointLayer = null; }
+        pointLayer = L.geoJSON(point, {
+            pointToLayer: (feature, latlng) => {
+                return L.circleMarker(latlng, {
+                    radius: 3, color: 'black', fillColor: 'red', fillOpacity: 1
+                });
+            },
+            onEachFeature: (feature, layer) => {
+                layer.bindTooltip(String(feature.properties.id), {
+                    sticky: true, permanent: false, direction: 'center', opacity: 1
+                });
+            }
+        }).addTo(lakeMap);
+    });
     scaleSelector().addEventListener('change', (e) => {
         const value = e.target.value;
-        if (value === "auto") { scaleFactor().style.display = "none"; scaleChecker = false; }
-        else { scaleFactor().style.display = "flex"; scaleChecker = true; }
+        if (value === "auto") { scaleFactor().style.display = "none"; }
+        else { scaleFactor().style.display = "flex"; }
     });
-    refinementCheckbox().addEventListener('change', (e) => {
-        if (e.target.checked) { refinementValue().style.display = 'flex'; }
-        else { refinementValue().style.display = 'none'; }
+    scaleFactor().addEventListener('input', (e) => { 
+        const value = e.target.value;
+        if (value === "" || !Number.isFinite(Number(value)) || Number(value) <= 0) { e.target.value = '1.0'; return; }
     });
-
-
-
-
-
     createGrid().addEventListener('click', async () => {
-        if (gridLayer) { lakeMap.removeLayer(gridLayer); gridLayer = null; }
+        if (pointLayer === null) { alert("Please generate vertexes first."); return; }
+        const levelSelector = scaleSelector().value, pointCollection = [];
+        if (levelSelector === "auto") { levelValue = ''; } else { levelValue = Number(scaleFactor().value); }
+        pointLayer.eachLayer(layer => {
+            const latlng = layer.getLatLng();
+            pointCollection.push([latlng.lat, latlng.lng]);
+        });
+        if (pointCollection.length === 0) { alert("No vertexes found."); return; }
+        pointCollection.push(pointCollection[0]);
+        startLoading('Generating Grid. Please wait...');
+        const contents = { projectName: getState().currentProject, pointCollection: pointCollection, levelValue: levelValue }
+        const response = await sendQuery('grid_creator', contents); stopLoading();
+        if (response.status === "error") { alert(response.message); return; }
+        console.log(response.content);
 
-        // const response = await sendQuery('grid_creator', {});
-        // if (response.status === "error") { alert(response.message); return; }
-        // gridLayer = geoJSONPlotter(response.content, false);
-        // const projectName = getState().currentProject;
-        // const regionName = regionName().value.trim();
-        // const lakeName = lakeSelector().value.trim();
+        
+        // if (lakeLayer) { lakeMap.removeLayer(lakeLayer); lakeLayer = null; }
+        // lakeLayer = L.geoJSON(response.content, {
+        //     style: feature => {
+        //         switch (feature.geometry.type) {
+        //             case 'LineString': 
+        //             case 'MultiLineString':
+        //                 return { color: 'black', weight: 2 };
+        //             case 'Polygon':
+        //             case 'MultiPolygon':
+        //                 return { color: 'black', fillColor: 'red', fillOpacity: 0.5, weight: 1 };
+        //             default: return {};
+        //         }
+        //     }
+        // }).addTo(lakeMap);
+
+
+    });
+    orthoCheckbox().addEventListener('change', (e) => {
+        if (e.target.checked) { 
+        
+        
+        
+        } else { 
+            colorbar_container_grid().style.display = 'none';
+
+
+        }
     });
     saveGrid().addEventListener('click', () => {
         // const projectName = getState().currentProject;
@@ -271,4 +358,4 @@ async function dataPreparationManager(){
     baseMap.dispatchEvent(new Event('change'));
 }
 
-await loadLakes(); await initializeProject(); dataPreparationManager(); 
+await loadLakes(); await initializeProject(); dataPreparationManager();

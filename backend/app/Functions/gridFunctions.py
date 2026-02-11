@@ -2,9 +2,10 @@ import os, warnings
 import geopandas as gpd, numpy as np
 from config import STATIC_DIR_BACKEND
 from shapely.geometry import Polygon
-from meshkernel import MeshKernel, GeometryList
+from meshkernel import MeshKernel
 from Functions import functions
 import xarray as xr, dfm_tools as dfmt
+import dask.array as da
 warnings.filterwarnings("ignore")
 
 
@@ -46,19 +47,13 @@ def sort_face_ccw(nodes, x, y):
     angles = np.arctan2(ys - cy, xs - cx)
     return nodes[np.argsort(angles)]
 
-def netCDF_creator(polygon: gpd.GeoDataFrame, points: gpd.GeoDataFrame):
-    lake, depth = polygon.copy().to_crs(epsg=32632), points.copy().to_crs(epsg=32632)
-    lake["geometry"] = lake.geometry.apply(lambda geo: remove_holes(geo, 0))
-    x, y = lake.geometry.iloc[0].exterior.xy
-    poly = GeometryList(np.array(x), np.array(y))
-    mk = MeshKernel()
-    mk.mesh2d_make_triangular_mesh_from_polygon(poly)
+def netCDF_creator(mk: MeshKernel, depth: gpd.GeoDataFrame):
     mesh = mk.mesh2d_get()
     node_x, node_y = mesh.node_x, mesh.node_y
-    temp_grid = gpd.GeoDataFrame(geometry=gpd.points_from_xy(node_x, node_y), crs=lake.crs)
+    temp_grid = gpd.GeoDataFrame(geometry=gpd.points_from_xy(node_x, node_y), crs=depth.crs)
     node_z = functions.interpolation_Z(temp_grid, depth["geometry"].x, depth["geometry"].y, depth["depth"].values, n_neighbors=2, geo_type='point')
     # Convert to Ugrid
-    grid_uds = dfmt.meshkernel_to_UgridDataset(mk, crs=lake.crs)
+    grid_uds = dfmt.meshkernel_to_UgridDataset(mk, crs=depth.crs)
     grid_uds['mesh2d'] = xr.DataArray(0,
         attrs={
             "cf_role": "mesh_topology", "long_name": "Topology data of 2D mesh",
@@ -70,12 +65,12 @@ def netCDF_creator(polygon: gpd.GeoDataFrame, points: gpd.GeoDataFrame):
             "face_coordinates": "mesh2d_face_x mesh2d_face_y"
         }
     )
-    grid_uds['mesh2d_node_z'] = (("mesh2d_nNodes",), node_z.astype('float64'))
-    grid_uds['mesh2d_edge_x'] = (("mesh2d_nEdges",), mesh.edge_x)
-    grid_uds['mesh2d_edge_y'] = (("mesh2d_nEdges",), mesh.edge_y)
+    grid_uds['mesh2d_node_z'] = (("mesh2d_nNodes",), da.from_array(node_z.astype('float64')))
+    grid_uds['mesh2d_edge_x'] = (("mesh2d_nEdges",), da.from_array(mesh.edge_x))
+    grid_uds['mesh2d_edge_y'] = (("mesh2d_nEdges",), da.from_array(mesh.edge_y))
     # Make mesh2d_edge_nodes
     edge_nodes = mesh.edge_nodes.reshape((-1, 2)).astype(np.int32)
-    grid_uds['mesh2d_edge_nodes'] = (("mesh2d_nEdges", "Two"), edge_nodes)
+    grid_uds['mesh2d_edge_nodes'] = (("mesh2d_nEdges", "Two"), da.from_array(edge_nodes))
     # Make mesh2d_face_nodes
     max_n, nfaces = int(mesh.nodes_per_face.max()), mesh.nodes_per_face.size
     face_nodes = np.full((nfaces, max_n), np.nan, dtype=np.float64)
@@ -89,7 +84,7 @@ def netCDF_creator(polygon: gpd.GeoDataFrame, points: gpd.GeoDataFrame):
         if nodes.size < 3: continue
         nodes = sort_face_ccw(nodes, mesh.node_x, mesh.node_y)
         face_nodes[i, :nodes.size] = nodes + 1
-    grid_uds['mesh2d_face_nodes'] = (("mesh2d_nFaces", "mesh2d_nMax_face_nodes"), face_nodes)
+    grid_uds['mesh2d_face_nodes'] = (("mesh2d_nFaces", "mesh2d_nMax_face_nodes"), da.from_array(face_nodes))
     # Make mesh2d_edge_faces
     nEdges, nfaces = mesh.edge_x.size, mesh.nodes_per_face.size
     edge_faces = np.full((nEdges, 2), -1, dtype=np.int32)
@@ -106,9 +101,9 @@ def netCDF_creator(polygon: gpd.GeoDataFrame, points: gpd.GeoDataFrame):
             if edge_faces[eidx, 0] == -1: edge_faces[eidx, 0] = fidx
             elif edge_faces[eidx, 1] == -1: edge_faces[eidx, 1] = fidx
             else: raise ValueError(f"Edge {eidx} shared by >2 faces")
-    grid_uds['mesh2d_edge_faces'] = (("mesh2d_nEdges", "Two"), edge_faces)
-    grid_uds['mesh2d_face_x'] = (("mesh2d_nFaces",), mesh.face_x)
-    grid_uds['mesh2d_face_y'] = (("mesh2d_nFaces",), mesh.face_y)
+    grid_uds['mesh2d_edge_faces'] = (("mesh2d_nEdges", "Two"), da.from_array(edge_faces))
+    grid_uds['mesh2d_face_x'] = (("mesh2d_nFaces",), da.from_array(mesh.face_x))
+    grid_uds['mesh2d_face_y'] = (("mesh2d_nFaces",), da.from_array(mesh.face_y))
     # Make mesh2d_face_x_bnd, mesh2d_face_y_bnd
     x_bnd = np.full((nfaces, max_n), np.nan, dtype=np.float64)
     y_bnd = np.full((nfaces, max_n), np.nan, dtype=np.float64)
@@ -119,10 +114,13 @@ def netCDF_creator(polygon: gpd.GeoDataFrame, points: gpd.GeoDataFrame):
         idx = fn[valid].astype(int) - 1
         x_bnd[i, valid] = mesh.node_x[idx]
         y_bnd[i, valid] = mesh.node_y[idx]
-    grid_uds['mesh2d_face_x_bnd'] = (("mesh2d_nFaces", "mesh2d_nMax_face_nodes"), x_bnd)
-    grid_uds['mesh2d_face_y_bnd'] = (("mesh2d_nFaces", "mesh2d_nMax_face_nodes"), y_bnd)
-    grid_uds.attrs.update({ "institution": 'Private', "references": 'vanlnNTNU@gmail.com',
-    })
+    grid_uds['mesh2d_face_x_bnd'] = (("mesh2d_nFaces", "mesh2d_nMax_face_nodes"), da.from_array(x_bnd))
+    grid_uds['mesh2d_face_y_bnd'] = (("mesh2d_nFaces", "mesh2d_nMax_face_nodes"), da.from_array(y_bnd))
+    grid_uds.attrs.update({ "institution": 'Private', "references": 'vanlnNTNU@gmail.com'})
     return grid_uds
 
-
+def netCDF_saver(lake, depth):
+    pass
+    # grid_uds = gridFunctions.grid_creator(lake, depth)
+    # grid_uds.to_netcdf("net.nc")
+    # return grid_uds
