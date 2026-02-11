@@ -319,23 +319,29 @@ async function dataPreparationManager(){
         const contents = { projectName: getState().currentProject, pointCollection: pointCollection, levelValue: levelValue }
         const response = await sendQuery('grid_creator', contents); stopLoading();
         if (response.status === "error") { alert(response.message); return; }
-        console.log(response.content);
+        console.log(response.content.features[0].geometry);
 
         
-        // if (lakeLayer) { lakeMap.removeLayer(lakeLayer); lakeLayer = null; }
-        // lakeLayer = L.geoJSON(response.content, {
-        //     style: feature => {
-        //         switch (feature.geometry.type) {
-        //             case 'LineString': 
-        //             case 'MultiLineString':
-        //                 return { color: 'black', weight: 2 };
-        //             case 'Polygon':
-        //             case 'MultiPolygon':
-        //                 return { color: 'black', fillColor: 'red', fillOpacity: 0.5, weight: 1 };
-        //             default: return {};
-        //         }
-        //     }
-        // }).addTo(lakeMap);
+        if (lakeLayer) { lakeMap.removeLayer(lakeLayer); lakeLayer = null; }
+        lakeLayer = L.geoJSON(response.content, {
+            style: feature => {
+                switch (feature.geometry.type) {
+                    case 'LineString': 
+                    case 'MultiLineString':
+                        return { color: 'black', weight: 2 };
+                    case 'Polygon':
+                    case 'MultiPolygon':
+                        return { color: 'black', fillColor: 'red', fillOpacity: 0.5, weight: 1 };
+                    default: return {};
+                }
+            },
+            onEachFeature: (feature, layer) => {
+                layer.on({
+                    mouseover: e => e.target.setStyle({ fillOpacity: 0.8 }),
+                    mouseout: e => lakeLayer.resetStyle(e.target)
+                });
+            }
+        }).addTo(lakeMap);
 
 
     });

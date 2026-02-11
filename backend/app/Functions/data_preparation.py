@@ -1,4 +1,4 @@
-import os, traceback, json
+import os, traceback, json, pickle
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
 from Functions import functions, gridFunctions
@@ -17,16 +17,23 @@ async def init_lakes(request: Request, user=Depends(functions.basic_auth)):
         body = await request.json()
         project_name, _ = functions.project_definer(body.get('projectName'), user)
         config_dir = os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "config")
-        lake_path = os.path.normpath(os.path.join(config_dir, 'lakes.json'))
         project_cache = request.app.state.project_cache.setdefault(project_name)
         if not project_cache:
+            print("Project is not available in memory. Creating a new one...")
             project_cache_dict = getattr(request.app.state, "project_cache", None)
             request.app.state.project_cache = {}
             project_cache_dict = request.app.state.project_cache
             project_cache = project_cache_dict.setdefault(project_name, {})
-            lake_db, depth_db = gridFunctions.loadLakes()
+            config_dir = os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "config")
+            lake_path = os.path.normpath(os.path.join(config_dir, 'lakes.pkl'))
+            depth_path = os.path.normpath(os.path.join(config_dir, 'depth.pkl'))
+            if not os.path.exists(lake_path): gridFunctions.loadLakes(lake_path=lake_path)
+            if not os.path.exists(depth_path): gridFunctions.loadLakes(depth_path=depth_path)
+            with open(lake_path, 'rb') as f: lake_db = pickle.load(f)
+            with open(depth_path, 'rb') as f: depth_db = pickle.load(f)
             project_cache['lake_db'], project_cache['depth_db'] = lake_db, depth_db
         else: lake_db = project_cache.get('lake_db')
+        lake_path = os.path.normpath(os.path.join(config_dir, 'lakes.json'))
         if not os.path.exists(lake_path):
             result = lake_db.groupby("Region")["Name"].apply(list).to_dict()
             # Save the processed lake data
@@ -46,9 +53,16 @@ async def load_lakes(request: Request, user=Depends(functions.basic_auth)):
         project_name, _ = functions.project_definer(body.get('projectName'), user)
         project_cache = request.app.state.project_cache.setdefault(project_name)
         if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory"}) 
-        lake_db, depth_db = project_cache.get('lake_db'), project_cache.get('depth_db')
+        lake_db, depth_db = project_cache.get('lake_db', None), project_cache.get('depth_db', None)
         if lake_db is None or depth_db is None:
-            lake_db, depth_db = gridFunctions.loadLakes()
+            print("Lake data is not available in memory. Loading a new one...")
+            config_dir = os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "config")
+            lake_path = os.path.normpath(os.path.join(config_dir, 'lakes.pkl'))
+            depth_path = os.path.normpath(os.path.join(config_dir, 'depth.pkl'))
+            if not os.path.exists(lake_path): gridFunctions.loadLakes(lake_path=lake_path)
+            if not os.path.exists(depth_path): gridFunctions.loadLakes(depth_path=depth_path)
+            with open(lake_path, 'rb') as f: lake_db = pickle.load(f)
+            with open(depth_path, 'rb') as f: depth_db = pickle.load(f)
             project_cache['lake_db'], project_cache['depth_db'] = lake_db, depth_db
         if lake != 'all':
             lake_data = lake_db[lake_db['Name'] == lake].copy()
@@ -119,19 +133,21 @@ async def grid_creator(request: Request, user=Depends(functions.basic_auth)):
         project_name, _ = functions.project_definer(body.get('projectName'), user)
         project_cache = request.app.state.project_cache.setdefault(project_name)
         if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory"})
-        points, level = np.array(body.get('pointCollection')), float(body.get('levelValue'))
-        polygon = GeometryList(points[:, 0], points[:, 1])
+        points, level = np.array(body.get('pointCollection')), body.get('levelValue')
+        gdf = gpd.GeoDataFrame(geometry=gpd.points_from_xy(points[:, 1], points[:, 0]), crs="EPSG:4326")
         mk, depth_db = MeshKernel(), project_cache.get('depth')
-        depth_db = depth_db.to_crs(depth_db.estimate_utm_crs())
+        crs = depth_db.estimate_utm_crs()
+        depth_db, gdf = depth_db.to_crs(crs), gdf.to_crs(crs)
+
+        print(gdf)
+        print(depth_db)
+
+        polygon = GeometryList(gdf.geometry.x, gdf.geometry.y)
         if level == '': mk.mesh2d_make_triangular_mesh_from_polygon(polygon)
-        else: mk.mesh2d_make_triangular_mesh_from_polygon(polygon, scale_factor=level)
+        else: mk.mesh2d_make_triangular_mesh_from_polygon(polygon, scale_factor=float(level))
         grid_uds = gridFunctions.netCDF_creator(mk, depth_db)
         project_cache['grid_uds'] = grid_uds
-
-
-
         grid = functions.unstructuredGridCreator(grid_uds)
-
         return JSONResponse({'status': 'ok', 'content': json.loads(grid.to_json())})
     except Exception as e:
         print('/grid_creator:\n==============')
