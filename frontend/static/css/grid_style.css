@@ -17,7 +17,7 @@ section.card.tabs {
 }
 
 #base-map-select, #scale-factor {
-    min-width: 100px; font-size: 15px; cursor: pointer;
+    min-width: 100px; font-size: 15px; cursor: pointer; 
 }
 
 #table-of-contents { 
@@ -74,7 +74,7 @@ section.card.tabs {
 
 #refinement-value { width: 80px; text-align: center; flex: 1;}
 #refinement-btn {
-    cursor: pointer; padding: 2px; border-radius: 5px;
+    cursor: pointer; padding: 8px; border-radius: 10px;
     background-color: #184bd6; color: #fff; align-items: center;
 }
 .content-line {

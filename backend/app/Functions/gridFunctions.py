@@ -117,9 +117,3 @@ def netCDF_creator(mk: MeshKernel, depth: gpd.GeoDataFrame):
     grid_uds['mesh2d_face_y_bnd'] = (("mesh2d_nFaces", "mesh2d_nMax_face_nodes"), da.from_array(y_bnd))
     grid_uds.attrs.update({ "institution": 'Private', "references": 'vanlnNTNU@gmail.com'})
     return grid_uds
-
-def netCDF_saver(lake, depth):
-    pass
-    # grid_uds = gridFunctions.grid_creator(lake, depth)
-    # grid_uds.to_netcdf("net.nc")
-    # return grid_uds

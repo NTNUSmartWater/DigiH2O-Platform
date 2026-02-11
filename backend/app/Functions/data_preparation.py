@@ -138,10 +138,6 @@ async def grid_creator(request: Request, user=Depends(functions.basic_auth)):
         mk, depth_db = MeshKernel(), project_cache.get('depth')
         crs = depth_db.estimate_utm_crs()
         depth_db, gdf = depth_db.to_crs(crs), gdf.to_crs(crs)
-
-        print(gdf)
-        print(depth_db)
-
         polygon = GeometryList(gdf.geometry.x, gdf.geometry.y)
         if level == '': mk.mesh2d_make_triangular_mesh_from_polygon(polygon)
         else: mk.mesh2d_make_triangular_mesh_from_polygon(polygon, scale_factor=float(level))
@@ -154,7 +150,15 @@ async def grid_creator(request: Request, user=Depends(functions.basic_auth)):
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
-
+@router.post("/grid_checker")
+async def grid_checker(request: Request, user=Depends(functions.basic_auth)):
+    body = await request.json()
+    project_name, _ = functions.project_definer(body.get('projectName'), user)
+    grid_dir = os.path.join(PROJECT_STATIC_ROOT, project_name, "grids")
+    if not os.path.exists(grid_dir): os.makedirs(grid_dir)
+    grid_path = os.path.normpath(os.path.join(grid_dir, body.get('gridName')))
+    if not os.path.exists(grid_path): return JSONResponse({'status': 'ok'})
+    else: return JSONResponse({'status': 'error'})
 
 @router.post("/grid_saver")
 async def grid_saver(request: Request, user=Depends(functions.basic_auth)):
@@ -163,14 +167,11 @@ async def grid_saver(request: Request, user=Depends(functions.basic_auth)):
         project_name, _ = functions.project_definer(body.get('projectName'), user)
         project_cache = request.app.state.project_cache.setdefault(project_name)
         if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory"}) 
-        
-
-
-
-
-
-
-        return JSONResponse({'status': 'ok', 'message': 'Grid created successfully'})
+        grid_uds = project_cache.get('grid_uds')
+        grid_dir = os.path.join(PROJECT_STATIC_ROOT, project_name, "grids")
+        grid_path = os.path.normpath(os.path.join(grid_dir, body.get('gridName')))
+        grid_uds.to_netcdf(grid_path)
+        return JSONResponse({'status': 'ok', 'message': f'Grid saved successfully: {grid_path.replace(PROJECT_STATIC_ROOT, "...")}'})
     except Exception as e:
         print('/grid_saver:\n==============')
         traceback.print_exc()
