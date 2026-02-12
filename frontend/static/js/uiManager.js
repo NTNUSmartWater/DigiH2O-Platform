@@ -256,7 +256,7 @@ function updateEvents() {
         timeOut = setTimeout(() => {
             fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(value)}&addressdetails=1&limit=5`)
             .then(response => response.json()).then(data => {
-                if (data.length === 0) {sugesstionSearcher().style.display = 'none';}
+                if (data.length === 0) {sugesstionSearcher().style.display = 'none'; return;}
                 sugesstionSearcher().innerHTML = '';
                 data.forEach(location => {
                     var div = document.createElement('div');

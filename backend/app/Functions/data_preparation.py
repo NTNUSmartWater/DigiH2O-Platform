@@ -83,6 +83,23 @@ async def load_lakes(request: Request, user=Depends(functions.basic_auth)):
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
+@router.post("/search_lakes")
+async def search_lakes(request: Request, user=Depends(functions.basic_auth)):
+    body = await request.json()
+    project_name, _ = functions.project_definer(body.get('projectName'), user)
+    project_cache = request.app.state.project_cache.setdefault(project_name)
+    if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory"})
+    config_dir = os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "config")
+    lake_path = os.path.normpath(os.path.join(config_dir, 'lakes_name.json'))
+    if not os.path.exists(lake_path):
+        lake_db = project_cache.get('lake_db')
+        data = np.unique(lake_db['Name'].values).tolist()
+        # Save the processed lake data
+        json.dump(data, open(lake_path, "w", encoding=functions.encoding_detect(lake_path)))
+    else: data = json.loads(open(lake_path, "r", encoding=functions.encoding_detect(lake_path)).read())
+    result = [x for x in data if body.get('name').lower() in x.lower()]
+    return JSONResponse({'content': result})
+
 @router.post("/vertex_generator")
 async def vertex_generator(request: Request, user=Depends(functions.basic_auth)):
     try:
@@ -142,11 +159,32 @@ async def grid_creator(request: Request, user=Depends(functions.basic_auth)):
         if level == '': mk.mesh2d_make_triangular_mesh_from_polygon(polygon)
         else: mk.mesh2d_make_triangular_mesh_from_polygon(polygon, scale_factor=float(level))
         grid_uds = gridFunctions.netCDF_creator(mk, depth_db)
-        project_cache['grid_uds'] = grid_uds
+        project_cache['grid_uds'], project_cache['mk'] = grid_uds, mk
         grid = functions.unstructuredGridCreator(grid_uds)
         return JSONResponse({'status': 'ok', 'content': json.loads(grid.to_json())})
     except Exception as e:
         print('/grid_creator:\n==============')
+        traceback.print_exc()
+        return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
+
+@router.post("/grid_orthos")
+async def grid_orthos(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
+        project_cache = request.app.state.project_cache.setdefault(project_name)
+        if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory"}) 
+        mk, lake_db = project_cache.get('mk', None), project_cache.get('lake')
+        if mk is None: return JSONResponse({"status": "error", "message": "Unstructured grid is not available in memory"})
+        mesh, crs = mk.mesh2d_get(), lake_db.estimate_utm_crs()
+        gdf = gpd.GeoDataFrame(geometry=gpd.points_from_xy(mesh.edge_x, mesh.edge_y), crs=crs).to_crs("EPSG:4326")
+        gdf['orth'] = np.round(mk.mesh2d_get_orthogonality().values, 4)
+        gdf = gdf[gdf.orth != -999]
+        values = gdf['orth'].values
+        min, max = np.min(values), np.max(values)
+        return JSONResponse({'status': 'ok', 'content': {"min": min, "max": max, "data": json.loads(gdf.to_json())}})
+    except Exception as e:
+        print('/grid_orthos:\n==============')
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
@@ -176,4 +214,3 @@ async def grid_saver(request: Request, user=Depends(functions.basic_auth)):
         print('/grid_saver:\n==============')
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
-

@@ -1,3 +1,14 @@
+.search-box {
+    margin-left: 50px; align-items: center; display: flex; gap: 10px; font-size: 16px;
+}
+.lake-suggestions {
+  position: absolute; top: 35px; left: 0; right: 0; background: #fff;
+  border: 1px solid #ddd; border-radius: 4px; max-height: 200px;
+  overflow-y: auto; z-index: 1000; color: #333; font-size: 12px;
+}
+.lake-suggestions div { padding: 5px 10px; cursor: pointer; }
+.lake-suggestions div:hover { background: #8a8787; }
+
 #project-name, #project-list {
     align-items: center; font-size: 15px; width: 500px;
 }
@@ -28,7 +39,7 @@ section.card.tabs {
 .attributes-table tbody td { font-size: 20px }
 
 #generate-grid, #save-grid {
-    padding: 8px; border-radius: 10px; cursor: pointer; font-weight: bold;
+    padding: 4px; border-radius: 10px; cursor: pointer; font-weight: bold;
 }
 #generate-grid {
     background-color: #184bd6; color: #fff;
@@ -75,7 +86,7 @@ section.card.tabs {
 #refinement-value { width: 80px; text-align: center; flex: 1;}
 #refinement-btn {
     cursor: pointer; padding: 8px; border-radius: 10px;
-    background-color: #184bd6; color: #fff; align-items: center;
+    background-color: #3b4f85; color: #fff; align-items: center;
 }
 .content-line {
     display: flex; align-items: center; gap: 8px;

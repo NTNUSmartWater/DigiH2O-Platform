@@ -31,6 +31,7 @@ def loadLakes(lake_path=None, depth_path=None):
         if depth_db.crs != 'epsg:4326': depth_db = depth_db.to_crs(epsg=4326)
         depth_db['depth'] = depth_db['depth'].astype(float)
         with open(depth_path, 'wb') as f: pickle.dump(depth_db, f)
+
 def remove_holes(geom, cell_size=0):
     geom = geom.buffer(0)
     if geom.geom_type != "Polygon": return geom
