@@ -184,8 +184,7 @@ function geoJSONPlotter(data, checker) {
 
 async function dataPreparationManager(){
     baseMap = document.getElementById("base-map-select");
-    if (!lakeMap) { createLakeMap(); }
-    clearMap(lakeLayer);
+    if (!lakeMap) { createLakeMap(); }; clearMap(lakeLayer);
     // Search lake
     lakeSearcher().addEventListener('input', (e) => {
         clearTimeout(timeOut);
@@ -267,6 +266,7 @@ async function dataPreparationManager(){
             polygonCheckbox().dispatchEvent(new Event('change')); return;
         }
         startLoading('Generating Vertexes. Please wait...'); entireNorway = true;
+        await new Promise(resolve => setTimeout(resolve, 0));
         const response = await sendQuery('vertex_generator', { projectName: getState().currentProject }); stopLoading();
         if (response.status === "error") { alert(response.message);  return; }
         pointLayer = L.geoJSON(response.content, {
@@ -319,6 +319,7 @@ async function dataPreparationManager(){
             }
         }).addTo(lakeMap);
         vertexesCheckbox().checked = false; clearMap(orthoLayer);
+        orthoCheckbox().checked = false; orthoCheckbox().dispatchEvent(new Event('change'));
     });
     scaleSelector().addEventListener('change', (e) => {
         const value = e.target.value;
@@ -339,11 +340,14 @@ async function dataPreparationManager(){
         });
         if (pointCollection.length === 0) { alert("No vertexes found."); return; }
         pointCollection.push(pointCollection[0]);
-        startLoading('Generating Grid. Please wait...');
+        startLoading('Generating an Unstructured Grid. Please wait...');
+        await new Promise(resolve => setTimeout(resolve, 0));
         const contents = { projectName: getState().currentProject, pointCollection: pointCollection, levelValue: levelValue }
         const response = await sendQuery('grid_creator', contents); stopLoading();
         if (response.status === "error") { alert(response.message); return; }
         clearMap(gridLayer); clearMap(orthoLayer);
+        depthCheckbox().checked = false; depthCheckbox().dispatchEvent(new Event('change'));
+        orthoCheckbox().checked = false; orthoCheckbox().dispatchEvent(new Event('change'));
         gridLayer = L.geoJSON(response.content, {
             style: feature => {
                 switch (feature.geometry.type) {
@@ -361,10 +365,13 @@ async function dataPreparationManager(){
     orthoCheckbox().addEventListener('change', async (e) => {
         if (e.target.checked) { 
             if (gridLayer === null) { 
-                alert("Please generate grid first."); orthoCheckbox().checked = false; return; 
+                alert("Please generate grid first."); 
+                orthoCheckbox().checked = false; return; 
             }
+            startLoading('Generating Orthogonalization. Please wait...');
+            await new Promise(resolve => setTimeout(resolve, 0));
             const contents = { projectName: getState().currentProject };
-            const response = await sendQuery('grid_orthos', contents);
+            const response = await sendQuery('grid_ortho', contents); stopLoading();
             if (response.status === "error") { alert(response.message); return; }
             clearMap(pointLayer); clearMap(window.depthGridLayer);
             clearMap(orthoLayer); depthCheckbox().checked = false;
@@ -395,8 +402,10 @@ async function dataPreparationManager(){
         if (!nameChecker(name)) { alert('Grid name contains invalid characters.'); return; }
         if (!name.toLowerCase().endsWith('.nc')) { name = name + '.nc'; }
         if (gridLayer === null) { alert("Please generate unstructured grid first."); return; }
+        startLoading('Saving grid. Please wait...');
+        await new Promise(resolve => setTimeout(resolve, 0));
         const contents = { projectName: getState().currentProject, gridName: name };
-        const check = await sendQuery('grid_checker', contents);
+        const check = await sendQuery('grid_checker', contents); stopLoading();
         if (check.status === "error") { 
             if (!confirm(`File "${name}" already exists. Do you want to overwrite it?`)) { return; }
         }

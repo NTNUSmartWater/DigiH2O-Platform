@@ -167,8 +167,8 @@ async def grid_creator(request: Request, user=Depends(functions.basic_auth)):
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
-@router.post("/grid_orthos")
-async def grid_orthos(request: Request, user=Depends(functions.basic_auth)):
+@router.post("/grid_ortho")
+async def grid_ortho(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
         project_name, _ = functions.project_definer(body.get('projectName'), user)
@@ -184,7 +184,7 @@ async def grid_orthos(request: Request, user=Depends(functions.basic_auth)):
         min, max = np.min(values), np.max(values)
         return JSONResponse({'status': 'ok', 'content': {"min": min, "max": max, "data": json.loads(gdf.to_json())}})
     except Exception as e:
-        print('/grid_orthos:\n==============')
+        print('/grid_ortho:\n==============')
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 

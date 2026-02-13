@@ -97,14 +97,13 @@ export function getColorFromValue(value, vmin, vmax, colorbarKey) {
     // Minimum difference
     const minDiff = 1e-2, epsilon = 1e-6;
     if (vmax - vmin < minDiff) vmax = vmin + minDiff;
-    let t0, t1, colors, tClamped;
+    let t0, t1, colors;
     if (vmin + epsilon <=0 || vmax + epsilon <=0) { // avoid zero division error for vmin or vmax = 0
         t0 = (value - vmin) / (vmax - vmin);
     } else {
         t0 = (Math.log(value + epsilon) - Math.log(vmin + epsilon)) / (Math.log(vmax + epsilon) - Math.log(vmin + epsilon));
     }
-    tClamped = Math.max(0, Math.min(1, t0));
-    t1 = 1 - tClamped;
+    t1 = 1 - Math.max(0, Math.min(1, t0));
     if (colorbarKey === "depth") { // used for depth
         colors = [
             { r: 160, g: 216, b: 239 },  // very light blue
@@ -130,7 +129,6 @@ export function getColorFromValue(value, vmin, vmax, colorbarKey) {
             { r: 0,   g: 0,   b: 255 },   // blue
         ];
     }
-    if (colorbarKey === "ortho") { t1 = tClamped; }
     const binCount = colors.length - 1;
     const scaledT = t1 * binCount;
     const lower = Math.floor(scaledT);
@@ -161,8 +159,7 @@ export function updateColorbar(min, max, title, colorbarKey, bar_color, bar_titl
             const logMax = Math.log(max + epsilon);
             value = Math.exp(logMin + percent * (logMax - logMin));
         } else { value = min + percent * (max - min);}
-        if (colorbarKey === "ortho") { labels[i].textContent = valueFormatter(value, minDiff); }
-        else { labels[numStops - i - 1].textContent = valueFormatter(value, minDiff); }
+        labels[numStops - i - 1].textContent = valueFormatter(value, minDiff);
     }
     // Generate color for colorbar
     for (let i = 0; i < numStops; i++) {
@@ -177,8 +174,7 @@ export function updateColorbar(min, max, title, colorbarKey, bar_color, bar_titl
         colorStops.push(`rgb(${color.r}, ${color.g}, ${color.b}) ${(t * 100).toFixed(1)}%`);
     }
     // Update gradient
-    if (colorbarKey === "ortho") { bar_color.style.background = `linear-gradient(to bottom, ${colorStops.join(", ")})`; }
-    else { bar_color.style.background = `linear-gradient(to top, ${colorStops.join(", ")})`; }
+    bar_color.style.background = `linear-gradient(to top, ${colorStops.join(", ")})`;
 }
 
 export function updateMapByTime(layerMap, values, vmin, vmax, colorbarKey) {
