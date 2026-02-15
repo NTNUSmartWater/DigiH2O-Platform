@@ -1,0 +1,25 @@
+:root {
+  --bg: #0b1220;
+  --card: #0f1b30;
+  --primary: #1e88e5;
+  --primary-600: #1565c0;
+  --primary-700: #0d47a1;
+  --muted: #94a3b8;
+  --text: #e6eefc;
+  --border: #1f2a44;
+  --ring: rgba(30, 136, 229, 0.35);
+  --shadow: 0 20px 60px rgba(13, 71, 161, 0.35);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  color: var(--text);
+  background: radial-gradient(1200px 600px at 10% -10%, rgba(30,136,229,0.25), transparent),
+              radial-gradient(800px 600px at 100% 0%, rgba(21,101,192,0.25), transparent), var(--bg);
+}
+
+.wrapper { max-width: 100%; margin: 20px auto; padding: 0 10px 10px 10px; }
+.page-title { 
+    display: flex; align-items: center; gap: 14px; margin: 8px 0 24px 0; 
+    justify-content: center; font-size: 20px; font-weight: 700; letter-spacing: 0.2px; 
+}

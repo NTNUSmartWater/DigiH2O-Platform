@@ -1,5 +1,5 @@
 import os, traceback, json, pickle
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import JSONResponse
 from Functions import functions, gridFunctions
 from config import PROJECT_STATIC_ROOT
@@ -7,7 +7,7 @@ import geopandas as gpd, numpy as np
 from shapely.geometry import Point, Polygon
 from meshkernel import MeshKernel, GeometryList
 
-router = APIRouter()
+router, processes = APIRouter(), {}
 
 @router.post("/init_lakes")
 async def init_lakes(request: Request, user=Depends(functions.basic_auth)):
@@ -254,6 +254,142 @@ async def grid_ortho(request: Request, user=Depends(functions.basic_auth)):
         print('/grid_ortho:\n==============')
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
+
+@router.post("/check_grid_optimization")
+async def check_grid_optimization(request: Request, user=Depends(functions.basic_auth)):
+    body = await request.json()
+    project_name, _ = functions.project_definer(body.get('projectName'), user)
+    info = processes.get(project_name)
+    if not info: 
+        return JSONResponse({"status": "not_started", "progress": 0, "message": 'No optimization running'})
+    if info["status"] in ("finished", "failed", "error"): processes.pop(project_name, None)
+    if info["status"] == "finished":
+        return JSONResponse({"status": "finished", "progress": 100,
+            "message": info.get("message", 'Optimization completed successfully')})
+    if info["status"] == "failed":
+        return JSONResponse({"status": "failed", "progress": info["progress"],
+            "message": info.get("message", 'Optimization failed')})
+    if info["status"] == "reorganizing":
+        return JSONResponse({"status": "reorganizing", "progress": 100, "message": 'Reorganizing outputs. Please wait...'})
+    complete = f'Iteration completed: {info["progress"]}% ({info["iteration"]}/{info["iterations"]}) - Detailed level: {info["level"]}'
+    return JSONResponse({"status": info["status"], "progress": info["progress"], "message": complete})
+
+# Start a optimization
+@router.post("/start_grid_optimization")
+async def start_grid_optimization(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
+        project_name, project_id = functions.project_definer(body.get('projectName'), user)
+        redis = request.app.state.redis
+        lock = redis.lock(f"{project_id}:grid_optimization", timeout=1000, blocking_timeout=10)
+        async with lock:
+            # Check if optimization already running
+            if project_name in processes and processes[project_name]["status"] == "running":
+                info = processes[project_name]
+                complete = f'Iteration completed: {info["progress"]}% ({info["iteration"]}/{info["iterations"]}) - Detailed level: {info["level"]}'
+                return JSONResponse({"status": "running", "progress": info["progress"], "message": complete})
+            
+            iterations = int(body.get('iterations'))
+            level_from, level_to = float(body.get('levelFrom')), float(body.get('levelTo'))
+
+
+    #         path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
+    #         mdu_path = os.path.normpath(os.path.join(path, "FlowFM.mdu"))
+    #         bat_path = os.path.normpath(os.path.join(DELFT_PATH, "dflowfm/scripts/run_dflowfm.bat"))
+    #         # Check if file exists
+    #         if not os.path.exists(mdu_path): 
+    #             return JSONResponse({"status": "error", "progress": 0.0, "message": "MDU file not found"})
+    #         if not os.path.exists(bat_path): 
+    #             return JSONResponse({"status": "error", "progress": 0.0, "message": "Executable file not found"})
+    #         # Remove old log
+    #         log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log_hyd.txt"))
+    #         if os.path.exists(log_path): os.remove(log_path)
+    #         percent_re = re.compile(r'(?P<percent>\d{1,3}(?:\.\d+)?)\s*%')
+    #         time_re = re.compile(r'(?P<tt>\d+d\s+\d{1,2}:\d{2}:\d{2})')
+    #         # Run the process
+    #         command = ["cmd.exe", "/c", bat_path, "--autostartstop", mdu_path]
+    #         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    #             encoding="utf-8", errors="replace", bufsize=1, cwd=path)
+    #         processes[project_name] = {"process": process, "progress": 0.0, "status": "running", 
+    #             "message": 'Preparing data for simulation...', "time_used": "N/A", "time_left": "N/A"}
+    #         # Stream logs
+    #         def stream_logs():
+    #             try:
+    #                 for line in process.stdout:
+    #                     proc_info = processes.get(project_name)
+    #                     if not proc_info: return
+    #                     line = line.strip()
+    #                     if not line: continue
+    #                     append_log(log_path, line)
+    #                     # Catch error messages
+    #                     if "forrtl:" in line.lower() or "error" in line.lower():
+    #                         processes[project_name]["status"] = "error"
+    #                         processes[project_name]["message"] = line
+    #                         append_log(log_path, line)
+    #                         res = functions.kill_process(process)
+    #                         append_log(log_path, res["message"])
+    #                         return
+    #                     # Check for progress
+    #                     match_pct = percent_re.search(line)
+    #                     if match_pct: processes[project_name]["progress"] = float(match_pct.group("percent"))
+    #                     # Extract run time
+    #                     times = time_re.findall(line)
+    #                     if len(times) >= 4:
+    #                         processes[project_name]["time_used"] = times[2]
+    #                         processes[project_name]["time_left"] = times[3]
+    #                     elif len(times) == 3:
+    #                         processes[project_name]["time_used"] = times[1]
+    #                         processes[project_name]["time_left"] = times[2]
+    #             except Exception as e:
+    #                 proc_info = processes.get(project_name)
+    #                 if proc_info:
+    #                     processes[project_name]["status"] = "failed"
+    #                     processes[project_name]["message"] = f"Internal error: {e}"
+    #                 append_log(log_path, f"[INTERNAL ERROR] {e}")
+    #             finally:
+    #                 process.wait()
+    #                 proc_info = processes.get(project_name)
+    #                 if not proc_info or proc_info["status"] == "error": return
+    #                 processes[project_name]["status"] = "reorganizing"
+    #                 processes[project_name]["message"] = "Reorganizing outputs. Please wait..."
+    #                 processes[project_name]["progress"] = 100.0
+    #                 try:
+    #                     post_result = functions.postProcess(path)
+    #                     if post_result["status"] != "ok":
+    #                         processes[project_name]["status"] = "error"
+    #                         processes[project_name]["message"] = post_result["message"]
+    #                     else:
+    #                         processes[project_name]["status"] = "finished"
+    #                         processes[project_name]["message"] = "Simulation completed successfully"
+    #                 except Exception as e:
+    #                     processes[project_name]["status"] = "failed"
+    #                     processes[project_name]["message"] = f"Simulation failed: {e}"
+    #         threading.Thread(target=stream_logs, daemon=True).start()
+        return JSONResponse({"status": "ok", "message": f"Optimization for {project_name} started"})
+    except Exception as e:
+        print('/start_grid_optimization:\n==============')
+        traceback.print_exc()
+        return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
+
+@router.get("/optimization_log_full/{project_name}")
+async def optimization_log_full(project_name: str, log_file: str = Query(""), user=Depends(functions.basic_auth)):
+    project_name, _ = functions.project_definer(project_name, user)
+    log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, log_file))
+    if not os.path.exists(log_path): return {"content": ""}
+    with open(log_path, "r", encoding=functions.encoding_detect(log_path), errors="replace") as f:
+        content = f.read()
+    return {"content": content, "offset": os.path.getsize(log_path)}
+
+@router.get("/optimization_log_tail/{project_name}")
+async def optimization_log_tail(project_name: str, offset: int = Query(0), log_file: str = Query(""), user=Depends(functions.basic_auth)):
+    project_name, _ = functions.project_definer(project_name, user)
+    log_path, lines = os.path.join(PROJECT_STATIC_ROOT, project_name, log_file), []
+    if not os.path.exists(log_path): return {"lines": lines, "offset": offset}
+    with open(log_path, "r", encoding=functions.encoding_detect(log_path), errors="replace") as f:
+        f.seek(offset)
+        for line in f:
+            lines.append(line.rstrip())
+    return {"lines": lines, "offset": os.path.getsize(log_path)}  
 
 @router.post("/grid_checker")
 async def grid_checker(request: Request, user=Depends(functions.basic_auth)):

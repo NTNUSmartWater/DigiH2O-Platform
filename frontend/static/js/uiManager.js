@@ -406,17 +406,15 @@ function updateEvents() {
                 const win = window.open('static_frontend/templates/gridGenerator.html', '_blank');
                 if (!win) alert('Please allow popups for opening the page.');
             } else if (name === 'data-preparation') {
-                // // Data Preparation
-                // projectChecker();
-                // iframeInit("data_preparation", projectSetting(), projectSettingHeader(),
-                //     projectSettingContent(), "Data Preparation");
+                // Data Preparation
+                projectChecker(); updateStatus().innerHTML = 'Last Option: Data Preparation';
+                const win = window.open('static_frontend/templates/dataPreparation.html', '_blank');
+                if (!win) alert('Please allow popups for opening the page.');
             } else if (name === 'model-calibration') {
                 // Model Calibration
-                // projectChecker();
-                // // Grid Generation
-                // iframeInit("grid_generation", projectSetting(), projectSettingHeader(), 
-                //     projectSettingContent(), "Grid Generation");
-                return;
+                projectChecker(); updateStatus().innerHTML = 'Last Option: Model Calibration';
+                const win = window.open('static_frontend/templates/modelManagement.html', '_blank');
+                if (!win) alert('Please allow popups for opening the page.');
             } 
         }
         // Delete GIS layer

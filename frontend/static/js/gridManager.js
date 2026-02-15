@@ -29,6 +29,14 @@ const scaleSelector = () => document.getElementById("scale-factor");
 const scaleFactor = () => document.getElementById("custom-scale-factor");
 const orthoCheckbox = () => document.getElementById("orthogonalisation-checkbox");
 const createGrid = () => document.getElementById('generate-grid');
+const gridOptimizationCheckbox = () => document.getElementById('optimization-checkbox');
+const gridOptimizationContainer = () => document.getElementById('grid-optimization-container');
+const iterationValue = () => document.getElementById('iterations');
+const valueFrom = () => document.getElementById('detail-level-from');
+const valueTo = () => document.getElementById('detail-level-to');
+const optimizeBtn = () => document.getElementById('optimize-grid');
+const leafletContainer = () => document.getElementById('map-container');
+const plotContainer = () => document.getElementById('plot-container');
 const gridName = () => document.getElementById('grid-name');
 const saveGrid = () => document.getElementById('save-grid');
 const hoverTooltip = L.tooltip({
@@ -40,7 +48,7 @@ let lakesData = {}, lakeMap = null, lakeLayer = null, pointLayer = null, entireN
     refineChecked = false, deleteChecked = false, dataLake = null, dataDepth = null,
     timeOut = null, levelValue = null, pointContainer = [], html = '', drawChecked = false,
     baseMap = null, currentTileLayer = null, gridLayer = null, orthoLayer = null, 
-    tempLine = null, mapContainer = null;
+    tempLine = null, mapContainer = null, activeProject = null, logInterval = null;
 
 function startLoading(str = '') {
     loadingGrid().querySelector('.loading-text-grid').textContent = str;
@@ -68,6 +76,22 @@ async function plotFigure(obj) {
     return tempLayer;
 }
 
+async function plotUnstructuredGrid(obj) {
+    const tempLayer = L.geoJSON(obj, {
+        style: feature => {
+            switch (feature.geometry.type) {
+                case 'LineString': 
+                case 'MultiLineString': return { color: 'black', weight: 0.5 };
+                case 'Polygon':
+                case 'MultiPolygon':
+                    return { color: 'black', fillColor: 'darkcyan', fillOpacity: 0.5, weight: 0.5 };
+                default: return {};
+            }
+        }
+    }).addTo(lakeMap);
+    return tempLayer;
+}
+
 async function loadLakes(){
     startLoading("Initializing Database for entire Norway's Lakes. Please wait...");
     const response = await sendQuery('init_lakes', {projectName: getState().currentProject});
@@ -83,6 +107,7 @@ function createLakeMap() {
     if (lakeMap) { lakeMap.remove(); lakeMap = null; }
     lakeMap = L.map(mapDiv, { center: CENTER, zoom: ZOOM, zoomControl: false, attributionControl: true });
     currentTileLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(lakeMap);
+    L.control.scale({imperial: false, metric: true, maxWidth: 200}).addTo(lakeMap);
     setTimeout(() => { lakeMap.invalidateSize(); }, 0); mapContainer = lakeMap.getContainer();
     lakeMap.on('mousemove', function (e) { 
         mapContainer.style.cursor = "auto";
@@ -382,6 +407,26 @@ async function initializeProject(){
     });
 }
 
+function updateLog(project, progress_bar, progress_text, info, seconds){
+    activeProject = project;
+    logInterval = setInterval(async () => {
+        if (activeProject !== project) { clearInterval(logInterval); logInterval = null; }
+        try {
+            const statusRes = await sendQuery('check_grid_optimization', {projectName: project});
+            progress_text.innerText = statusRes.message; progress_bar.value = statusRes.progress;
+            if (statusRes.status !== "running" && statusRes.status !== "reorganizing") {
+                info.value += statusRes.message;
+                if (logInterval) { clearInterval(logInterval); logInterval = null; }
+            }
+            const res = await fetch(`/optimization_log_tail/${project}?offset=${lastOffsetHYD}&log_file=log_hyd.txt`);
+            if (!res.ok) return;
+            const data = await res.json();
+            for (const line of data.lines) { info.value += line + "\n"; }
+            lastOffsetHYD = data.offset;
+        } catch (error) { clearInterval(logInterval); logInterval = null; }
+    }, seconds * 1000);
+}
+
 async function dataPreparationManager(){
     baseMap = document.getElementById("base-map-select");
     if (!lakeMap) { createLakeMap(); }; lakeLayer = clearMap(lakeLayer);
@@ -526,22 +571,13 @@ async function dataPreparationManager(){
         const response = await sendQuery('grid_creator', contents); stopLoading();
         if (response.status === "error") { alert(response.message); return; }
         gridLayer = clearMap(gridLayer); orthoLayer = clearMap(orthoLayer);
-        depthCheckbox().checked = false; depthCheckbox().dispatchEvent(new Event('change'));
-        orthoCheckbox().checked = false; orthoCheckbox().dispatchEvent(new Event('change'));
-        gridLayer = L.geoJSON(response.content, {
-            style: feature => {
-                switch (feature.geometry.type) {
-                    case 'LineString': 
-                    case 'MultiLineString': return { color: 'black', weight: 0.5 };
-                    case 'Polygon':
-                    case 'MultiPolygon':
-                        return { color: 'black', fillColor: 'darkcyan', fillOpacity: 0.5, weight: 0.5 };
-                    default: return {};
-                }
-            }
-        }).addTo(lakeMap);
+        gridLayer = plotUnstructuredGrid(response.content);
         refineChecked = false; refinementCheckbox().checked = false;
         refinementCheckbox().dispatchEvent(new Event('change'));
+        gridOptimizationCheckbox().checked = false;
+        gridOptimizationCheckbox().dispatchEvent(new Event('change'));
+        depthCheckbox().checked = false; depthCheckbox().dispatchEvent(new Event('change'));
+        orthoCheckbox().checked = false; orthoCheckbox().dispatchEvent(new Event('change'));
     });
     orthoCheckbox().addEventListener('change', async (e) => {
         if (e.target.checked) { 
@@ -579,6 +615,54 @@ async function dataPreparationManager(){
             orthoLayer = clearMap(orthoLayer);
             if (!depthCheckbox().checked) { colorbar_container_grid().style.display = 'none'; } 
         }
+    });
+    gridOptimizationCheckbox().addEventListener('change', async (e) => {
+        if (e.target.checked) {
+            if (gridLayer === null) { 
+                alert("Please generate grid first."); e.target.checked = false;
+                leafletContainer().style.display = 'flex';
+                plotContainer().style.display = 'none';
+                return; 
+            }
+            gridOptimizationContainer().style.display = 'flex';
+            leafletContainer().style.display = 'none';
+            plotContainer().style.display = 'flex';
+        } else { 
+            gridOptimizationContainer().style.display = 'none';
+            leafletContainer().style.display = 'flex';
+            plotContainer().style.display = 'none';
+        }
+    });
+    optimizeBtn().addEventListener('click', async () => {
+        if (gridLayer === null) { alert("Please generate grid first."); return; }
+        const iterations = Number(iterationValue().value);
+        if (isNaN(iterations)) { alert("Please enter a valid number of iterations."); return; }
+        const levelFrom = Number(valueFrom().value), levelTo = Number(valueTo().value);
+        if (isNaN(levelFrom) || isNaN(levelTo) || levelFrom < 0 || levelTo < 0 || levelFrom >= levelTo) {
+            alert("Please enter a valid value range."); return; 
+        }
+        const contents = { projectName: getState().currentProject, 
+            iterations: iterations, levelFrom: levelFrom, levelTo: levelTo
+        };
+        const statusRes = await sendQuery('check_grid_optimization', contents);
+        if (statusRes.status === "running" || statusRes.status === "reorganizing") {
+            const res = await fetch(`/optimization_log_full/${projectName}?log_file=log_optimization.txt`);
+            // if (res.ok) {
+            //     const data = await res.json();
+            //     infoArea().value = data.content || ''; lastOffsetHYD = data.offset;
+            // }
+            // updateLog(getState().currentProject, progressbar(), progressText(), infoArea(), 1);
+        }
+        const start = await sendQuery('start_grid_optimization', {projectName: getState().currentProject});
+        if (start.status === "error") { alert(start.message); return; }
+        // updateLog(getState().currentProject, progressbar(), progressText(), infoArea(), 1);
+
+        // gridLayer = clearMap(gridLayer); orthoLayer = clearMap(orthoLayer);
+        // gridLayer = plotUnstructuredGrid(response.content);
+
+
+
+
     });
     saveGrid().addEventListener('click', async() => {
         if (gridLayer === null) { alert("Please generate unstructured grid first."); return; }

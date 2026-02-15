@@ -6,9 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="/static_frontend/css/projectHYDCreator.css?v=002">
-    <link rel="stylesheet" href="/static_frontend/css/temp_style.css?v=002">
-    <link rel="stylesheet" href="/static_frontend/css/grid_style.css?v=002">
+    <link rel="stylesheet" href="/static_frontend/css/grid_style.css?v=005">
 </head>
 <body>
     <div class="wrapper">
@@ -21,24 +19,23 @@
         <div class="page-title" id="select-container">
             <label for="project-name">Select Region</label>
             <div id="project-name-wrapper">
-                <input type="text" id="project-name"
+                <input type="text" id="project-name" style="text-align: center;"
                     placeholder="Enter region's name or Select from the list"/>
-                <ul id="project-list"></ul>
+                <ul class="project-list" id="project-list"></ul>
             </div>
             <label for="lake-name" id="lake-name-label">Select Lake</label>
             <select id="lake-name"><option value="">-- No selected --</option></select>
             <div class="search-box">
                 <label for="lake-search" style="margin-left: 50px;"><i class="fas fa-search"></i></label>
-                <input type="text" id="lake-search" placeholder="Search lake..."
-                    style="text-align: center; font-size: 16px;"/>
-                <div id="lake-suggestions" class="lake-suggestions" style="display:none;"></div>
+                <div class="search-input-wrapper">
+                    <input type="text" id="lake-search" placeholder="Search lake..."/>
+                    <div id="lake-suggestions" style="display:none;"></div>
+                </div>
             </div>
         </div>
-        <section class="card tabs">
-            <div class="tile tile-double" id="table-of-contents" style="display: none;">
-                <div class="table-header">
-                    <h3>Table of contents</h3>
-                </div>
+        <section class="card">
+            <div class="tile" id="table-of-contents" style="display: none;">
+                <div class="table-header"><h3>Table of contents</h3></div>
                 <table class="attributes-table" id="lake-table">
                     <thead>
                         <tr>
@@ -49,7 +46,7 @@
                     <tbody></tbody>
                 </table>
             </div>
-            <div class="tile tile-double" id="menu-container" style="display: none;">
+            <div class="tile" id="menu-container" style="display: none;">
                 <div class="control-tab">
                     <label class="checkbox-right"><input type="checkbox" id="polygon-checkbox">Show Polygon</label>
                     <label class="checkbox-right"><input type="checkbox" id="depth-checkbox">Show Depth</label>
@@ -86,6 +83,20 @@
                 </div>
                 <div class="control-tab">
                     <label class="checkbox-right"><input type="checkbox" id="orthogonalisation-checkbox">Orthogonalisation</label>
+                    <label class="checkbox-right"><input type="checkbox" id="optimization-checkbox">Grid Optimization</label>
+                </div>
+                <div class="control-tab" id="grid-optimization-container">
+                    <div class="control-tab-inline">
+                        <label for="iterations">Iterations</label>
+                        <input type="text" id="iterations" value="500" style="width: 130px; text-align: center;">
+                    </div>
+                    <div class="control-tab-inline">
+                        <label>Detailed Level</label>
+                        <input type="text" id="detail-level-from" value="0" style="width: 30px; text-align: center;">
+                        <label style="width: 25px;"> --> </label>
+                        <input type="text" id="detail-level-to" value="500" style="width: 50px; text-align: center;">
+                    </div>
+                    <button class="button-grid" id="optimize-grid">Optimize Orthogonalisation<span class="ink"></span></button>
                 </div>
                 <div class="control-right">
                     <div class="content-line">
@@ -96,7 +107,13 @@
                 </div>
             </div>
             <!-- Add the map -->
-            <div id="map-container">
+            <div class="map-container" id="map-container">
+                <!-- Add the control for the map -->
+                <div id="right-side-controls">
+                    <button type="button" id="custom_compass_btn">
+                        <img src="/static_backend/images/compass.png?v=2"alt="Compass">
+                    </button>
+                </div>
                 <div id="leaflet-map-lakes"></div>
                 <div id="loadingOverlay-grid" style="display: none;">
                     <div class="loading-text-grid">Processing Data. Please wait...</div>
@@ -116,6 +133,12 @@
                         </div>
                     </div>
                 </div>
+            </div>
+            <div class="map-container" id="plot-container" style="display: none;">
+
+
+
+
             </div>
         </section>
     </div>

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Data Preparation</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+    <link rel="stylesheet" href="/static_frontend/css/data_style.css?v=001">
+</head>
+<body>
+    <div class="page-title">
+
+
+
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <script>
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = `/static_frontend/js/dataPreparation.js?v=${Date.now()}`;
+        document.body.appendChild(script);
+    </script>
+</body>
+</html>
