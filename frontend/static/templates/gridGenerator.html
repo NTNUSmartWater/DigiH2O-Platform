@@ -8,11 +8,17 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link rel="stylesheet" href="/static_frontend/css/projectHYDCreator.css?v=002">
     <link rel="stylesheet" href="/static_frontend/css/temp_style.css?v=002">
-    <link rel="stylesheet" href="/static_frontend/css/grid_style.css?v=003">
+    <link rel="stylesheet" href="/static_frontend/css/grid_style.css?v=002">
 </head>
 <body>
     <div class="wrapper">
         <div class="page-title">
+            <input type="radio" id="new-database" name="project" checked=true>
+            <label for="new-database">Select from a pre-defined database</label>
+            <input type="radio" id="new-map" name="project" style="margin-left: 50px;">
+            <label for="new-map">Draw on the map</label>
+        </div>
+        <div class="page-title" id="select-container">
             <label for="project-name">Select Region</label>
             <div id="project-name-wrapper">
                 <input type="text" id="project-name"
@@ -59,7 +65,6 @@
                     </div>
                 </div>
                 <div class="control-tab">
-                    <!-- <label class="checkbox-right"><input type="checkbox" id="vertexes-checkbox">Get/Reset Vertexes</label> -->
                     <button class="button-grid" id="vertexes-btn">Get/Reset Vertexes<span class="ink"></span></button>
                     <label class="checkbox-right"><input type="checkbox" id="refinement-checkbox">Refine Vertexes</label>
                     <div class="content-line" id ="refinement-container" style="display: none;">
@@ -81,9 +86,6 @@
                 </div>
                 <div class="control-tab">
                     <label class="checkbox-right"><input type="checkbox" id="orthogonalisation-checkbox">Orthogonalisation</label>
-
-
-
                 </div>
                 <div class="control-right">
                     <div class="content-line">
@@ -96,7 +98,7 @@
             <!-- Add the map -->
             <div id="map-container">
                 <div id="leaflet-map-lakes"></div>
-                <div id="loadingOverlay-grid">
+                <div id="loadingOverlay-grid" style="display: none;">
                     <div class="loading-text-grid">Processing Data. Please wait...</div>
                     <div class="spinner"></div>
                 </div>

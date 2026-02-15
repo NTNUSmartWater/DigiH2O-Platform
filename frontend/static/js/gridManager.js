@@ -3,6 +3,7 @@ import { getState } from "./constants.js";
 import { L, CENTER, ZOOM } from "./mapManager.js";
 import { getColorFromValue, updateColorbar, nameChecker } from "./utils.js";
 
+const selectContainer = () => document.getElementById('select-container');
 const regionList = () => document.getElementById("project-list");
 const regionName = () => document.getElementById('project-name');
 const loadingGrid = () => document.getElementById('loadingOverlay-grid');
@@ -37,8 +38,9 @@ const hoverTooltip = L.tooltip({
 
 let lakesData = {}, lakeMap = null, lakeLayer = null, pointLayer = null, entireNorway = false, 
     refineChecked = false, deleteChecked = false, dataLake = null, dataDepth = null,
-    timeOut = null, levelValue = null, pointContainer = [], html = '',
-    baseMap = null, currentTileLayer = null, gridLayer = null, orthoLayer = null;
+    timeOut = null, levelValue = null, pointContainer = [], html = '', drawChecked = false,
+    baseMap = null, currentTileLayer = null, gridLayer = null, orthoLayer = null, 
+    tempLine = null, mapContainer = null;
 
 function startLoading(str = '') {
     loadingGrid().querySelector('.loading-text-grid').textContent = str;
@@ -81,8 +83,9 @@ function createLakeMap() {
     if (lakeMap) { lakeMap.remove(); lakeMap = null; }
     lakeMap = L.map(mapDiv, { center: CENTER, zoom: ZOOM, zoomControl: false, attributionControl: true });
     currentTileLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(lakeMap);
-    setTimeout(() => { lakeMap.invalidateSize(); }, 0);
+    setTimeout(() => { lakeMap.invalidateSize(); }, 0); mapContainer = lakeMap.getContainer();
     lakeMap.on('mousemove', function (e) { 
+        mapContainer.style.cursor = "auto";
         if (refineChecked) {
             if (pointContainer.length === 0) { html = "Select start point to refine"; }
             hoverTooltip.setLatLng(e.latlng).setContent(html);
@@ -93,9 +96,16 @@ function createLakeMap() {
             hoverTooltip.setLatLng(e.latlng).setContent(html);
             lakeMap.openTooltip(hoverTooltip);
         }
+        if (drawChecked) { 
+            mapContainer.style.cursor = "crosshair";
+            if (pointContainer.length === 0) { html = `Draw a polygon using the left mouse button`; }
+            hoverTooltip.setLatLng(e.latlng).setContent(html);
+            lakeMap.openTooltip(hoverTooltip);
+        }
     });
     lakeMap.on('mouseout', function () { lakeMap.closeTooltip(hoverTooltip); });
-    lakeMap.on('click', async function () {
+    lakeMap.on('click', async function (e) {
+        mapContainer.style.cursor = "auto";
         if (refineChecked) {
             if (pointContainer.length === 1) { html = "Select end point to refine"; }
             if (pointContainer.length === 2) { 
@@ -112,6 +122,35 @@ function createLakeMap() {
                 if (hoverTooltip) lakeMap.closeTooltip(hoverTooltip); return; 
             }
         }
+        if (drawChecked) { 
+            mapContainer.style.cursor = "crosshair";
+            html = `Finish drawing with the right mouse button`;
+            // Add marker
+            L.circleMarker(e.latlng, {
+                radius: 5, color: 'red', fillColor: 'pink', fillOpacity: 0.9
+            }).addTo(lakeMap);
+            pointContainer.push([e.latlng.lat, e.latlng.lng]);
+            // Plot polygon
+            if (tempLine) { tempLine.setLatLngs(pointContainer);
+            } else {
+                tempLine = L.polyline(pointContainer, { 
+                    color: 'red', weight: 2
+                }).addTo(lakeMap);
+            }
+            if (hoverTooltip) lakeMap.closeTooltip(hoverTooltip); return; 
+        }
+    });
+    lakeMap.on('contextmenu', async function (e) { 
+        e.originalEvent.preventDefault();
+        if (drawChecked) { 
+            if (pointContainer.length < 3) { 
+                alert("Polygon must have at least 3 points"); return; 
+            }
+            tempLine = clearMap(tempLine); lakeLayer = clearMap(lakeLayer);
+            // Plot polygon
+            await drawPolygon(pointContainer); drawChecked = false;
+            pointContainer = []; mapContainer.style.cursor = "auto";
+        }
     });
 }
 
@@ -119,7 +158,7 @@ function resetMap(){
     lakeMap.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) lakeMap.removeLayer(layer); });
     polygonCheckbox().checked = false; depthCheckbox().checked = false;
     refinementCheckbox().checked = false; orthoCheckbox().checked = false; deleteCheckbox().checked = false;
-    refineChecked = false; deleteChecked = false;
+    refineChecked = false; deleteChecked = false; colorbar_container_grid().style.display = 'none';
 }
 
 function polygonPlotter(polygon) {
@@ -128,7 +167,7 @@ function polygonPlotter(polygon) {
         style: { color: 'blue', weight: 2, fillColor: 'cyan', fillOpacity: 0 },
         // Add tooltips or popups if needed
         onEachFeature: (feature, layer) => {
-            if (feature.properties) {
+            if (feature.properties && entireNorway) {
                 let tooltip = `
                     <div style="font-weight: bold; text-align: center;">${feature.properties.Name}</div>
                     <hr style="margin: 5px 0 5px 0;">
@@ -136,20 +175,10 @@ function polygonPlotter(polygon) {
                     <strong>Area:</strong> ${feature.properties.area} (m²)<br>
                     <strong>Perimeter:</strong> ${feature.properties.perimeter} (m)
                 `;
-                if (!entireNorway) {
-                    tooltip = tooltip + `<br>
-                        <strong>Max. Depth:</strong> ${feature.properties.max} (m)<br>
-                        <strong>Min. Depth:</strong> ${feature.properties.min} (m)<br>
-                        <strong>Avg. Depth:</strong> ${feature.properties.avg} (m)
-                    `;
-                }
                 layer.bindTooltip(tooltip, {sticky: true});
             }
         }
     }).addTo(lakeMap);
-    tempLayer.on('mousemove', () => { 
-        if (refineChecked || deleteChecked) { tempLayer.eachLayer(layer => layer.closeTooltip()); } 
-    });
     // Fit map to lake bounds
     const bounds = tempLayer.getBounds();
     if (bounds.isValid()) { 
@@ -235,9 +264,21 @@ function addPointLayer(points) {
     return tempLayer;
 }
 
+async function drawPolygon(pointList) {
+    startLoading('Drawing Polygon. Please wait...');
+    const content = { projectName: getState().currentProject, points: pointList };
+    const response = await sendQuery('polygon_generator', content); stopLoading();
+    if (response.status === "error") { alert(response.message); return; }
+    const polygon = response.content.polygon, point = response.content.point;
+    const data = polygon.features[0].properties;
+    const contents = [[data.Name, data.Region, data.area, data.perimeter, data.min, data.max, data.avg]];
+    fillTable(contents, lakeTable(), true); depthCheckbox().checked = false;
+    polygonCheckbox().checked = true; dataLake = polygon;
+    lakeMap.eachLayer(layer => { if (!(layer instanceof L.TileLayer)) lakeMap.removeLayer(layer); });
+    lakeLayer = polygonPlotter(polygon); pointLayer = addPointLayer(point);
+}
+
 async function polygonRefinement(pointIds) {
-    // Sort pointIds
-    pointIds.sort((a, b) => a - b);
     const refineValue = Number(refinementValue().value); gridLayer = clearMap(gridLayer);
     if (!Number.isFinite(refineValue) || refineValue <= 0) { alert("Please enter a valid non-negative value."); return; }
     if (pointLayer === null) { alert("No polygon has been found. Select the button 'Get/Reset Vertexes' to draw the original polygon."); return; }
@@ -254,11 +295,10 @@ async function polygonRefinement(pointIds) {
     }
     const response = await sendQuery('vertex_refiner', contents); stopLoading();
     if (response.status === "error") { alert(response.message);  return; }
-    const polygon = response.content.polygon, point = response.content.point;
-    dataLake = polygon;
+    const polygon = response.content.polygon, point = response.content.point; dataLake = polygon;
     if (!polygonCheckbox().checked) { polygonCheckbox().checked = true; }
     lakeMap.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) lakeMap.removeLayer(layer); });
-    pointLayer = clearMap(pointLayer); pointLayer = addPointLayer(point);
+    lakeLayer = polygonPlotter(polygon); pointLayer = addPointLayer(point);
     orthoCheckbox().checked = false; orthoCheckbox().dispatchEvent(new Event('change'));
     refineChecked = false; refinementCheckbox().checked = false;
     refinementCheckbox().dispatchEvent(new Event('change'));
@@ -400,7 +440,8 @@ async function dataPreparationManager(){
         } else { lakeLayer = clearMap(lakeLayer); }
     });
     depthCheckbox().addEventListener('change', async (e) => {
-        if (e.target.checked) { 
+        if (e.target.checked) {
+            if (!drawChecked) { e.target.checked = false; return; } 
             if (window.depthGridLayer === null) {
                 startLoading('Plotting depth grid. Please wait...');
                 await new Promise(resolve => setTimeout(resolve, 0));
@@ -559,4 +600,28 @@ async function dataPreparationManager(){
     baseMap.dispatchEvent(new Event('change'));
 }
 
-await loadLakes(); await initializeProject(); dataPreparationManager();
+function updateManager() { 
+    document.querySelectorAll('input[type="radio"]').forEach(obj => {
+        obj.addEventListener('change', async () => {
+            if (obj.id === 'new-database') { 
+                selectContainer().style.display = 'flex';
+                tableContent().style.display = 'none';
+                menuContent().style.display = 'none';
+                vertexesBtn().style.display = 'flex';
+                regionName().value = ''; lakeSelector().value = '';
+                lakeLabel().style.display = 'none'; lakeSelector().style.display = 'none';
+                drawChecked = false; lakeSearcher().value = '';
+            } else if (obj.id === 'new-map') { 
+                selectContainer().style.display = 'none';
+                const contents = [['', '', '', '', '', '', '']];
+                fillTable(contents, lakeTable(), true);
+                tableContent().style.display = 'flex';
+                menuContent().style.display = 'flex'; resetMap();
+                vertexesBtn().style.display = 'none'; drawChecked = true;
+            }
+            lakeMap.eachLayer(layer => { if (!(layer instanceof L.TileLayer)) lakeMap.removeLayer(layer); });
+        });
+    });
+}
+await loadLakes(); await initializeProject(); 
+dataPreparationManager(); updateManager();
