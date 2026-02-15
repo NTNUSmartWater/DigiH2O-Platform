@@ -712,16 +712,15 @@ function updateEvents() {
         }
     });
     map.on('contextmenu', function(e) {
+        e.originalEvent.preventDefault(); // Suppress context menu
         // Right-click
         if (pickerState.crosssection) {
-            e.originalEvent.preventDefault(); // Suppress context menu
             if (crosssectionContainer.length < 2) {
                 alert("Not enough points selected. Please select at least two points."); return;
             }
             hidePicker('crosssection', crosssectionContainer, 'crossSectionPicked');
         }
         if (pickerState.boundary) {
-            e.originalEvent.preventDefault(); // Suppress context menu
             if (boundaryContainer.length < 2) {
                 alert("Not enough points selected. Please select at least two points."); return;
             }

@@ -17,14 +17,9 @@ async def init_lakes(request: Request, user=Depends(functions.basic_auth)):
         body = await request.json()
         project_name, _ = functions.project_definer(body.get('projectName'), user)
         config_dir = os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "config")
-        project_cache = request.app.state.project_cache.setdefault(project_name)
-        if not project_cache:
+        project_cache = request.app.state.project_cache.setdefault(project_name, {})
+        if not project_cache or 'lake_db' not in project_cache:
             print("Project is not available in memory. Creating a new one...")
-            project_cache_dict = getattr(request.app.state, "project_cache", None)
-            request.app.state.project_cache = {}
-            project_cache_dict = request.app.state.project_cache
-            project_cache = project_cache_dict.setdefault(project_name, {})
-            config_dir = os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "config")
             lake_path = os.path.normpath(os.path.join(config_dir, 'lakes.pkl'))
             depth_path = os.path.normpath(os.path.join(config_dir, 'depth.pkl'))
             if not os.path.exists(lake_path): gridFunctions.loadLakes(lake_path=lake_path)
@@ -72,9 +67,11 @@ async def load_lakes(request: Request, user=Depends(functions.basic_auth)):
             lake_data['min'] = round(depth_data['depth'].min(), 2)
             lake_data['max'] = round(depth_data['depth'].max(), 2)
             lake_data['avg'] = round(depth_data['depth'].mean(), 2)
-            lake_data["geometry"] = lake_data.geometry.apply(lambda geo: gridFunctions.remove_holes(geo, 0))
-            project_cache['lake'], project_cache['depth'] = lake_data, depth_data
+            lake_data["geometry"] = lake_data.geometry.apply(lambda geo: gridFunctions.remove_holes(geo, None))
+            temp = lake_data.copy().to_crs(lake_data.estimate_utm_crs())
+            lake_data['perimeter'] = round(temp['geometry'].iloc[0].length, 2)
         else: lake_data, depth_data = lake_db.copy(), None
+        project_cache['lake'], project_cache['depth'] = lake_data, depth_data
         contents = {'lake': json.loads(lake_data.to_json()), 
             'depth': json.loads(depth_data.to_json()) if depth_data is not None else None}
         return JSONResponse({'content': contents, 'status': 'ok'})
@@ -83,8 +80,8 @@ async def load_lakes(request: Request, user=Depends(functions.basic_auth)):
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
-@router.post("/search_lakes")
-async def search_lakes(request: Request, user=Depends(functions.basic_auth)):
+@router.post("/search_lake")
+async def search_lake(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
     project_name, _ = functions.project_definer(body.get('projectName'), user)
     project_cache = request.app.state.project_cache.setdefault(project_name)
@@ -97,7 +94,8 @@ async def search_lakes(request: Request, user=Depends(functions.basic_auth)):
         # Save the processed lake data
         json.dump(data, open(lake_path, "w", encoding=functions.encoding_detect(lake_path)))
     else: data = json.loads(open(lake_path, "r", encoding=functions.encoding_detect(lake_path)).read())
-    result = [x for x in data if body.get('name').lower() in x.lower()]
+    name = body.get('name')
+    result = data if name == '' else [x for x in data if name.lower() in x.lower()]
     return JSONResponse({'content': result})
 
 @router.post("/vertex_generator")
@@ -108,13 +106,13 @@ async def vertex_generator(request: Request, user=Depends(functions.basic_auth))
         project_cache = request.app.state.project_cache.setdefault(project_name)
         if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory"})
         lake_db = project_cache.get('lake')
-        project_cache['lake'], coords, polygon = lake_db, [], lake_db["geometry"].iloc[0]
+        project_cache['polygon'], coords, polygon = lake_db, [], lake_db["geometry"].iloc[0]
         if polygon.geom_type == "Polygon": coords = list(polygon.exterior.coords)
         elif polygon.geom_type == "MultiPolygon":
             for poly in polygon.geoms:
                 coords.extend(list(poly.exterior.coords))
-        vertices_with_id = [{"id": i, "coord": Point((coord[0], coord[1]))} for i, coord in enumerate(coords)]
-        point = gpd.GeoDataFrame(vertices_with_id, geometry="coord", crs=lake_db.crs)
+        vertices = [{"id": i, "coord": Point((coord[0], coord[1]))} for i, coord in enumerate(coords)]
+        point = gpd.GeoDataFrame(vertices, geometry="coord", crs=lake_db.crs)
         return JSONResponse({'status': 'ok', 'content': json.loads(point.to_json())})
     except Exception as e:
         print('/vertex_generator:\n==============')
@@ -128,18 +126,50 @@ async def vertex_refiner(request: Request, user=Depends(functions.basic_auth)):
         project_name, _ = functions.project_definer(body.get('projectName'), user)
         project_cache = request.app.state.project_cache.setdefault(project_name)
         if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory"})
-        distance, lake_db  = body.get('distance'), project_cache.get('lake')
-        lake_db = lake_db.to_crs(lake_db.estimate_utm_crs())
-        boundary = lake_db["geometry"].iloc[0].exterior
-        distances = np.arange(0, boundary.length, distance)
+        start_point, end_point = int(body.get('startPoint')), int(body.get('endPoint'))
+        polygon, distance = body.get('polygon', None), body.get('distance')
+        poly = Polygon([(p[1], p[0]) for p in polygon])
+        polygon_wgs84 = gpd.GeoDataFrame(geometry=[poly], crs="EPSG:4326")
+        crs = polygon_wgs84.estimate_utm_crs()
+        polygon_xy = polygon_wgs84.to_crs(crs)
+        boundary = polygon_xy["geometry"].iloc[0].exterior
+        start_dis = boundary.project(Point(boundary.coords[start_point]))
+        end_dis = boundary.project(Point(boundary.coords[end_point]))
+        distances = np.arange(start_dis, end_dis, distance)
         points = [boundary.interpolate(d) for d in distances]
-        vertices_with_id = [{"id": i, "coord": Point((coord.x, coord.y))} for i, coord in enumerate(points)]
-        point = gpd.GeoDataFrame(vertices_with_id, geometry="coord", crs=lake_db.crs).to_crs("EPSG:4326")
-        poly = Polygon([(p.x, p.y) for p in points])
-        gdf = gpd.GeoDataFrame(geometry=[poly], crs=lake_db.crs).to_crs("EPSG:4326")
+        new_point_xy = [Point((p.x, p.y)) for p in points]
+        temp = gpd.GeoDataFrame(geometry=new_point_xy, crs=crs).to_crs("EPSG:4326")
+        new_point_wgs84 = [[p.y, p.x] for p in temp['geometry'].values]
+        # Insert the new point at the specified index
+        polygon_new = polygon.copy()
+        polygon_new[start_point:end_point] = new_point_wgs84
+        vertices = [{"id": i, "geometry": Point((coord[1], coord[0]))} for i, coord in enumerate(polygon_new)]
+        point = gpd.GeoDataFrame(vertices, geometry="geometry", crs="EPSG:4326")
+        poly_new = Polygon([(p.x, p.y) for p in point['geometry'].values])
+        gdf = gpd.GeoDataFrame(geometry=[poly_new], crs="EPSG:4326")
         return JSONResponse({'status': 'ok', 'content': {"polygon": json.loads(gdf.to_json()), "point": json.loads(point.to_json())}})
     except Exception as e:
         print('/vertex_refiner:\n==============')
+        traceback.print_exc()
+        return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
+
+@router.post("/vertex_remover")
+async def vertex_remover(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
+        project_cache = request.app.state.project_cache.setdefault(project_name)
+        if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory"})
+        start_point, end_point = int(body.get('startPoint')), int(body.get('endPoint'))
+        polygon = body.get('polygon', None)
+        polygon_new = polygon[:start_point] + polygon[end_point+1:]
+        vertices = [{"id": i, "geometry": Point((coord[1], coord[0]))} for i, coord in enumerate(polygon_new)]
+        point = gpd.GeoDataFrame(vertices, geometry="geometry", crs="EPSG:4326")
+        poly_new = Polygon([(p.x, p.y) for p in point['geometry'].values])
+        gdf = gpd.GeoDataFrame(geometry=[poly_new], crs="EPSG:4326")
+        return JSONResponse({'status': 'ok', 'content': {"polygon": json.loads(gdf.to_json()), "point": json.loads(point.to_json())}})
+    except Exception as e:
+        print('/vertex_remover:\n==============')
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 

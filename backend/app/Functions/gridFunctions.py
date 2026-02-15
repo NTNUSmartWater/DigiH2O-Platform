@@ -16,7 +16,7 @@ def loadLakes(lake_path=None, depth_path=None):
         lake_db_path = os.path.normpath(os.path.join(lake_dir, 'lakes.shp'))
         if os.path.exists(lake_db_path):
             lake_db = gpd.read_file(lake_db_path)
-            if lake_db.crs != 'epsg:4326': lake_db = lake_db.to_crs(epsg=4326)
+            if lake_db.crs != 'EPSG:4326': lake_db = lake_db.to_crs(crs='EPSG:4326')
             lake_db = lake_db.dropna(subset=['Name', 'Region', 'geometry'])
             lake_db['Name'] = lake_db['Name'].fillna('Unnamed Lake')
             lake_db['Region'] = lake_db['Region'].where(lake_db['Region'].notna(), 
@@ -28,12 +28,13 @@ def loadLakes(lake_path=None, depth_path=None):
         depth_db = gpd.read_file(depth_db_path)
         depth_db['id'] = depth_db['id'].astype('int64')
         depth_db.set_index('id', inplace=True)
-        if depth_db.crs != 'epsg:4326': depth_db = depth_db.to_crs(epsg=4326)
+        if depth_db.crs != 'EPSG:4326': depth_db = depth_db.to_crs(crs='EPSG:4326')
         depth_db['depth'] = depth_db['depth'].astype(float)
         with open(depth_path, 'wb') as f: pickle.dump(depth_db, f)
 
 def remove_holes(geom, cell_size=0):
     geom = geom.buffer(0)
+    if (cell_size == None): cell_size = geom.area
     if geom.geom_type != "Polygon": return geom
     kept_interiors = [ ring for ring in geom.interiors
         if Polygon(ring).area >= cell_size

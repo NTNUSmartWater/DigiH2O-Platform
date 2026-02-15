@@ -1,10 +1,10 @@
-.search-box {
-    margin-left: 50px; align-items: center; display: flex; gap: 10px; font-size: 16px;
+#search-box {
+    margin-left: 60px; align-items: center; display: flex; gap: 10px; font-size: 16px;
 }
-.lake-suggestions {
+#lake-suggestions {
   position: absolute; top: 35px; left: 0; right: 0; background: #fff;
   border: 1px solid #ddd; border-radius: 4px; max-height: 200px;
-  overflow-y: auto; z-index: 1000; color: #333; font-size: 12px;
+  overflow-y: auto; z-index: 1000; color: #333; font-size: 15px;
 }
 .lake-suggestions div { padding: 5px 10px; cursor: pointer; }
 .lake-suggestions div:hover { background: #8a8787; }
@@ -38,10 +38,10 @@ section.card.tabs {
 .attributes-table th { font-size: 15px; font-weight: 600;}
 .attributes-table tbody td { font-size: 20px }
 
-#generate-grid, #save-grid {
+.button-grid, .save-grid {
     padding: 4px; border-radius: 10px; cursor: pointer; font-weight: bold;
 }
-#generate-grid {
+.button-grid {
     background-color: #184bd6; color: #fff;
 }
 
@@ -64,7 +64,7 @@ section.card.tabs {
 
 .control-tab {
     margin-left: 10px; display: flex; flex-direction: column;
-    gap: 10px; padding-right: 5px; flex: 0 0 auto;
+    gap: 10px; padding-right: 5px;
 }
 .control-tab label {
     width: 165px; display: flex;
