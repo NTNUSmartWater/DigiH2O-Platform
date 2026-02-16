@@ -1,4 +1,4 @@
-import os, traceback, json, pickle
+import os, traceback, json, pickle, threading
 from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import JSONResponse
 from Functions import functions, gridFunctions
@@ -6,6 +6,7 @@ from config import PROJECT_STATIC_ROOT
 import geopandas as gpd, numpy as np
 from shapely.geometry import Point, Polygon
 from meshkernel import MeshKernel, GeometryList
+# from hyperopt import hp
 
 router, processes = APIRouter(), {}
 
@@ -24,6 +25,9 @@ async def init_lakes(request: Request, user=Depends(functions.basic_auth)):
             if not os.path.exists(depth_path): gridFunctions.loadLakes(depth_path=depth_path)
             with open(lake_path, 'rb') as f: lake_db = pickle.load(f)
             with open(depth_path, 'rb') as f: depth_db = pickle.load(f)
+            request.app.state.project_cache = {}
+            project_cache_dict = request.app.state.project_cache
+            project_cache = project_cache_dict.setdefault(project_name, {})
             project_cache['lake_db'], project_cache['depth_db'] = lake_db, depth_db
         else: lake_db = project_cache.get('lake_db')
         lake_path = os.path.normpath(os.path.join(config_dir, 'lakes.json'))
@@ -269,8 +273,6 @@ async def check_grid_optimization(request: Request, user=Depends(functions.basic
     if info["status"] == "failed":
         return JSONResponse({"status": "failed", "progress": info["progress"],
             "message": info.get("message", 'Optimization failed')})
-    if info["status"] == "reorganizing":
-        return JSONResponse({"status": "reorganizing", "progress": 100, "message": 'Reorganizing outputs. Please wait...'})
     complete = f'Iteration completed: {info["progress"]}% ({info["iteration"]}/{info["iterations"]}) - Detailed level: {info["level"]}'
     return JSONResponse({"status": info["status"], "progress": info["progress"], "message": complete})
 
@@ -280,91 +282,69 @@ async def start_grid_optimization(request: Request, user=Depends(functions.basic
     try:
         body = await request.json()
         project_name, project_id = functions.project_definer(body.get('projectName'), user)
+        project_cache = request.app.state.project_cache.setdefault(project_name)
+        if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory"})
         redis = request.app.state.redis
         lock = redis.lock(f"{project_id}:grid_optimization", timeout=1000, blocking_timeout=10)
         async with lock:
             # Check if optimization already running
             if project_name in processes and processes[project_name]["status"] == "running":
                 info = processes[project_name]
-                complete = f'Iteration completed: {info["progress"]}% ({info["iteration"]}/{info["iterations"]}) - Detailed level: {info["level"]}'
+                complete = f'Iteration completed: {info["progress"]}% ({info["iteration"]}/{info["iterations"]}) - Current: {info["current_level"]} (Best: {info["best_level"]})'
                 return JSONResponse({"status": "running", "progress": info["progress"], "message": complete})
-            
-            iterations = int(body.get('iterations'))
+            iterations, points = int(body.get('iterations')), np.array(body.get('pointCollection'))
             level_from, level_to = float(body.get('levelFrom')), float(body.get('levelTo'))
+            mk, lake_db = MeshKernel(), project_cache.get('lake')
+            gdf = gpd.GeoDataFrame(geometry=gpd.points_from_xy(points[:, 1], points[:, 0]), crs="EPSG:4326")
+            gdf = gdf.to_crs(lake_db.estimate_utm_crs())
+            polygon = GeometryList(gdf.geometry.x, gdf.geometry.y)
+            params = {
+                "level": [level_from, level_to], 'type': ['auto', 'custom'],
+                "outer_iterations": [1, 10], "boundary_iterations": [1, 50],
+                "inner_iterations": [1, 50], "smoothing_factor": [0, 1]
+            }
+            # Remove old log
+            log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log_optimization.txt"))
+            if os.path.exists(log_path): os.remove(log_path)
+            processes[project_name] = {"progress": 0.0, "status": "running", "iteration": 0, "iterations": iterations,
+                "current_level": "N/A", "best_level": "N/A", "message": 'Preparing optimization...'}
+            # Run the process
+            def run():
+                try:
+                    def update_progress(iteration, total, current_level, best_value):
+                        info = processes[project_name]
+                        info["iteration"], info["progress"] = iteration, round(iteration / total * 100, 2)
+                        info["current_level"], info["best_level"] = current_level, best_value
+                    best_params = gridFunctions.Bayesian_Optimization(mk, polygon, params, iterations, progress_callback=update_progress)
+                    
+                    
+                    best_summary = (
+                        f"Mode: {best_params['type']} | "
+                        f"Level: {best_params['level']} | "
+                        f"Outer: {best_params['outer_iterations']} | "
+                        f"Boundary: {best_params['boundary_iterations']} | "
+                        f"Inner: {best_params['inner_iterations']} | "
+                        f"Smoothing: {best_params['orthogonalization_to_smoothing_factor']}"
+                    )
+                    
+                    
+                    
+                    
+                    processes[project_name]["status"] = "finished"
+                    processes[project_name]["current_level"] = best_params['current_level']
+                    processes[project_name]["best_level"] = best_summary
 
 
-    #         path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "input"))
-    #         mdu_path = os.path.normpath(os.path.join(path, "FlowFM.mdu"))
-    #         bat_path = os.path.normpath(os.path.join(DELFT_PATH, "dflowfm/scripts/run_dflowfm.bat"))
-    #         # Check if file exists
-    #         if not os.path.exists(mdu_path): 
-    #             return JSONResponse({"status": "error", "progress": 0.0, "message": "MDU file not found"})
-    #         if not os.path.exists(bat_path): 
-    #             return JSONResponse({"status": "error", "progress": 0.0, "message": "Executable file not found"})
-    #         # Remove old log
-    #         log_path = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "log_hyd.txt"))
-    #         if os.path.exists(log_path): os.remove(log_path)
-    #         percent_re = re.compile(r'(?P<percent>\d{1,3}(?:\.\d+)?)\s*%')
-    #         time_re = re.compile(r'(?P<tt>\d+d\s+\d{1,2}:\d{2}:\d{2})')
-    #         # Run the process
-    #         command = ["cmd.exe", "/c", bat_path, "--autostartstop", mdu_path]
-    #         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-    #             encoding="utf-8", errors="replace", bufsize=1, cwd=path)
-    #         processes[project_name] = {"process": process, "progress": 0.0, "status": "running", 
-    #             "message": 'Preparing data for simulation...', "time_used": "N/A", "time_left": "N/A"}
-    #         # Stream logs
-    #         def stream_logs():
-    #             try:
-    #                 for line in process.stdout:
-    #                     proc_info = processes.get(project_name)
-    #                     if not proc_info: return
-    #                     line = line.strip()
-    #                     if not line: continue
-    #                     append_log(log_path, line)
-    #                     # Catch error messages
-    #                     if "forrtl:" in line.lower() or "error" in line.lower():
-    #                         processes[project_name]["status"] = "error"
-    #                         processes[project_name]["message"] = line
-    #                         append_log(log_path, line)
-    #                         res = functions.kill_process(process)
-    #                         append_log(log_path, res["message"])
-    #                         return
-    #                     # Check for progress
-    #                     match_pct = percent_re.search(line)
-    #                     if match_pct: processes[project_name]["progress"] = float(match_pct.group("percent"))
-    #                     # Extract run time
-    #                     times = time_re.findall(line)
-    #                     if len(times) >= 4:
-    #                         processes[project_name]["time_used"] = times[2]
-    #                         processes[project_name]["time_left"] = times[3]
-    #                     elif len(times) == 3:
-    #                         processes[project_name]["time_used"] = times[1]
-    #                         processes[project_name]["time_left"] = times[2]
-    #             except Exception as e:
-    #                 proc_info = processes.get(project_name)
-    #                 if proc_info:
-    #                     processes[project_name]["status"] = "failed"
-    #                     processes[project_name]["message"] = f"Internal error: {e}"
-    #                 append_log(log_path, f"[INTERNAL ERROR] {e}")
-    #             finally:
-    #                 process.wait()
-    #                 proc_info = processes.get(project_name)
-    #                 if not proc_info or proc_info["status"] == "error": return
-    #                 processes[project_name]["status"] = "reorganizing"
-    #                 processes[project_name]["message"] = "Reorganizing outputs. Please wait..."
-    #                 processes[project_name]["progress"] = 100.0
-    #                 try:
-    #                     post_result = functions.postProcess(path)
-    #                     if post_result["status"] != "ok":
-    #                         processes[project_name]["status"] = "error"
-    #                         processes[project_name]["message"] = post_result["message"]
-    #                     else:
-    #                         processes[project_name]["status"] = "finished"
-    #                         processes[project_name]["message"] = "Simulation completed successfully"
-    #                 except Exception as e:
-    #                     processes[project_name]["status"] = "failed"
-    #                     processes[project_name]["message"] = f"Simulation failed: {e}"
-    #         threading.Thread(target=stream_logs, daemon=True).start()
+
+                    processes[project_name]["level"] = best_params['current_level']
+                    processes[project_name]["message"] = "Optimization completed"
+                    print(best_params)
+                    functions.append_log(log_path, best_params)
+                except Exception as e:
+                    processes[project_name]["status"] = "failed"
+                    processes[project_name]["message"] = f"Internal error: {e}"
+                    functions.append_log(log_path, f"[INTERNAL ERROR] {e}")
+            threading.Thread(target=run, daemon=True).start()
         return JSONResponse({"status": "ok", "message": f"Optimization for {project_name} started"})
     except Exception as e:
         print('/start_grid_optimization:\n==============')
@@ -390,6 +370,20 @@ async def optimization_log_tail(project_name: str, offset: int = Query(0), log_f
         for line in f:
             lines.append(line.rstrip())
     return {"lines": lines, "offset": os.path.getsize(log_path)}  
+
+@router.post("/grid_stop")
+async def grid_stop(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
+        processes.pop(project_name, None)
+        path = os.path.join(PROJECT_STATIC_ROOT, project_name, 'log_optimization.txt')
+        if os.path.exists(path): functions.safe_remove(path)
+        return JSONResponse({"status": "ok", "message": f"Optimization for {project_name} stopped"})
+    except Exception as e:
+        print('/grid_stop:\n==============')
+        traceback.print_exc()
+        return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
 @router.post("/grid_checker")
 async def grid_checker(request: Request, user=Depends(functions.basic_auth)):

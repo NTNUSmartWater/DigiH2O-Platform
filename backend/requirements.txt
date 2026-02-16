@@ -18,6 +18,7 @@ meshkernel==8.2.2
 dfm-tools==0.36.0
 hydrolib-core==0.9.9
 hydrolib==0.4.1
-# pip install --upgrade dfm-tools hydrolib hydrolib-core
+optuna==4.7.0
 # python.exe -m pip install --upgrade pip
 # pip install --upgrade -r .\backend\requirements.txt
+# pip install --upgrade dfm-tools hydrolib hydrolib-core

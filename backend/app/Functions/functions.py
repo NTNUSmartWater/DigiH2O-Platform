@@ -43,6 +43,12 @@ def remove_readonly(func, path, excinfo):
     os.chmod(path, stat.S_IWRITE)
     func(path)
 
+def append_log(log_path, text):
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    with open(log_path, "a", encoding=encoding_detect(log_path), errors="replace") as f:
+        f.write(text.strip() + "\n")
+        f.flush()
+
 def safe_remove(path, retries=10, delay=1):
     for _ in range(retries):
         try:
@@ -1346,3 +1352,4 @@ def kill_process(process):
         return {"status": "ok", "message": "Simulation force killed"}
     except Exception as e: 
         return {"status": "error", "message": str(e)}
+

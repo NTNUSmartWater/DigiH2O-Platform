@@ -1,11 +1,10 @@
-import os, warnings, pickle
+import os, warnings, pickle, optuna
 import geopandas as gpd, numpy as np
 from config import STATIC_DIR_BACKEND
 from shapely.geometry import Polygon
-from meshkernel import MeshKernel
+from meshkernel import MeshKernel, OrthogonalizationParameters
 from Functions import functions
-import xarray as xr, dfm_tools as dfmt
-import dask.array as da
+import xarray as xr, dfm_tools as dfmt, dask.array as da
 warnings.filterwarnings("ignore")
 
 
@@ -120,129 +119,43 @@ def netCDF_creator(mk: MeshKernel, depth: gpd.GeoDataFrame):
     grid_uds.attrs.update({ "institution": 'Private', "references": 'vanlnNTNU@gmail.com'})
     return grid_uds
 
-# from hyperopt import STATUS_OK, Trials, fmin, hp, tpe
-
-# tuning_folder = 'Tuning_Process'
-# if os.path.exists(tuning_folder) == False:
-#     os.mkdir('Tuning_Process')
-# if os.path.exists('Models') == False:
-#     os.mkdir( 'Models')
-
-# files, input_columns = [], {}
-# data_folder, threshold = 'Merge_Data', {}
-# for i in os.listdir(data_folder):
-#     if i.endswith('.csv'):
-#         files.append(i)
-#         data_df = pd.read_csv(os.path.join(data_folder, i), parse_dates=True, index_col=0)
-#         input_columns[i.split('.')[0].replace('merge_','')] = data_df.columns.to_list()
-# with open(os.path.join('Models','model_inputs.json'), 'w') as convert_file:
-#     convert_file.write(json.dumps(input_columns))
-
-# files = ['merge_GOSFST.csv']
-# # best_model_dict = {} 
-# for file in files:
-#     folder = file.split('.')[0].split('_')[1]
-#     if os.path.exists(os.path.join(tuning_folder,folder)) == False:
-#         os.mkdir(os.path.join(tuning_folder,folder))
-#     data_df = pd.read_csv(os.path.join(data_folder, file), parse_dates=True, index_col=0)
-#     biofilters, previous_steps = [], [6] #3, 6, 12, 24, 48
-#     df = data_df.resample('60Min').mean()#.dropna()
-#     # # Interpolate
-#     # df = df.interpolate(method='time')
-#     for i in data_df.columns.to_list():
-#         if "Biofilter" in i:
-#             biofilters.append(i)
-#     dict_threshold = {}
-#     for n_biofilter in biofilters:
-#         number = pow(10, 10)
-#         for pre_step in previous_steps:
-#             print(f'Working with: {n_biofilter} - Window size: {pre_step}')
-#             df['Seconds'] = df.index.map(pd.Timestamp.timestamp)
-#             df['Day sin'] = np.sin(df['Seconds']*(2*np.pi/(3600*24)))
-#             df['Day cos'] = np.cos(df['Seconds']*(2*np.pi/(3600*24)))
-#             df = df.drop('Seconds', axis=1)
-
-#             df_X, df_y = df.drop(columns=n_biofilter), df[[n_biofilter]]
-#             X, y, timestamp = createData(df_X=df_X, df_y=df_y, pre_step=pre_step, next_step=pre_step)
-#             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False, random_state=42)
-#             scaler = StandardScaler()
-#             X_train = scaler.fit_transform(X_train)
-#             X_test = scaler.transform(X_test)
-#             max_depth = np.arange(1,15,1,dtype=int)
-#             tree_method = ['auto','exact','approx','hist','gpu_hist']
-#             params = {"subsample": hp.uniform("subsample", 0.0, 1.0),
-#                       "eta": hp.uniform("eta", 0.0, 1.0),
-#                       "gamma": hp.uniform("gamma", 0.0, 10.0),
-#                       'max_depth': hp.choice('max_depth', max_depth),
-#                       'tree_method': hp.choice('tree_method', tree_method),
-#                       }
-#             def Bayesian_Optimization(param, X_train, y_train, X_test, y_test):
-#                 def objective_function(param):
-#                     model = XGBRegressor(subsample=param["subsample"], objective="reg:squarederror",
-#                                         max_depth=param["max_depth"], tree_method=param["tree_method"],
-#                                         eta=param["eta"], gamma=param["gamma"],
-#                                         verbosity=0, random_state=42)
-#                     model.fit(X_train, y_train, eval_metric="rmse", verbose=False)
-#                     pred = model.predict(X_test)
-#                     # actual, pred = y_test.flatten(), pred.flatten()
-#                     actual = np.append(y_test[:-1][:,0], y_test[-1:][0])
-#                     pred = np.append(pred[:-1][:,0], pred[-1:][0])
-#                     loss = math.sqrt(mean_squared_error(y_true=actual, y_pred=pred))
-#                     return {'loss': loss, 'status': STATUS_OK}
-#                 trials, rstate = Trials(), np.random.default_rng(42)
-#                 best_hyperparams = fmin(fn=objective_function, space=param, algo=tpe.suggest,
-#                                         max_evals=50, trials=trials, rstate=rstate)
-#                 return best_hyperparams
-#             param = Bayesian_Optimization(params, X_train, y_train, X_test, y_test)
-#             param['max_depth']= max_depth[param['max_depth']]
-#             param['tree_method']= tree_method[param['tree_method']]
-#             model = XGBRegressor(**param, random_state=42, verbosity=0).fit(
-#                 X_train, y_train, eval_metric="rmse", verbose=False)
-#             pred = model.predict(X_test)
-#             actual, pred = np.append(y_test[:-1][:,0], y_test[-1:][0]), np.append(pred[:-1][:,0], pred[-1:][0])
-#             loss = math.sqrt(mean_squared_error(y_true=actual, y_pred=pred))
-#             if loss < number:
-#                 number, best_params, best_step = loss, param, pre_step
-#                 best_scaler, best_model = scaler, model
-#         # best_model_dict.update(txt)
-#         if os.path.exists(os.path.join('Models', folder)) == False:
-#             os.mkdir(os.path.join('Models', folder))
-#         # save the scaler and model
-#         dump(best_scaler, open(os.path.join('Models', folder,f'SCALER_{n_biofilter}.pkl'), 'wb'))
-#         dump(best_model, open(os.path.join('Models', folder,f'MODEL_{n_biofilter}.pkl'), 'wb'))
-#         # best_step= pre_step
-#         df_X, df_y = df.drop(columns=n_biofilter), df[[n_biofilter]]
-#         X, y, timestamp = createData(df_X=df_X, df_y=df_y, pre_step=best_step, next_step=best_step)
-#         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False, random_state=42)
-#         # Load scaler and model
-#         best_scaler = load(open(os.path.join('Models', folder,f'SCALER_{n_biofilter}.pkl'), 'rb'))
-#         best_model = load(open(os.path.join('Models', folder,f'MODEL_{n_biofilter}.pkl'), 'rb'))
-#         score_mean = cross_val_score(best_model, X, y, cv=5, scoring='neg_root_mean_squared_error')
-#         X_train = best_scaler.transform(X_train)
-#         X_test = best_scaler.transform(X_test)
-#         pred = best_model.predict(X_test)
-#         # actual, pred = y_test.flatten(), pred.flatten()
-#         actual = np.append(y_test[:-1][:,0], y_test[-1:][0])
-#         pred = np.append(pred[:-1][:,0], pred[-1:][0])
-#         timestamp = timestamp[y_train.shape[0]:]
-#         xtick = np.append(timestamp[:-1][:,0], timestamp[-1:][0])
-#         loss =math.sqrt(mean_squared_error(y_true=actual, y_pred=pred))
-#         fig = plt.figure(figsize=(10, 6))
-#         plt.plot(xtick, actual, label='Actual')
-#         plt.plot(xtick, pred, label='Predicted')
-#         plt.title(n_biofilter + '\n Window size: {} (hours)(RMSE = 'f"{loss:.3f}"
-#                 .format(best_step) + ')', fontsize=12)
-#         plt.ylabel('Rotation', fontsize=12)
-#         plt.xlabel('Time', fontsize=12)
-#         plt.tick_params(axis='both', which='major', labelsize=12)
-#         plt.legend(loc='best', prop={'size': 10})
-#         plt.tight_layout()
-#         # plt.show()
-#         plt.savefig(os.path.join(tuning_folder, folder,f'{n_biofilter}_{best_step}_hours.png'), dpi=300)
-#         plt.close()
-#         dict_threshold[n_biofilter] = round(-score_mean.mean(),3)
-#     threshold[folder] = dict_threshold
-
-# with open(os.path.join('Models','threshold.json'), 'w') as convert_file:
-#     convert_file.write(json.dumps(threshold))
-# print('Done')
+def Bayesian_Optimization(mk: MeshKernel, polygon: gpd.GeoDataFrame, space: dict, iterations: int, progress_callback=None):
+    """
+    Bayesian Optimization using Optuna to minimize the maximum orthogonality.
+    """
+    trial_counter, best_value = {"count": 0}, float('inf')
+    def objective_function(trial: optuna.trial.Trial):
+        type_choice = trial.suggest_categorical("type", space['type'])
+        level = trial.suggest_float("level", space['level'][0], space['level'][1])
+        outer_iterations = trial.suggest_int("outer_iterations", space['outer_iterations'][0], space['outer_iterations'][1])
+        boundary_iterations = trial.suggest_int("boundary_iterations", space['boundary_iterations'][0], space['boundary_iterations'][1])
+        inner_iterations = trial.suggest_int("inner_iterations", space['inner_iterations'][0], space['inner_iterations'][1])
+        smoothing_factor = trial.suggest_float("smoothing_factor", space['smoothing_factor'][0], space['smoothing_factor'][1])
+        trial_counter["count"] += 1        
+        iteration = trial_counter["count"]
+        if type_choice == 'auto': mk.mesh2d_make_triangular_mesh_from_polygon(polygon)
+        else: mk.mesh2d_make_triangular_mesh_from_polygon(polygon, scale_factor=float(level))        
+        ortho_params = OrthogonalizationParameters(
+            outer_iterations=outer_iterations, boundary_iterations=boundary_iterations,
+            inner_iterations=inner_iterations,
+            orthogonalization_to_smoothing_factor=smoothing_factor
+        )        
+        mk.mesh2d_compute_orthogonalization(
+            project_to_land_boundary_option=False,
+            orthogonalization_parameters=ortho_params, land_boundaries=polygon
+        )        
+        orth = mk.mesh2d_get_orthogonality().values
+        orth_valid = orth[orth != -999]
+        max_value = np.max(orth_valid)
+        nonlocal best_value
+        if max_value < best_value: best_value = max_value
+        # Update progress
+        if progress_callback:
+            progress_callback(
+                iteration=iteration, total=iterations, best_value=best_value, ortho_value=max_value,
+                current_level=f"Mode: {type_choice} - Level: {level} - Max Orthogonality: {max_value}",
+            )
+        return max_value
+    study = optuna.create_study(direction="minimize")
+    study.optimize(objective_function, n_trials=iterations, show_progress_bar=False)
+    return study.best_params

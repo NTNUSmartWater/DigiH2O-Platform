@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="/static_frontend/css/grid_style.css?v=005">
+    <link rel="stylesheet" href="/static_frontend/css/grid_style.css?v=004">
 </head>
 <body>
     <div class="wrapper">
@@ -62,7 +62,7 @@
                     </div>
                 </div>
                 <div class="control-tab">
-                    <button class="button-grid" id="vertexes-btn">Get/Reset Vertexes<span class="ink"></span></button>
+                    <button class="button-grid" id="vertexes-btn" style="text-align: center;">Get/Reset Vertexes<span class="ink"></span></button>
                     <label class="checkbox-right"><input type="checkbox" id="refinement-checkbox">Refine Vertexes</label>
                     <div class="content-line" id ="refinement-container" style="display: none;">
                         <input type="text" id="refinement-value" placeholder="Enter refinement value" value="20.0">
@@ -72,7 +72,7 @@
                 <div class="control-tab">
                     <label class="checkbox-right"><input type="checkbox" id="delete-checkbox">Delete Vertexes</label>
                     <div class="control-tab-inline">
-                        <label for="scale-factor">Detailed Level</label>
+                        <label for="scale-factor">Mode</label>
                         <select id="scale-factor">
                             <option value="auto" selected>Auto</option>
                             <option value="custom">Custom</option>
@@ -82,21 +82,21 @@
                     <button class="button-grid" id="generate-grid">Generate Grid<span class="ink"></span></button>
                 </div>
                 <div class="control-tab">
-                    <label class="checkbox-right"><input type="checkbox" id="orthogonalisation-checkbox">Orthogonalisation</label>
+                    <label class="checkbox-right"><input type="checkbox" id="orthogonalisation-checkbox">Orthogonalization</label>
                     <label class="checkbox-right"><input type="checkbox" id="optimization-checkbox">Grid Optimization</label>
                 </div>
-                <div class="control-tab" id="grid-optimization-container">
+                <div class="control-tab" id="grid-optimization-container" style="display: none;">
                     <div class="control-tab-inline">
                         <label for="iterations">Iterations</label>
-                        <input type="text" id="iterations" value="500" style="width: 130px; text-align: center;">
+                        <input type="text" id="iterations" value="500" style="width: 100px; text-align: center;">
                     </div>
                     <div class="control-tab-inline">
                         <label>Detailed Level</label>
-                        <input type="text" id="detail-level-from" value="0" style="width: 30px; text-align: center;">
-                        <label style="width: 25px;"> --> </label>
-                        <input type="text" id="detail-level-to" value="500" style="width: 50px; text-align: center;">
+                        <input type="text" id="detail-level-from" value="0" style="width: 20px; text-align: center;">
+                        <label style="width: 22px;"> --> </label>
+                        <input type="text" id="detail-level-to" value="500" style="width: 30px; text-align: center;">
                     </div>
-                    <button class="button-grid" id="optimize-grid">Optimize Orthogonalisation<span class="ink"></span></button>
+                    <button class="button-grid" id="optimize-grid">Optimize Orthogonalization<span class="ink"></span></button>
                 </div>
                 <div class="control-right">
                     <div class="content-line">
@@ -107,7 +107,7 @@
                 </div>
             </div>
             <!-- Add the map -->
-            <div class="map-container" id="map-container">
+            <div class="map-container" id="map-container" style="display: none;">
                 <!-- Add the control for the map -->
                 <div id="right-side-controls">
                     <button type="button" id="custom_compass_btn">
@@ -134,11 +134,22 @@
                     </div>
                 </div>
             </div>
-            <div class="map-container" id="plot-container" style="display: none;">
-
-
-
-
+            <div class="plot-wrapper" id="plot-container" style="display: none;">
+                <div class="tile">
+                    <div class="table-header"><h3>Optimization Progress</h3></div>
+                    <div class="control-tab-inline">
+                        <div class="progress-container">
+                            <progress id="progressbar-grid" value="0" max="100"></progress>
+                            <span id="progress-text-grid"></span>
+                        </div>
+                        <button class="button-grid" id="optimization-close"
+                            style="padding: 5px; width: 100px; align-items: center;">Close<span class="ink"></span></button>
+                    </div>
+                </div>
+                <div class="tile plot">
+                    <div class="table-header"><h3>Optimization History</h3></div>
+                    <div id="myChart-grid"></div>
+                </div>
             </div>
         </section>
     </div>

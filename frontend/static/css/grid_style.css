@@ -118,7 +118,7 @@ body {
     padding: 4px; border-radius: 10px; cursor: pointer; font-weight: bold;
 }
 .button-grid {
-    background-color: #184bd6; color: #fff;
+    background-color: #184bd6; color: #fff; text-align: center;
 }
 
 .map-container {
@@ -206,4 +206,23 @@ body {
 @keyframes spin {
 0%   { transform: rotate(0deg); }
 100% { transform: rotate(360deg); }
+}
+
+.plot-wrapper {
+  display: flex; flex-direction: column; height: 100%;
+}
+#plot-container { flex: 0 0 auto; }
+.tile.plot { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+.progress-container {
+  display: flex; flex-direction: column; align-items: center; width: 100%; color: white;
+}
+
+.progress-container progress { width: 100%; height: 15px; }
+
+.progress-container span {
+  align-items: center; margin-top: 5px; text-align: center; font-size: 13px;
+}
+#myChart-grid { 
+  flex: 1; border-radius: 10px; background-color: rgb(233, 238, 243); 
 }

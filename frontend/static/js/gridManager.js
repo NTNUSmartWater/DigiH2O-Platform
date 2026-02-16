@@ -37,6 +37,9 @@ const valueTo = () => document.getElementById('detail-level-to');
 const optimizeBtn = () => document.getElementById('optimize-grid');
 const leafletContainer = () => document.getElementById('map-container');
 const plotContainer = () => document.getElementById('plot-container');
+const progressbarGrid = () => document.getElementById("progressbar-grid");
+const progressTextGrid = () => document.getElementById("progress-text-grid");
+const optimizeCloseBtn = () => document.getElementById("optimization-close");
 const gridName = () => document.getElementById('grid-name');
 const saveGrid = () => document.getElementById('save-grid');
 const hoverTooltip = L.tooltip({
@@ -47,8 +50,8 @@ const hoverTooltip = L.tooltip({
 let lakesData = {}, lakeMap = null, lakeLayer = null, pointLayer = null, entireNorway = false, 
     refineChecked = false, deleteChecked = false, dataLake = null, dataDepth = null,
     timeOut = null, levelValue = null, pointContainer = [], html = '', drawChecked = false,
-    baseMap = null, currentTileLayer = null, gridLayer = null, orthoLayer = null, 
-    tempLine = null, mapContainer = null, activeProject = null, logInterval = null;
+    baseMap = null, currentTileLayer = null, gridLayer = null, orthoLayer = null, lastOffset = 0,
+    tempLine = null, mapContainer = null, activeProject = null, logInterval = null, pointOptimal = [];
 
 function startLoading(str = '') {
     loadingGrid().querySelector('.loading-text-grid').textContent = str;
@@ -407,7 +410,7 @@ async function initializeProject(){
     });
 }
 
-function updateLog(project, progress_bar, progress_text, info, seconds){
+function updateLog(project, progress_bar, progress_text, seconds){
     activeProject = project;
     logInterval = setInterval(async () => {
         if (activeProject !== project) { clearInterval(logInterval); logInterval = null; }
@@ -415,14 +418,14 @@ function updateLog(project, progress_bar, progress_text, info, seconds){
             const statusRes = await sendQuery('check_grid_optimization', {projectName: project});
             progress_text.innerText = statusRes.message; progress_bar.value = statusRes.progress;
             if (statusRes.status !== "running" && statusRes.status !== "reorganizing") {
-                info.value += statusRes.message;
                 if (logInterval) { clearInterval(logInterval); logInterval = null; }
             }
-            const res = await fetch(`/optimization_log_tail/${project}?offset=${lastOffsetHYD}&log_file=log_hyd.txt`);
+            const res = await fetch(`/optimization_log_tail/${project}?offset=${lastOffset}&log_file=log_optimization.txt`);
             if (!res.ok) return;
             const data = await res.json();
-            for (const line of data.lines) { info.value += line + "\n"; }
-            lastOffsetHYD = data.offset;
+            pointOptimal = [];
+            for (const line of data.lines) { pointOptimal.push(line); }
+            lastOffset = data.offset;
         } catch (error) { clearInterval(logInterval); logInterval = null; }
     }, seconds * 1000);
 }
@@ -619,43 +622,47 @@ async function dataPreparationManager(){
     gridOptimizationCheckbox().addEventListener('change', async (e) => {
         if (e.target.checked) {
             if (gridLayer === null) { 
-                alert("Please generate grid first."); e.target.checked = false;
-                leafletContainer().style.display = 'flex';
-                plotContainer().style.display = 'none';
-                return; 
+                alert("Please generate grid first."); e.target.checked = false; return; 
             }
             gridOptimizationContainer().style.display = 'flex';
-            leafletContainer().style.display = 'none';
-            plotContainer().style.display = 'flex';
-        } else { 
-            gridOptimizationContainer().style.display = 'none';
-            leafletContainer().style.display = 'flex';
-            plotContainer().style.display = 'none';
-        }
+        } else { gridOptimizationContainer().style.display = 'none'; }
     });
     optimizeBtn().addEventListener('click', async () => {
-        if (gridLayer === null) { alert("Please generate grid first."); return; }
+        if (pointLayer === null) { alert("Please generate grid first."); return; }
         const iterations = Number(iterationValue().value);
         if (isNaN(iterations)) { alert("Please enter a valid number of iterations."); return; }
         const levelFrom = Number(valueFrom().value), levelTo = Number(valueTo().value);
         if (isNaN(levelFrom) || isNaN(levelTo) || levelFrom < 0 || levelTo < 0 || levelFrom >= levelTo) {
             alert("Please enter a valid value range."); return; 
         }
-        const contents = { projectName: getState().currentProject, 
-            iterations: iterations, levelFrom: levelFrom, levelTo: levelTo
-        };
-        const statusRes = await sendQuery('check_grid_optimization', contents);
+        leafletContainer().style.display = 'none'; plotContainer().style.display = 'flex';
+        tableContent().style.display = 'none'; menuContent().style.display = 'none';
+        const statusRes = await sendQuery('check_grid_optimization', {projectName: getState().currentProject});
         if (statusRes.status === "running" || statusRes.status === "reorganizing") {
             const res = await fetch(`/optimization_log_full/${projectName}?log_file=log_optimization.txt`);
-            // if (res.ok) {
-            //     const data = await res.json();
-            //     infoArea().value = data.content || ''; lastOffsetHYD = data.offset;
-            // }
-            // updateLog(getState().currentProject, progressbar(), progressText(), infoArea(), 1);
+            if (res.ok) {
+                const data = await res.json();
+                pointContainer = data.content; lastOffset = data.offset;
+                console.log(pointContainer);
+
+            }
+            updateLog(getState().currentProject, progressbarGrid(), progressTextGrid(), 1);
         }
-        const start = await sendQuery('start_grid_optimization', {projectName: getState().currentProject});
+        console.log(statusRes);
+
+        const pointCollection = [];
+        pointLayer.eachLayer(layer => {
+            const latlng = layer.getLatLng();
+            pointCollection.push([latlng.lat, latlng.lng]);
+        });
+        if (pointCollection.length === 0) { alert("No vertexes found."); return; }
+        pointCollection.push(pointCollection[0]);
+        const contents = { projectName: getState().currentProject, pointCollection: pointCollection,
+            iterations: iterations, levelFrom: levelFrom, levelTo: levelTo
+        };
+        const start = await sendQuery('start_grid_optimization', contents);
         if (start.status === "error") { alert(start.message); return; }
-        // updateLog(getState().currentProject, progressbar(), progressText(), infoArea(), 1);
+        updateLog(getState().currentProject, progressbarGrid(), progressTextGrid(), 1);
 
         // gridLayer = clearMap(gridLayer); orthoLayer = clearMap(orthoLayer);
         // gridLayer = plotUnstructuredGrid(response.content);
@@ -663,6 +670,12 @@ async function dataPreparationManager(){
 
 
 
+    });
+    optimizeCloseBtn().addEventListener('click', async () => {
+        const response = await sendQuery('grid_stop', {projectName: getState().currentProject});
+        alert(response.message);
+        leafletContainer().style.display = 'flex'; plotContainer().style.display = 'none';
+        tableContent().style.display = 'flex'; menuContent().style.display = 'flex';
     });
     saveGrid().addEventListener('click', async() => {
         if (gridLayer === null) { alert("Please generate unstructured grid first."); return; }
@@ -684,9 +697,10 @@ async function dataPreparationManager(){
     baseMap.dispatchEvent(new Event('change'));
 }
 
-function updateManager() { 
+async function updateManager() { 
+    leafletContainer().style.display = 'flex';
     document.querySelectorAll('input[type="radio"]').forEach(obj => {
-        obj.addEventListener('change', async () => {
+        obj.addEventListener('change', () => {
             if (obj.id === 'new-database') { 
                 selectContainer().style.display = 'flex';
                 tableContent().style.display = 'none';
@@ -695,6 +709,7 @@ function updateManager() {
                 regionName().value = ''; lakeSelector().value = '';
                 lakeLabel().style.display = 'none'; lakeSelector().style.display = 'none';
                 drawChecked = false; lakeSearcher().value = '';
+                
             } else if (obj.id === 'new-map') { 
                 selectContainer().style.display = 'none';
                 const contents = [['', '', '', '', '', '', '']];
@@ -707,5 +722,5 @@ function updateManager() {
         });
     });
 }
+updateManager(); dataPreparationManager();
 await loadLakes(); await initializeProject(); 
-dataPreparationManager(); updateManager();
