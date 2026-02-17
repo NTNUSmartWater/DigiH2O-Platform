@@ -563,3 +563,4 @@ function renderThermocline(key, plotDiv, xValues, yValues, legend, xTitle, yTitl
         return resizeObserver;
     });
 }
+

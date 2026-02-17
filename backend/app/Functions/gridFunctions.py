@@ -2,10 +2,12 @@ import os, warnings, pickle, optuna
 import geopandas as gpd, numpy as np
 from config import STATIC_DIR_BACKEND
 from shapely.geometry import Polygon
-from meshkernel import MeshKernel, OrthogonalizationParameters
+from meshkernel import MeshKernel, GeometryList, OrthogonalizationParameters
+from meshkernel.errors import MeshKernelError
 from Functions import functions
 import xarray as xr, dfm_tools as dfmt, dask.array as da
 warnings.filterwarnings("ignore")
+optuna.logging.set_verbosity(optuna.logging.ERROR)
 
 
 def loadLakes(lake_path=None, depth_path=None):
@@ -47,13 +49,16 @@ def sort_face_ccw(nodes, x, y):
     angles = np.arctan2(ys - cy, xs - cx)
     return nodes[np.argsort(angles)]
 
-def netCDF_creator(mk: MeshKernel, depth: gpd.GeoDataFrame):
+def netCDF_creator(mk: MeshKernel, depth: gpd.GeoDataFrame=None, crs=None):
     mesh = mk.mesh2d_get()
     node_x, node_y = mesh.node_x, mesh.node_y
-    temp_grid = gpd.GeoDataFrame(geometry=gpd.points_from_xy(node_x, node_y), crs=depth.crs)
-    node_z = functions.interpolation_Z(temp_grid, depth["geometry"].x, depth["geometry"].y, depth["depth"].values, n_neighbors=2, geo_type='point')
+    if depth is not None:
+        if depth.crs == 'EPSG:4326': depth = depth.to_crs(depth.estimate_utm_crs())
+        temp_grid = gpd.GeoDataFrame(geometry=gpd.points_from_xy(node_x, node_y), crs=depth.crs)
+        node_z = functions.interpolation_Z(temp_grid, depth["geometry"].x, depth["geometry"].y, depth["depth"].values, n_neighbors=2, geo_type='point')
+    else: node_z = np.zeros(len(node_x))
     # Convert to Ugrid
-    grid_uds = dfmt.meshkernel_to_UgridDataset(mk, crs=depth.crs)
+    grid_uds = dfmt.meshkernel_to_UgridDataset(mk, crs=crs)
     grid_uds['mesh2d'] = xr.DataArray(0,
         attrs={
             "cf_role": "mesh_topology", "long_name": "Topology data of 2D mesh",
@@ -119,43 +124,83 @@ def netCDF_creator(mk: MeshKernel, depth: gpd.GeoDataFrame):
     grid_uds.attrs.update({ "institution": 'Private', "references": 'vanlnNTNU@gmail.com'})
     return grid_uds
 
-def Bayesian_Optimization(mk: MeshKernel, polygon: gpd.GeoDataFrame, space: dict, iterations: int, progress_callback=None):
+def mk_from_params(params, polygon):
+    mk = MeshKernel()
+    if params['mode'] == 'auto': mk.mesh2d_make_triangular_mesh_from_polygon(polygon)
+    else: mk.mesh2d_make_triangular_mesh_from_polygon(polygon, scale_factor=float(params['level']))
+    ortho_params = OrthogonalizationParameters(
+        outer_iterations=params['outer_iterations'],
+        boundary_iterations=params['boundary_iterations'],
+        inner_iterations=params['inner_iterations'],
+        orthogonalization_to_smoothing_factor=params['smoothing_factor']
+    )
+    mk.mesh2d_compute_orthogonalization(
+        project_to_land_boundary_option=False,
+        orthogonalization_parameters=ortho_params,
+        land_boundaries=polygon
+    )
+    return mk
+
+def Bayesian_Optimization(polygon:GeometryList, space: dict, iterations: int=500,
+                          progress_callback=None, stop_checker=None):
     """
     Bayesian Optimization using Optuna to minimize the maximum orthogonality.
     """
-    trial_counter, best_value = {"count": 0}, float('inf')
+    best_value, best_type, best_level = float('inf'), "", float('inf')
     def objective_function(trial: optuna.trial.Trial):
-        type_choice = trial.suggest_categorical("type", space['type'])
-        level = trial.suggest_float("level", space['level'][0], space['level'][1])
-        outer_iterations = trial.suggest_int("outer_iterations", space['outer_iterations'][0], space['outer_iterations'][1])
-        boundary_iterations = trial.suggest_int("boundary_iterations", space['boundary_iterations'][0], space['boundary_iterations'][1])
-        inner_iterations = trial.suggest_int("inner_iterations", space['inner_iterations'][0], space['inner_iterations'][1])
-        smoothing_factor = trial.suggest_float("smoothing_factor", space['smoothing_factor'][0], space['smoothing_factor'][1])
-        trial_counter["count"] += 1        
-        iteration = trial_counter["count"]
-        if type_choice == 'auto': mk.mesh2d_make_triangular_mesh_from_polygon(polygon)
-        else: mk.mesh2d_make_triangular_mesh_from_polygon(polygon, scale_factor=float(level))        
-        ortho_params = OrthogonalizationParameters(
-            outer_iterations=outer_iterations, boundary_iterations=boundary_iterations,
-            inner_iterations=inner_iterations,
-            orthogonalization_to_smoothing_factor=smoothing_factor
-        )        
-        mk.mesh2d_compute_orthogonalization(
-            project_to_land_boundary_option=False,
-            orthogonalization_parameters=ortho_params, land_boundaries=polygon
-        )        
-        orth = mk.mesh2d_get_orthogonality().values
-        orth_valid = orth[orth != -999]
-        max_value = np.max(orth_valid)
-        nonlocal best_value
-        if max_value < best_value: best_value = max_value
-        # Update progress
-        if progress_callback:
-            progress_callback(
-                iteration=iteration, total=iterations, best_value=best_value, ortho_value=max_value,
-                current_level=f"Mode: {type_choice} - Level: {level} - Max Orthogonality: {max_value}",
+        try:
+            type_choice = trial.suggest_categorical("mode", space['mode'])
+            level = trial.suggest_float("level", space['level'][0], space['level'][1])
+            outer_iterations = trial.suggest_int(
+                "outer_iterations", space['outer_iterations'][0], 
+                space['outer_iterations'][1]
             )
+            boundary_iterations = trial.suggest_int(
+                "boundary_iterations", space['boundary_iterations'][0], 
+                space['boundary_iterations'][1]
+            )
+            inner_iterations = trial.suggest_int(
+                "inner_iterations", space['inner_iterations'][0], 
+                space['inner_iterations'][1]
+            )
+            smoothing_factor = trial.suggest_float(
+                "smoothing_factor", space['smoothing_factor'][0], 
+                space['smoothing_factor'][1]
+            )
+            mk, iteration = MeshKernel(), trial.number + 1
+            if type_choice == 'auto': mk.mesh2d_make_triangular_mesh_from_polygon(polygon)
+            else: mk.mesh2d_make_triangular_mesh_from_polygon(polygon, scale_factor=float(level))        
+            ortho_params = OrthogonalizationParameters(
+                outer_iterations=outer_iterations, boundary_iterations=boundary_iterations,
+                inner_iterations=inner_iterations,
+                orthogonalization_to_smoothing_factor=smoothing_factor
+            )        
+            mk.mesh2d_compute_orthogonalization(
+                project_to_land_boundary_option=False,
+                orthogonalization_parameters=ortho_params, land_boundaries=polygon
+            )        
+            orth = mk.mesh2d_get_orthogonality().values
+            orth_valid = orth[orth != -999]
+            if len(orth_valid) == 0: return 1e6
+            min_value, mean_value, max_value = np.min(orth_valid), np.mean(orth_valid), np.max(orth_valid)
+            nonlocal best_value, best_type, best_level
+            if max_value < best_value:
+                best_type, best_level, best_value = type_choice, level, max_value
+            # Update progress
+            if progress_callback:
+                progress_callback(
+                    iteration=iteration, min_value=min_value, mean_value=mean_value,
+                    best_type=best_type, best_level=best_level,
+                    current_ortho=max_value, best_ortho=best_value
+                )
+            if stop_checker and stop_checker():
+                trial.study.stop()
+                return best_value
+        except MeshKernelError: return 1e6
+        except Exception: return 1e6
+        if max_value <= 0.01 or trial.number >= iterations: trial.study.stop()
         return max_value
-    study = optuna.create_study(direction="minimize")
+    sampler = optuna.samplers.TPESampler(seed=42, multivariate=True)
+    study = optuna.create_study(direction="minimize", sampler=sampler)
     study.optimize(objective_function, n_trials=iterations, show_progress_bar=False)
     return study.best_params

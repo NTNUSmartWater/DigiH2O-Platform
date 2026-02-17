@@ -13,7 +13,7 @@ body {
               radial-gradient(800px 600px at 100% 0%, rgba(21,101,192,0.25), transparent), var(--bg);
 }
 #right-side-controls {
-  position: absolute; top: 20px; right: 10px; display: flex;
+  position: absolute; top: 15px; right: 10px; display: flex;
   flex-direction: column; align-items: center; gap: 10px; z-index: 1000;
 }
 #custom_compass_btn {
@@ -115,10 +115,12 @@ body {
 }
 
 .button-grid, .save-grid {
-    padding: 4px; border-radius: 10px; cursor: pointer; font-weight: bold;
+  padding: 4px; border-radius: 10px; cursor: pointer; 
+  font-weight: bold; text-align: center; display: flex;
+  align-items: center; justify-content: center; width: 100%;
 }
 .button-grid {
-    background-color: #184bd6; color: #fff; text-align: center;
+  background-color: #184bd6; color: #fff;
 }
 
 .map-container {
@@ -128,7 +130,7 @@ body {
     flex: 1; height: 100%; border-radius: 20px;
 }
 #custom-colorbar-grid {
-    position: absolute; top: 15px;
+    position: absolute; top: 100px;
     right: 15px; z-index: 1000; display: none;
 }
 .colorbar-wrapper {
@@ -224,5 +226,5 @@ body {
   align-items: center; margin-top: 5px; text-align: center; font-size: 13px;
 }
 #myChart-grid { 
-  flex: 1; border-radius: 10px; background-color: rgb(233, 238, 243); 
+  flex: 1; border-radius: 10px; background-color: rgb(233, 238, 243); overflow: hidden; 
 }

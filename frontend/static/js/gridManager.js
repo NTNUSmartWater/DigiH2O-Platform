@@ -7,6 +7,7 @@ const selectContainer = () => document.getElementById('select-container');
 const regionList = () => document.getElementById("project-list");
 const regionName = () => document.getElementById('project-name');
 const loadingGrid = () => document.getElementById('loadingOverlay-grid');
+const compass = () => document.getElementById('custom_compass_btn');
 const lakeLabel = () => document.getElementById('lake-name-label');
 const lakeSelector = () => document.getElementById('lake-name');
 const lakeTable = () => document.getElementById('lake-table');
@@ -40,6 +41,7 @@ const plotContainer = () => document.getElementById('plot-container');
 const progressbarGrid = () => document.getElementById("progressbar-grid");
 const progressTextGrid = () => document.getElementById("progress-text-grid");
 const optimizeCloseBtn = () => document.getElementById("optimization-close");
+const chartDiv = () => document.getElementById("myChart-grid");
 const gridName = () => document.getElementById('grid-name');
 const saveGrid = () => document.getElementById('save-grid');
 const hoverTooltip = L.tooltip({
@@ -48,10 +50,10 @@ const hoverTooltip = L.tooltip({
 });
 
 let lakesData = {}, lakeMap = null, lakeLayer = null, pointLayer = null, entireNorway = false, 
-    refineChecked = false, deleteChecked = false, dataLake = null, dataDepth = null,
+    refineChecked = false, deleteChecked = false, dataLake = null, dataDepth = null, drawSelection = false,
     timeOut = null, levelValue = null, pointContainer = [], html = '', drawChecked = false,
-    baseMap = null, currentTileLayer = null, gridLayer = null, orthoLayer = null, lastOffset = 0,
-    tempLine = null, mapContainer = null, activeProject = null, logInterval = null, pointOptimal = [];
+    baseMap = null, currentTileLayer = null, gridLayer = null, orthoLayer = null, isRunning = false,
+    tempLine = null, mapContainer = null, activeProject = null, logInterval = null;
 
 function startLoading(str = '') {
     loadingGrid().querySelector('.loading-text-grid').textContent = str;
@@ -61,7 +63,7 @@ function stopLoading() {
     loadingGrid().style.display = "none"; loadingGrid().style.pointerEvents = "none";
 }
 function clearMap(layer) {
-    if (layer) { lakeMap.removeLayer(layer); layer = null; }
+    if (layer) { lakeMap.removeLayer(layer); }
     return null;
 }
 
@@ -410,23 +412,52 @@ async function initializeProject(){
     });
 }
 
+async function orthoPlotter(data, plotDiv, titleX, titleY, chartTitle) {
+    if (!plotDiv) { alert("plotDiv is null"); return; }
+    if (!data || data.length === 0) return;
+    // Delete existing plot
+    Plotly.purge(plotDiv); plotDiv.innerHTML = "";
+    const x = data.map(d => d.iteration), minVals = data.map(d => d.min);
+    const meanVals = data.map(d => d.mean), maxVals = data.map(d => d.max);
+    const traces = [{x: x, y: minVals, mode: 'lines', type: 'scatter', name: 'Min', line: { width: 2 }},
+        { x: x, y: meanVals, mode: 'lines', type: 'scatter', name: 'Mean', line: { width: 2 } },
+        { x: x, y: maxVals, mode: 'lines', type: 'scatter', name: 'Max', line: { width: 2 } }
+    ];
+    const layout = {
+        title: { text: chartTitle, font: { size: 20, color: 'black', weight: 'bold' } },
+        paper_bgcolor: 'rgb(245, 240, 240)', plot_bgcolor: 'rgb(247, 243, 243)', showlegend: true,
+        xaxis: {  title: titleX, type: 'linear', showline: true, mirror: true, ticks: 'outside', font: { color: 'black', size: 18 } },
+        yaxis: { title: titleY, showline: true, mirror: true, ticks: 'outside', font: { color: 'black', size: 18 } },
+        margin: { l: 70, r: 30, t: 50, b: 50 }, 
+    };
+    Plotly.react(plotDiv, traces, layout, { responsive: true });
+}
+
 function updateLog(project, progress_bar, progress_text, seconds){
-    activeProject = project;
+    activeProject = project; isRunning = true;
     logInterval = setInterval(async () => {
         if (activeProject !== project) { clearInterval(logInterval); logInterval = null; }
         try {
             const statusRes = await sendQuery('check_grid_optimization', {projectName: project});
             progress_text.innerText = statusRes.message; progress_bar.value = statusRes.progress;
-            if (statusRes.status !== "running" && statusRes.status !== "reorganizing") {
-                if (logInterval) { clearInterval(logInterval); logInterval = null; }
+            if (statusRes.status === "finished" || statusRes.status === "stopped") {
+                clearInterval(logInterval); logInterval = null; isRunning = false;
+                if (statusRes.grid) { 
+                    gridLayer = clearMap(gridLayer);
+                    gridLayer = await plotUnstructuredGrid(statusRes.grid);
+                    orthoCheckbox().checked = true; orthoCheckbox().dispatchEvent(new Event('change'));
+                } else { alert('No grid has been found. Consider running the optimization again.'); }
+                optimizeCloseBtn().innerText = "Close and Plot Grid"; return;
             }
-            const res = await fetch(`/optimization_log_tail/${project}?offset=${lastOffset}&log_file=log_optimization.txt`);
-            if (!res.ok) return;
-            const data = await res.json();
-            pointOptimal = [];
-            for (const line of data.lines) { pointOptimal.push(line); }
-            lastOffset = data.offset;
-        } catch (error) { clearInterval(logInterval); logInterval = null; }
+            if (statusRes.status === "failed") {
+                clearInterval(logInterval); logInterval = null; isRunning = false;
+                alert(statusRes.message); return;
+            }
+            // Plotting orthogonalization
+            await orthoPlotter(statusRes.his, chartDiv(), 'Step', 'Orthogonalization', 'Orthogonalization Chart');
+        } catch (error) { 
+            alert("Polling error:", error); clearInterval(logInterval); logInterval = null; 
+        }
     }, seconds * 1000);
 }
 
@@ -489,7 +520,7 @@ async function dataPreparationManager(){
     });
     depthCheckbox().addEventListener('change', async (e) => {
         if (e.target.checked) {
-            if (!drawChecked) { e.target.checked = false; return; } 
+            if (drawSelection) { e.target.checked = false; return; } 
             if (window.depthGridLayer === null) {
                 startLoading('Plotting depth grid. Please wait...');
                 await new Promise(resolve => setTimeout(resolve, 0));
@@ -574,7 +605,7 @@ async function dataPreparationManager(){
         const response = await sendQuery('grid_creator', contents); stopLoading();
         if (response.status === "error") { alert(response.message); return; }
         gridLayer = clearMap(gridLayer); orthoLayer = clearMap(orthoLayer);
-        gridLayer = plotUnstructuredGrid(response.content);
+        gridLayer = await plotUnstructuredGrid(response.content);
         refineChecked = false; refinementCheckbox().checked = false;
         refinementCheckbox().dispatchEvent(new Event('change'));
         gridOptimizationCheckbox().checked = false;
@@ -628,6 +659,8 @@ async function dataPreparationManager(){
         } else { gridOptimizationContainer().style.display = 'none'; }
     });
     optimizeBtn().addEventListener('click', async () => {
+        progressbarGrid().value = 0; progressTextGrid().innerText = ''; gridLayer = clearMap(gridLayer);
+        if (isRunning) { alert("Grid optimization is already running."); return; }
         if (pointLayer === null) { alert("Please generate grid first."); return; }
         const iterations = Number(iterationValue().value);
         if (isNaN(iterations)) { alert("Please enter a valid number of iterations."); return; }
@@ -635,21 +668,13 @@ async function dataPreparationManager(){
         if (isNaN(levelFrom) || isNaN(levelTo) || levelFrom < 0 || levelTo < 0 || levelFrom >= levelTo) {
             alert("Please enter a valid value range."); return; 
         }
-        leafletContainer().style.display = 'none'; plotContainer().style.display = 'flex';
-        tableContent().style.display = 'none'; menuContent().style.display = 'none';
+        leafletContainer().style.display = 'none'; plotContainer().style.display = 'flex'; compass().style.display = 'none';
+        tableContent().style.display = 'none'; menuContent().style.display = 'none'; 
+        optimizeCloseBtn().innerText = 'Stop'; isRunning = true;
         const statusRes = await sendQuery('check_grid_optimization', {projectName: getState().currentProject});
-        if (statusRes.status === "running" || statusRes.status === "reorganizing") {
-            const res = await fetch(`/optimization_log_full/${projectName}?log_file=log_optimization.txt`);
-            if (res.ok) {
-                const data = await res.json();
-                pointContainer = data.content; lastOffset = data.offset;
-                console.log(pointContainer);
-
-            }
+        if (statusRes.status === "running") {
             updateLog(getState().currentProject, progressbarGrid(), progressTextGrid(), 1);
         }
-        console.log(statusRes);
-
         const pointCollection = [];
         pointLayer.eachLayer(layer => {
             const latlng = layer.getLatLng();
@@ -661,21 +686,19 @@ async function dataPreparationManager(){
             iterations: iterations, levelFrom: levelFrom, levelTo: levelTo
         };
         const start = await sendQuery('start_grid_optimization', contents);
-        if (start.status === "error") { alert(start.message); return; }
+        if (start.status === "error") { isRunning = false; alert(start.message); return; }
         updateLog(getState().currentProject, progressbarGrid(), progressTextGrid(), 1);
-
-        // gridLayer = clearMap(gridLayer); orthoLayer = clearMap(orthoLayer);
-        // gridLayer = plotUnstructuredGrid(response.content);
-
-
-
-
     });
-    optimizeCloseBtn().addEventListener('click', async () => {
-        const response = await sendQuery('grid_stop', {projectName: getState().currentProject});
-        alert(response.message);
-        leafletContainer().style.display = 'flex'; plotContainer().style.display = 'none';
-        tableContent().style.display = 'flex'; menuContent().style.display = 'flex';
+    optimizeCloseBtn().addEventListener('click', async (e) => {
+        const value = e.target.innerText;
+        if (value === 'Stop') {
+            const response = await sendQuery('grid_stop', {projectName: getState().currentProject});
+            if (response.status === "error") { alert(response.message); }
+            isRunning = false; e.target.innerText = 'Close and Plot Grid';
+        } else if (value === 'Close and Plot Grid') {
+            leafletContainer().style.display = 'flex'; plotContainer().style.display = 'none'; compass().style.display = 'flex';
+            tableContent().style.display = 'flex'; menuContent().style.display = 'flex';
+        }
     });
     saveGrid().addEventListener('click', async() => {
         if (gridLayer === null) { alert("Please generate unstructured grid first."); return; }
@@ -698,7 +721,7 @@ async function dataPreparationManager(){
 }
 
 async function updateManager() { 
-    leafletContainer().style.display = 'flex';
+    leafletContainer().style.display = 'flex'; compass().style.display = 'flex';
     document.querySelectorAll('input[type="radio"]').forEach(obj => {
         obj.addEventListener('change', () => {
             if (obj.id === 'new-database') { 
@@ -708,7 +731,7 @@ async function updateManager() {
                 vertexesBtn().style.display = 'flex';
                 regionName().value = ''; lakeSelector().value = '';
                 lakeLabel().style.display = 'none'; lakeSelector().style.display = 'none';
-                drawChecked = false; lakeSearcher().value = '';
+                drawSelection = false; lakeSearcher().value = ''; drawChecked = false;
                 
             } else if (obj.id === 'new-map') { 
                 selectContainer().style.display = 'none';
@@ -716,7 +739,8 @@ async function updateManager() {
                 fillTable(contents, lakeTable(), true);
                 tableContent().style.display = 'flex';
                 menuContent().style.display = 'flex'; resetMap();
-                vertexesBtn().style.display = 'none'; drawChecked = true;
+                vertexesBtn().style.display = 'none'; 
+                drawSelection = true; drawChecked = true;
             }
             lakeMap.eachLayer(layer => { if (!(layer instanceof L.TileLayer)) lakeMap.removeLayer(layer); });
         });

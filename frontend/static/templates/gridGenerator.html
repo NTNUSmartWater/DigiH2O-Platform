@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="/static_frontend/css/grid_style.css?v=004">
+    <link rel="stylesheet" href="/static_frontend/css/grid_style.css?v=001">
 </head>
 <body>
     <div class="wrapper">
@@ -62,7 +62,7 @@
                     </div>
                 </div>
                 <div class="control-tab">
-                    <button class="button-grid" id="vertexes-btn" style="text-align: center;">Get/Reset Vertexes<span class="ink"></span></button>
+                    <button class="button-grid" id="vertexes-btn">Get/Reset Vertexes<span class="ink"></span></button>
                     <label class="checkbox-right"><input type="checkbox" id="refinement-checkbox">Refine Vertexes</label>
                     <div class="content-line" id ="refinement-container" style="display: none;">
                         <input type="text" id="refinement-value" placeholder="Enter refinement value" value="20.0">
@@ -72,7 +72,7 @@
                 <div class="control-tab">
                     <label class="checkbox-right"><input type="checkbox" id="delete-checkbox">Delete Vertexes</label>
                     <div class="control-tab-inline">
-                        <label for="scale-factor">Mode</label>
+                        <label for="scale-factor">Mode (and level)</label>
                         <select id="scale-factor">
                             <option value="auto" selected>Auto</option>
                             <option value="custom">Custom</option>
@@ -107,10 +107,10 @@
                 </div>
             </div>
             <!-- Add the map -->
-            <div class="map-container" id="map-container" style="display: none;">
+            <div class="map-container" id="map-container">
                 <!-- Add the control for the map -->
                 <div id="right-side-controls">
-                    <button type="button" id="custom_compass_btn">
+                    <button type="button" id="custom_compass_btn" style="display: none;">
                         <img src="/static_backend/images/compass.png?v=2"alt="Compass">
                     </button>
                 </div>
@@ -140,10 +140,10 @@
                     <div class="control-tab-inline">
                         <div class="progress-container">
                             <progress id="progressbar-grid" value="0" max="100"></progress>
-                            <span id="progress-text-grid"></span>
+                            <span id="progress-text-grid" style="font-size: 15px;"></span>
                         </div>
                         <button class="button-grid" id="optimization-close"
-                            style="padding: 5px; width: 100px; align-items: center;">Close<span class="ink"></span></button>
+                            style="padding: 5px; width: 200px; align-items: center;">Stop<span class="ink"></span></button>
                     </div>
                 </div>
                 <div class="tile plot">
@@ -153,6 +153,7 @@
             </div>
         </section>
     </div>
+    <script src="https://cdn.plot.ly/plotly-2.26.1.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <script>
