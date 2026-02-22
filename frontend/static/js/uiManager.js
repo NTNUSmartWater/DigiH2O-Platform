@@ -1,10 +1,11 @@
 // Import necessary functions
 import { initializeMap, baseMapButtonFunctionality, startLoading, showLeafletMap, map } from './mapManager.js';
-import { plotChart, plotEvents, drawChart, plotWindow, thermoclinePlotter } from './chartManager.js';
+import { plotChart, plotEvents, plotWindow, thermoclinePlotter, chartDiv } from './chartManager.js';
 import { timeControl, colorbar_container, colorbar_vector_container, plot2DMapDynamic } from "./map2DManager.js";
 import { generalOptionsManager, summaryWindow } from './generalOptionManager.js';
 import { spatialMapManager, substanceWindowHis, substanceWindowMap } from './spatialMapManager.js';
-import { sendQuery } from './tableManager.js'; import { fileUploader } from './utils.js';
+import { sendQuery } from './tableManager.js';
+import { fileUploader, plotTimeSeries } from './utils.js';
 import { getState, resetState, setState } from './constants.js';
 
 
@@ -554,7 +555,7 @@ function updateEvents() {
             const rows = event.data.rows;
             const columns = event.data.columns;
             const chartData = { columns, data: rows };
-            drawChart(chartData, 'Source Data Chart', 'Time', 'Value', false);
+            plotTimeSeries(plotWindow(), chartDiv(), chartData, 'Source Data Chart', 'Time', 'Value', false);
         }
         if (event.data?.type === 'addWQSource') {
             const sources = event.data.sources;

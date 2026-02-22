@@ -5,17 +5,171 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
-    <link rel="stylesheet" href="/static_frontend/css/data_style.css?v=001">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="/static_frontend/css/data_style.css?v=012">
 </head>
 <body>
-    <div class="page-title">
+    <section class="card tabs" id="parent-tab">
+        <div class="tabs__header" id="main-tabs">
+            <div class="tabs__list">
+                <button class="tab-btn" data-tab="regnbyge-tab">Regnbyge.no<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="another-tab">Another Source<span class="ink"></span></button>
+            </div>
+        </div>
+        <div class="tabs__content">
+            <!-- Tab 1: Regnbyge -->
+            <div class="tabpanel main-panel" data-panel="regnbyge-tab">
+                <!-- Sub Tabs -->
+                <div class="card tabs tabs--sub">
+                    <div class="tabs__header">
+                        <div class="tabs__list">
+                            <button class="tab-btn" data-tab="regnbyge-tab-1">Map<span class="ink"></span></button>
+                            <button class="tab-btn" data-tab="regnbyge-tab-2">Download Settings<span class="ink"></span></button>
+                        </div>
+                    </div>
+                    <div class="tabs__content">
+                        <div class="tabpanel" data-panel="regnbyge-tab-1">
+                            <div class="grid">
+                                <!-- Stations -->
+                                <div class="tile"><h3>Station Types</h3>
+                                    <div class="control-tab">
+                                        <label class="checkbox-right"><input type="checkbox" id="water-flow-checkbox">Water Flow</label>
+                                        <label class="checkbox-right"><input type="checkbox" id="water-level-checkbox">Water Level</label>
+                                        <label class="checkbox-right"><input type="checkbox" id="overflow-checkbox">Overflow</label>
+                                        <label class="checkbox-right"><input type="checkbox" id="temperature-checkbox">Temperature</label>
+                                        <label class="checkbox-right"><input type="checkbox" id="precipitation-checkbox">Precipitation</label>
+                                        <label class="checkbox-right"><input type="checkbox" id="evaporation-checkbox">Evaporation</label>
+                                        <label class="checkbox-right"><input type="checkbox" id="weir-checkbox">Weir</label>
+                                    </div>
+                                </div>
+                                <!-- Names -->
+                                <div class="tile" id="station-container"
+                                    style="grid-column: span 2; display: none; flex-direction: column;" ><h3>List of Stations</h3>
+                                    <table class="attributes-table" id="station-table">
+                                        <thead>
+                                            <tr><th>Name</th><th>Type</th></tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                                <!-- Plot period -->
+                                <div class="tile" id="plot-container" style="display: none; flex-direction: column;"><h3>Plot Period</h3>
+                                    <div class="row"><label for="start-plot">Start time:</label></div>
+                                    <div class="row">
+                                        <input type="text" class="datetime" id="start-plot" placeholder="YYYY-mm-dd HH:mm:ss">
+                                    </div>
+                                    <div class="row"><label for="end-plot">End time:</label></div>
+                                    <div class="row">
+                                        <input type="text" class="datetime" id="end-plot" placeholder="YYYY-mm-dd HH:mm:ss">
+                                    </div>
+                                </div>
+
+
+                            </div>
+                        </div>
+                        <div class="tabpanel" data-panel="regnbyge-tab-2">
+                            <div class="grid">
+                                <!-- Download period -->
+                                <div class="tile"><h3>Download Period</h3>
+                                    <div class="row"><label for="start-download">Start download time:</label></div>
+                                    <div class="row">
+                                        <input type="text" class="datetime" id="start-download" placeholder="YYYY-mm-dd HH:mm:ss">
+                                    </div>
+                                    <div class="row"><label for="end-download">End download time:</label></div>
+                                    <div class="row">
+                                        <input type="text" class="datetime" id="end-download" placeholder="YYYY-mm-dd HH:mm:ss">
+                                    </div>
+                                </div>
+                                <!-- Selected Names -->
+                                <div class="tile" style="grid-column: span 2;"><h3>Selected Stations</h3>
+                                    <table class="attributes-table" id="station-selected-table">
+                                        <thead>
+                                            <tr><th>Name</th><th>Type</th></tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+
+                                </div>
+
+
+                            </div>
+
+
+                        </div>
 
 
 
-    </div>
+                    </div>
+                </div>
 
+
+            </div>
+            <!-- Tab 2: Another -->
+            <div class="tabpanel main-panel" data-panel="another-tab">
+
+
+
+
+            </div>
+        </div>
+        <!-- Add the map -->
+        <div class="map-container" id="map-container">
+            <!-- Add the control for the map -->
+            <div id="right-side-controls">
+                <button type="button" id="custom_compass_btn" style="display: none;">
+                    <img src="/static_backend/images/compass.png?v=2"alt="Compass">
+                </button>
+            </div>
+            <div id="leaflet-map"></div>
+            <div id="loadingOverlay" style="display: none;">
+                <div class="loading-text">Processing Data. Please wait...</div>
+                <div class="spinner"></div>
+            </div>
+            <!-- Legend -->
+            <div id="custom-colorbar">
+                <div class="colorbar-wrapper">
+                    <div class="colorbar-title" id="colorbar-title">Legend</div>
+                    <div class="colorbar-gradient" id="colorbar-gradient"></div>
+                    <div class="colorbar-labels" id="colorbar-labels">
+                        <div></div> <!-- max -->
+                        <div></div> <!-- 75% -->
+                        <div></div> <!-- 50% -->
+                        <div></div> <!-- 25% -->
+                        <div></div> <!-- min -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Add a floating plot window -->
+        <div id="plot-station-window">
+            <div id="plot-station-header"><span id="plot-title">Time-series Plot</span><span id="close-station-plot">×</span></div>
+            <div class="plot-controls">
+                <label for="select-object" style="margin-left: 30px;">Select:</label>
+                <div class="select-object" id="select-object" style="color: black;">
+                    <div class="select-box">
+                        <span class="label-text">Select one or more options</span>
+                        <span class="arrow">▼</span>
+                    </div>
+                    <div class="checkbox-list"></div>
+                </div>
+                <button type="button" id="view-station-btn">View Data</button>
+                <button type="button" id="download-station-excel">Download as Excel File</button>
+            </div>
+            <div id="plot-station-content"><div id="station-chart"></div></div>
+        </div>
+    </section>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.26.1.min.js"></script>
+    <script src="/static_frontend/js/tooltipManager.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script>
+        flatpickr(".datetime", {
+            enableTime: true, enableSeconds: true, dateFormat: "Y-m-d H:i:S", time_24hr: true,
+            defaultHour: 0, defaultMinute: 0, defaultSecond: 0
+        });
+    </script>
     <script>
         const script = document.createElement('script');
         script.type = 'module';

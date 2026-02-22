@@ -207,9 +207,29 @@ async def vertex_remover(request: Request, user=Depends(functions.basic_auth)):
         point = gpd.GeoDataFrame(vertices, geometry="geometry", crs="EPSG:4326")
         poly_new = Polygon([(p.x, p.y) for p in point['geometry'].values])
         gdf = gpd.GeoDataFrame(geometry=[poly_new], crs="EPSG:4326")
-        return JSONResponse({'status': 'ok', 'content': {"polygon": json.loads(gdf.to_json()), "point": json.loads(point.to_json())}})
+        contents = {"polygon": json.loads(gdf.to_json()), "point": json.loads(point.to_json())}
+        return JSONResponse({'status': 'ok', 'content': contents})
     except Exception as e:
         print('/vertex_remover:\n==============')
+        traceback.print_exc()
+        return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
+
+@router.post("/vertex_mover")
+async def vertex_mover(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
+        project_cache = request.app.state.project_cache.setdefault(project_name)
+        if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory."})
+        points = np.array(body.get('pointCollection'))
+        vertices = [{"id": i, "geometry": Point((coord[1], coord[0]))} for i, coord in enumerate(points)]
+        point = gpd.GeoDataFrame(vertices, geometry="geometry", crs="EPSG:4326")
+        poly = Polygon([(p.x, p.y) for p in point['geometry'].values])
+        gdf = gpd.GeoDataFrame(geometry=[poly], crs="EPSG:4326")
+        contents = {"polygon": json.loads(gdf.to_json()), "point": json.loads(point.to_json())}
+        return JSONResponse({'status': 'ok', 'content': contents})
+    except Exception as e:
+        print('/vertex_mover:\n==============')
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
@@ -324,7 +344,7 @@ async def start_grid_optimization(request: Request, user=Depends(functions.basic
                     notice = info["message"].split("[")[1].split("(")[0]
                     info["status"], info["message"] = 'finalizing', "Generating final grid..."
                     mk = gridFunctions.mk_from_params(best_params, polygon)
-                    project_cache["mk"], info["params"] = mk, best_params
+                    project_cache["mk"] = mk
                     grid_uds = gridFunctions.netCDF_creator(mk, depth, crs)
                     best_grid = functions.unstructuredGridCreator(grid_uds)
                     info["grid"] = json.loads(best_grid.to_json())

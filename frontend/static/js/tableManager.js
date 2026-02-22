@@ -29,6 +29,13 @@ export function copyPaste(table, nCols){
 
 export function fillTable(data2D, table, clear=true){
     let tbody = table.querySelector("tbody");
+    if (!data2D || data2D.length === 0) {
+        if (clear) {
+            const newTbody = document.createElement("tbody");
+            tbody.replaceWith(newTbody);
+        }
+        return;
+    }
     // Remove empty rows
     const existingRows = Array.from(tbody.querySelectorAll("tr"));
     existingRows.forEach(row => {

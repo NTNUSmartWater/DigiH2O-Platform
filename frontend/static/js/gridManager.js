@@ -25,6 +25,7 @@ const vertexesBtn = () => document.getElementById("vertexes-btn");
 const refinementCheckbox = () => document.getElementById("refinement-checkbox");
 const refinementContainer = () => document.getElementById("refinement-container");
 const refinementValue = () => document.getElementById("refinement-value");
+const moveCheckbox = () => document.getElementById("move-checkbox");
 const deleteCheckbox = () => document.getElementById("delete-checkbox");
 const scaleSelector = () => document.getElementById("scale-factor");
 const scaleFactor = () => document.getElementById("custom-scale-factor");
@@ -51,7 +52,7 @@ const hoverTooltip = L.tooltip({
 
 let lakesData = {}, lakeMap = null, lakeLayer = null, pointLayer = null, entireNorway = false, 
     refineChecked = false, deleteChecked = false, dataLake = null, dataDepth = null, drawSelection = false,
-    timeOut = null, levelValue = null, pointContainer = [], html = '', drawChecked = false,
+    timeOut = null, levelValue = null, pointContainer = [], html = '', drawChecked = false, moveChecked = false,
     baseMap = null, currentTileLayer = null, gridLayer = null, orthoLayer = null, isRunning = false,
     tempLine = null, mapContainer = null, activeProject = null, logInterval = null;
 
@@ -67,18 +68,12 @@ function clearMap(layer) {
     return null;
 }
 
-async function plotFigure(obj) {
-    const tempLayer = L.geoJSON(obj, {
-        style: feature => {
-            switch (feature.geometry.type) {
-                case 'LineString': 
-                case 'MultiLineString' || 'MultiPolygon' || 'Polygon':
-                    return { color: 'black' };
-                default: return {};
-            }
+function toggleMoveMode(targetLayer, enable) {
+    targetLayer.eachLayer(layer => {
+        if (layer.dragging) {
+            enable ? layer.dragging.enable() : layer.dragging.disable();
         }
-    }).addTo(lakeMap);
-    return tempLayer;
+    });
 }
 
 async function plotUnstructuredGrid(obj) {
@@ -117,44 +112,32 @@ function createLakeMap() {
     lakeMap.on('mousemove', function (e) { 
         mapContainer.style.cursor = "auto";
         if (refineChecked) {
-            if (pointContainer.length === 0) { html = "Select start point to refine"; }
+            if (pointContainer.length === 0) { html = "Select start point to refine."; }
             hoverTooltip.setLatLng(e.latlng).setContent(html);
             lakeMap.openTooltip(hoverTooltip);
         }
         if (deleteChecked) {
-            if (pointContainer.length === 0) { html = "Select start point to delete"; }
+            if (pointContainer.length === 0) { html = "Select start point to delete."; }
             hoverTooltip.setLatLng(e.latlng).setContent(html);
             lakeMap.openTooltip(hoverTooltip);
         }
         if (drawChecked) { 
             mapContainer.style.cursor = "crosshair";
-            if (pointContainer.length === 0) { html = `Draw a polygon using the left mouse button`; }
+            if (pointContainer.length === 0) { html = `Draw a polygon using the left mouse button.`; }
+            hoverTooltip.setLatLng(e.latlng).setContent(html);
+            lakeMap.openTooltip(hoverTooltip);
+        }
+        if (moveChecked) { 
+            mapContainer.style.cursor = "move";
+            html = `Move a vertex using the left mouse button.`;
             hoverTooltip.setLatLng(e.latlng).setContent(html);
             lakeMap.openTooltip(hoverTooltip);
         }
     });
-    lakeMap.on('mouseout', function () { lakeMap.closeTooltip(hoverTooltip); });
     lakeMap.on('click', async function (e) {
-        mapContainer.style.cursor = "auto";
-        if (refineChecked) {
-            if (pointContainer.length === 1) { html = "Select end point to refine"; }
-            if (pointContainer.length === 2) { 
-                await polygonRefinement(pointContainer); pointContainer = []; 
-                html = "Select start point to refine";
-                if (hoverTooltip) lakeMap.closeTooltip(hoverTooltip); return; 
-            }
-        }
-        if (deleteChecked) {
-            if (pointContainer.length === 1) { html = "Select end point to delete"; }
-            if (pointContainer.length === 2) { 
-                await pointRemoval(pointContainer); pointContainer = []; 
-                html = "Select start point to delete";
-                if (hoverTooltip) lakeMap.closeTooltip(hoverTooltip); return; 
-            }
-        }
         if (drawChecked) { 
             mapContainer.style.cursor = "crosshair";
-            html = `Finish drawing with the right mouse button`;
+            html = `Finish drawing with the right mouse button.`;
             // Add marker
             L.circleMarker(e.latlng, {
                 radius: 5, color: 'red', fillColor: 'pink', fillOpacity: 0.9
@@ -174,7 +157,7 @@ function createLakeMap() {
         e.originalEvent.preventDefault();
         if (drawChecked) { 
             if (pointContainer.length < 3) { 
-                alert("Polygon must have at least 3 points"); return; 
+                alert("Polygon must have at least 3 points."); return; 
             }
             tempLine = clearMap(tempLine); lakeLayer = clearMap(lakeLayer);
             // Plot polygon
@@ -191,7 +174,7 @@ function resetMap(){
     refineChecked = false; deleteChecked = false; colorbar_container_grid().style.display = 'none';
 }
 
-function polygonPlotter(polygon) {
+function polygonPlotter(polygon, zoom = false) {
     // Draw lake polygon
     const tempLayer = L.geoJSON(polygon, {
         style: { color: 'blue', weight: 2, fillColor: 'cyan', fillOpacity: 0 },
@@ -211,10 +194,8 @@ function polygonPlotter(polygon) {
     }).addTo(lakeMap);
     // Fit map to lake bounds
     const bounds = tempLayer.getBounds();
-    if (bounds.isValid()) { 
-        setTimeout(() => { 
-            lakeMap.invalidateSize(); lakeMap.fitBounds(bounds); 
-        }, 0);
+    if (bounds.isValid() && zoom) { 
+        setTimeout(() => { lakeMap.invalidateSize(); lakeMap.fitBounds(bounds); }, 0);
     }
     return tempLayer;
 }
@@ -272,19 +253,58 @@ async function addItems(value) {
     }, 200);
 }
 
-function addPointLayer(points) {
+function addPointLayer(points, checkMove=false) {
+    const pointType = checkMove ? 'point-marker-move' : 'point-marker-default';
     const tempLayer = L.geoJSON(points, {
         pointToLayer: (_, latlng) => {
-            return L.circleMarker(latlng, {
-                radius: 2, color: 'black', fillColor: 'red', fillOpacity: 1
+            const marker = L.marker(latlng, {
+                draggable: checkMove,
+                icon: L.divIcon({
+                    className: "", html: `<div class="${pointType}"></div>`,
+                    iconSize: [10, 10], iconAnchor: [5, 5]
+                }),
             });
+            return marker;
         },
         onEachFeature: (feature, layer) => {
-            layer.on('click', () => { 
-                if ((refineChecked || deleteChecked) && 
-                    !pointContainer.includes(feature.properties.id)) { 
-                    pointContainer.push(feature.properties.id); 
+            layer.on('click', async () => { 
+                mapContainer.style.cursor = "auto";
+                if (refineChecked) {
+                    if (!pointContainer.includes(feature.properties.id)) { pointContainer.push(feature.properties.id); }
+                    if (pointContainer.length === 1) { html = "Select end point to refine."; }
+                    if (pointContainer.length === 2) { 
+                        await polygonRefinement(pointContainer); pointContainer = []; 
+                        refinementCheckbox().dispatchEvent(new Event('change'));
+                        if (hoverTooltip) lakeMap.closeTooltip(hoverTooltip); return; 
+                    }
                 }
+                if (deleteChecked) {
+                    if (!pointContainer.includes(feature.properties.id)) { pointContainer.push(feature.properties.id); }
+                    if (pointContainer.length === 1) { html = "Select end point to delete."; }
+                    if (pointContainer.length === 2) { 
+                        await pointRemoval(pointContainer); pointContainer = []; 
+                        deleteCheckbox().dispatchEvent(new Event('change'));
+                        if (hoverTooltip) lakeMap.closeTooltip(hoverTooltip); return; 
+                    }
+                }
+            });
+            layer.on('dragend', async function (e) {
+                const pos = e.target.getLatLng(), pointCollection = [];
+                // Update point
+                layer.feature.geometry.coordinates = [pos.lng, pos.lat];
+                pointLayer.eachLayer(layer => {
+                    const latlng = layer.getLatLng();
+                    pointCollection.push([latlng.lat, latlng.lng]);
+                });
+                startLoading('Regenerating vertexes. Please wait...');
+                await new Promise(resolve => setTimeout(resolve, 0));
+                const contents = { projectName: getState().currentProject, pointCollection: pointCollection };
+                const response = await sendQuery('vertex_mover', contents); stopLoading();
+                if (response.status === "error") { alert(response.message); return; }
+                if (!polygonCheckbox().checked) { polygonCheckbox().checked = true; }
+                lakeMap.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) lakeMap.removeLayer(layer); });
+                lakeLayer = polygonPlotter(response.content.polygon); 
+                pointLayer = addPointLayer(response.content.point, checkMove);
             });
             layer.bindTooltip(`Id: ${feature.properties.id}`, {
                 sticky: true, permanent: false, direction: 'center', opacity: 1
@@ -305,19 +325,19 @@ async function drawPolygon(pointList) {
     fillTable(contents, lakeTable(), true); depthCheckbox().checked = false;
     polygonCheckbox().checked = true; dataLake = polygon;
     lakeMap.eachLayer(layer => { if (!(layer instanceof L.TileLayer)) lakeMap.removeLayer(layer); });
-    lakeLayer = polygonPlotter(polygon); pointLayer = addPointLayer(point);
+    lakeLayer = polygonPlotter(polygon); pointLayer = addPointLayer(point, true);
 }
 
 async function polygonRefinement(pointIds) {
     const refineValue = Number(refinementValue().value); gridLayer = clearMap(gridLayer);
     if (!Number.isFinite(refineValue) || refineValue <= 0) { alert("Please enter a valid non-negative value."); return; }
-    if (pointLayer === null) { alert("No polygon has been found. Select the button 'Get/Reset Vertexes' to draw the original polygon."); return; }
+    if (pointLayer === null) { alert("No polygon has been found. Select the button 'Get/Reset Vertexes' to draw the original polygon first."); return; }
     const pointCollection = [];
     pointLayer.eachLayer(layer => {
         const latlng = layer.getLatLng();
         pointCollection.push([latlng.lat, latlng.lng]);
     });
-    if (pointCollection.length < 2) { alert("No point has been found. Select the button 'Get/Reset Vertexes' to create vertexes."); return; }
+    if (pointCollection.length < 2) { alert("No point has been found. Select the button 'Get/Reset Vertexes' to create vertexes first."); return; }
     startLoading('Refining Vertexes. Please wait...');
     const contents = {
         projectName: getState().currentProject, distance: refineValue, polygon: pointCollection,
@@ -328,21 +348,18 @@ async function polygonRefinement(pointIds) {
     const polygon = response.content.polygon, point = response.content.point; dataLake = polygon;
     if (!polygonCheckbox().checked) { polygonCheckbox().checked = true; }
     lakeMap.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) lakeMap.removeLayer(layer); });
-    lakeLayer = polygonPlotter(polygon); pointLayer = addPointLayer(point);
+    lakeLayer = polygonPlotter(polygon); pointLayer = addPointLayer(point, false);
     orthoCheckbox().checked = false; orthoCheckbox().dispatchEvent(new Event('change'));
-    refineChecked = false; refinementCheckbox().checked = false;
-    refinementCheckbox().dispatchEvent(new Event('change'));
 }
 
 async function pointRemoval(pointIds) {
-    pointIds.sort((a, b) => a - b);
-    if (pointLayer === null) { alert("No polygon has been found. Select the button 'Get/Reset Vertexes' to draw the original polygon."); return; }
+    if (pointLayer === null) { alert("No polygon has been found. Select the button 'Get/Reset Vertexes' to draw the original polygon first."); return; }
     const pointCollection = []; deleteChecked = true;
     pointLayer.eachLayer(layer => {
         const latlng = layer.getLatLng();
         pointCollection.push([latlng.lat, latlng.lng]);
     });
-    if (pointCollection.length < 2) { alert("No point has been found. Select the button 'Get/Reset Vertexes' to draw the original polygon."); return; }
+    if (pointCollection.length < 2) { alert("No point has been found. Select the button 'Get/Reset Vertexes' to draw the original polygon first."); return; }
     startLoading('Deleting Vertexes. Please wait...');
     const contents = {
         projectName: getState().currentProject, polygon: pointCollection,
@@ -353,10 +370,8 @@ async function pointRemoval(pointIds) {
     if (response.status === "error") { alert(response.message); return; }
     const polygon = response.content.polygon, point = response.content.point;
     lakeMap.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) lakeMap.removeLayer(layer); });
-    lakeLayer = plotFigure(polygon); pointLayer = addPointLayer(point);
+    lakeLayer = polygonPlotter(polygon, false); pointLayer = addPointLayer(point, false);
     orthoCheckbox().checked = false; orthoCheckbox().dispatchEvent(new Event('change'));
-    deleteChecked = false; deleteCheckbox().checked = false;
-    deleteCheckbox().dispatchEvent(new Event('change'));
 }
 
 async function initializeProject(){
@@ -496,7 +511,7 @@ async function dataPreparationManager(){
         // Plot lake and depth on map
         window.depthGridLayer = clearMap(window.depthGridLayer);
         window.depthGridLayer = gridPlotter(dataLake, dataDepth);
-        lakeLayer = clearMap(lakeLayer); lakeLayer = polygonPlotter(dataLake);
+        lakeLayer = clearMap(lakeLayer); lakeLayer = polygonPlotter(dataLake, true);
     });
     // Search lake
     lakeSearcher().addEventListener('click', (e) => { 
@@ -515,7 +530,7 @@ async function dataPreparationManager(){
     });
     polygonCheckbox().addEventListener('change', (e) => {
         if (e.target.checked) { 
-            if (lakeLayer === null) { lakeLayer = polygonPlotter(dataLake); }
+            if (lakeLayer === null) { lakeLayer = polygonPlotter(dataLake, true); }
         } else { lakeLayer = clearMap(lakeLayer); }
     });
     depthCheckbox().addEventListener('change', async (e) => {
@@ -545,7 +560,7 @@ async function dataPreparationManager(){
         await new Promise(resolve => setTimeout(resolve, 0));
         const response = await sendQuery('vertex_generator', { projectName: getState().currentProject }); stopLoading();
         if (response.status === "error") { alert(response.message); return; }
-        pointLayer = clearMap(pointLayer); pointLayer = addPointLayer(response.content);
+        pointLayer = clearMap(pointLayer); pointLayer = addPointLayer(response.content, false);
         if (!polygonCheckbox().checked) { polygonCheckbox().checked = true; }
         polygonCheckbox().dispatchEvent(new Event('change'));
         orthoCheckbox().checked = false; orthoCheckbox().dispatchEvent(new Event('change'));
@@ -556,10 +571,11 @@ async function dataPreparationManager(){
     refinementCheckbox().addEventListener('change', (e) => {
         if (e.target.checked) { 
             if (pointLayer === null) { 
-                alert("Select the button 'Get/Reset Vertexes' to create vertexes.");
+                alert("Select the button 'Get/Reset Vertexes' to create vertexes first.");
                 e.target.checked = false; return;
             }
             refineChecked = true; depthCheckbox().checked = false;
+            moveCheckbox().checked = false; moveChecked = false;
             depthCheckbox().dispatchEvent(new Event('change'));
             orthoLayer = clearMap(orthoLayer); deleteChecked = false;
             orthoCheckbox().checked = false; orthoCheckbox().dispatchEvent(new Event('change'));
@@ -569,12 +585,39 @@ async function dataPreparationManager(){
             deleteCheckbox().dispatchEvent(new Event('change'));
         } else { refinementContainer().style.display = 'none'; refineChecked = false; }
     });
+    moveCheckbox().addEventListener('change', async (e) => { 
+        const value = e.target.checked, pointCollection = [];
+        if (value) {
+            if (pointLayer === null) {
+                alert("Select the button 'Get/Reset Vertexes' to create vertexes first.");
+                e.target.checked = false; return;
+            }
+            toggleMoveMode(pointLayer, true);
+            pointLayer.eachLayer(layer => {
+                const latlng = layer.getLatLng();
+                pointCollection.push([latlng.lat, latlng.lng]);
+            });
+            if (pointCollection.length === 0) { alert("No vertexes found."); return; }
+            pointCollection.push(pointCollection[0]); 
+            moveChecked = true; refineChecked = false; deleteChecked = false;
+            deleteCheckbox().checked = false; refinementCheckbox().checked = false;
+            startLoading('Regenerating vertexes. Please wait...');
+            await new Promise(resolve => setTimeout(resolve, 0));
+            const contents = { projectName: getState().currentProject, pointCollection: pointCollection };
+            const response = await sendQuery('vertex_mover', contents); stopLoading();
+            if (response.status === "error") { alert(response.message); return; }
+            if (!polygonCheckbox().checked) { polygonCheckbox().checked = true; }
+            lakeLayer = clearMap(lakeLayer); lakeLayer = polygonPlotter(response.content.polygon); 
+            pointLayer = clearMap(pointLayer); pointLayer = addPointLayer(response.content.point, true);
+        } else { moveChecked = false; toggleMoveMode(pointLayer, false); }
+    });
     deleteCheckbox().addEventListener('change', async (e) => {
         if (!e.target.checked) { deleteChecked = false; return; }
         if (pointLayer === null) { 
-            alert("Select the button 'Get/Reset Vertexes' to create vertexes.");
+            alert("Select the button 'Get/Reset Vertexes' to create vertexes first.");
             e.target.checked = false; return;
         }
+        moveCheckbox().checked = false; moveChecked = false;
         pointContainer = []; gridLayer = clearMap(gridLayer); deleteChecked = true; 
         orthoCheckbox().checked = false; orthoCheckbox().dispatchEvent(new Event('change'));
         refineChecked = false; refinementCheckbox().checked = false;
@@ -606,6 +649,7 @@ async function dataPreparationManager(){
         if (response.status === "error") { alert(response.message); return; }
         gridLayer = clearMap(gridLayer); orthoLayer = clearMap(orthoLayer);
         gridLayer = await plotUnstructuredGrid(response.content);
+        moveChecked = false; moveCheckbox().checked = false;
         refineChecked = false; refinementCheckbox().checked = false;
         refinementCheckbox().dispatchEvent(new Event('change'));
         gridOptimizationCheckbox().checked = false;

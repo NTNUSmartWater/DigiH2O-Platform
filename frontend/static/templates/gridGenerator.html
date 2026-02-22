@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="/static_frontend/css/grid_style.css?v=001">
+    <link rel="stylesheet" href="/static_frontend/css/grid_style.css?v=005">
 </head>
 <body>
     <div class="wrapper">
@@ -70,6 +70,7 @@
                     </div>
                 </div>
                 <div class="control-tab">
+                    <label class="checkbox-right"><input type="checkbox" id="move-checkbox">Move Vertex</label>
                     <label class="checkbox-right"><input type="checkbox" id="delete-checkbox">Delete Vertexes</label>
                     <div class="control-tab-inline">
                         <label for="scale-factor">Mode (and level)</label>
@@ -79,9 +80,9 @@
                         </select>
                         <input type="number" id="custom-scale-factor" placeholder="Scale" step="0.1" value="1.0" hidden>
                     </div>
-                    <button class="button-grid" id="generate-grid">Generate Grid<span class="ink"></span></button>
                 </div>
                 <div class="control-tab">
+                    <button class="button-grid" id="generate-grid">Generate Grid<span class="ink"></span></button>
                     <label class="checkbox-right"><input type="checkbox" id="orthogonalisation-checkbox">Orthogonalization</label>
                     <label class="checkbox-right"><input type="checkbox" id="optimization-checkbox">Grid Optimization</label>
                 </div>

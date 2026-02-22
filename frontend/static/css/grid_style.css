@@ -124,14 +124,13 @@ body {
 }
 
 .map-container {
-    display: flex; flex: 1; padding: 10px 10px 10px 10px; position: relative;
+  display: flex; flex: 1; padding: 10px 10px 10px 10px; position: relative;
 }
 #leaflet-map-lakes {
-    flex: 1; height: 100%; border-radius: 20px;
+  flex: 1; height: 100%; border-radius: 20px;
 }
 #custom-colorbar-grid {
-    position: absolute; top: 100px;
-    right: 15px; z-index: 1000; display: none;
+  position: absolute; top: 100px; right: 15px; z-index: 1000; display: none;
 }
 .colorbar-wrapper {
   display: flex; flex-direction: row; align-items: center; gap: 6px;
@@ -152,38 +151,38 @@ body {
 #custom-scale-factor { width: 80px; text-align: center; }
 
 .control-right {
-    margin-left: auto; display: flex; flex-direction: column;
-    gap: 5px; padding-right: 5px; line-height: 2.0;
+  margin-left: auto; display: flex; flex-direction: column;
+  gap: 5px; padding-right: 5px; line-height: 2.0;
 }
 
 .control-tab {
-    margin-left: 10px; display: flex; flex-direction: column;
-    gap: 10px; padding-right: 5px; margin-right: 40px;
+  margin-left: 10px; display: flex; flex-direction: column;
+  gap: 10px; padding-right: 5px; margin-right: 40px;
 }
 .control-tab label {
-    width: 165px; display: flex;
-    align-items: center; justify-content: space-between;
+  width: 165px; display: flex;
+  align-items: center; justify-content: space-between;
 }
 
 .control-tab-inline {
-    flex-direction: row; align-items: center; gap: 10px;
-    display: flex; flex-wrap: nowrap;
+  flex-direction: row; align-items: center; gap: 10px;
+  display: flex; flex-wrap: nowrap;
 }
 .control-tab-inline label { width: 140px; display: inline-block; }
 
 .checkbox-right {
-    display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 8px;
 }
 
 .checkbox-right input { order: 2; }
 
 #refinement-value { width: 80px; text-align: center; flex: 1;}
 #refinement-btn {
-    cursor: pointer; padding: 8px; border-radius: 10px;
-    background-color: #3b4f85; color: #fff; align-items: center;
+  cursor: pointer; padding: 8px; border-radius: 10px;
+  background-color: #3b4f85; color: #fff; align-items: center;
 }
 .content-line {
-    display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 8px;
 }
 
 #loadingOverlay-grid {
@@ -228,3 +227,10 @@ body {
 #myChart-grid { 
   flex: 1; border-radius: 10px; background-color: rgb(233, 238, 243); overflow: hidden; 
 }
+
+.point-marker-default, .point-marker-move {
+  width: 10px; height: 10px; border: 1px solid black; border-radius: 50%; box-sizing: border-box;
+}
+
+.point-marker-default { background: green; }
+.point-marker-move { background: red; }

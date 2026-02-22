@@ -4,6 +4,12 @@ import { n_decimals, superscriptMap, getState, setState} from "./constants.js";
 function toSuperscript(num) {
     return String(num).split('').map(ch => superscriptMap[ch] || ch).join('');
 }
+export function numberFormatter(num, decimals) {
+    if (num === null || num === undefined || isNaN(num)) return '';
+    if (num === 0) return '0';
+    if (Math.abs(num) < 1e-3 || Math.abs(num) >= 1e6) { return num.toExponential(decimals); }
+    return num.toFixed(decimals);
+}
 
 export function nameChecker(name) {
     return !/^[A-Za-z0-9_-]+$/.test(name);
@@ -296,4 +302,195 @@ export async function fileUploader(targetFile, targetText, projectName, gridName
         alert(data.message); targetFile.value = ''; return;
     }
     alert(data.message);
+}
+
+function updateChart(windowContainer, plotDiv, checkboxObj, selectBoxObj, plotTitle) {
+    const checkboxes = checkboxObj.querySelectorAll('input[type="checkbox"]');
+    const selectedColumns = Array.from(checkboxes)
+        .filter(cb => cb.checked && cb.value !== 'All').map(cb => cb.value);
+    const {data, chartTitle, titleX, titleY, undefined} = getState().globalChartData;
+    plotTimeSeries(windowContainer, plotDiv, checkboxObj, selectBoxObj, plotTitle,
+        data, chartTitle, titleX, titleY, selectedColumns);
+}
+
+export function populateCheckboxList(windowContainer, plotDiv, checkboxObj, selectBoxObj, plotTitle, columns) {
+    checkboxObj.innerHTML = '';
+    // Create "All" checkbox
+    const allLabel = document.createElement('label');
+    allLabel.innerHTML = `<input type="checkbox" value="All" checked> All`;
+    const allCheckbox = allLabel.querySelector('input');
+    checkboxObj.appendChild(allLabel);
+    // Create checkbox for each column
+    let maxWidth = allLabel.scrollWidth;
+    const colCheckBoxes = [];
+    columns.forEach(col => {
+        const label = document.createElement('label');
+        label.innerHTML = `<input type="checkbox" value="${col}"> ${col}`;
+        const cb = label.querySelector('input');
+        cb.checked = true;
+        checkboxObj.appendChild(label); colCheckBoxes.push(cb);
+        maxWidth = Math.max(maxWidth, label.scrollWidth);
+    });
+    // Select all columns by default
+    allCheckbox.addEventListener('change', () => {
+        if (allCheckbox.checked) colCheckBoxes.forEach(cb => cb.checked = true);
+        else colCheckBoxes.forEach(cb => cb.checked = false);
+        updateChart(windowContainer, plotDiv, checkboxObj, selectBoxObj, plotTitle);
+    })
+    // Select other columns
+    colCheckBoxes.forEach(cb => {
+        cb.addEventListener('change', () => {
+            allCheckbox.checked = colCheckBoxes.every(cb => cb.checked);
+            updateChart(windowContainer, plotDiv, checkboxObj, selectBoxObj, plotTitle);
+        });
+    });
+    // Set width of checkbox list
+    selectBoxObj.style.width = maxWidth + "px";
+}
+
+// Draw the chart using Plotly
+export async function plotTimeSeries(windowContainer, plotDiv, checkboxList, selectBox,
+    plotTitle, data, chartTitle, titleX, titleY, selectedColumns=null) {
+    const cols = data.columns, rows = data.data;
+    let checkboxInputs = checkboxList.querySelectorAll('input[type="checkbox"]');
+    const x = rows.map(r => r[0]);
+    if (selectedColumns === null) checkboxInputs = [];
+    // Populate checkbox list
+    if (checkboxInputs.length === 0) {
+        const validColumns = [];
+        for (let i = 1; i < cols.length; i++) {
+            const y = rows.map(r => r[i]);
+            const hasValid = y.some(val => val !== null && !isNaN(val));
+            if (hasValid) validColumns.push(i);
+        }
+        // Update global variable
+        setState({ globalChartData: { data, chartTitle, titleX, titleY, validColumns }});
+        populateCheckboxList(windowContainer, plotDiv, checkboxList, selectBox, plotTitle, validColumns.map(i => data.columns[i]));
+        checkboxInputs = checkboxList.querySelectorAll('input[type="checkbox"]');
+    }
+    // Get selected columns
+    if (!selectedColumns) {
+        selectedColumns = Array.from(checkboxInputs)
+            .filter(cb => cb.checked && cb.value !== 'All').map(cb => cb.value);
+    }
+    const allCheckbox = Array.from(checkboxInputs).find(cb => cb.value === 'All');
+    let drawColumns, traceIndex = 0;
+    if (allCheckbox && allCheckbox.checked) drawColumns = cols.slice(1);
+    else drawColumns = selectedColumns;
+    if (drawColumns.length === 0) { Plotly.purge(plotDiv); return; }
+    const traces = [], n = drawColumns.length;  
+    for (const colName of drawColumns) {
+        const i = cols.indexOf(colName);
+        if (i === -1) continue;
+        const y = rows.map(r => r[i]);
+        const t = n <= 1 ? 0 : traceIndex / (n - 1);
+        const color = interpolateJet(1-t);
+        traces.push({ x: x, y: y, name: cols[i], type: 'scatter', mode: 'lines', line: { color: color } });
+        traceIndex++;
+    }
+    if (traces.length === 0) { Plotly.purge(plotDiv); return; }
+    const layout = {
+        margin: {l: 60, r: 20, t: 50, b: 20}, paper_bgcolor: '#c2bdbdff', plot_bgcolor: '#c2bdbdff',
+        title: { text: chartTitle, x: 0.5, xanchor: 'center', y: 0.95, yanchor: 'top',
+            font: { size: 20, color: 'black', weight: 'bold' } },
+        xaxis: {
+            title:{text: titleX, font: { size: 16, weight: 'bold', color: 'black' }},
+            showgrid: false, linecolor: 'black', tickfont: { color: 'black' },
+            automargin: true, ticks: 'outside', linewidth: 1, tickmode: 'auto'
+        },
+        yaxis: {
+            title:{ text: titleY, automargin: true, font: { size: 16, weight: 'bold', color: 'black' }}, 
+            showgrid: false, linecolor: 'black', tickfont: { color: 'black' },
+            automargin: true, ticks: 'outside', linewidth: 1, tickmode: 'auto'
+        },
+        legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: -0.25,
+            font: { size: 14, color: 'black', weight: 'bold' } }
+    };
+    plotTitle.innerHTML = chartTitle; // Update the header and maintain the close button
+    windowContainer.style.display = "flex"; // Show the chart
+    setTimeout(() => {
+        Plotly.react(plotDiv, traces, layout, { responsive: true });
+        new ResizeObserver(() => {
+            Plotly.Plots.resize(plotDiv);
+        }).observe(plotDiv.parentElement);
+    }, 50);
+}
+
+function formatDateTime(value) {
+    const d = new Date(value);
+    if (isNaN(d)) return value;
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ` +
+        `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+// Export chart data to new tab as CSV format
+export function viewDatafromPlot(plotDiv) {
+    const data = plotDiv.data?.[0];
+    if (!data) { alert("No data to view."); return; }
+    // Get the y values
+    const numTraces = plotDiv.data.length;
+    const title = plotDiv.layout?.title?.text || "Chart";
+    const titleText = typeof title === "string"
+        ? (title.includes(':') ? title.split(':')[1].trim() : title) : "Chart";
+    const titleY = plotDiv.layout?.yaxis?.title?.text || "Value";
+    let csvHeader = plotDiv.layout?.xaxis?.title?.text || 'Unknown';
+    for (let i = 0; i < numTraces; i++) {
+        const traceName = plotDiv.data[i].name || `${titleText}_${titleY}_${i}`;
+        csvHeader += `,${traceName}`;
+    }
+    let csvContent = `${csvHeader}\n`;
+    for (let i = 0; i < plotDiv.data[0].x.length; i++) {
+        let rawTime = plotDiv.data[0].x[i];
+        let formattedTime = formatDateTime(rawTime);
+        let row = `${formattedTime}`;
+        for (let j = 0; j < numTraces; j++) {
+            row += `,${numberFormatter(plotDiv.data[j].y[i], 5)}`;
+        }
+        csvContent += `${row}\n`;
+    }
+    const newWindow = window.open("", "_blank");
+    if (newWindow) {
+        const doc = newWindow.document;
+        doc.title = titleY.split(' (')[0];
+        const pre = doc.createElement("pre");
+        pre.style.fontFamily = "monospace";
+        pre.style.whiteSpace = "pre-wrap";
+        pre.textContent = csvContent;
+        const body = doc.body || doc.createElement("body");
+        body.appendChild(pre); doc.body = body;
+    } else { alert("Pop-up blocked. Please allow popups for this site."); }
+}
+
+// Save to Excel
+export function saveToExcelFromPlot(plotDiv) {
+    const data = plotDiv.data?.[0];
+    if (!data) { alert("No data to save."); return; }
+    // Get the y values
+    const numTraces = plotDiv.data.length;
+    const title = plotDiv.layout?.title?.text || "Chart";
+    const titleText = typeof title === "string"
+        ? (title.includes(':') ? title.split(':')[1].trim() : title): "Chart";
+    const titleY = plotDiv.layout?.yaxis?.title?.text || "Value";
+    // Prepare the data
+    const title_ = plotDiv.layout?.xaxis?.title?.text || 'Unknown';
+    const headers = [title_];
+    for (let i = 0; i < numTraces; i++) {
+        const traceName = plotDiv.data[i].name || `${titleText}_${titleY}_${i}`;
+        headers.push(traceName);
+    }
+    const table = [headers], numPoints = plotDiv.data[0].x.length;
+    for (let i = 0; i < numPoints; i++) {
+        const row = [plotDiv.data[0].x[i]];
+        for (let j = 0; j < numTraces; j++) {
+            row.push(numberFormatter(plotDiv.data[j].y[i], 4));
+        }
+        table.push(row);
+    }
+    // Create workbook and worksheet
+    const worksheet = XLSX.utils.aoa_to_sheet(table);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "ChartData");
+    // Download the Excel file
+    XLSX.writeFile(workbook, `${titleY.split(' (')[0]}.xlsx`);
 }
