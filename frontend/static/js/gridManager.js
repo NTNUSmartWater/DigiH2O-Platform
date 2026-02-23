@@ -29,7 +29,7 @@ const moveCheckbox = () => document.getElementById("move-checkbox");
 const deleteCheckbox = () => document.getElementById("delete-checkbox");
 const scaleSelector = () => document.getElementById("scale-factor");
 const scaleFactor = () => document.getElementById("custom-scale-factor");
-const orthoCheckbox = () => document.getElementById("orthogonalisation-checkbox");
+const orthoCheckbox = () => document.getElementById("orthogonality-checkbox");
 const createGrid = () => document.getElementById('generate-grid');
 const gridOptimizationCheckbox = () => document.getElementById('optimization-checkbox');
 const gridOptimizationContainer = () => document.getElementById('grid-optimization-container');
@@ -468,8 +468,8 @@ function updateLog(project, progress_bar, progress_text, seconds){
                 clearInterval(logInterval); logInterval = null; isRunning = false;
                 alert(statusRes.message); return;
             }
-            // Plotting orthogonalization
-            await orthoPlotter(statusRes.his, chartDiv(), 'Step', 'Orthogonalization', 'Orthogonalization Chart');
+            // Plotting Orthogonality
+            await orthoPlotter(statusRes.his, chartDiv(), 'Step', 'Orthogonality', 'Orthogonality History');
         } catch (error) { 
             alert("Polling error:", error); clearInterval(logInterval); logInterval = null; 
         }
@@ -663,7 +663,7 @@ async function dataPreparationManager(){
                 alert("Please generate grid first."); 
                 orthoCheckbox().checked = false; return; 
             }
-            startLoading('Generating Orthogonalization. Please wait...');
+            startLoading('Generating Orthogonality Grid. Please wait...');
             await new Promise(resolve => setTimeout(resolve, 0));
             const contents = { projectName: getState().currentProject };
             const response = await sendQuery('grid_ortho', contents); stopLoading();
@@ -681,12 +681,12 @@ async function dataPreparationManager(){
                     });
                 },
                 onEachFeature: (feature, layer) => {
-                    layer.bindTooltip(`Orthogonalization: ${feature.properties.orth}`, {
+                    layer.bindTooltip(`Orthogonality: ${feature.properties.orth}`, {
                         sticky: true, permanent: false, direction: 'center', opacity: 1
                     });
                 }
             }).addTo(lakeMap);
-            updateColorbar(vmin, vmax, 'Orthogonalization', colorKey, colorbar_color_grid(), 
+            updateColorbar(vmin, vmax, 'Orthogonality', colorKey, colorbar_color_grid(), 
                 colorbar_title_grid(), colorbar_label_grid());
             colorbar_container_grid().style.display = 'block';
         } else { 

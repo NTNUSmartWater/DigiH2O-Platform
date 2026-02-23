@@ -34,19 +34,21 @@ class Regnbyge():
         headers = {'Accept': 'application/json', 'Authorization': f'Bearer {self.token}'}
         url_objects = f'{self.url}/{variable}'
         response = requests.request("GET", url_objects, headers=headers)
-        ids, df = json.loads(response.content), pd.DataFrame()
-        if len(ids)>0:
-            for i in range(len(ids)):
-                url = f'{url_objects}/{ids[i]}'
-                res = requests.request("GET", url, headers=headers)
-                if res.status_code == 200:
-                    data = json.loads(res.content)
-                    df_ = pd.DataFrame.from_dict([data])[['name', 'id', 'type', 'isActive', 'x', 'y']]
-                    df_.dropna(axis=1, how='all', inplace=True)
-                    if len(df_)>0: df = pd.concat([df, df_])
-            df.reset_index(inplace=True, drop=True)
-            # Fill NaN values
-            df = df.replace(float("nan"), None)
+        ids = response.json()
+        if not ids: return pd.DataFrame()
+        rows = []
+        for station_id in ids:
+            url = f'{url_objects}/{station_id}'
+            res = requests.get(url, headers=headers)
+            if res.status_code == 200: rows.append(res.json())
+        if not rows: return pd.DataFrame()
+        df = pd.DataFrame(rows)
+        # Delete columns with all NaN values
+        df.dropna(axis=1, how='all', inplace=True)
+        # Delete rows with all NaN values
+        df.dropna(axis=0, how='all', inplace=True)
+        df.reset_index(inplace=True, drop=True)
+        df = df.where(pd.notnull(df), None)
         return df
     
     def get_Values(self, variable:str, ids:list, agg:str='Raw', fromDate='', toDate=''):
@@ -68,30 +70,21 @@ class Regnbyge():
                         df_ = pd.DataFrame(data={'timestamp':pd.to_datetime(df_value['t'].values),
                             'level (m)':df_value['l'].values, 'velocity (m/s)':df_value['v'].values,
                             'discharge (m³/s)':df_value['q'].values})
-                        data = pd.concat([data, df_])
-
-        # for i in tqdm(range(len(df)), desc='Extracting Values'):
-        #     url = f'{self.url}/{variable}/{df.iloc[i]["id"]}/values?from={fromDate}&to={toDate}&aggregation={agg}'
-        #     response = requests.request("GET", url, headers=headers)
-        #     if response.status_code == 200:
-        #         data_value = json.loads(response.content)                
-        #         # Create DataFrame from Dictionary
-        #         df_value = pd.DataFrame.from_dict(data_value['measurements'])
-        #         if len(df_value)>0:
-        #             if variable=='rain':
-        #                 # Using Rainfall
-        #                 df_ = pd.DataFrame(data={'timestamp':pd.to_datetime(df_value['t'].values),
-        #                                         'r':df_value['r'].values})
-        #             elif variable=='flow':
-        #                 # Using Flow
-        #                 df_ = pd.DataFrame(data={'timestamp':pd.to_datetime(df_value['t'].values),
-        #                                         'l':df_value['l'].values, 'v':df_value['v'].values,
-        #                                         'q':df_value['q'].values, 'tt':df_value['tt'].values})
-        #             elif variable=='level':
-        #                 # Using Level
-        #                 df_ = pd.DataFrame(data={'timestamp':pd.to_datetime(df_value['t'].values),
-        #                                         'l':df_value['l'].values})
-
+                    elif variable=='level': # Using Level
+                        df_ = pd.DataFrame(data={'timestamp':pd.to_datetime(df_value['t'].values),
+                            'level (m)':df_value['l'].values})
+                    elif variable=='overflow': # Using Overflow
+                        pass
+                    elif variable=='temperature': # Using Temperature
+                        pass
+                    elif variable=='rain': # Using Rainfall
+                        df_ = pd.DataFrame(data={'timestamp':pd.to_datetime(df_value['t'].values),
+                            'rainfall (m)':df_value['r'].values})
+                    elif variable=='evaporation': # Using Evaporation
+                        pass
+                    elif variable=='weir': # Using Weir
+                        pass
+                    data = pd.concat([data, df_])
         data.reset_index(inplace=True, drop=True)
         data = data.replace(float("nan"), None) # Fill NaN values
         return data

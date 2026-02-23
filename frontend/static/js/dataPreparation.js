@@ -6,13 +6,11 @@ import { plotTimeSeries, viewDatafromPlot, saveToExcelFromPlot } from "./utils.j
 
 const compass = () => document.getElementById('custom_compass_btn');
 const loading = () => document.getElementById('loadingOverlay');
-const locationPickBtn = () => document.getElementById('location-picker');
-const locationRemoveBtn = () => document.getElementById('location-delete');
 const waterFlowCheckbox = () => document.getElementById('water-flow-checkbox');
 const waterLevelCheckbox = () => document.getElementById('water-level-checkbox');
 const overFlowCheckbox = () => document.getElementById('overflow-checkbox');
 const temperatureCheckbox = () => document.getElementById('temperature-checkbox');
-const precipitationCheckbox = () => document.getElementById('precipitation-checkbox');
+const rainfallCheckbox = () => document.getElementById('rainfall-checkbox');
 const evaporationCheckbox = () => document.getElementById('evaporation-checkbox');
 const weirCheckbox = () => document.getElementById('weir-checkbox');
 const stationTable = () => document.getElementById('station-table');
@@ -29,24 +27,27 @@ const checkboxList = () => dropdown().querySelector('.checkbox-list');
 const plotTitle = () => document.getElementById('plot-title');
 const viewDataBtn = () => document.getElementById('view-station-btn');
 const downloadExcel = () => document.getElementById('download-station-excel');
-
-
 const downloadStart = () => document.getElementById('start-download');
 const downloadEnd = () => document.getElementById('end-download');
 const stationSelectedTable = () => document.getElementById('station-selected-table');
+const typeDownload = () => document.getElementById('type-download');
+const intervalDownload = () => document.getElementById('interval-download');
+const typeSelector = () => document.getElementById('type-download');
+const intervalSelector = () => document.getElementById('interval-download');
+const stationSelectedLabel = () => document.getElementById('station-selected-label');
 
 
+const downloadBtn = () => document.getElementById('download-btn');
 
 
 
 const hoverTooltip = L.tooltip({
-    permanent: false, direction: 'bottom',
-    sticky: true, offset: [0, 10], className: 'custom-tooltip'
+    permanent: false, direction: 'top', sticky: true, offset: [0, -15], className: 'custom-tooltip'
 });
 
-let map = null, mapContainer = null, locationPicker = false, waterFlowLayer = null, 
-    waterLevelLayer = null, overFlowLayer = null, tempLayer = null, preLayer = null,
-    weirLayer = null, evaLayer = null, unit = '';
+let map = null, waterFlowLayer = null, waterLevelLayer = null,
+    overFlowLayer = null, tempLayer = null, preLayer = null,
+    weirLayer = null, evaLayer = null, plotChecked = true, lastSelectedIndex = null;
 
 function setupTabs(root) {
     const buttonPanels = root.querySelectorAll('#main-tabs button');
@@ -155,26 +156,53 @@ function formatDate(date) {
     return `${Y}-${M}-${D} ${h}:${m}:${s}`;
 }
 
+function updateLayerTooltips(layerGroup) {
+    if (!layerGroup) return;
+    layerGroup.eachLayer(layer => {
+        if (!layer.feature) return;
+        const feature = layer.feature;
+        let note = '';
+        if (plotChecked) {
+            note = `<hr style="border-top: 1px solid #0414f5; margin: 5px 0;">
+                <span style="display:block;font-weight:bold;text-align:center;">
+                Click to plot raw data</span>`;
+        }
+        const content = `
+            <div style="font-size:14px;border-radius:10px;">
+                <span style="display:block;text-align:center;font-weight:bold;">
+                    ${feature.properties.name || 'No name'}
+                </span>
+                <hr style="border-top:1px solid #0414f5;margin:5px 0;">
+                ${Object.entries(feature.properties).filter(([key]) => key !== 'name')
+                    .map(([key, value]) => `• ${key}: ${value}<br>`).join('')}
+                ${note}
+            </div>`;
+        layer.setTooltipContent(content);
+    });
+}
+
 async function loadStations(target, table, label, type, layer) {
-    const data = getDataFromTable(table, true);
-    const fillter = data.rows.filter(row => row[1] !== type);
+    const data = getDataFromTable(table, true); let filter = [];
+    if (type === 'rain') { filter = ['permanent', 'permanentTemp']; }
+    else if (type === 'flow') { filter = ['flow']; }
+    else if (type === 'level') { filter = ['overflow']; }
+    const fillter = data.rows.filter(row => !filter.includes(row[1])); layer = clearMap(layer);
     if (target.checked) {
         startLoading(`Getting ${label} stations.\nThis takes a while (especially the first time). Please wait...`);
         const contents = { projectName: getState().currentProject, key: type };
         const response = await sendQuery('init_station', contents); stopLoading();
         if (response.status === "error") { alert(response.message); target.checked = false; return; }
         const stationNames = response.content.name, stationLocations = response.content.point;
-        layer = clearMap(layer); layer = await pointPloter(stationLocations, type);
+        layer = await pointPloter(stationLocations, type);
         stationNames.forEach(item => fillter.push(item));
-    } else { layer = clearMap(layer); }
-    if (fillter.length > 0) { 
-        stationContainer().style.display = 'flex'; plotContainer().style.display = 'flex';
-        deleteTable(table); fillTable(fillter, table, true); 
-    } else { stationContainer().style.display = 'none'; plotContainer().style.display = 'none'; }
+    }
+    deleteTable(table); fillTable(fillter, table, true);
+    if (fillter.length > 0) { plotContainer().style.display = 'flex';} else { plotContainer().style.display = 'none'; }
+    return layer;
 }
 
 async function pointPloter(points, pointType) {
-    let inconUrl = `/static_backend/images/station.png?v=${Date.now()}`;
+    let inconUrl = `/static_backend/images/station.png?v=${Date.now()}`, note = '';
     if (pointType === 'flow') { inconUrl = `/static_backend/images/water_flow.png?v=${Date.now()}`; }
     else if (pointType === 'level') { inconUrl = `/static_backend/images/water_level.png?v=${Date.now()}`; }
     else if (pointType === 'overflow') { inconUrl = `/static_backend/images/overflow.png?v=${Date.now()}`; }
@@ -194,23 +222,32 @@ async function pointPloter(points, pointType) {
         onEachFeature: (feature, layer) => {
             layer.on('click', async () => { 
                 const id = feature.properties.id, name = feature.properties.name, type = feature.properties.type;
-                const startTime = plotStart().value, endTime = plotEnd().value;
-                startLoading(`Getting raw data for station '${name}'.\nThis takes a while. Please wait...`);
-                const contents = { projectName: getState().currentProject, id: [id], name: name,
-                    mode: type, startTime: startTime, endTime: endTime };
-                const response = await sendQuery('plot_station', contents); stopLoading();
-                if (response.status === "error") { alert(response.message); return; }
-                const chartTitle = `Station: ${name}`, titleX = 'Time', titleY = 'Raw Value';
-                await plotTimeSeries(plotStationWindow(), plotDiv(), checkboxList(), selectBox(), plotTitle(),
-                    response.content, chartTitle, titleX, titleY);
+                if (plotChecked) {
+                    const startTime = plotStart().value, endTime = plotEnd().value;
+                    startLoading(`Getting raw data for station '${name}'.\nThis takes a while. Please wait...`);
+                    const contents = { id: [id], name: name, mode: type, startTime: startTime, endTime: endTime };
+                    const response = await sendQuery('plot_station', contents); stopLoading();
+                    if (response.status === "error") { alert(response.message); return; }
+                    const chartTitle = `Station: ${name}`, titleX = 'Time', titleY = 'Raw Value';
+                    await plotTimeSeries(plotStationWindow(), plotDiv(), checkboxList(), selectBox(), plotTitle(),
+                        response.content, chartTitle, titleX, titleY);
+                } else {
+                    const data = [name, String(id), type], tableData = getDataFromTable(stationSelectedTable(), true);
+                    const exitCheck = tableData.rows.some(row => row.length === data.length &&
+                        row.every((value, index) => value === data[index]));
+                    if (!exitCheck) { fillTable([data], stationSelectedTable(), false); }
+                    stationSelectedLabel().innerHTML = `Station(s) selected: ${stationSelectedTable().querySelectorAll('tr.selected').length}`;
+                }
             });
+            if (plotChecked) {
+                note = `<hr style="border-top: 1px solid #0414f5; margin: 5px 0 5px 0;">
+                    <span style="display: block; font-weight: bold; text-align: center; line-height: 1.0;">Click to plot raw data</span>`
+            } else { note = ''; }
             const content = `<div style="font-size: 14px; border-radius: 10px;">
                 <span style="display: block; text-align: center; font-weight: bold; line-height: 1.0;">${feature.properties.name || 'No name'}</span>
                 <hr style="border-top: 1px solid #0414f5; margin: 5px 0 5px 0;">
                 ${Object.entries(feature.properties).filter(([key]) => key !== 'name')
-                .map(([key, value]) => `<span>• ${key}: ${value}</span><br>`).join('')}
-                <hr style="border-top: 1px solid #0414f5; margin: 5px 0 5px 0;">
-                <span style="display: block; text-align: center; line-height: 1.0;">Click to plot raw data</span>
+                .map(([key, value]) => `<span>• ${key}: ${value}</span><br>`).join('')}${note}
             </div>`;
             layer.bindTooltip(content, { sticky: true, permanent: false, direction: 'bottom', opacity: 1, offset: [0, 10] });
         }
@@ -234,37 +271,52 @@ function createMap() {
     map = L.map(mapDiv, { center: CENTER, zoom: ZOOM, zoomControl: false, attributionControl: true });
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
     L.control.scale({imperial: false, metric: true, maxWidth: 200}).addTo(map);
-    setTimeout(() => { map.invalidateSize(); }, 0); mapContainer = map.getContainer();
+    setTimeout(() => { map.invalidateSize(); }, 0);
     map.on('mousemove', function (e) { 
-        if (locationPicker) {
-            hoverTooltip.setLatLng(e.latlng).setContent("Select approximate location of the interested area.");
+        if (!plotChecked && (waterFlowLayer || waterLevelLayer || overFlowLayer || tempLayer || preLayer || weirLayer || evaLayer)) {
+            hoverTooltip.setLatLng(e.latlng).setContent("Left click to select station to add the download list.<br>Right click to remove the last station.");
             map.openTooltip(hoverTooltip);
-        }
-        
+        } else { if (hoverTooltip) map.closeTooltip(hoverTooltip); }
     });
-    map.on('click', function (e) {
-        if (locationPicker) { 
-            // Add location
-            latitude().value = e.latlng.lat.toFixed(5);
-            longitude().value = e.latlng.lng.toFixed(5);
-            locationPicker = false; mapContainer.style.cursor = "grab";
-            if (hoverTooltip) map.closeTooltip(hoverTooltip); return; 
+    map.on('contextmenu', async function (e) { 
+        e.originalEvent.preventDefault();
+        if (!plotChecked) { 
+            const tableData = getDataFromTable(stationSelectedTable(), true);
+            if (!tableData || !tableData.rows || tableData.rows.length === 0) return;
+            // Remove the last station
+            const newRows = tableData.rows.slice(0, -1);
+            fillTable(newRows, stationSelectedTable(), true);
         }
     });
-    // map.on('contextmenu', async function (e) { 
-    //     e.originalEvent.preventDefault();
-    //     if (drawChecked) { 
-    //         if (pointContainer.length < 3) { 
-    //             alert("Polygon must have at least 3 points."); return; 
-    //         }
-    //         tempLine = clearMap(tempLine); lakeLayer = clearMap(lakeLayer);
-    //         // Plot polygon
-    //         await drawPolygon(pointContainer); drawChecked = false;
-    //         pointContainer = []; mapContainer.style.cursor = "auto";
-    //     }
-    // });
 }
 
+function hightlightRows(table) {
+    const tbody = table.querySelector('tbody');
+    tbody.addEventListener('click', (event) => {
+        const trList = Array.from(tbody.querySelectorAll('tr'));
+        const tr = event.target.closest('tr');
+        if (!tr) return;
+        const index = trList.indexOf(tr);
+        if (event.shiftKey && lastSelectedIndex !== null) { // Shift click
+            const [start, end] = [lastSelectedIndex, index].sort((a, b) => a - b);
+            for (let i = start; i <= end; i++) {
+                trList[i].classList.add('selected');
+            }
+        } else if (event.ctrlKey || event.metaKey) { // Ctrl/Cmd click
+            tr.classList.toggle('selected');
+        } else { // Single click
+            tbody.querySelectorAll('tr').forEach(row => row.classList.remove('selected'));
+            tr.classList.add('selected');
+        }
+        lastSelectedIndex = index;
+    });
+}
+
+function selectStations() {
+
+
+
+}
 
 function updateManager() {
     if (!map) { createMap(); }; compass().style.display = 'flex';
@@ -278,64 +330,82 @@ function updateManager() {
     });
     document.addEventListener('click', (event) => {
         if (!dropdown().contains(event.target)) checkboxList().style.display = 'none';
-        // if (!stationTable().contains(event.target)) {
-        //     const tbody = stationTable().querySelector('tbody');
-        //     tbody.querySelectorAll('tr.selected').forEach(row => row.classList.remove('selected'));
-        //     lastSelectedIndex = null;
-        // }
-
+        if (!stationSelectedTable().contains(event.target) && !plotChecked) {
+            const tbody = stationSelectedTable().querySelector('tbody');
+            tbody.querySelectorAll('tr.selected').forEach(row => row.classList.remove('selected'));
+            lastSelectedIndex = null; const n = stationSelectedTable().querySelectorAll('tr.selected').length;
+            stationSelectedLabel().innerHTML = `Station(s) selected: ${n}`;
+        }
     });
+    // Toggle tabs
+    document.querySelectorAll('[data-tab="regnbyge-tab-1"], [data-tab="regnbyge-tab-2"]').forEach(tab => {
+        tab.addEventListener('click', () => { 
+           const tabName = tab.getAttribute('data-tab');
+           if (tabName === 'regnbyge-tab-1') { 
+            plotChecked = true; deleteTable(stationSelectedTable()); 
+        } else { plotChecked = false; }
+           updateLayerTooltips(waterFlowLayer); updateLayerTooltips(waterLevelLayer);
+           updateLayerTooltips(overFlowLayer); updateLayerTooltips(tempLayer);
+           updateLayerTooltips(preLayer); updateLayerTooltips(evaLayer); updateLayerTooltips(weirLayer);
+        });
+    });
+
     waterFlowCheckbox().addEventListener('change', async (e) => { 
-        await loadStations(e.target, stationTable(), 'water flow', 'flow', waterFlowLayer);
+        waterFlowLayer = await loadStations(e.target, stationTable(), 'water flow', 'flow', waterFlowLayer);
     });
     waterLevelCheckbox().addEventListener('change', async (e) => {
-        await loadStations(e.target, stationTable(), 'water level', 'level', waterLevelLayer);
+        waterLevelLayer = await loadStations(e.target, stationTable(), 'water level', 'level', waterLevelLayer);
     });
     overFlowCheckbox().addEventListener('change', async (e) => {
-        await loadStations(e.target, stationTable(), 'water overflow', 'overflow', overFlowLayer);
+        overFlowLayer = await loadStations(e.target, stationTable(), 'water overflow', 'overflow', overFlowLayer);
     });
     temperatureCheckbox().addEventListener('change', async (e) => {
-        await loadStations(e.target, stationTable(), 'temperature', 'temperature', tempLayer);
+        tempLayer = await loadStations(e.target, stationTable(), 'temperature', 'temperature', tempLayer);
     });
-    precipitationCheckbox().addEventListener('change', async (e) => {
-        await loadStations(e.target, stationTable(), 'precipitation', 'rain', preLayer);
+    rainfallCheckbox().addEventListener('change', async (e) => {
+        preLayer = await loadStations(e.target, stationTable(), 'rainfall', 'rain', preLayer);
     });
     evaporationCheckbox().addEventListener('change', async (e) => {
-        await loadStations(e.target, stationTable(), 'evaporation', 'evaporation', evaLayer);
+        evaLayer = await loadStations(e.target, stationTable(), 'evaporation', 'evaporation', evaLayer);
     });
     weirCheckbox().addEventListener('change', async (e) => {
-        await loadStations(e.target, stationTable(), 'weir', 'weir', weirLayer);
+        weirLayer = await loadStations(e.target, stationTable(), 'weir', 'weir', weirLayer);
     });   
     viewDataBtn().addEventListener('click', () => { viewDatafromPlot(plotDiv()) });
     downloadExcel().addEventListener('click', () => { saveToExcelFromPlot(plotDiv()) });
+    stationSelectedTable().addEventListener('click', (e) => {
+        hightlightRows(stationSelectedTable());
+        const n = stationSelectedTable().querySelectorAll('tr.selected').length;
+        stationSelectedLabel().innerHTML = `Station(s) selected: ${n}`;
+    });
+    typeSelector().addEventListener('change', () => { 
+        const downloadType = typeDownload().value, downloadInterval = intervalDownload().value;
+
+
+        stationSelectedLabel().innerHTML = `Station(s) selected: ${stationSelectedTable().querySelectorAll('tr.selected').length}`;
+    });
+    intervalSelector().addEventListener('change', () => { 
+        const downloadInterval = intervalDownload().value, downloadType = typeDownload().value;
 
 
 
-
+        stationSelectedLabel().innerHTML = `Station(s) selected: ${stationSelectedTable().querySelectorAll('tr.selected').length}`;
+    });
+    downloadBtn().addEventListener('click', async () => { 
+        // e.preventDefault(); downloadBtn().blur();
+        const tableData = getDataFromTable(stationSelectedTable(), true);
+        const n = stationSelectedTable().querySelectorAll('tr.selected').length;
+        if (tableData.rows.length === 0 || n === 0) { alert('No stations to download.'); return; }
+        const startTime = downloadStart().value, endTime = downloadEnd().value;
+        const downloadType = typeDownload().value, downloadInterval = intervalDownload().value;
+        const stations = stationSelectedTable().querySelectorAll('tr.selected');
+        startLoading(`Downloading data.\nThis takes a while. Please wait...`);
+        const contents = { projectName: getState().currentProject,
+            downloadType: downloadType, downloadInterval: downloadInterval,
+            startTime: startTime, endTime: endTime, stations: stations };
+        const response = await sendQuery('download_station', contents); stopLoading();
+        alert(response.message);
+    });
 }
 
 setupTabs(document); updateManager();
-
-// const tbody = stationTable().querySelector('tbody');
-// let lastSelectedIndex = null;
-// tbody.addEventListener('click', (event) => {
-//     const trList = Array.from(tbody.querySelectorAll('tr'));
-//     const tr = event.target.closest('tr');
-//     if (!tr) return;
-//     // let selected;
-//     const index = trList.indexOf(tr);
-//     if (event.shiftKey && lastSelectedIndex !== null) { // Shift click
-//         // selected = [];
-//         const [start, end] = [lastSelectedIndex, index].sort((a, b) => a - b);
-//         for (let i = start; i <= end; i++) {
-//             trList[i].classList.add('selected');
-//             // selected.push(trList[i]);
-//         }
-//     } else if (event.ctrlKey || event.metaKey) { // Ctrl/Cmd click
-//         tr.classList.toggle('selected'); // selected.push(tr);
-//     } else { // Single click
-//         tbody.querySelectorAll('tr').forEach(row => row.classList.remove('selected'));
-//         tr.classList.add('selected'); // selected = [tr];
-//     }
-//     lastSelectedIndex = index;
-// });

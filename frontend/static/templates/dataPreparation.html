@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <link rel="stylesheet" href="/static_frontend/css/data_style.css?v=012">
+    <link rel="stylesheet" href="/static_frontend/css/data_style.css?v=006">
 </head>
 <body>
     <section class="card tabs" id="parent-tab">
@@ -35,20 +35,18 @@
                                     <div class="control-tab">
                                         <label class="checkbox-right"><input type="checkbox" id="water-flow-checkbox">Water Flow</label>
                                         <label class="checkbox-right"><input type="checkbox" id="water-level-checkbox">Water Level</label>
-                                        <label class="checkbox-right"><input type="checkbox" id="overflow-checkbox">Overflow</label>
-                                        <label class="checkbox-right"><input type="checkbox" id="temperature-checkbox">Temperature</label>
-                                        <label class="checkbox-right"><input type="checkbox" id="precipitation-checkbox">Precipitation</label>
-                                        <label class="checkbox-right"><input type="checkbox" id="evaporation-checkbox">Evaporation</label>
-                                        <label class="checkbox-right"><input type="checkbox" id="weir-checkbox">Weir</label>
+                                        <label class="checkbox-right"><input type="checkbox" id="overflow-checkbox" disabled>Overflow</label>
+                                        <label class="checkbox-right"><input type="checkbox" id="temperature-checkbox" disabled>Temperature</label>
+                                        <label class="checkbox-right"><input type="checkbox" id="rainfall-checkbox">Rainfall</label>
+                                        <label class="checkbox-right"><input type="checkbox" id="evaporation-checkbox" disabled>Evaporation</label>
+                                        <label class="checkbox-right"><input type="checkbox" id="weir-checkbox" disabled>Weir</label>
                                     </div>
                                 </div>
                                 <!-- Names -->
                                 <div class="tile" id="station-container"
-                                    style="grid-column: span 2; display: none; flex-direction: column;" ><h3>List of Stations</h3>
+                                    style="grid-column: span 2; flex-direction: column;" ><h3>List of Stations</h3>
                                     <table class="attributes-table" id="station-table">
-                                        <thead>
-                                            <tr><th>Name</th><th>Type</th></tr>
-                                        </thead>
+                                        <thead><tr><th>Name</th><th>Type</th></tr></thead>
                                         <tbody></tbody>
                                     </table>
                                 </div>
@@ -63,12 +61,17 @@
                                         <input type="text" class="datetime" id="end-plot" placeholder="YYYY-mm-dd HH:mm:ss">
                                     </div>
                                 </div>
-
-
                             </div>
                         </div>
                         <div class="tabpanel" data-panel="regnbyge-tab-2">
                             <div class="grid">
+                                <!-- Selected Names -->
+                                <div class="tile" style="grid-column: span 2;"><h3>Selected Stations</h3>
+                                    <table class="attributes-table" id="station-selected-table">
+                                        <thead><tr><th>Name</th><th>id</th><th>Type</th></tr></thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
                                 <!-- Download period -->
                                 <div class="tile"><h3>Download Period</h3>
                                     <div class="row"><label for="start-download">Start download time:</label></div>
@@ -80,29 +83,38 @@
                                         <input type="text" class="datetime" id="end-download" placeholder="YYYY-mm-dd HH:mm:ss">
                                     </div>
                                 </div>
-                                <!-- Selected Names -->
-                                <div class="tile" style="grid-column: span 2;"><h3>Selected Stations</h3>
-                                    <table class="attributes-table" id="station-selected-table">
-                                        <thead>
-                                            <tr><th>Name</th><th>Type</th></tr>
-                                        </thead>
-                                        <tbody></tbody>
-                                    </table>
-
+                                <!-- Download Options -->
+                                <div class="tile" style="grid-column: span 2;"><h3>Download Options</h3>
+                                    <div class="row inline-row">
+                                        <label for="type-download">Data type:</label>
+                                        <select id="type-download">
+                                            <option value="waterflow">Water Flow</option>
+                                            <option value="rainfall">Rainfall</option>
+                                            <option value="temperature">Temperature</option>
+                                            <option value="overflow">Overflow</option>
+                                        </select>
+                                    </div>
+                                    <div class="row inline-row">
+                                        <label for="interval-download">Interval:</label>
+                                        <select id="interval-download">
+                                            <option value="Raw">Raw data</option>
+                                            <option value="Minute">1min data</option>
+                                            <option value="FiveMinute">5min data</option>
+                                            <option value="Hour">Hourly data</option>
+                                            <option value="Day">Daily data</option>
+                                        </select>
+                                    </div>
+                                    <div style="font-size: 13px; margin: 15px 0 15px 0; text-align: center; color: greenyellow;">
+                                        <label id="station-selected-label"></label>
+                                    </div>
+                                    <div class="row" style="display: flex; justify-content: center;">
+                                        <button type="button" id="download-btn">Download</button>
+                                    </div>
                                 </div>
-
-
                             </div>
-
-
                         </div>
-
-
-
                     </div>
                 </div>
-
-
             </div>
             <!-- Tab 2: Another -->
             <div class="tabpanel main-panel" data-panel="another-tab">

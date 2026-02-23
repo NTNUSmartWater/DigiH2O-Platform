@@ -390,9 +390,7 @@ export async function plotTimeSeries(windowContainer, plotDiv, checkboxList, sel
     }
     if (traces.length === 0) { Plotly.purge(plotDiv); return; }
     const layout = {
-        margin: {l: 60, r: 20, t: 50, b: 20}, paper_bgcolor: '#c2bdbdff', plot_bgcolor: '#c2bdbdff',
-        title: { text: chartTitle, x: 0.5, xanchor: 'center', y: 0.95, yanchor: 'top',
-            font: { size: 20, color: 'black', weight: 'bold' } },
+        margin: {l: 60, r: 20, t: 30, b: 20}, paper_bgcolor: '#c2bdbdff', plot_bgcolor: '#c2bdbdff',
         xaxis: {
             title:{text: titleX, font: { size: 16, weight: 'bold', color: 'black' }},
             showgrid: false, linecolor: 'black', tickfont: { color: 'black' },
