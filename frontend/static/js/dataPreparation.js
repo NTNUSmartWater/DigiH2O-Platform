@@ -1,7 +1,7 @@
 import { getState } from "./constants.js";
 import { L, CENTER, ZOOM } from "./mapManager.js";
 import { sendQuery, fillTable, getDataFromTable, deleteTable } from "./tableManager.js";
-import { plotTimeSeries, viewDatafromPlot, saveToExcelFromPlot } from "./utils.js";
+import { plotTimeSeries, viewDatafromPlot, saveToExcelFromPlot, moveWindow } from "./utils.js";
 
 
 const compass = () => document.getElementById('custom_compass_btn');
@@ -14,11 +14,12 @@ const rainfallCheckbox = () => document.getElementById('rainfall-checkbox');
 const evaporationCheckbox = () => document.getElementById('evaporation-checkbox');
 const weirCheckbox = () => document.getElementById('weir-checkbox');
 const stationTable = () => document.getElementById('station-table');
-const stationContainer = () => document.getElementById('station-container');
 const plotContainer = () => document.getElementById('plot-container');
 const plotStart = () => document.getElementById('start-plot');
 const plotEnd = () => document.getElementById('end-plot');
+const plotInterval = () => document.getElementById('interval-plot');
 const plotStationWindow = () => document.getElementById('plot-station-window');
+const plotStationWindowHeader = () => document.getElementById('plot-station-header');
 const plotClose = () => document.getElementById('close-station-plot');
 const plotDiv = () => document.getElementById('station-chart');
 const dropdown = () => document.getElementById("select-object");
@@ -29,9 +30,9 @@ const viewDataBtn = () => document.getElementById('view-station-btn');
 const downloadExcel = () => document.getElementById('download-station-excel');
 const downloadStart = () => document.getElementById('start-download');
 const downloadEnd = () => document.getElementById('end-download');
+const downloadInterval = () => document.getElementById('interval-download');
 const stationSelectedTable = () => document.getElementById('station-selected-table');
 const typeDownload = () => document.getElementById('type-download');
-const intervalDownload = () => document.getElementById('interval-download');
 const typeSelector = () => document.getElementById('type-download');
 const intervalSelector = () => document.getElementById('interval-download');
 const stationSelectedLabel = () => document.getElementById('station-selected-label');
@@ -47,7 +48,7 @@ const hoverTooltip = L.tooltip({
 
 let map = null, waterFlowLayer = null, waterLevelLayer = null,
     overFlowLayer = null, tempLayer = null, preLayer = null,
-    weirLayer = null, evaLayer = null, plotChecked = true, lastSelectedIndex = null;
+    weirLayer = null, evaLayer = null, plotChecked = true;
 
 function setupTabs(root) {
     const buttonPanels = root.querySelectorAll('#main-tabs button');
@@ -205,11 +206,11 @@ async function pointPloter(points, pointType) {
     let inconUrl = `/static_backend/images/station.png?v=${Date.now()}`, note = '';
     if (pointType === 'flow') { inconUrl = `/static_backend/images/water_flow.png?v=${Date.now()}`; }
     else if (pointType === 'level') { inconUrl = `/static_backend/images/water_level.png?v=${Date.now()}`; }
-    else if (pointType === 'overflow') { inconUrl = `/static_backend/images/overflow.png?v=${Date.now()}`; }
-    else if (pointType === 'temperature') { inconUrl = `/static_backend/images/temperature.png?v=${Date.now()}`; }
     else if (pointType === 'rain') { inconUrl = `/static_backend/images/rain.png?v=${Date.now()}`; }
-    else if (pointType === 'evaporation') { `/static_backend/images/evaporation.png?v=${Date.now()}`; }
-    else if (pointType === 'weir') { `/static_backend/images/weir.png?v=${Date.now()}`; }
+    // else if (pointType === 'overflow') { inconUrl = `/static_backend/images/overflow.png?v=${Date.now()}`; }
+    // else if (pointType === 'temperature') { inconUrl = `/static_backend/images/temperature.png?v=${Date.now()}`; }
+    // else if (pointType === 'evaporation') { `/static_backend/images/evaporation.png?v=${Date.now()}`; }
+    // else if (pointType === 'weir') { `/static_backend/images/weir.png?v=${Date.now()}`; }
     const tempLayer = L.geoJSON(points, {
         pointToLayer: (_, latlng) => {
             const marker = L.marker(latlng, {
@@ -223,12 +224,13 @@ async function pointPloter(points, pointType) {
             layer.on('click', async () => { 
                 const id = feature.properties.id, name = feature.properties.name, type = feature.properties.type;
                 if (plotChecked) {
-                    const startTime = plotStart().value, endTime = plotEnd().value;
+                    const startTime = plotStart().value, endTime = plotEnd().value, interval = plotInterval().value;
+                    const titleY = plotInterval().selectedOptions[0].text;
                     startLoading(`Getting raw data for station '${name}'.\nThis takes a while. Please wait...`);
-                    const contents = { id: [id], name: name, mode: type, startTime: startTime, endTime: endTime };
+                    const contents = { id: [id], name: name, mode: type, startTime: startTime, endTime: endTime, interval: interval };
                     const response = await sendQuery('plot_station', contents); stopLoading();
                     if (response.status === "error") { alert(response.message); return; }
-                    const chartTitle = `Station: ${name}`, titleX = 'Time', titleY = 'Raw Value';
+                    const chartTitle = `Station: ${name}`, titleX = 'Time';
                     await plotTimeSeries(plotStationWindow(), plotDiv(), checkboxList(), selectBox(), plotTitle(),
                         response.content, chartTitle, titleX, titleY);
                 } else {
@@ -236,16 +238,16 @@ async function pointPloter(points, pointType) {
                     const exitCheck = tableData.rows.some(row => row.length === data.length &&
                         row.every((value, index) => value === data[index]));
                     if (!exitCheck) { fillTable([data], stationSelectedTable(), false); }
-                    stationSelectedLabel().innerHTML = `Station(s) selected: ${stationSelectedTable().querySelectorAll('tr.selected').length}`;
+                    selectStations(typeSelector().value, stationSelectedTable(), stationSelectedLabel());
                 }
             });
             if (plotChecked) {
-                note = `<hr style="border-top: 1px solid #0414f5; margin: 5px 0 5px 0;">
-                    <span style="display: block; font-weight: bold; text-align: center; line-height: 1.0;">Click to plot raw data</span>`
+                note = `<hr style="border-top: 1px solid #5d5d61ff; margin: 5px 0 5px 0;">
+                    <span style="display: block; font-weight: bold; text-align: center; line-height: 1.0;">Click to plot time-series data</span>`
             } else { note = ''; }
             const content = `<div style="font-size: 14px; border-radius: 10px;">
                 <span style="display: block; text-align: center; font-weight: bold; line-height: 1.0;">${feature.properties.name || 'No name'}</span>
-                <hr style="border-top: 1px solid #0414f5; margin: 5px 0 5px 0;">
+                <hr style="border-top: 1px solid #5d5d61ff; margin: 5px 0 5px 0;">
                 ${Object.entries(feature.properties).filter(([key]) => key !== 'name')
                 .map(([key, value]) => `<span>• ${key}: ${value}</span><br>`).join('')}${note}
             </div>`;
@@ -292,8 +294,9 @@ function createMap() {
 
 function hightlightRows(table) {
     const tbody = table.querySelector('tbody');
+    const trList = Array.from(tbody.querySelectorAll('tr'));
+    let lastSelectedIndex = null;
     tbody.addEventListener('click', (event) => {
-        const trList = Array.from(tbody.querySelectorAll('tr'));
         const tr = event.target.closest('tr');
         if (!tr) return;
         const index = trList.indexOf(tr);
@@ -305,23 +308,40 @@ function hightlightRows(table) {
         } else if (event.ctrlKey || event.metaKey) { // Ctrl/Cmd click
             tr.classList.toggle('selected');
         } else { // Single click
-            tbody.querySelectorAll('tr').forEach(row => row.classList.remove('selected'));
-            tr.classList.add('selected');
+            if (tr.classList.contains('selected')) { tr.classList.remove('selected'); }
+            else { tr.classList.add('selected'); }
         }
         lastSelectedIndex = index;
+        const n = stationSelectedTable().querySelectorAll('tr.selected').length;
+        stationSelectedLabel().innerHTML = `Station(s) selected: ${n}`;
     });
 }
 
-function selectStations() {
-
-
-
+function selectStations(dataType, table, label) {
+    const checkList = [dataType];
+    if (dataType === 'permanent') { checkList.push('permanentTemp'); }
+    const checkSet = new Set(checkList);
+    const rows = table.querySelectorAll('tbody tr');
+    let selectedCount = 0;
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length < 3) return;
+        const input = cells[2].querySelector('input');
+        if (!input) return;
+        const value = input.value.trim();
+        if (checkSet.has(value)) { selectedCount++; row.classList.add('selected');
+        } else { row.classList.remove('selected'); }
+    });
+    if (label.style.display === 'none') { label.style.display = 'flex'; }
+    label.innerHTML = `Station(s) selected: ${selectedCount}`;
 }
 
 function updateManager() {
     if (!map) { createMap(); }; compass().style.display = 'flex';
     const startOfDay = new Date(), now = new Date();
     startOfDay.setHours(0, 0, 0, 0);
+    moveWindow(plotStationWindow, plotStationWindowHeader);
+    hightlightRows(stationSelectedTable());
     plotStart().value = formatDate(startOfDay); plotEnd().value = formatDate(now);
     downloadStart().value = formatDate(startOfDay); downloadEnd().value = formatDate(now);
     plotClose().addEventListener('click', () => { plotStationWindow().style.display = 'none'; });
@@ -330,24 +350,18 @@ function updateManager() {
     });
     document.addEventListener('click', (event) => {
         if (!dropdown().contains(event.target)) checkboxList().style.display = 'none';
-        if (!stationSelectedTable().contains(event.target) && !plotChecked) {
-            const tbody = stationSelectedTable().querySelector('tbody');
-            tbody.querySelectorAll('tr.selected').forEach(row => row.classList.remove('selected'));
-            lastSelectedIndex = null; const n = stationSelectedTable().querySelectorAll('tr.selected').length;
-            stationSelectedLabel().innerHTML = `Station(s) selected: ${n}`;
-        }
     });
     // Toggle tabs
     document.querySelectorAll('[data-tab="regnbyge-tab-1"], [data-tab="regnbyge-tab-2"]').forEach(tab => {
-        tab.addEventListener('click', () => { 
-           const tabName = tab.getAttribute('data-tab');
-           if (tabName === 'regnbyge-tab-1') { 
-            plotChecked = true; deleteTable(stationSelectedTable()); 
-        } else { plotChecked = false; }
-           updateLayerTooltips(waterFlowLayer); updateLayerTooltips(waterLevelLayer);
-           updateLayerTooltips(overFlowLayer); updateLayerTooltips(tempLayer);
-           updateLayerTooltips(preLayer); updateLayerTooltips(evaLayer); updateLayerTooltips(weirLayer);
-        });
+        tab.addEventListener('click', () => {
+            const tabName = tab.getAttribute('data-tab');
+            if (tabName === 'regnbyge-tab-1') { plotChecked = true; deleteTable(stationSelectedTable()); }
+            else { plotChecked = false; }
+            stationSelectedLabel().style.display = 'none';
+            updateLayerTooltips(waterFlowLayer); updateLayerTooltips(waterLevelLayer);
+            updateLayerTooltips(overFlowLayer); updateLayerTooltips(tempLayer);
+            updateLayerTooltips(preLayer); updateLayerTooltips(evaLayer); updateLayerTooltips(weirLayer);
+        }); 
     });
 
     waterFlowCheckbox().addEventListener('change', async (e) => { 
@@ -356,40 +370,25 @@ function updateManager() {
     waterLevelCheckbox().addEventListener('change', async (e) => {
         waterLevelLayer = await loadStations(e.target, stationTable(), 'water level', 'level', waterLevelLayer);
     });
-    overFlowCheckbox().addEventListener('change', async (e) => {
-        overFlowLayer = await loadStations(e.target, stationTable(), 'water overflow', 'overflow', overFlowLayer);
-    });
-    temperatureCheckbox().addEventListener('change', async (e) => {
-        tempLayer = await loadStations(e.target, stationTable(), 'temperature', 'temperature', tempLayer);
-    });
     rainfallCheckbox().addEventListener('change', async (e) => {
         preLayer = await loadStations(e.target, stationTable(), 'rainfall', 'rain', preLayer);
     });
-    evaporationCheckbox().addEventListener('change', async (e) => {
-        evaLayer = await loadStations(e.target, stationTable(), 'evaporation', 'evaporation', evaLayer);
-    });
-    weirCheckbox().addEventListener('change', async (e) => {
-        weirLayer = await loadStations(e.target, stationTable(), 'weir', 'weir', weirLayer);
-    });   
+    // overFlowCheckbox().addEventListener('change', async (e) => {
+    //     overFlowLayer = await loadStations(e.target, stationTable(), 'water overflow', 'overflow', overFlowLayer);
+    // });
+    // temperatureCheckbox().addEventListener('change', async (e) => {
+    //     tempLayer = await loadStations(e.target, stationTable(), 'temperature', 'temperature', tempLayer);
+    // });
+    // evaporationCheckbox().addEventListener('change', async (e) => {
+    //     evaLayer = await loadStations(e.target, stationTable(), 'evaporation', 'evaporation', evaLayer);
+    // });
+    // weirCheckbox().addEventListener('change', async (e) => {
+    //     weirLayer = await loadStations(e.target, stationTable(), 'weir', 'weir', weirLayer);
+    // });
     viewDataBtn().addEventListener('click', () => { viewDatafromPlot(plotDiv()) });
     downloadExcel().addEventListener('click', () => { saveToExcelFromPlot(plotDiv()) });
-    stationSelectedTable().addEventListener('click', (e) => {
-        hightlightRows(stationSelectedTable());
-        const n = stationSelectedTable().querySelectorAll('tr.selected').length;
-        stationSelectedLabel().innerHTML = `Station(s) selected: ${n}`;
-    });
-    typeSelector().addEventListener('change', () => { 
-        const downloadType = typeDownload().value, downloadInterval = intervalDownload().value;
-
-
-        stationSelectedLabel().innerHTML = `Station(s) selected: ${stationSelectedTable().querySelectorAll('tr.selected').length}`;
-    });
-    intervalSelector().addEventListener('change', () => { 
-        const downloadInterval = intervalDownload().value, downloadType = typeDownload().value;
-
-
-
-        stationSelectedLabel().innerHTML = `Station(s) selected: ${stationSelectedTable().querySelectorAll('tr.selected').length}`;
+    typeSelector().addEventListener('change', () => {
+        selectStations(typeDownload().value, stationSelectedTable(), stationSelectedLabel());
     });
     downloadBtn().addEventListener('click', async () => { 
         // e.preventDefault(); downloadBtn().blur();
@@ -397,11 +396,11 @@ function updateManager() {
         const n = stationSelectedTable().querySelectorAll('tr.selected').length;
         if (tableData.rows.length === 0 || n === 0) { alert('No stations to download.'); return; }
         const startTime = downloadStart().value, endTime = downloadEnd().value;
-        const downloadType = typeDownload().value, downloadInterval = intervalDownload().value;
+        const downloadType = typeDownload().value, interval = downloadInterval().value;
         const stations = stationSelectedTable().querySelectorAll('tr.selected');
         startLoading(`Downloading data.\nThis takes a while. Please wait...`);
         const contents = { projectName: getState().currentProject,
-            downloadType: downloadType, downloadInterval: downloadInterval,
+            downloadType: downloadType, downloadInterval: interval,
             startTime: startTime, endTime: endTime, stations: stations };
         const response = await sendQuery('download_station', contents); stopLoading();
         alert(response.message);

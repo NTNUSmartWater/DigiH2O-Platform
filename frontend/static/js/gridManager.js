@@ -110,7 +110,7 @@ function createLakeMap() {
     L.control.scale({imperial: false, metric: true, maxWidth: 200}).addTo(lakeMap);
     setTimeout(() => { lakeMap.invalidateSize(); }, 0); mapContainer = lakeMap.getContainer();
     lakeMap.on('mousemove', function (e) { 
-        mapContainer.style.cursor = "auto";
+        mapContainer.style.cursor = "grab";
         if (refineChecked) {
             if (pointContainer.length === 0) { html = "Select start point to refine."; }
             hoverTooltip.setLatLng(e.latlng).setContent(html);
@@ -489,8 +489,7 @@ async function dataPreparationManager(){
             tableContent().style.display = "none"; menuContent().style.display = "none";
             colorbar_container_grid().style.display = 'none'; lakeSelector().style.display = "none";
             dataLake = response.content.lake; dataDepth = response.content.depth;
-            lakeLayer = clearMap(lakeLayer); lakeLayer = polygonPlotter(dataLake);
-            return;
+            lakeLayer = clearMap(lakeLayer); lakeLayer = polygonPlotter(dataLake, true); orthoLayer = clearMap(orthoLayer); return;
         }
         lakeSelector().innerHTML = lakesData[selectedLake].map(name => `<option value="${name}">${name}</option>`).join('');
         lakeSelector().value = lakesData[selectedLake][0]; lakeSelector().dispatchEvent(new Event('change'));

@@ -5,7 +5,7 @@ import { timeControl, colorbar_container, colorbar_vector_container, plot2DMapDy
 import { generalOptionsManager, summaryWindow } from './generalOptionManager.js';
 import { spatialMapManager, substanceWindowHis, substanceWindowMap } from './spatialMapManager.js';
 import { sendQuery } from './tableManager.js';
-import { fileUploader, plotTimeSeries } from './utils.js';
+import { fileUploader, plotTimeSeries, moveWindow } from './utils.js';
 import { getState, resetState, setState } from './constants.js';
 
 
@@ -171,23 +171,6 @@ async function initializeMenu(){
             pm.classList.add('show');
         };
     })
-}
-
-function moveWindow(window, header){
-    let dragging = false, offsetX = 0, offsetY = 0;
-    header().addEventListener("mousedown", function(e) {
-        dragging = true;
-        offsetX = e.clientX - window().offsetLeft;
-        offsetY = e.clientY - window().offsetTop;
-        e.preventDefault();
-    });
-    header().addEventListener("mouseup", function() { dragging = false; });
-    document.addEventListener("mousemove", function(e) {
-        if (dragging) {
-            window().style.left = (e.clientX - offsetX) + "px";
-            window().style.top = (e.clientY - offsetY) + "px";
-        }
-    });
 }
 
 function iframeInit(scr, objWindow, objHeader, objContent, title){

@@ -71,7 +71,9 @@ async def load_lakes(request: Request, user=Depends(functions.basic_auth)):
         else: lake_data, depth_data = lake_db.copy(), None
         lake_data["geometry"] = lake_data.geometry.apply(lambda geo: gridFunctions.remove_holes(geo, None))
         temp = lake_data.copy().to_crs(lake_data.estimate_utm_crs())
-        lake_data['perimeter'] = round(temp.geometry.apply(lambda g: g.exterior.length), 2)
+        lake_data['perimeter'] = temp.geometry.apply(
+            lambda g: round(g.exterior.length if isinstance(g, Polygon)
+                            else sum(p.exterior.length for p in g.geoms), 2))
         project_cache['lake'], project_cache['depth'] = lake_data, depth_data
         contents = {'lake': json.loads(lake_data.to_json()), 
             'depth': json.loads(depth_data.to_json()) if depth_data is not None else None}

@@ -330,23 +330,6 @@ async function loadWAQLoads() {
 }
 
 // ============================ Path Manager ============================
-export function moveWindow(window, header){
-    let dragging = false, offsetX = 0, offsetY = 0;
-    header().addEventListener("mousedown", function(e) {
-        dragging = true;
-        offsetX = e.clientX - window().offsetLeft;
-        offsetY = e.clientY - window().offsetTop;
-        e.preventDefault();
-    });
-    header().addEventListener("mouseup", function() { dragging = false; });
-    document.addEventListener("mousemove", function(e) {
-        if (dragging) {
-            window().style.left = (e.clientX - offsetX) + "px";
-            window().style.top = (e.clientY - offsetY) + "px";
-        }
-    });
-}
-
 export function updatePathManager() {
     pathQuery().checked = getState().isPathQuery;
     if (getState().isPathQuery === false) deActivePathQuery();

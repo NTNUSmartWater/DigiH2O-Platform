@@ -15,6 +15,23 @@ export function nameChecker(name) {
     return !/^[A-Za-z0-9_-]+$/.test(name);
 }
 
+export function moveWindow(window, header){
+    let dragging = false, offsetX = 0, offsetY = 0;
+    header().addEventListener("mousedown", function(e) {
+        dragging = true;
+        offsetX = e.clientX - window().offsetLeft;
+        offsetY = e.clientY - window().offsetTop;
+        e.preventDefault();
+    });
+    header().addEventListener("mouseup", function() { dragging = false; });
+    document.addEventListener("mousemove", function(e) {
+        if (dragging) {
+            window().style.left = (e.clientX - offsetX) + "px";
+            window().style.top = (e.clientY - offsetY) + "px";
+        }
+    });
+}
+
 export function decodeArray(base64Str, n_decimals=3) {
     // Convert base64 to ArrayBuffer
     const binaryStr = atob(base64Str);

@@ -1,9 +1,9 @@
 import { startLoading, showLeafletMap} from "./mapManager.js";
 import { loadData, splitLines, viewDatafromPlot, plotTimeSeries,
-    saveToExcelFromPlot, getColors, valueFormatter } from "./utils.js";
+    saveToExcelFromPlot, getColors, valueFormatter, moveWindow } from "./utils.js";
 import { getState, setState } from "./constants.js";
 import { sendQuery } from "./tableManager.js";
-import { deActivePathQuery, moveWindow } from "./generalOptionManager.js";
+import { deActivePathQuery } from "./generalOptionManager.js";
 
 let Dragging = false, colorTicks = [], colorTickLabels = [], animationToken = 0;
 let animating = false, frameIndex = 0, duration, nColors;

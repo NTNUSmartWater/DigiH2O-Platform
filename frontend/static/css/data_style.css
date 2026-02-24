@@ -59,7 +59,7 @@ body {
 .tabs--sub .tabs__content { padding: 16px; }
 
 /* ===== Grid / Tile ===== */
-.grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-top: 10px; }
+.grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-top: 0; }
 .tile { grid-column: span 1; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
 @media (max-width: 900px) { .tile { grid-column: span 6; } }
 @media (max-width: 640px) { .tile { grid-column: span 12; } }
@@ -83,23 +83,26 @@ body {
 
 .control-tab {
   margin-left: 0; display: flex; flex-direction: column;
-  gap: 10px; padding-right: 5px; margin-right: 10px;
+  gap: 10px; padding-right: 5px; margin-right: 10px; margin-top: 5px;
+}
+.control-tab label {
+  font-size: 14px; color: var(--text); font-weight: 500; margin-top: 5px;
 }
 .checkbox-right { display: flex; align-items: center; gap: 10px; }
 /* ===== Table ===== */
 .attributes-table {
-  width: 100%; border-collapse: collapse; table-layout: fixed;
+  width: 100%; border-collapse: collapse; table-layout: fixed;  font-size: 13px;
 }
 .attributes-table thead { position: sticky; top: 0; z-index: 2; }
 .attributes-table tbody {
-  display: block; max-height: 160px; overflow-y: auto; width: 100%;
+  display: block; max-height: 110px; overflow-y: auto; width: 100%;
 }
 .attributes-table thead tr, .attributes-table tbody tr {
   display: table; width: 100%; table-layout: fixed;
 }
 .attributes-table th, .attributes-table td {
-  border: 1px solid var(--border); padding: 6px 8px; text-align: center;
-  color: var(--text); font-weight: 500; font-size: 14px;
+  border: 1px solid var(--border); padding: 2px 4px; text-align: center;
+  color: var(--text); font-size: 12px;
 }
 .attributes-table th { background: rgba(255,255,255,0.05); }
 .attributes-table td input {

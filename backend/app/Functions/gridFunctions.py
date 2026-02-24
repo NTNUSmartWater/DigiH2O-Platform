@@ -1,7 +1,7 @@
 import os, warnings, pickle, optuna
 import geopandas as gpd, numpy as np
 from config import STATIC_DIR_BACKEND
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, MultiPolygon
 from meshkernel import MeshKernel, GeometryList, OrthogonalizationParameters
 from meshkernel.errors import MeshKernelError
 from Functions import functions
@@ -36,11 +36,16 @@ def loadLakes(lake_path=None, depth_path=None):
 def remove_holes(geom, cell_size=0):
     geom = geom.buffer(0)
     if (cell_size == None): cell_size = geom.area
-    if geom.geom_type != "Polygon": return geom
-    kept_interiors = [ ring for ring in geom.interiors
-        if Polygon(ring).area >= cell_size
-    ]
-    return Polygon(geom.exterior, kept_interiors)
+    if geom.geom_type == "Polygon":
+        kept_interiors = [ring for ring in geom.interiors if Polygon(ring).area >= cell_size]
+        return Polygon(geom.exterior, kept_interiors)
+    elif geom.geom_type == "MultiPolygon":
+        polygons = []
+        for poly in geom.geoms:
+            kept_interiors = [ring for ring in poly.interiors if Polygon(ring).area >= cell_size]
+            polygons.append(Polygon(poly.exterior, kept_interiors))
+        return MultiPolygon(polygons)
+    else: return geom
 
 def sort_face_ccw(nodes, x, y):
     xs = x[nodes]

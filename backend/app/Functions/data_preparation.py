@@ -57,14 +57,14 @@ async def plot_station(request: Request):
     try:
         body = await request.json()
         id, mode, name = body.get('id'), body.get('mode'), body.get('name')
-        start, end = body.get('startTime'), body.get('endTime')
+        start, end, interval = body.get('startTime'), body.get('endTime'), body.get('interval')
         start_time = datetime.strptime(start, '%Y-%m-%d %H:%M:%S')
         end_time = datetime.strptime(end, '%Y-%m-%d %H:%M:%S')
         if start_time >= end_time:
             return JSONResponse({'status': 'error', 'message': "Error: Start time is later than end time."})
-        df = regnbyge().get_Values(mode, id, fromDate=start_time, toDate=end_time)
+        df = regnbyge().get_Values(mode, id, interval, start_time, end_time)
         if df.empty: 
-            return JSONResponse({'status': 'error', 'message': f"No '{mode}' data for station '{name}' between '{start}' and '{end}'."})
+            return JSONResponse({'status': 'error', 'message': f"No data available for station '{name}' between '{start}' and '{end}'."})
         content = json.loads(df.to_json(orient='split', date_format='iso', indent=3))
         return JSONResponse({'status': 'ok', 'content': content})
     except Exception as e:
