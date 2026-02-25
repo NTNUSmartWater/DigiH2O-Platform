@@ -18,10 +18,10 @@ def loadLakes(lake_path=None, depth_path=None):
         if os.path.exists(lake_db_path):
             lake_db = gpd.read_file(lake_db_path)
             if lake_db.crs != 'EPSG:4326': lake_db = lake_db.to_crs(crs='EPSG:4326')
-            lake_db = lake_db.dropna(subset=['Name', 'Region', 'geometry'])
-            lake_db['Name'] = lake_db['Name'].fillna('Unnamed Lake')
-            lake_db['Region'] = lake_db['Region'].where(lake_db['Region'].notna(), 
-                'Unknown Region' + lake_db["id"].fillna(-1).astype(str))
+            lake_db = lake_db.dropna(subset=['name', 'region', 'geometry'])
+            lake_db['name'] = lake_db['name'].fillna('Unnamed Lake')
+            lake_db['region'] = lake_db['region'].where(lake_db['region'].notna(), 
+                'Unknown Municipality' + lake_db["id"].fillna(-1).astype(str))
             lake_db['id'] = lake_db['id'].astype('int64')
         with open(lake_path, 'wb') as f: pickle.dump(lake_db, f)
     if depth_path is not None:

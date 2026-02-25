@@ -182,11 +182,11 @@ function polygonPlotter(polygon, zoom = false) {
         onEachFeature: (feature, layer) => {
             if (feature.properties && entireNorway) {
                 let tooltip = `
-                    <div style="font-weight: bold; text-align: center;">${feature.properties.Name}</div>
+                    <div style="font-weight: bold; text-align: center;">${feature.properties.name}</div>
                     <hr style="margin: 5px 0 5px 0;">
-                    <strong>Region:</strong> ${feature.properties.Region}<br>
-                    <strong>Area:</strong> ${feature.properties.area} (m²)<br>
-                    <strong>Perimeter:</strong> ${feature.properties.perimeter} (m)
+                    <strong>• Municipality:</strong> ${feature.properties.region}<br>
+                    <strong>• Area:</strong> ${feature.properties.area} (m²)<br>
+                    <strong>• Perimeter:</strong> ${feature.properties.perimeter} (m)
                 `;
                 layer.bindTooltip(tooltip, {sticky: true});
             }
@@ -321,7 +321,7 @@ async function drawPolygon(pointList) {
     if (response.status === "error") { alert(response.message); return; }
     const polygon = response.content.polygon, point = response.content.point;
     const data = polygon.features[0].properties;
-    const contents = [[data.Name, data.Region, data.area, data.perimeter, data.min, data.max, data.avg]];
+    const contents = [[data.name, data.region, data.area, data.perimeter, data.min, data.max, data.avg]];
     fillTable(contents, lakeTable(), true); depthCheckbox().checked = false;
     polygonCheckbox().checked = true; dataLake = polygon;
     lakeMap.eachLayer(layer => { if (!(layer instanceof L.TileLayer)) lakeMap.removeLayer(layer); });
@@ -388,10 +388,8 @@ async function initializeProject(){
         allLi.textContent = "All regions"; allLi.style.fontWeight = "bold";
         allLi.dataset.value = "All regions"; allLi.style.fontSize = "14px";
         allLi.addEventListener('mousedown', () => {
-            regionName().value = allLi.dataset.value;
-            regionList().style.display = "none"; 
-            lakeLabel().style.display = "none";
-            lakeSelector().style.display = "none";
+            regionName().value = allLi.dataset.value; regionList().style.display = "none"; 
+            lakeLabel().style.display = "none"; lakeSelector().style.display = "none";
             regionName().dispatchEvent(new Event('change'));
         });
         regionList().appendChild(allLi);
@@ -503,7 +501,7 @@ async function dataPreparationManager(){
         if (response.status === "error") { alert(response.message); return; }
         dataLake = response.content.lake; dataDepth = response.content.depth;
         createLakeMap(); const data = dataLake.features[0].properties;
-        const contents = [[data.Name, data.Region, data.area, data.perimeter, data.min, data.max, data.avg]];
+        const contents = [[data.name, data.region, data.area, data.perimeter, data.min, data.max, data.avg]];
         tableContent().style.display = "block"; menuContent().style.display = "flex";
         fillTable(contents, lakeTable(), true); lakeSelector().style.display = 'flex';
         depthCheckbox().checked = true; polygonCheckbox().checked = true; orthoCheckbox().checked = false;
@@ -515,7 +513,7 @@ async function dataPreparationManager(){
     // Search lake
     lakeSearcher().addEventListener('click', (e) => { 
         addItems(e.target.value.trim()); regionList().style.display = "none";
-        lakeSelector().style.display = 'none'; regionName().value = ''; resetMap();
+        lakeSelector().style.display = 'none'; regionName().value = '';
     });
     lakeSearcher().addEventListener('input', (e) => {
         clearTimeout(timeOut); addItems(e.target.value.trim()); regionName().value = '';
