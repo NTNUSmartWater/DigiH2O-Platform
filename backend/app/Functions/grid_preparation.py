@@ -9,36 +9,38 @@ from meshkernel import MeshKernel, GeometryList
 
 router, processes = APIRouter(), {}
 
+
 @router.post("/init_lakes")
 async def init_lakes(request: Request, user=Depends(functions.basic_auth)):
     try:
         body = await request.json()
         project_name, _ = functions.project_definer(body.get('projectName'), user)
-        config_dir = os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "config")
-        project_cache = request.app.state.project_cache.setdefault(project_name, {})
-        lake_path = os.path.normpath(os.path.join(config_dir, 'lakes.pkl'))
-        depth_path = os.path.normpath(os.path.join(config_dir, 'depth.pkl'))
-        if not os.path.exists(lake_path): 
-            print("Lake data is not available. Creating a new one...")
-            gridFunctions.loadLakes(lake_path=lake_path)
-        if not os.path.exists(depth_path):
-            print("Depth data is not available. Creating a new one...")
-            gridFunctions.loadLakes(depth_path=depth_path)
+        config_dir = os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "config")        
+        project_cache = request.app.state.project_cache.setdefault(project_name, None)
         if not project_cache:
             print("Project is not available in memory. Creating a new one...")
             request.app.state.project_cache = {}
             project_cache_dict = request.app.state.project_cache
             project_cache = project_cache_dict.setdefault(project_name, {})
         if 'lake_db' not in project_cache:
-            print("Lake data is not available in memory. Reading from file...")
-            with open(lake_path, 'rb') as f: lake_db = pickle.load(f)
+            lake_path = os.path.normpath(os.path.join(config_dir, 'lakes.pkl'))
+            if not os.path.exists(lake_path): 
+                print("Lake data is not available. Creating a new one...")
+                gridFunctions.loadLakes(lake_path=lake_path)
+            else:
+                print("Lake data is not available in memory. Reading from file...")
+                with open(lake_path, 'rb') as f: lake_db = pickle.load(f)
             project_cache['lake_db'] = lake_db
-        else: lake_db = project_cache['lake_db']    
+        else: lake_db = project_cache['lake_db']
         if 'depth_db' not in project_cache:
-            print("Depth data is not available in memory. Reading from file...")    
-            with open(depth_path, 'rb') as f: depth_db = pickle.load(f)
+            depth_path = os.path.normpath(os.path.join(config_dir, 'depth.pkl'))
+            if not os.path.exists(depth_path):
+                print("Depth data is not available. Creating a new one...")
+                gridFunctions.loadLakes(depth_path=depth_path)
+            else:
+                print("Depth data is not available in memory. Reading from file...")    
+                with open(depth_path, 'rb') as f: depth_db = pickle.load(f)
             project_cache['depth_db'] = depth_db
-        else: depth_db = project_cache['depth_db']
         lake_path = os.path.normpath(os.path.join(config_dir, 'lakes.json'))
         if not os.path.exists(lake_path):
             result = lake_db.groupby("region")["name"].apply(list).to_dict()
@@ -57,28 +59,25 @@ async def load_lakes(request: Request, user=Depends(functions.basic_auth)):
         body = await request.json()
         lake = body.get('lakeName')
         project_name, _ = functions.project_definer(body.get('projectName'), user)
-        project_cache = request.app.state.project_cache.setdefault(project_name)
-
-
-
-
-
-
-
-
-
-        if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory."}) 
-        lake_db, depth_db = project_cache.get('lake_db', None), project_cache.get('depth_db', None)
-        if lake_db is None or depth_db is None:
-            print("Lake data is not available in memory. Loading a new one...")
-            config_dir = os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "config")
+        config_dir = os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "config")
+        project_cache = request.app.state.project_cache.setdefault(project_name, None)
+        if project_cache is None:
+            print("Project is not available in memory. Creating a new one...")
+            request.app.state.project_cache = {}
+            project_cache = request.app.state.project_cache.setdefault(project_name, {})
+        lake_db, depth_db = project_cache.get('lake_db', None), project_cache.get('depth_db', None)        
+        if lake_db is None:
+            print("Lake data is not available in memory. Creating a new one...")
             lake_path = os.path.normpath(os.path.join(config_dir, 'lakes.pkl'))
-            depth_path = os.path.normpath(os.path.join(config_dir, 'depth.pkl'))
             if not os.path.exists(lake_path): gridFunctions.loadLakes(lake_path=lake_path)
-            if not os.path.exists(depth_path): gridFunctions.loadLakes(depth_path=depth_path)
             with open(lake_path, 'rb') as f: lake_db = pickle.load(f)
+            project_cache['lake_db'] = lake_db
+        if depth_db is None:
+            print("Depth data is not available in memory. Creating a new one...")
+            depth_path = os.path.normpath(os.path.join(config_dir, 'depth.pkl'))
+            if not os.path.exists(depth_path): gridFunctions.loadLakes(depth_path=depth_path)
             with open(depth_path, 'rb') as f: depth_db = pickle.load(f)
-            project_cache['lake_db'], project_cache['depth_db'] = lake_db, depth_db
+            project_cache['depth_db'] = depth_db
         if lake != 'all':
             lake_data = lake_db[lake_db['name'] == lake].copy()
             if lake_data.empty: return JSONResponse({'status': 'error', 'message': 'Lake not found.'})
@@ -106,21 +105,23 @@ async def load_lakes(request: Request, user=Depends(functions.basic_auth)):
 async def search_lake(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
     project_name, _ = functions.project_definer(body.get('projectName'), user)
-    project_cache = request.app.state.project_cache.setdefault(project_name)
-
-
-
-
-    
-    if not project_cache: return JSONResponse({"status": "error", "message": "Project is not available in memory."})
     config_dir = os.path.join(PROJECT_STATIC_ROOT, project_name, "output", "config")
-    lake_path = os.path.normpath(os.path.join(config_dir, 'lakes_name.json'))
+    lake_path = os.path.normpath(os.path.join(config_dir, 'lakes_name.json'))    
     if not os.path.exists(lake_path):
-        lake_db = project_cache.get('lake_db')
+        project_cache = request.app.state.project_cache.setdefault(project_name, None)
+        if project_cache is None:
+            print("Project is not available in memory. Creating a new one...")
+            request.app.state.project_cache = {}
+            project_cache = request.app.state.project_cache.setdefault(project_name, {})
+            lake_path = os.path.normpath(os.path.join(config_dir, 'lakes.pkl'))
+            if not os.path.exists(lake_path): gridFunctions.loadLakes(lake_path=lake_path)
+            with open(lake_path, 'rb') as f: lake_db = pickle.load(f)
+            project_cache['lake_db'] = lake_db
+        else: lake_db = project_cache.get('lake_db')
         data = np.unique(lake_db['name'].values).tolist()
         # Save the processed lake data
         json.dump(data, open(lake_path, "w", encoding=functions.encoding_detect(lake_path)))
-    else: data = json.loads(open(lake_path, "r", encoding=functions.encoding_detect(lake_path)).read())
+    else: data = json.loads(open(lake_path, "r", encoding=functions.encoding_detect(lake_path)).read())    
     name = body.get('name')
     result = data if name == '' else [x for x in data if name.lower() in x.lower()]
     return JSONResponse({'content': result})

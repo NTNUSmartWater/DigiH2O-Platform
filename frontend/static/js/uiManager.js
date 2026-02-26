@@ -394,12 +394,17 @@ function updateEvents() {
                 projectChecker(); updateStatus().innerHTML = 'Last Option: Data Preparation';
                 const win = window.open('static_frontend/templates/dataPreparation.html', '_blank');
                 if (!win) alert('Please allow popups for opening the page.');
+            } else if (name === 'flow-estimation') {
+                // Flow Estimation
+                projectChecker(); updateStatus().innerHTML = 'Last Option: Flow Estimation';
+                const win = window.open('static_frontend/templates/flowEstimation.html', '_blank');
+                if (!win) alert('Please allow popups for opening the page.');
             } else if (name === 'model-calibration') {
                 // Model Calibration
                 projectChecker(); updateStatus().innerHTML = 'Last Option: Model Calibration';
                 const win = window.open('static_frontend/templates/modelManagement.html', '_blank');
                 if (!win) alert('Please allow popups for opening the page.');
-            } 
+            }
         }
         // Delete GIS layer
         if (e.target.classList.contains('delete-btn')) {

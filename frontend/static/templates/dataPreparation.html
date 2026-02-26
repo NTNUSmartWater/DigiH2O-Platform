@@ -85,7 +85,7 @@
                                     </table>
                                 </div>
                                 <!-- Download period -->
-                                <div class="tile">
+                                <div class="tile" style="min-width: 250px;">
                                     <h3>Download Period</h3>
                                     <div class="row"><label for="start-download">Start download time:</label></div>
                                     <div class="row">
@@ -103,10 +103,9 @@
                                         <label for="type-download">Data type:</label>
                                         <select id="type-download">
                                             <option value="flow">Water Flow</option>
-                                            <option value="overflow">Water Level</option>
-                                            <option value="permanent">Rainfall</option>
+                                            <option value="level">Water Level</option>
+                                            <option value="rain">Rainfall</option>
                                             <!-- <option value="temperature">Temperature</option> -->
-                                            
                                         </select>
                                     </div>
                                     <div class="row inline-row">
@@ -115,7 +114,7 @@
                                             <option value="Raw">Raw data</option>
                                             <option value="Minute">1min data</option>
                                             <option value="FiveMinute">5min data</option>
-                                            <option value="Hour">Hourly data</option>
+                                            <option value="Hour" selected>Hourly data</option>
                                             <option value="Day">Daily data</option>
                                         </select>
                                     </div>
@@ -125,6 +124,11 @@
                                     <div class="row" style="display: flex; justify-content: center;">
                                         <button type="button" id="download-btn">Download</button>
                                     </div>
+                                </div>
+                                <!-- Download List -->
+                                <div class="tile" id="download-list-container" style="grid-column: span 2; flex-direction: column; display: none;">
+                                    <h3>Downloaded File(s)</h3>
+                                    <textarea class="data-textarea" id="download-list" readonly></textarea>
                                 </div>
                             </div>
                         </div>

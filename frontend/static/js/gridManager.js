@@ -383,19 +383,19 @@ async function initializeProject(){
         }
         if (Object.keys(lakesData).length === 0) { await loadLakes(); }
         regionList().innerHTML = '';
-        // Add "All regions" option
+        // Add "All Municipalities" option
         const allLi = document.createElement("li");
-        allLi.textContent = "All regions"; allLi.style.fontWeight = "bold";
-        allLi.dataset.value = "All regions"; allLi.style.fontSize = "14px";
+        allLi.textContent = "All Municipalities"; allLi.style.fontWeight = "bold";
+        allLi.dataset.value = "All Municipalities"; allLi.style.fontSize = "14px";
         allLi.addEventListener('mousedown', () => {
             regionName().value = allLi.dataset.value; regionList().style.display = "none"; 
             lakeLabel().style.display = "none"; lakeSelector().style.display = "none";
             regionName().dispatchEvent(new Event('change'));
         });
         regionList().appendChild(allLi);
-        const allLi1 = document.createElement("hr");
-        allLi1.style.margin = "5px 10px 5px 10px"; allLi1.style.borderTop = "1px solid #0414f5";
-        regionList().appendChild(allLi1);
+        const allHr = document.createElement("hr");
+        allHr.style.margin = "5px 10px 5px 10px"; allHr.style.borderTop = "1px solid #0414f5";
+        regionList().appendChild(allHr);
         Object.keys(lakesData).forEach(p => {
             const li = document.createElement("li");
             li.textContent = p;
@@ -480,7 +480,7 @@ async function dataPreparationManager(){
     regionName().addEventListener('change', async () => {
         const selectedLake = regionName().value.trim(); entireNorway = false;
         if (!selectedLake || selectedLake === "") { return; }
-        if (selectedLake === "All regions" ) {
+        if (selectedLake === "All Municipalities" ) {
             startLoading('Loading Lakes for entire Norway. Please wait...'); entireNorway = true;
             const response = await sendQuery('load_lakes', { projectName: getState().currentProject, lakeName: 'all' }); stopLoading();
             if (response.status === "error") { alert(response.message);  return; }

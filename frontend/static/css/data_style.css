@@ -180,6 +180,11 @@ body {
 .button-wrapper {
   display: flex; justify-content: center; margin-top: 16px;
 }
+.data-textarea {
+  width: 100%; padding: 8px 8px; border-radius: 12px; min-height: 160px;
+  border: 1px solid var(--border); overflow: auto; resize: none;
+  white-space: pre; word-wrap: normal;
+}
 
 .map-container {
   display: flex; flex: 1; padding: 10px 10px 10px 10px; position: relative;

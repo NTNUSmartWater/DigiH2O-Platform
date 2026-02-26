@@ -39,6 +39,8 @@ const stationSelectedLabel = () => document.getElementById('station-selected-lab
 
 
 const downloadBtn = () => document.getElementById('download-btn');
+const downloadListContainer = () => document.getElementById('download-list-container');
+const downloadListArea = () => document.getElementById('download-list');
 
 
 
@@ -174,7 +176,7 @@ function updateLayerTooltips(layerGroup) {
                     ${feature.properties.name || 'No name'}
                 </span>
                 <hr style="border-top:1px solid #0414f5;margin:5px 0;">
-                ${Object.entries(feature.properties).filter(([key]) => key !== 'name')
+                ${Object.entries(feature.properties).filter(([key]) => key !== 'name' && key !== 'mode')
                     .map(([key, value]) => `• ${key}: ${value}<br>`).join('')}
                 ${note}
             </div>`;
@@ -189,7 +191,7 @@ async function loadStations(target, table, label, type, layer) {
     else if (type === 'level') { filter = ['overflow']; }
     const fillter = data.rows.filter(row => !filter.includes(row[1])); layer = clearMap(layer);
     if (target.checked) {
-        startLoading(`Getting ${label} stations.\nThis takes a while (especially the first time). Please wait...`);
+        startLoading(`Getting ${label} stations from Regnbyge.no.\nThis takes a while (especially the first time). Please wait ...`);
         const contents = { projectName: getState().currentProject, key: type };
         const response = await sendQuery('init_station', contents); stopLoading();
         if (response.status === "error") { alert(response.message); target.checked = false; return; }
@@ -222,18 +224,20 @@ async function pointPloter(points, pointType) {
         },
         onEachFeature: (feature, layer) => {
             layer.on('click', async () => { 
-                const id = feature.properties.id, name = feature.properties.name, type = feature.properties.type;
+                const id = feature.properties.id, name = feature.properties.name;
                 if (plotChecked) {
+                    const mode = feature.properties.mode;
                     const startTime = plotStart().value, endTime = plotEnd().value, interval = plotInterval().value;
                     const titleY = plotInterval().selectedOptions[0].text;
-                    startLoading(`Getting raw data for station '${name}'.\nThis takes a while. Please wait...`);
-                    const contents = { id: [id], name: name, mode: type, startTime: startTime, endTime: endTime, interval: interval };
+                    startLoading(`Getting '${plotInterval().selectedOptions[0].text}' for station '${name}'.\nThis takes a while. Please wait...`);
+                    const contents = { id: [id], name: name, mode: mode, startTime: startTime, endTime: endTime, interval: interval };
                     const response = await sendQuery('plot_station', contents); stopLoading();
                     if (response.status === "error") { alert(response.message); return; }
-                    const chartTitle = `Station: ${name}`, titleX = 'Time';
+                    const chartTitle = `Station: ${name} - ${mode}`, titleX = 'Time';
                     await plotTimeSeries(plotStationWindow(), plotDiv(), checkboxList(), selectBox(), plotTitle(),
                         response.content, chartTitle, titleX, titleY);
                 } else {
+                    const type = feature.properties.type;
                     const data = [name, String(id), type], tableData = getDataFromTable(stationSelectedTable(), true);
                     const exitCheck = tableData.rows.some(row => row.length === data.length &&
                         row.every((value, index) => value === data[index]));
@@ -248,7 +252,7 @@ async function pointPloter(points, pointType) {
             const content = `<div style="font-size: 14px; border-radius: 10px;">
                 <span style="display: block; text-align: center; font-weight: bold; line-height: 1.0;">${feature.properties.name || 'No name'}</span>
                 <hr style="border-top: 1px solid #5d5d61ff; margin: 5px 0 5px 0;">
-                ${Object.entries(feature.properties).filter(([key]) => key !== 'name')
+                ${Object.entries(feature.properties).filter(([key]) => key !== 'name' && key !== 'mode')
                 .map(([key, value]) => `<span>• ${key}: ${value}</span><br>`).join('')}${note}
             </div>`;
             layer.bindTooltip(content, { sticky: true, permanent: false, direction: 'bottom', opacity: 1, offset: [0, 10] });
@@ -391,19 +395,40 @@ function updateManager() {
         selectStations(typeDownload().value, stationSelectedTable(), stationSelectedLabel());
     });
     downloadBtn().addEventListener('click', async () => { 
-        // e.preventDefault(); downloadBtn().blur();
         const tableData = getDataFromTable(stationSelectedTable(), true);
         const n = stationSelectedTable().querySelectorAll('tr.selected').length;
         if (tableData.rows.length === 0 || n === 0) { alert('No stations to download.'); return; }
         const startTime = downloadStart().value, endTime = downloadEnd().value;
         const downloadType = typeDownload().value, interval = downloadInterval().value;
-        const stations = stationSelectedTable().querySelectorAll('tr.selected');
-        startLoading(`Downloading data.\nThis takes a while. Please wait...`);
-        const contents = { projectName: getState().currentProject,
-            downloadType: downloadType, downloadInterval: interval,
-            startTime: startTime, endTime: endTime, stations: stations };
-        const response = await sendQuery('download_station', contents); stopLoading();
-        alert(response.message);
+        try { 
+            const dirHandle = await window.showDirectoryPicker();
+            downloadListContainer().style.display = 'flex'; downloadListArea().value = '';
+            for (const file of tableData.rows) {
+                const name = `${file[0]}_${startTime.replace(' ', '_')}-${endTime.replace(' ', '_')}`;
+                downloadListArea().value += `Downloading: ${name} ...\n`;
+                const contents = { mode: downloadType, downloadInterval: interval,
+                    startTime: startTime, endTime: endTime, id: [Number(file[1].trim())] };
+                const response = await sendQuery('download_station', contents);
+                if (response.status === 'error') { 
+                    alert(response.message);
+                    downloadListArea().value += `Error downloading: [${response.message}] \n`;
+                    downloadListArea().value += `Downloading [${name}] is skipped.\n`;
+                    continue; 
+                }
+                let nameSaved = name.replace('Å', 'Â').replace('å', 'aa').replace('Æ', 'Ae').replace('æ', 'ae');
+                nameSaved = nameSaved.replace('Ø', 'oo').replace(/[^a-zA-Z0-9_\-]/g, '_');
+                nameSaved = `${nameSaved}.csv`;
+                const fileHandle = await dirHandle.getFileHandle(nameSaved, {create: true});
+                const writable = await fileHandle.createWritable();
+                await writable.write(JSON.stringify(response.content));
+                await writable.close();
+                downloadListArea().value += `Saved file: ${nameSaved}.\n`;
+            }
+            downloadListArea().value += '\nDownload complete.'; alert('Download complete.');
+        } catch (error) { 
+            alert(error.message || error); downloadListContainer().style.display = 'none';
+            downloadListArea().value = ''; return;
+        }
     });
 }
 

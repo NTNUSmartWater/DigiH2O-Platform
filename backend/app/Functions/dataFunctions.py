@@ -1,5 +1,6 @@
 import os, dotenv, base64, requests, json
 import pandas as pd
+from datetime import datetime
 
 
 
@@ -54,37 +55,44 @@ class Regnbyge():
     def get_Values(self, variable:str, ids:list, agg:str='Raw', fromDate='', toDate=''):
         '''
         agg: Raw, Minute, FiveMinute, Hour, Day
+        fromDate, toDate: 'YYYY-mm-dd HH:MM:SS'
         '''
-        toDate, fromDate = pd.to_datetime(toDate).isoformat(), pd.to_datetime(fromDate).isoformat()
+        if toDate == '': toDate = datetime.now()
+        if fromDate == '': fromDate = toDate - pd.Timedelta(hours=2)
+        start = pd.to_datetime(fromDate).strftime('%Y-%m-%d %H:%M:%S')
+        end = pd.to_datetime(toDate).strftime('%Y-%m-%d %H:%M:%S')
         headers = {'accept': 'application/json', 'Authorization': f'Bearer {self.token}'}
-        data = pd.DataFrame()
-        for id in ids:
-            url = f'{self.url}/{variable}/{id}/values?from={fromDate}&to={toDate}&aggregation={agg}'
-            response = requests.request("GET", url, headers=headers)
-            if response.status_code == 200:
-                data_value = json.loads(response.content)
-                # Create DataFrame from Dictionary
-                df_value = pd.DataFrame.from_dict(data_value['measurements'])
-                if len(df_value)>0:
-                    if variable=='flow': # Using Flow
-                        df_ = pd.DataFrame(data={'timestamp':pd.to_datetime(df_value['t'].values),
-                            'level (m)':df_value['l'].values, 'velocity (m/s)':df_value['v'].values,
-                            'discharge (m³/s)':df_value['q'].values})
-                    elif variable=='level': # Using Level
-                        df_ = pd.DataFrame(data={'timestamp':pd.to_datetime(df_value['t'].values),
-                            'level (m)':df_value['l'].values})
-                    elif variable=='overflow': # Using Overflow
-                        pass
-                    elif variable=='temperature': # Using Temperature
-                        pass
-                    elif variable=='rain': # Using Rainfall
-                        df_ = pd.DataFrame(data={'timestamp':pd.to_datetime(df_value['t'].values),
-                            'rainfall (m)':df_value['r'].values})
-                    elif variable=='evaporation': # Using Evaporation
-                        pass
-                    elif variable=='weir': # Using Weir
-                        pass
-                    data = pd.concat([data, df_])
+        payload = {"ids": ids, "from": start, "to": end, "aggregation": agg}
+        url = f'{self.url}/{variable}/values'
+        try:
+            response = requests.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+        except requests.RequestException: return pd.DataFrame()
+        data, data_value = pd.DataFrame(), response.json()
+        for item in data_value:
+            if 'measurements' not in item or not item['measurements']: continue
+            df_value = pd.DataFrame(item['measurements'])
+            if variable=='flow': # Using Flow
+                df = pd.DataFrame(data={'timestamp':pd.to_datetime(df_value['t'].values),
+                    'level (m)':df_value['l'].values, 'velocity (m/s)':df_value['v'].values,
+                    'discharge (m³/s)':df_value['q'].values})
+            elif variable=='level': # Using Level
+                df = pd.DataFrame(data={'timestamp':pd.to_datetime(df_value['t'].values),
+                    'level (m)':df_value['l'].values})
+            elif variable=='rain': # Using Rainfall
+                df = pd.DataFrame(data={'timestamp':pd.to_datetime(df_value['t'].values),
+                    'rainfall (m)':df_value['r'].values})
+            # elif variable=='overflow': # Using Overflow
+            #     pass
+            # elif variable=='temperature': # Using Temperature
+            #     pass
+
+            # elif variable=='evaporation': # Using Evaporation
+            #     pass
+            # elif variable=='weir': # Using Weir
+            #     pass
+            df['id'] = item['id']
+            data = pd.concat([data, df], ignore_index=True)
         data.reset_index(inplace=True, drop=True)
         data = data.replace(float("nan"), None) # Fill NaN values
         return data
