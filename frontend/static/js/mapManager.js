@@ -1,10 +1,7 @@
-import { getState } from "./constants.js";
+import { getState, L, CENTER, ZOOM } from "./constants.js";
 
 export let map;
 let currentTileLayer = null, timerCounter;
-export const CENTER = [62.476969, 6.471598];
-export const ZOOM = 13;
-export const L = window.L;
 export const loading = () => document.getElementById('loadingOverlay');
 export const leaflet_map = () => document.getElementById('leaflet_map');
 

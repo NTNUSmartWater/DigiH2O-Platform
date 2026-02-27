@@ -1,5 +1,4 @@
-import { getState } from "./constants.js";
-import { L, CENTER, ZOOM } from "./mapManager.js";
+import { getState, L, CENTER, ZOOM } from "./constants.js";
 import { sendQuery, fillTable, getDataFromTable, deleteTable } from "./tableManager.js";
 import { plotTimeSeries, viewDatafromPlot, saveToExcelFromPlot, moveWindow } from "./utils.js";
 
@@ -355,19 +354,19 @@ function updateManager() {
     document.addEventListener('click', (event) => {
         if (!dropdown().contains(event.target)) checkboxList().style.display = 'none';
     });
-    // Toggle tabs
-    document.querySelectorAll('[data-tab="regnbyge-tab-1"], [data-tab="regnbyge-tab-2"]').forEach(tab => {
+    // Toggle sub tabs
+    document.querySelectorAll('[data-tab]').forEach(tab => {
         tab.addEventListener('click', () => {
             const tabName = tab.getAttribute('data-tab');
             if (tabName === 'regnbyge-tab-1') { plotChecked = true; deleteTable(stationSelectedTable()); }
-            else { plotChecked = false; }
+            else if (tabName === 'regnbyge-tab-2') { plotChecked = false; }
+            setTimeout(() => { map.invalidateSize(); }, 10);
             stationSelectedLabel().style.display = 'none';
             updateLayerTooltips(waterFlowLayer); updateLayerTooltips(waterLevelLayer);
             updateLayerTooltips(overFlowLayer); updateLayerTooltips(tempLayer);
             updateLayerTooltips(preLayer); updateLayerTooltips(evaLayer); updateLayerTooltips(weirLayer);
-        }); 
+        });
     });
-
     waterFlowCheckbox().addEventListener('change', async (e) => { 
         waterFlowLayer = await loadStations(e.target, stationTable(), 'water flow', 'flow', waterFlowLayer);
     });
@@ -397,7 +396,7 @@ function updateManager() {
     downloadBtn().addEventListener('click', async () => { 
         const tableData = getDataFromTable(stationSelectedTable(), true);
         const n = stationSelectedTable().querySelectorAll('tr.selected').length;
-        if (tableData.rows.length === 0 || n === 0) { alert('No stations to download.'); return; }
+        if (tableData.rows.length === 0 || n === 0) { alert('No station selected. Please select a station from the map first.'); return; }
         const startTime = downloadStart().value, endTime = downloadEnd().value;
         const downloadType = typeDownload().value, interval = downloadInterval().value;
         try { 
@@ -415,12 +414,12 @@ function updateManager() {
                     downloadListArea().value += `Downloading [${name}] is skipped.\n`;
                     continue; 
                 }
-                let nameSaved = name.replace('Å', 'Â').replace('å', 'aa').replace('Æ', 'Ae').replace('æ', 'ae');
+                let nameSaved = name.replace('Å', 'Aa').replace('å', 'aa').replace('Æ', 'Ae').replace('æ', 'ae');
                 nameSaved = nameSaved.replace('Ø', 'oo').replace(/[^a-zA-Z0-9_\-]/g, '_');
                 nameSaved = `${nameSaved}.csv`;
                 const fileHandle = await dirHandle.getFileHandle(nameSaved, {create: true});
                 const writable = await fileHandle.createWritable();
-                await writable.write(JSON.stringify(response.content));
+                await writable.write("\uFEFF" + response.content);
                 await writable.close();
                 downloadListArea().value += `Saved file: ${nameSaved}.\n`;
             }

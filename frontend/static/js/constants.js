@@ -1,3 +1,6 @@
+export const CENTER = [62.476969, 6.471598];
+export const ZOOM = 13;
+export const L = window.L;
 export const n_decimals = 2;
 export const degree_decimals = 8;
 export const superscriptMap = {

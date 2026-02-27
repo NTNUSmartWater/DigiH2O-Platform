@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Flow Estimation</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=002">
+</head>
+<body>
+    <section class="main-tab">
+        <div class="tabs-header">
+            <div class="tabs-list">
+                <button class="tab-btn" data-tab="input-tab">Inputs<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="another-tab">Another Source<span class="ink"></span></button>
+            </div>
+        </div>
+        <div class="tabs-content">
+            <!-- Tab 1: Inputs -->
+            <div class="main-panel" data-panel="input-tab">
+                <div class="grid">
+                    <div class="single-column">
+                        <label for="start-plot">Start time:</label>
+                        <input type="text" class="datetime" id="start-plot" placeholder="YYYY-mm-dd HH:mm:ss">
+                    </div>
+
+
+                </div>
+
+
+            </div>
+            <!-- Tab 2: Another Source -->
+            <div class="main-panel" data-panel="another-tab">
+
+
+
+
+
+
+            </div>
+        </div>
+        <!-- Add the map -->
+        <div id="map-container">
+            <button type="button" id="compass" style="display: none;">
+                <img src="/static_backend/images/compass.png?v=2"alt="Compass">
+            </button>
+            <div id="leaflet-map"></div>
+
+            <!-- Legend -->
+            <div id="custom-colorbar">
+                <div class="colorbar-wrapper">
+                    <div class="colorbar-title" id="colorbar-title">Legend</div>
+                    <div class="colorbar-gradient" id="colorbar-gradient"></div>
+                    <div class="colorbar-labels" id="colorbar-labels">
+                        <div></div> <!-- max -->
+                        <div></div> <!-- 75% -->
+                        <div></div> <!-- 50% -->
+                        <div></div> <!-- 25% -->
+                        <div></div> <!-- min -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="/static_frontend/js/tooltipManager.js"></script>
+    <script type="module" src="/static_frontend/js/flowEstimation.js"></script>
+    <!-- <script>
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = `/static_frontend/js/dataPreparation.js?v=${Date.now()}`;
+        document.body.appendChild(script);
+    </script> -->
+</body>
+</html>

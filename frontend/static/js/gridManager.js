@@ -1,6 +1,5 @@
 import { sendQuery, renderProjects, fillTable } from "./tableManager.js";
-import { getState } from "./constants.js";
-import { L, CENTER, ZOOM } from "./mapManager.js";
+import { getState, L, CENTER, ZOOM } from "./constants.js";
 import { getColorFromValue, updateColorbar, nameChecker } from "./utils.js";
 
 const selectContainer = () => document.getElementById('select-container');

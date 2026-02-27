@@ -56,6 +56,7 @@ async def plot_station(request: Request):
         df = regnbyge().get_Values(mode, id, interval, start_time, end_time)
         if df.empty: 
             return JSONResponse({'status': 'error', 'message': f"No data available for station '{name}' between '{start}' and '{end}'."})
+        if 'id' in df.columns: df = df.drop(columns=['id'])
         content = json.loads(df.to_json(orient='split', date_format='iso', indent=3))
         return JSONResponse({'status': 'ok', 'content': content})
     except Exception as e:
@@ -77,8 +78,9 @@ async def download_station(request: Request):
         if df.empty: 
             return JSONResponse({'status': 'error', 'message': f"No data available between '{start_time}' and '{end_time}'."})
         if 'id' in df.columns: df = df.drop(columns=['id'])
-        data = json.loads(df.to_json(orient='split', date_format='iso', indent=3))
-        return JSONResponse({'status': 'ok', 'content': data})
+        df['timestamp'] = df['timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S')
+        csv_string = df.to_csv(index=False)
+        return JSONResponse({'status': 'ok', 'content': csv_string})
     except Exception as e:
         print('/download_station:\n==============')
         traceback.print_exc()

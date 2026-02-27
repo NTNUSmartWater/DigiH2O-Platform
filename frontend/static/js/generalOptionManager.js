@@ -1,8 +1,8 @@
 import { loadData, initOptions, splitLines } from './utils.js';
 import { colorbar_title, timeControl, colorbar_container, colorbar_vector_container } from './map2DManager.js';
 import { plotChart, plotProfileSingleLayer, plotProfileMultiLayer } from "./chartManager.js";
-import { getState, setState } from "./constants.js";
-import { startLoading, showLeafletMap, map, L, ZOOM } from "./mapManager.js";
+import { getState, setState, L, ZOOM } from "./constants.js";
+import { startLoading, showLeafletMap, map } from "./mapManager.js";
 import { sendQuery } from './tableManager.js';
 
 

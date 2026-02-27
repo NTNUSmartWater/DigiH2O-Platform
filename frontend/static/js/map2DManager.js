@@ -1,6 +1,6 @@
 import { loadData, getColorFromValue, updateColorbar, updateMapByTime, decodeArray } from "./utils.js";
-import { startLoading, showLeafletMap, L, map } from "./mapManager.js";
-import { arrowShape, getState, setState } from "./constants.js";
+import { startLoading, showLeafletMap, map } from "./mapManager.js";
+import { arrowShape, getState, setState, L } from "./constants.js";
 import { substanceWindowHis } from "./spatialMapManager.js";
 import { sendQuery } from "./tableManager.js";
 
