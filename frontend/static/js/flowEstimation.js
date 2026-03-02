@@ -1,6 +1,6 @@
 import { getState, CENTER, ZOOM, L } from "./constants.js";
-import { sendQuery } from "./tableManager.js";
-import { clearMap, plotGrid } from "./utils.js";
+// import { sendQuery } from "./tableManager.js";
+import { clearMap } from "./utils.js";
 
 const loading = () => document.getElementById('loadingOverlay');
 const leafletMap = () => document.getElementById('leaflet-map');
@@ -87,16 +87,34 @@ function update() {
         terrainInputFile().click();
     });
     terrainInputFile().addEventListener('change', async (event) => { 
-        const file = event.target.files[0], formData = new FormData();
-        if (!file) return; startLoading('Uploading and processing terrain data. Please wait...');
+        const file = event.target.files[0]; if (!file) return;
+        const formData = new FormData();
         formData.append('file', file); formData.append('projectName', getState().projectName);
-        const response = await fetch('/terrain_upload', { method: 'POST', body: formData });
-        const data = await response.json(); stopLoading();
-        if (data.status === 'error') { alert(data.message); return; }
-        terrainLayer = clearMap(terrainLayer, map);
-        terrainLayer = await plotGrid(data.content, map, 'Terrain (m)', colorbar_container(),
-            colorbar_color(), colorbar_title(), colorbar_label(), 'terrain');
-        terrainData = data.content.polygon; terrainInputText().value = file.name; terrainInputFile().value = '';
+        startLoading('Uploading and processing terrain data. Please wait...');
+        try {
+            const response = await fetch('/terrain_upload', { method: 'POST', body: formData });
+            const data = await response.json(); stopLoading();
+            if (data.status === 'error') { alert(data.message); return; }
+            terrainLayer = clearMap(terrainLayer, map);
+            terrainLayer = L.tileLayer(data.content.tile_url, {
+                maxZoom: 18, tileSize: 256, attribution: 'Terrain'
+            }).addTo(map);
+            terrainInputText().value = file.name; terrainInputFile().value = '';
+            // colorbar_container().style.display = 'block';
+            // const polygon = data.content.polygon, vmin = data.content.min, vmax = data.content.max;
+            // const tempGrid = L.geoJSON(polygon, {
+            //     filter: f => f.properties.value !== undefined,
+            //     style: f => {
+            //         const value = f.properties.value;
+            //         const { r, g, b, a } = getColorFromValue(value, vmin, vmax, 'terrain');
+            //         return { fill: true, fillColor: `rgb(${r},${g},${b})`, 
+            //             fillOpacity: a, weight: 0, opacity: 1, stroke: false };
+            //     }
+            // }).addTo(map);
+            // updateColorbar(vmin, vmax, 'Terrain (m)', 'terrain', colorbar_color(), colorbar_title(), colorbar_label());
+        } catch (error) {
+            stopLoading(); alert(`Uploading terrain failed: ${error.message}`);
+        }
     });
 
 
