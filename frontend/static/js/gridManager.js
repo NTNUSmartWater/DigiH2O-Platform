@@ -1,6 +1,6 @@
 import { sendQuery, renderProjects, fillTable } from "./tableManager.js";
 import { getState, L, CENTER, ZOOM } from "./constants.js";
-import { getColorFromValue, updateColorbar, nameChecker } from "./utils.js";
+import { getColorFromValue, updateColorbar, nameChecker, clearMap } from "./utils.js";
 
 const selectContainer = () => document.getElementById('select-container');
 const regionList = () => document.getElementById("project-list");
@@ -44,6 +44,7 @@ const optimizeCloseBtn = () => document.getElementById("optimization-close");
 const chartDiv = () => document.getElementById("myChart-grid");
 const gridName = () => document.getElementById('grid-name');
 const saveGrid = () => document.getElementById('save-grid');
+
 const hoverTooltip = L.tooltip({
     permanent: false, direction: 'bottom',
     sticky: true, offset: [0, 10], className: 'custom-tooltip'
@@ -61,10 +62,6 @@ function startLoading(str = '') {
 }
 function stopLoading() { 
     loadingGrid().style.display = "none"; loadingGrid().style.pointerEvents = "none";
-}
-function clearMap(layer) {
-    if (layer) { lakeMap.removeLayer(layer); }
-    return null;
 }
 
 function toggleMoveMode(targetLayer, enable) {
@@ -158,7 +155,7 @@ function createLakeMap() {
             if (pointContainer.length < 3) { 
                 alert("Polygon must have at least 3 points."); return; 
             }
-            tempLine = clearMap(tempLine); lakeLayer = clearMap(lakeLayer);
+            tempLine = clearMap(tempLine, lakeMap); lakeLayer = clearMap(lakeLayer, lakeMap);
             // Plot polygon
             await drawPolygon(pointContainer); drawChecked = false;
             pointContainer = []; mapContainer.style.cursor = "auto";
@@ -328,7 +325,7 @@ async function drawPolygon(pointList) {
 }
 
 async function polygonRefinement(pointIds) {
-    const refineValue = Number(refinementValue().value); gridLayer = clearMap(gridLayer);
+    const refineValue = Number(refinementValue().value); gridLayer = clearMap(gridLayer, lakeMap);
     if (!Number.isFinite(refineValue) || refineValue <= 0) { alert("Please enter a valid non-negative value."); return; }
     if (pointLayer === null) { alert("No polygon has been found. Select the button 'Get/Reset Vertexes' to draw the original polygon first."); return; }
     const pointCollection = [];
@@ -411,7 +408,7 @@ async function initializeProject(){
         const value = e.target.value.trim();
         if (value !== "") { renderProjects(regionList(), regionName(), Object.keys(lakesData), value); }
         else { 
-            lakeLayer = clearMap(lakeLayer); lakeSelector().value = ""; regionName().value = "";
+            lakeLayer = clearMap(lakeLayer, lakeMap); lakeSelector().value = ""; regionName().value = "";
             lakeLabel().style.display = "none"; lakeSelector().style.display = "none";
             regionName().dispatchEvent(new Event('change'));
         }
@@ -455,7 +452,7 @@ function updateLog(project, progress_bar, progress_text, seconds){
             if (statusRes.status === "finished" || statusRes.status === "stopped") {
                 clearInterval(logInterval); logInterval = null; isRunning = false;
                 if (statusRes.grid) { 
-                    gridLayer = clearMap(gridLayer);
+                    gridLayer = clearMap(gridLayer, lakeMap);
                     gridLayer = await plotUnstructuredGrid(statusRes.grid);
                     orthoCheckbox().checked = true; orthoCheckbox().dispatchEvent(new Event('change'));
                 } else { alert('No grid has been found. Consider running the optimization again.'); }
@@ -475,7 +472,7 @@ function updateLog(project, progress_bar, progress_text, seconds){
 
 async function dataPreparationManager(){
     baseMap = document.getElementById("base-map-select");
-    if (!lakeMap) { createLakeMap(); }; lakeLayer = clearMap(lakeLayer);
+    if (!lakeMap) { createLakeMap(); }; lakeLayer = clearMap(lakeLayer, lakeMap);
     regionName().addEventListener('change', async () => {
         const selectedLake = regionName().value.trim(); entireNorway = false;
         if (!selectedLake || selectedLake === "") { return; }
@@ -486,15 +483,16 @@ async function dataPreparationManager(){
             tableContent().style.display = "none"; menuContent().style.display = "none";
             colorbar_container_grid().style.display = 'none'; lakeSelector().style.display = "none";
             dataLake = response.content.lake; dataDepth = response.content.depth;
-            lakeLayer = clearMap(lakeLayer); lakeLayer = polygonPlotter(dataLake, true); orthoLayer = clearMap(orthoLayer); return;
+            lakeLayer = clearMap(lakeLayer, lakeMap); lakeLayer = polygonPlotter(dataLake, true); 
+            orthoLayer = clearMap(orthoLayer, lakeMap); return;
         }
         lakeSelector().innerHTML = lakesData[selectedLake].map(name => `<option value="${name}">${name}</option>`).join('');
         lakeSelector().value = lakesData[selectedLake][0]; lakeSelector().dispatchEvent(new Event('change'));
     });
     lakeSelector().addEventListener('change', async () => {
         const lakeName = lakeSelector().value; if (!lakeName) return;
-        gridLayer = clearMap(gridLayer); lakeLayer = clearMap(lakeLayer);
-        pointLayer = clearMap(pointLayer); orthoLayer = clearMap(orthoLayer);
+        gridLayer = clearMap(gridLayer, lakeMap); lakeLayer = clearMap(lakeLayer, lakeMap);
+        pointLayer = clearMap(pointLayer, lakeMap); orthoLayer = clearMap(orthoLayer, lakeMap);
         startLoading(`Loading data for lake: ${lakeName}`);
         const response = await sendQuery('load_lakes', { projectName: getState().currentProject, lakeName: lakeName }); stopLoading();
         if (response.status === "error") { alert(response.message); return; }
@@ -505,9 +503,9 @@ async function dataPreparationManager(){
         fillTable(contents, lakeTable(), true); lakeSelector().style.display = 'flex';
         depthCheckbox().checked = true; polygonCheckbox().checked = true; orthoCheckbox().checked = false;
         // Plot lake and depth on map
-        window.depthGridLayer = clearMap(window.depthGridLayer);
+        window.depthGridLayer = clearMap(window.depthGridLayer, lakeMap);
         window.depthGridLayer = gridPlotter(dataLake, dataDepth);
-        lakeLayer = clearMap(lakeLayer); lakeLayer = polygonPlotter(dataLake, true);
+        lakeLayer = clearMap(lakeLayer, lakeMap); lakeLayer = polygonPlotter(dataLake, true);
     });
     // Search lake
     lakeSearcher().addEventListener('click', (e) => { 
@@ -527,7 +525,7 @@ async function dataPreparationManager(){
     polygonCheckbox().addEventListener('change', (e) => {
         if (e.target.checked) { 
             if (lakeLayer === null) { lakeLayer = polygonPlotter(dataLake, true); }
-        } else { lakeLayer = clearMap(lakeLayer); }
+        } else { lakeLayer = clearMap(lakeLayer, lakeMap); }
     });
     depthCheckbox().addEventListener('change', async (e) => {
         if (e.target.checked) {
@@ -539,24 +537,24 @@ async function dataPreparationManager(){
                 stopLoading();
             }
         } else {
-            window.depthGridLayer = clearMap(window.depthGridLayer);
+            window.depthGridLayer = clearMap(window.depthGridLayer, lakeMap);
             colorbar_container_grid().style.display = 'none';
         }
     });
     baseMap.addEventListener('change', () => {
-        const url = baseMap.value.trim(); currentTileLayer = clearMap(currentTileLayer);
+        const url = baseMap.value.trim(); currentTileLayer = clearMap(currentTileLayer, lakeMap);
         currentTileLayer = L.tileLayer(url, {zIndex: 0});
         currentTileLayer.addTo(lakeMap);
         setTimeout(() => { lakeMap.invalidateSize(); }, 0);
     });
     vertexesBtn().addEventListener('click', async () => {
-        gridLayer = clearMap(gridLayer); lakeLayer = clearMap(lakeLayer);
+        gridLayer = clearMap(gridLayer, lakeMap); lakeLayer = clearMap(lakeLayer, lakeMap);
         colorbar_container_grid().style.display = 'none';
         startLoading('Generating Vertexes. Please wait...');
         await new Promise(resolve => setTimeout(resolve, 0));
         const response = await sendQuery('vertex_generator', { projectName: getState().currentProject }); stopLoading();
         if (response.status === "error") { alert(response.message); return; }
-        pointLayer = clearMap(pointLayer); pointLayer = addPointLayer(response.content, false);
+        pointLayer = clearMap(pointLayer, lakeMap); pointLayer = addPointLayer(response.content, false);
         if (!polygonCheckbox().checked) { polygonCheckbox().checked = true; }
         polygonCheckbox().dispatchEvent(new Event('change'));
         orthoCheckbox().checked = false; orthoCheckbox().dispatchEvent(new Event('change'));
@@ -573,9 +571,9 @@ async function dataPreparationManager(){
             refineChecked = true; depthCheckbox().checked = false;
             moveCheckbox().checked = false; moveChecked = false;
             depthCheckbox().dispatchEvent(new Event('change'));
-            orthoLayer = clearMap(orthoLayer); deleteChecked = false;
+            orthoLayer = clearMap(orthoLayer, lakeMap); deleteChecked = false;
             orthoCheckbox().checked = false; orthoCheckbox().dispatchEvent(new Event('change'));
-            pointContainer = []; gridLayer = clearMap(gridLayer);
+            pointContainer = []; gridLayer = clearMap(gridLayer, lakeMap);
             refinementContainer().style.display = 'flex';
             deleteChecked = false; deleteCheckbox().checked = false;
             deleteCheckbox().dispatchEvent(new Event('change'));
@@ -603,8 +601,8 @@ async function dataPreparationManager(){
             const response = await sendQuery('vertex_mover', contents); stopLoading();
             if (response.status === "error") { alert(response.message); return; }
             if (!polygonCheckbox().checked) { polygonCheckbox().checked = true; }
-            lakeLayer = clearMap(lakeLayer); lakeLayer = polygonPlotter(response.content.polygon); 
-            pointLayer = clearMap(pointLayer); pointLayer = addPointLayer(response.content.point, true);
+            lakeLayer = clearMap(lakeLayer, lakeMap); lakeLayer = polygonPlotter(response.content.polygon);
+            pointLayer = clearMap(pointLayer, lakeMap); pointLayer = addPointLayer(response.content.point, true);
         } else { moveChecked = false; toggleMoveMode(pointLayer, false); }
     });
     deleteCheckbox().addEventListener('change', async (e) => {
@@ -614,7 +612,7 @@ async function dataPreparationManager(){
             e.target.checked = false; return;
         }
         moveCheckbox().checked = false; moveChecked = false;
-        pointContainer = []; gridLayer = clearMap(gridLayer); deleteChecked = true; 
+        pointContainer = []; gridLayer = clearMap(gridLayer, lakeMap); deleteChecked = true; 
         orthoCheckbox().checked = false; orthoCheckbox().dispatchEvent(new Event('change'));
         refineChecked = false; refinementCheckbox().checked = false;
         refinementCheckbox().dispatchEvent(new Event('change'));
@@ -643,7 +641,7 @@ async function dataPreparationManager(){
         const contents = { projectName: getState().currentProject, pointCollection: pointCollection, levelValue: levelValue }
         const response = await sendQuery('grid_creator', contents); stopLoading();
         if (response.status === "error") { alert(response.message); return; }
-        gridLayer = clearMap(gridLayer); orthoLayer = clearMap(orthoLayer);
+        gridLayer = clearMap(gridLayer, lakeMap); orthoLayer = clearMap(orthoLayer, lakeMap);
         gridLayer = await plotUnstructuredGrid(response.content);
         moveChecked = false; moveCheckbox().checked = false;
         refineChecked = false; refinementCheckbox().checked = false;
@@ -664,8 +662,8 @@ async function dataPreparationManager(){
             const contents = { projectName: getState().currentProject };
             const response = await sendQuery('grid_ortho', contents); stopLoading();
             if (response.status === "error") { alert(response.message); return; }
-            window.depthGridLayer = clearMap(window.depthGridLayer);
-            orthoLayer = clearMap(orthoLayer); depthCheckbox().checked = false;
+            window.depthGridLayer = clearMap(window.depthGridLayer, lakeMap);
+            orthoLayer = clearMap(orthoLayer, lakeMap); depthCheckbox().checked = false;
             const vmin = response.content.min, vmax = response.content.max, colorKey = 'ortho';
             orthoLayer = L.geoJSON(response.content.data, {
                 pointToLayer: (feature, latlng) => {
@@ -686,7 +684,7 @@ async function dataPreparationManager(){
                 colorbar_title_grid(), colorbar_label_grid());
             colorbar_container_grid().style.display = 'block';
         } else { 
-            orthoLayer = clearMap(orthoLayer);
+            orthoLayer = clearMap(orthoLayer, lakeMap);
             if (!depthCheckbox().checked) { colorbar_container_grid().style.display = 'none'; } 
         }
     });
@@ -699,7 +697,7 @@ async function dataPreparationManager(){
         } else { gridOptimizationContainer().style.display = 'none'; }
     });
     optimizeBtn().addEventListener('click', async () => {
-        progressbarGrid().value = 0; progressTextGrid().innerText = ''; gridLayer = clearMap(gridLayer);
+        progressbarGrid().value = 0; progressTextGrid().innerText = ''; gridLayer = clearMap(gridLayer, lakeMap);
         if (isRunning) { alert("Grid optimization is already running."); return; }
         if (pointLayer === null) { alert("Please generate grid first."); return; }
         const iterations = Number(iterationValue().value);

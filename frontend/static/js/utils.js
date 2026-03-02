@@ -509,3 +509,25 @@ export function saveToExcelFromPlot(plotDiv) {
     // Download the Excel file
     XLSX.writeFile(workbook, `${titleY.split(' (')[0]}.xlsx`);
 }
+
+export async function plotGrid(data, map, title, colorbar_container, colorbar_color,
+    colorbar_title, colorbar_label, colorbarKey='terrain') {
+    colorbar_container.style.display = 'block';
+    const polygon = data.polygon, vmin = data.min, vmax = data.max;
+    const tempGrid = L.geoJSON(polygon, {
+        filter: f => f.properties.value !== undefined,
+        style: f => {
+            const value = f.properties.value;
+            const { r, g, b, a } = getColorFromValue(value, vmin, vmax, colorbarKey);
+            return { fill: true, fillColor: `rgb(${r},${g},${b})`, 
+                fillOpacity: a, weight: 0, opacity: 1, stroke: false };
+        }
+    }).addTo(map);
+    updateColorbar(vmin, vmax, title, colorbarKey, colorbar_color, colorbar_title, colorbar_label);
+    return tempGrid;
+}
+
+export function clearMap(layer, map) {
+    if (layer) { map.removeLayer(layer); }
+    return null;
+}

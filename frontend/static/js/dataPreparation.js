@@ -7,11 +7,11 @@ const compass = () => document.getElementById('custom_compass_btn');
 const loading = () => document.getElementById('loadingOverlay');
 const waterFlowCheckbox = () => document.getElementById('water-flow-checkbox');
 const waterLevelCheckbox = () => document.getElementById('water-level-checkbox');
-const overFlowCheckbox = () => document.getElementById('overflow-checkbox');
-const temperatureCheckbox = () => document.getElementById('temperature-checkbox');
 const rainfallCheckbox = () => document.getElementById('rainfall-checkbox');
-const evaporationCheckbox = () => document.getElementById('evaporation-checkbox');
-const weirCheckbox = () => document.getElementById('weir-checkbox');
+// const overFlowCheckbox = () => document.getElementById('overflow-checkbox');
+// const temperatureCheckbox = () => document.getElementById('temperature-checkbox');
+// const evaporationCheckbox = () => document.getElementById('evaporation-checkbox');
+// const weirCheckbox = () => document.getElementById('weir-checkbox');
 const stationTable = () => document.getElementById('station-table');
 const plotContainer = () => document.getElementById('plot-container');
 const plotStart = () => document.getElementById('start-plot');
@@ -33,15 +33,10 @@ const downloadInterval = () => document.getElementById('interval-download');
 const stationSelectedTable = () => document.getElementById('station-selected-table');
 const typeDownload = () => document.getElementById('type-download');
 const typeSelector = () => document.getElementById('type-download');
-const intervalSelector = () => document.getElementById('interval-download');
 const stationSelectedLabel = () => document.getElementById('station-selected-label');
-
-
 const downloadBtn = () => document.getElementById('download-btn');
 const downloadListContainer = () => document.getElementById('download-list-container');
 const downloadListArea = () => document.getElementById('download-list');
-
-
 
 const hoverTooltip = L.tooltip({
     permanent: false, direction: 'top', sticky: true, offset: [0, -15], className: 'custom-tooltip'
