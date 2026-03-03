@@ -36,6 +36,7 @@ def basic_auth(credentials: HTTPBasicCredentials=Depends(security)):
 def project_definer(old_name, username='admin'):
     new_name = f'{username}/{old_name}' if username!='admin' else 'demo'
     name_id = f'{new_name}/{uuid4()}'
+    if old_name == '': new_name = new_name.rstrip('/')
     return new_name, name_id
 
 def remove_readonly(func, path, excinfo):

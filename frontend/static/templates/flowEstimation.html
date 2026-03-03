@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
-    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=003">
+    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=001">
 </head>
 <body>
     <section class="main-tab">
@@ -28,8 +28,7 @@
                             <button type="button" id="terrain-btn">...</button>
                         </div>
                         <div class="single-row">
-                            <label for="start-plot">Start time:</label>
-                            <input type="text" class="datetime" id="start-plot" placeholder="YYYY-mm-dd HH:mm:ss">
+                            <label class="checkbox-right"><input type="checkbox" id="terrain-checkbox">Show/Hide Terrain</label>
                         </div>
                     
                     
@@ -64,7 +63,7 @@
 
             <!-- Legend -->
             <div id="custom-colorbar">
-                <div class="colorbar-wrapper" id="colorbar-container">
+                <div class="colorbar-wrapper" id="colorbar-container" style="display: none;">
                     <div class="colorbar-title" id="colorbar-title">Legend</div>
                     <div class="colorbar-gradient" id="colorbar-color"></div>
                     <div class="colorbar-labels" id="colorbar-labels">

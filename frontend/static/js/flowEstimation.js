@@ -1,6 +1,6 @@
 import { getState, CENTER, ZOOM, L } from "./constants.js";
 // import { sendQuery } from "./tableManager.js";
-import { clearMap } from "./utils.js";
+import { clearMap, updateColorbar } from "./utils.js";
 
 const loading = () => document.getElementById('loadingOverlay');
 const leafletMap = () => document.getElementById('leaflet-map');
@@ -8,6 +8,7 @@ const compass = () => document.getElementById('compass');
 const terrainInputText = () => document.getElementById('terrain-input-text');
 const terrainInputFile = () => document.getElementById('terrain-input-file');
 const terrainBtn = () => document.getElementById('terrain-btn');
+const terrainCheckbox = () => document.getElementById('terrain-checkbox');
 const colorbar_container = () => document.getElementById('colorbar-container');
 const colorbar_color = () => document.getElementById('colorbar-color');
 const colorbar_title = () => document.getElementById('colorbar-title');
@@ -95,26 +96,25 @@ function update() {
             const response = await fetch('/terrain_upload', { method: 'POST', body: formData });
             const data = await response.json(); stopLoading();
             if (data.status === 'error') { alert(data.message); return; }
+            const vmin = data.content.min, vmax = data.content.max;
             terrainLayer = clearMap(terrainLayer, map);
-            terrainLayer = L.tileLayer(data.content.tile_url, {
-                maxZoom: 18, tileSize: 256, attribution: 'Terrain'
-            }).addTo(map);
+            terrainLayer = L.tileLayer(data.content.tile_url, { maxZoom: 18, tileSize: 256 }).addTo(map);
             terrainInputText().value = file.name; terrainInputFile().value = '';
-            // colorbar_container().style.display = 'block';
-            // const polygon = data.content.polygon, vmin = data.content.min, vmax = data.content.max;
-            // const tempGrid = L.geoJSON(polygon, {
-            //     filter: f => f.properties.value !== undefined,
-            //     style: f => {
-            //         const value = f.properties.value;
-            //         const { r, g, b, a } = getColorFromValue(value, vmin, vmax, 'terrain');
-            //         return { fill: true, fillColor: `rgb(${r},${g},${b})`, 
-            //             fillOpacity: a, weight: 0, opacity: 1, stroke: false };
-            //     }
-            // }).addTo(map);
-            // updateColorbar(vmin, vmax, 'Terrain (m)', 'terrain', colorbar_color(), colorbar_title(), colorbar_label());
+            colorbar_container().style.display = 'flex'; terrainCheckbox().checked = true;
+            updateColorbar(vmin, vmax, 'Terrain (m)', 'terrain',
+                colorbar_color(), colorbar_title(), colorbar_label());
         } catch (error) {
-            stopLoading(); alert(`Uploading terrain failed: ${error.message}`);
+            stopLoading(); alert(`Uploading terrain failed: ${error.message}`); terrainCheckbox().checked = false;
         }
+    });
+    terrainCheckbox().addEventListener('change', (e) => {
+        if (e.target.checked) {
+            if (!terrainLayer) { 
+                alert('Please upload terrain data first.'); 
+                e.target.checked = false; return;
+            }
+            terrainLayer.addTo(map);
+        } else { terrainLayer.remove(); }
     });
 
 

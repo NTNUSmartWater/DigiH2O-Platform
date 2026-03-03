@@ -113,27 +113,33 @@ export function interpolateValue(location, centroids, power = 5, maxDistance = I
 
 // Convert value to color
 export function getColorFromValue(value, vmin, vmax, colorbarKey) {
-    if (typeof value !== 'number' || isNaN(value)) {
-        return { r: 150, g: 150, b: 150, a: 0 };
+    if (typeof value !== 'number' || isNaN(value) || 
+        value === null || value < vmin || value > vmax) {
+        return { r: 0, g: 0, b: 0, a: 0 };
     }
     if (vmin === vmax) return { r: 0, g: 0, b: 100, a: 1 };
     // Minimum difference
     const minDiff = 1e-2, epsilon = 1e-6;
     if (vmax - vmin < minDiff) vmax = vmin + minDiff;
-    let t0, t1, colors;
-    if (vmin + epsilon <=0 || vmax + epsilon <=0) { // avoid zero division error for vmin or vmax = 0
-        t0 = (value - vmin) / (vmax - vmin);
-    } else {
-        t0 = (Math.log(value + epsilon) - Math.log(vmin + epsilon)) / (Math.log(vmax + epsilon) - Math.log(vmin + epsilon));
+    let t0, t, colors;
+    if (colorbarKey === "terrain") { t0 = (value - vmin) / (vmax - vmin); }
+    else {
+        // avoid zero division error for vmin or vmax = 0
+        if (vmin + epsilon <=0 || vmax + epsilon <=0) { 
+            t0 = (value - vmin) / (vmax - vmin);
+        } else {
+            t0 = (Math.log(value + epsilon) - Math.log(vmin + epsilon)) / 
+            (Math.log(vmax + epsilon) - Math.log(vmin + epsilon));
+        }
     }
-    t1 = 1 - Math.max(0, Math.min(1, t0));
+    t = 1 - Math.max(0, Math.min(1, t0));
     if (colorbarKey === "depth") { // used for depth
         colors = [
             { r: 160, g: 216, b: 239 },  // very light blue
             { r: 80,  g: 180, b: 220 },  // light blue
             { r: 0,   g: 119, b: 190 },  // medium blue
             { r: 0,   g: 70,  b: 130 },  // dark blue
-            { r: 0,   g: 25,  b: 51  },  // very dark blue
+            { r: 0,   g: 25,  b: 51  }   // very dark blue
         ];
     } else if (colorbarKey === "vector") { // used for vector
         colors = [
@@ -143,17 +149,26 @@ export function getColorFromValue(value, vmin, vmax, colorbarKey) {
             { r: 255, g: 0,   b: 255 },  // magenta
             { r: 255, g: 255, b: 255 }   // white
         ];
+    } else if (colorbarKey === "terrain") { // used for terrain
+        t = 1 - t;
+        colors = [
+            { r: 0,   g: 70,  b: 0   },   // dark green
+            { r: 120, g: 180, b: 0   },   // green
+            { r: 210, g: 185, b: 139 },   // tan
+            { r: 139, g: 90,  b: 43  },   // brown
+            { r: 255, g: 255, b: 255 }    // white
+        ];
     } else { // used for temperature, salinity, contaminant, ...
         colors = [
             { r: 255, g: 0,   b: 0   },    // red
             { r: 255, g: 165, b: 0   },   // orange
             { r: 255, g: 255, b: 0   },   // yellow
             { r: 100, g: 150, b: 255 },   // light blue 
-            { r: 0,   g: 0,   b: 255 },   // blue
+            { r: 0,   g: 0,   b: 255 }    // blue
         ];
     }
     const binCount = colors.length - 1;
-    const scaledT = t1 * binCount;
+    const scaledT = t * binCount;
     const lower = Math.floor(scaledT);
     const upper = Math.min(colors.length - 1, lower + 1);
     const frac = scaledT - lower;

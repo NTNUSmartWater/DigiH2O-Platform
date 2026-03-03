@@ -47,7 +47,10 @@ body {
   transition: transform .25s ease; opacity: .85; pointer-events: none;
 }
 .tab-btn[aria-selected="true"] .ink { transform: scaleX(1); }
-.tabs-content { padding: 5px; flex: 0 0 auto; }
+.tabs-content { 
+  padding: 5px; flex: 0 0 auto; border-radius: 5px; 
+  background-color: #535961; margin: 5px; overflow: auto;
+}
 
 #map-container {
   display: flex; flex: 1; padding: 5px; position: relative;
@@ -66,7 +69,7 @@ body {
 }
 
 #custom-colorbar {
-  position: absolute; top: 100px; right: 15px; z-index: 1000; display: none;
+  position: absolute; top: 100px; right: 15px; z-index: 1000;
 }
 .colorbar-wrapper {
   display: flex; flex-direction: row; align-items: center; gap: 6px;
@@ -95,14 +98,25 @@ body {
 .single-row { display: flex; align-items: center; gap: 8px; }
 .single-row label { display: flex; width: 130px; padding: 8px; }
 .single-row input { 
-  padding: 8px; border-radius: 12px;
+  padding: 8px; border-radius: 12px; width: 150px;
   border: 1px solid var(--border); background: var(--card); 
   color: var(--text); outline: none; box-sizing: border-box;
 }
-.single-row button { font-size: 17px; font-weight: bold; cursor: pointer; }
+.single-row button { font-size: 16px; font-weight: bold; cursor: pointer; }
+.single-row { font-size: 15px; cursor: pointer; }
+.checkbox-right {
+  display: flex; align-items: center; gap: 0.5em; white-space: nowrap;
+}
+.checkbox-right input[type="checkbox"] { margin: 0; }
+
+
 
 
 /* 
+
+
+
+
 @media (max-width: 900px) { .tile { grid-column: span 6; } }
 @media (max-width: 640px) { .tile { grid-column: span 12; } }
 .tile h3 { margin: 0 0 10px 0; font-size: 17px; }
