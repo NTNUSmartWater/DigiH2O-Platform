@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
-    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=001">
+    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=010">
 </head>
 <body>
     <section class="main-tab">
@@ -19,21 +19,39 @@
             <!-- Tab 1: Terrain Analysis -->
             <div class="main-panel" data-panel="terrain-tab">
                 <div class="grid">
-                    <!-- Stations -->
-                    <div class="tile">
+                    <div class="tile"><h3>Import</h3>
                         <div class="single-row">
                             <label for="terrain-input">Terrain Data:</label>
                             <input type="file" id="terrain-input-file" accept=".tif" hidden>
-                            <input type="text" id="terrain-input-text" placeholder="No file selected">
+                            <input type="text" id="terrain-input-text" placeholder="No file selected" readonly>
                             <button type="button" id="terrain-btn">...</button>
                         </div>
-                        <div class="single-row">
-                            <label class="checkbox-right"><input type="checkbox" id="terrain-checkbox">Show/Hide Terrain</label>
-                        </div>
-                    
-                    
+                        <label class="checkbox-right"><input type="checkbox" id="terrain-checkbox">Show/Hide Terrain</label>
                     </div>
-                    
+                    <div class="tile"><h3>Terrain Processing</h3>
+                        <div class="checkbox-grid">
+                            <div class="checkbox-column">
+                                <button type="button" id="terrain-fill-btn">1. Fill sinks/depressions</button>
+                                <label class="checkbox-right"><input type="checkbox" id="terrain-fill-checkbox" style="align-items: center;">Show/Hide</label>
+                            </div>
+                            <div class="checkbox-column">
+                                <button type="button" id="terrain-direction-btn">2. Flow direction</button>
+                                <label class="checkbox-right"><input type="checkbox" id="terrain-direction-checkbox">Show/Hide</label>
+                            </div>
+                            <div class="checkbox-column">
+                                <button type="button" id="terrain-accumulation-btn">3. Flow accumulation</button>
+                                <label class="checkbox-right"><input type="checkbox" id="terrain-accumulation-checkbox">Show/Hide</label>
+                            </div>
+                            <div class="checkbox-column">
+                                <button type="button" id="terrain-watershed-btn">4. Watershed</button>
+                                <label class="checkbox-right"><input type="checkbox" id="terrain-watershed-checkbox">Show/Hide</label>
+                            </div>
+                        </div>
+                    </div>
+
+
+
+
 
 
                 </div>

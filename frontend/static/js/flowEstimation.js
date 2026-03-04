@@ -1,5 +1,5 @@
 import { getState, CENTER, ZOOM, L } from "./constants.js";
-// import { sendQuery } from "./tableManager.js";
+import { sendQuery } from "./tableManager.js";
 import { clearMap, updateColorbar } from "./utils.js";
 
 const loading = () => document.getElementById('loadingOverlay');
@@ -9,6 +9,13 @@ const terrainInputText = () => document.getElementById('terrain-input-text');
 const terrainInputFile = () => document.getElementById('terrain-input-file');
 const terrainBtn = () => document.getElementById('terrain-btn');
 const terrainCheckbox = () => document.getElementById('terrain-checkbox');
+const fillCheckbox = () => document.getElementById('terrain-fill-checkbox');
+const flowDirectionCheckbox = () => document.getElementById('terrain-direction-checkbox');
+const flowAccumulationCheckbox = () => document.getElementById('terrain-accumulation-checkbox');
+const watershedCheckbox = () => document.getElementById('terrain-watershed-checkbox');
+
+
+
 const colorbar_container = () => document.getElementById('colorbar-container');
 const colorbar_color = () => document.getElementById('colorbar-color');
 const colorbar_title = () => document.getElementById('colorbar-title');
@@ -20,7 +27,7 @@ const colorbar_label = () => document.getElementById('colorbar-labels');
 
 
 
-let map = null, terrainData = null, terrainLayer = null;
+let map = null, terrainLayer = null, fillLayer = null;
 
 function setupTabs(root) {
     const buttonPanels = root.querySelectorAll('.tab-btn');
@@ -83,7 +90,6 @@ function update() {
     if (!map) { createMap(); }; compass().style.display = 'flex';
     terrainBtn().addEventListener('click', () => { 
         terrainInputText().value = ''; terrainInputFile().value = '';
-        terrainData = clearMap(terrainLayer, map);
         colorbar_container().style.display = 'none';
         terrainInputFile().click();
     });
@@ -98,8 +104,8 @@ function update() {
             if (data.status === 'error') { alert(data.message); return; }
             const vmin = data.content.min, vmax = data.content.max;
             terrainLayer = clearMap(terrainLayer, map);
-            terrainLayer = L.tileLayer(data.content.tile_url, { maxZoom: 18, tileSize: 256 }).addTo(map);
-            terrainInputText().value = file.name; terrainInputFile().value = '';
+            terrainLayer = L.tileLayer(data.content.tile_url, { tileSize: 256 }).addTo(map);
+            terrainInputText().value = file.name; event.target.value = '';
             colorbar_container().style.display = 'flex'; terrainCheckbox().checked = true;
             updateColorbar(vmin, vmax, 'Terrain (m)', 'terrain',
                 colorbar_color(), colorbar_title(), colorbar_label());
@@ -115,6 +121,26 @@ function update() {
             }
             terrainLayer.addTo(map);
         } else { terrainLayer.remove(); }
+    });
+    fillCheckbox().addEventListener('change', async (e) => {
+        if (e.target.checked) { 
+            const layerCheck = terrainInputText().value;
+            if (layerCheck === '') { 
+                alert('Please upload terrain data first.'); 
+                e.target.checked = false; return;
+            }
+            startLoading(`Running fill algorithm. Please wait ...`);
+            const contents = { projectName: getState().projectName, filename: layerCheck };
+            const response = await sendQuery('fill_terrain', contents); stopLoading();
+            terrainCheckbox().checked = false; terrainCheckbox().dispatchEvent(new Event('change'));
+            const vmin = response.content.min, vmax = response.content.max;
+            fillLayer = clearMap(fillLayer, map);
+            fillLayer = L.tileLayer(response.content.tile_url, { tileSize: 256 }).addTo(map);
+            colorbar_container().style.display = 'flex';
+            updateColorbar(vmin, vmax, 'Terrain (m)', 'terrain',
+                colorbar_color(), colorbar_title(), colorbar_label());
+            alert(response.message);
+        } else { fillLayer.remove(); }
     });
 
 

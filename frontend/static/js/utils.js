@@ -113,8 +113,7 @@ export function interpolateValue(location, centroids, power = 5, maxDistance = I
 
 // Convert value to color
 export function getColorFromValue(value, vmin, vmax, colorbarKey) {
-    if (typeof value !== 'number' || isNaN(value) || 
-        value === null || value < vmin || value > vmax) {
+    if (typeof value !== 'number' || isNaN(value) || value === null) {
         return { r: 0, g: 0, b: 0, a: 0 };
     }
     if (vmin === vmax) return { r: 0, g: 0, b: 100, a: 1 };
@@ -122,15 +121,12 @@ export function getColorFromValue(value, vmin, vmax, colorbarKey) {
     const minDiff = 1e-2, epsilon = 1e-6;
     if (vmax - vmin < minDiff) vmax = vmin + minDiff;
     let t0, t, colors;
-    if (colorbarKey === "terrain") { t0 = (value - vmin) / (vmax - vmin); }
-    else {
-        // avoid zero division error for vmin or vmax = 0
-        if (vmin + epsilon <=0 || vmax + epsilon <=0) { 
-            t0 = (value - vmin) / (vmax - vmin);
-        } else {
-            t0 = (Math.log(value + epsilon) - Math.log(vmin + epsilon)) / 
-            (Math.log(vmax + epsilon) - Math.log(vmin + epsilon));
-        }
+    // avoid zero division error for vmin or vmax = 0
+    if (vmin + epsilon <=0 || vmax + epsilon <=0 || colorbarKey === "terrain") { 
+        t0 = (value - vmin) / (vmax - vmin);
+    } else {
+        t0 = (Math.log(value + epsilon) - Math.log(vmin + epsilon)) / 
+        (Math.log(vmax + epsilon) - Math.log(vmin + epsilon));
     }
     t = 1 - Math.max(0, Math.min(1, t0));
     if (colorbarKey === "depth") { // used for depth

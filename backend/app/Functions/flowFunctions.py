@@ -1,24 +1,31 @@
-import rasterio, shapely
+import os, rasterio, shapely, tempfile
+from rasterio.shutil import copy as rio_copy
 import geopandas as gpd
+from pysheds.grid import Grid
+from Functions import functions
+
+
+def fill_sink(dtm_path:str, out_path:str):
+    # Load DTM
+    grid = Grid.from_raster(dtm_path)
+    dtm = grid.read_raster(dtm_path)
+    # Fill depressions
+    filled = grid.fill_depressions(dtm)
+    # Resolve flats
+    inflated = grid.resolve_flats(filled)
+    with tempfile.NamedTemporaryFile(suffix=".tif", delete=False) as tmp_file:
+        temp_file = tmp_file.name
+    grid.to_raster(data=inflated, file_name=temp_file)
+    copy_options = dict(
+        driver="COG", compress="LZW", tiled=True,
+        blocksize=256, overview_resampling="average"
+    )
+    rio_copy(temp_file, out_path, **copy_options)
+    functions.safe_remove(temp_file)
 
 
 
 
-def terrain_reader(path: str):
-    polygons, values = [], []
-    with rasterio.open(path) as src:
-        band = src.read(1)
-        transform = src.transform
-        rows, cols = band.shape
-        for row in range(rows):
-            for col in range(cols):
-                value = band[row, col]
-                if value == src.nodata: continue
-                x1, y1 = rasterio.transform.xy(transform, row, col, offset='ul')
-                x2, y2 = rasterio.transform.xy(transform, row, col, offset='lr')
-                poly = shapely.geometry.box(x1, y2, x2, y1)
-                polygons.append(poly)
-                values.append(value)
-    gdf = gpd.GeoDataFrame( {"value": values}, geometry=polygons, crs=src.crs)
-    if (src.crs != 'epsg:4326'): gdf = gdf.to_crs('epsg:4326')
-    return gdf
+
+
+
