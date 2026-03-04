@@ -126,8 +126,44 @@ async def fill_terrain(request: Request, user=Depends(functions.basic_auth)):
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
+@router.post("/fill_check")
+async def fill_check(request: Request, user=Depends(functions.basic_auth)):
+    body = await request.json()
+    file_name = body.get('filename')
+    folder = file_name.rstrip(".tif")
+    project_name, _ = functions.project_definer(body.get('projectName'), user)
+    dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "terrains", folder))
+    status, message = "error", "No fill terrain found. Please upload and fill terrain first."
+    fill_path = os.path.normpath(os.path.join(dir, folder + "_filled.tif"))
+    if os.path.exists(fill_path): status = "ok"
+    return JSONResponse({'status': status, 'message': message})
 
-
+@router.post("/flow_direction")
+async def flow_direction(request: Request, user=Depends(functions.basic_auth)):
+    try:
+        body = await request.json()
+        file_name = body.get('filename')
+        folder = file_name.rstrip(".tif")
+        flow_name, json_file = folder + "_flow.tif", f"{folder}.json"
+        project_name, _ = functions.project_definer(body.get('projectName'), user)
+        dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "terrains", folder))
+        fill_path = os.path.normpath(os.path.join(dir, folder + "_filled.tif"))
+        flow_path = os.path.normpath(os.path.join(dir, flow_name))
+        if os.path.exists(flow_path): functions.safe_remove(flow_path)
+        flowFunctions.flow_direction(fill_path, flow_path)
+        with rasterio.open(flow_path) as src:
+            data = src.read(1, masked=True)
+            global_min, global_max = float(data.min()), float(data.max())
+        meta_path = os.path.normpath(os.path.join(dir, json_file))
+        with open(meta_path, "w") as f:
+            json.dump({"min": global_min, "max": global_max}, f)
+        tile_url = f"/{project_name}/terrain/{folder}/{flow_name}/{{z}}/{{x}}/{{y}}.png"
+        contents = {"tile_url": tile_url, "min": global_min, "max": global_max}
+        return JSONResponse({'status': 'ok', 'content': contents, 'message': "Flow direction successfully."})
+    except Exception as e:
+        print('/flow_direction:\n==============')
+        traceback.print_exc()
+        return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
 
 

@@ -24,7 +24,7 @@ def fill_sink(dtm_path:str, out_path:str):
     functions.safe_remove(temp_file)
 
 
-
+# def flow_direction(fill_path:str, out_path:str):
 
 
 

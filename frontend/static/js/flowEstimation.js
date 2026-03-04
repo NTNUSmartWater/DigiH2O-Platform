@@ -9,7 +9,9 @@ const terrainInputText = () => document.getElementById('terrain-input-text');
 const terrainInputFile = () => document.getElementById('terrain-input-file');
 const terrainBtn = () => document.getElementById('terrain-btn');
 const terrainCheckbox = () => document.getElementById('terrain-checkbox');
+const fillBtn = () => document.getElementById('terrain-fill-btn');
 const fillCheckbox = () => document.getElementById('terrain-fill-checkbox');
+const flowDirectionBtn = () => document.getElementById('terrain-direction-btn');
 const flowDirectionCheckbox = () => document.getElementById('terrain-direction-checkbox');
 const flowAccumulationCheckbox = () => document.getElementById('terrain-accumulation-checkbox');
 const watershedCheckbox = () => document.getElementById('terrain-watershed-checkbox');
@@ -107,10 +109,12 @@ function update() {
             terrainLayer = L.tileLayer(data.content.tile_url, { tileSize: 256 }).addTo(map);
             terrainInputText().value = file.name; event.target.value = '';
             colorbar_container().style.display = 'flex'; terrainCheckbox().checked = true;
-            updateColorbar(vmin, vmax, 'Terrain (m)', 'terrain',
+            updateColorbar(vmin, vmax, 'Raw Terrain (m)', 'terrain',
                 colorbar_color(), colorbar_title(), colorbar_label());
+            terrainCheckbox().disabled = false;
         } catch (error) {
-            stopLoading(); alert(`Uploading terrain failed: ${error.message}`); terrainCheckbox().checked = false;
+            stopLoading(); alert(`Uploading terrain failed: ${error.message}`); 
+            terrainCheckbox().checked = false; terrainCheckbox().disabled = true;
         }
     });
     terrainCheckbox().addEventListener('change', (e) => {
@@ -122,25 +126,61 @@ function update() {
             terrainLayer.addTo(map);
         } else { terrainLayer.remove(); }
     });
-    fillCheckbox().addEventListener('change', async (e) => {
-        if (e.target.checked) { 
-            const layerCheck = terrainInputText().value;
-            if (layerCheck === '') { 
-                alert('Please upload terrain data first.'); 
+    fillBtn().addEventListener('click', async () => {
+        const layerCheck = terrainInputText().value;
+        if (layerCheck === '') { 
+            alert('Please upload terrain data first.'); 
+            fillCheckbox().disabled = true; fillCheckbox().checked = false; return; 
+        } 
+        startLoading(`Running fill algorithm. Please wait ...`);
+        const contents = { projectName: getState().projectName, filename: layerCheck };
+        const response = await sendQuery('fill_terrain', contents); stopLoading();
+        if (response.status === "error") { alert(response.message); return; }
+        terrainCheckbox().checked = false; terrainCheckbox().dispatchEvent(new Event('change'));
+        const vmin = response.content.min, vmax = response.content.max;
+        fillLayer = clearMap(fillLayer, map);
+        fillLayer = L.tileLayer(response.content.tile_url, { tileSize: 256 }).addTo(map);
+        colorbar_container().style.display = 'flex';
+        updateColorbar(vmin, vmax, 'Filled Terrain (m)', 'terrain',
+            colorbar_color(), colorbar_title(), colorbar_label());
+        fillCheckbox().disabled = false; fillCheckbox().checked = true; alert(response.message);
+    });
+    fillCheckbox().addEventListener('change', (e) => {
+        if (e.target.checked) {
+            if (!fillLayer) { 
+                alert('Please upload terrain data and run "Fill sinks/depressions" first.'); 
                 e.target.checked = false; return;
             }
-            startLoading(`Running fill algorithm. Please wait ...`);
-            const contents = { projectName: getState().projectName, filename: layerCheck };
-            const response = await sendQuery('fill_terrain', contents); stopLoading();
-            terrainCheckbox().checked = false; terrainCheckbox().dispatchEvent(new Event('change'));
-            const vmin = response.content.min, vmax = response.content.max;
-            fillLayer = clearMap(fillLayer, map);
-            fillLayer = L.tileLayer(response.content.tile_url, { tileSize: 256 }).addTo(map);
-            colorbar_container().style.display = 'flex';
-            updateColorbar(vmin, vmax, 'Terrain (m)', 'terrain',
-                colorbar_color(), colorbar_title(), colorbar_label());
-            alert(response.message);
+            fillLayer.addTo(map);
         } else { fillLayer.remove(); }
+    });
+    flowDirectionBtn().addEventListener('click', async () => {
+        const layerCheck = terrainInputText().value;
+        if (layerCheck === '') { alert('Please upload terrain data first.'); return; }
+        // Check if fill terrain has been run
+        const fillCheck = await sendQuery('fill_check', { projectName: getState().projectName, filename: layerCheck });
+        if (fillCheck.status === 'error') { alert(fillCheck.message); return; }
+        startLoading(`Running flow direction algorithm. Please wait ...`);
+        const contents = { projectName: getState().projectName, filename: layerCheck };
+        const response = await sendQuery('flow_direction', contents); stopLoading();
+        if (response.status === "error") { alert(response.message); return; }
+        terrainCheckbox().checked = false; terrainCheckbox().dispatchEvent(new Event('change'));
+        const vmin = response.content.min, vmax = response.content.max;
+        flowDirectionLayer = clearMap(flowDirectionLayer, map);
+        flowDirectionLayer = L.tileLayer(response.content.tile_url, { tileSize: 256 }).addTo(map);
+        colorbar_container().style.display = 'flex';
+        updateColorbar(vmin, vmax, 'Flow direction (°)', 'flow_direction',
+            colorbar_color(), colorbar_title(), colorbar_label());
+        flowDirectionCheckbox().disabled = false; flowDirectionCheckbox().checked = true; alert(response.message);
+    });
+    flowDirectionCheckbox().addEventListener('change', (e) => {
+        if (e.target.checked) {
+            if (!flowDirectionLayer) { 
+                alert('Please upload terrain data and run "Flow direction" first.'); 
+                e.target.checked = false; return;
+            }
+            flowDirectionLayer.addTo(map);
+        } else { flowDirectionLayer.remove(); }
     });
 
 
