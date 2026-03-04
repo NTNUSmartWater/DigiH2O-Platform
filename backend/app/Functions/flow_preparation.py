@@ -120,7 +120,7 @@ async def fill_terrain(request: Request, user=Depends(functions.basic_auth)):
             json.dump({"min": global_min, "max": global_max}, f)
         tile_url = f"/{project_name}/terrain/{folder}/{fill_name}/{{z}}/{{x}}/{{y}}.png"
         contents = {"tile_url": tile_url, "min": global_min, "max": global_max}
-        return JSONResponse({'status': 'ok', 'content': contents, 'message': "Fill terrain successfully."})
+        return JSONResponse({'status': 'ok', 'content': contents, 'message': "Run fill terrain successfully."})
     except Exception as e:
         print('/fill_terrain:\n==============')
         traceback.print_exc()
@@ -159,7 +159,7 @@ async def flow_direction(request: Request, user=Depends(functions.basic_auth)):
             json.dump({"min": global_min, "max": global_max}, f)
         tile_url = f"/{project_name}/terrain/{folder}/{flow_name}/{{z}}/{{x}}/{{y}}.png"
         contents = {"tile_url": tile_url, "min": global_min, "max": global_max}
-        return JSONResponse({'status': 'ok', 'content': contents, 'message': "Flow direction successfully."})
+        return JSONResponse({'status': 'ok', 'content': contents, 'message': "Run flow direction successfully."})
     except Exception as e:
         print('/flow_direction:\n==============')
         traceback.print_exc()

@@ -26,25 +26,40 @@
                             <input type="text" id="terrain-input-text" placeholder="No file selected" readonly>
                             <button type="button" id="terrain-btn">...</button>
                         </div>
-                        <label class="checkbox-right" style="margin-top: 20px;"><input type="checkbox" id="terrain-checkbox" disabled>Show/Hide Terrain</label>
+                        <div class="checkbox-column">
+                            <label class="checkbox-right" style="margin-top: 20px; font-size: 16px;">
+                                <input type="radio" name="terrain" value="terrain-raw">Show/Hide Terrain
+                            </label>
+                            <label class="checkbox-right" style="margin-top: 20px; font-size: 16px;">
+                                <input type="radio" name="terrain" value="hide-all" checked>Hide All
+                            </label>
+                        </div>
                     </div>
                     <div class="tile"><h3>Terrain Processing</h3>
                         <div class="checkbox-grid">
                             <div class="checkbox-column">
                                 <button type="button" id="terrain-fill-btn">1. Fill sinks/depressions</button>
-                                <label class="checkbox-right"><input type="checkbox" id="terrain-fill-checkbox" disabled>Show/Hide</label>
+                                <label class="checkbox-right">
+                                    <input type="radio" name="terrain" value="terrain-fill">Show/Hide
+                                </label>
                             </div>
                             <div class="checkbox-column">
                                 <button type="button" id="terrain-direction-btn">2. Flow direction</button>
-                                <label class="checkbox-right"><input type="checkbox" id="terrain-direction-checkbox" disabled>Show/Hide</label>
+                                <label class="checkbox-right">
+                                    <input type="radio" name="terrain" value="terrain-direction">Show/Hide
+                                </label>
                             </div>
                             <div class="checkbox-column">
                                 <button type="button" id="terrain-accumulation-btn">3. Flow accumulation</button>
-                                <label class="checkbox-right"><input type="checkbox" id="terrain-accumulation-checkbox" disabled>Show/Hide</label>
+                                <label class="checkbox-right">
+                                    <input type="radio" name="terrain" value="terrain-accumulation">Show/Hide
+                                </label>
                             </div>
                             <div class="checkbox-column">
                                 <button type="button" id="terrain-watershed-btn">4. Watershed</button>
-                                <label class="checkbox-right"><input type="checkbox" id="terrain-watershed-checkbox" disabled>Show/Hide</label>
+                                <label class="checkbox-right">
+                                    <input type="radio" name="terrain" value="terrain-watershed">Show/Hide
+                                </label>
                             </div>
                         </div>
                     </div>
