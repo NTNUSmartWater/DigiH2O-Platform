@@ -10,9 +10,14 @@ const terrainInputFile = () => document.getElementById('terrain-input-file');
 const terrainBtn = () => document.getElementById('terrain-btn');
 const fillBtn = () => document.getElementById('terrain-fill-btn');
 const flowDirectionBtn = () => document.getElementById('terrain-direction-btn');
-// const flowDirectionCheckbox = () => document.getElementById('terrain-direction-checkbox');
-// const flowAccumulationCheckbox = () => document.getElementById('terrain-accumulation-checkbox');
-// const watershedCheckbox = () => document.getElementById('terrain-watershed-checkbox');
+const flowAccumulationBtn = () => document.getElementById('terrain-accumulation-btn');
+const catchmentExportBtn = () => document.getElementById('export-catchment-btn');
+const pourpointContainer = () => document.getElementById('pourpoint-container');
+const pourpointCheckbox = () => document.getElementById('pourpoint-checkbox');
+const pourpointLat = () => document.getElementById('pourpoint-lat');
+const pourpointLon = () => document.getElementById('pourpoint-lon');
+const pourpointThreshold = () => document.getElementById('pourpoint-threshold');
+const pourpointDist = () => document.getElementById('pourpoint-dist');
 
 
 
@@ -21,17 +26,17 @@ const colorbar_color = () => document.getElementById('colorbar-color');
 const colorbar_title = () => document.getElementById('colorbar-title');
 const colorbar_label = () => document.getElementById('colorbar-labels');
 
-
-
-
-
-
-
 let map = null, terrainLayer = null, minTerrain = null, maxTerrain = null,
-    fillLayer = null, minFill = null, maxFill = null,
+    fillLayer = null, minFill = null, maxFill = null, markerLayer = null,
     flowDirectionLayer = null, minFlowDirection = null, maxFlowDirection = null,
     flowAccumulationLayer = null, minFlowAccumulation = null, maxFlowAccumulation = null,
-    watershedLayer = null, lastLayer = null;
+    catchmentLayer = null, lastLayer = null, isTooltipActive = false;
+
+const hoverTooltip = L.tooltip({
+    permanent: false, direction: 'bottom',
+    sticky: true, offset: [0, 10], className: 'custom-tooltip'
+});
+
 
 function setupTabs(root) {
     const buttonPanels = root.querySelectorAll('.tab-btn');
@@ -100,13 +105,14 @@ function update() {
     terrainBtn().addEventListener('click', () => { 
         terrainInputText().value = ''; terrainInputFile().value = '';
         colorbar_container().style.display = 'none';
+        if (markerLayer) { map.removeLayer(markerLayer); markerLayer = null; }
         terrainInputFile().click();
     });
     let lastSelectedRadio = document.querySelector('input[name="terrain"]:checked');
     document.querySelectorAll('input[name="terrain"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
             [terrainLayer, fillLayer, flowDirectionLayer, 
-                flowAccumulationLayer, watershedLayer
+                flowAccumulationLayer, catchmentLayer
             ].forEach(layer => { if (layer) layer.remove(); });
             const value = e.target.value; let ok = true, layer = null;
             if (value === 'hide-all') { 
@@ -131,7 +137,7 @@ function update() {
             } else if (value === 'terrain-direction') { 
                 if (flowDirectionLayer) {
                     layer = flowDirectionLayer;
-                    colorbarReset(minFlowDirection, maxFlowDirection, 'Flow direction (°)', 'flow_direction');
+                    colorbarReset(minFlowDirection, maxFlowDirection, 'Flow direction (D8 code)', 'flow_direction');
                 } else {
                     alert('Please upload terrain data and run "Flow direction" first.'); 
                     e.target.checked = false; ok = false;
@@ -144,12 +150,12 @@ function update() {
                     alert('Please upload terrain data and run "Flow accumulation" first.'); 
                     e.target.checked = false; ok = false;
                 }
-            } else if (value === 'terrain-watershed') { 
-                if (watershedLayer) {
-                    layer = watershedLayer;
-                    colorbarReset(null, null, 'Watershed', 'watershed');
+            } else if (value === 'terrain-catchment') { 
+                if (catchmentLayer) {
+                    layer = catchmentLayer;
+                    colorbarReset(null, null, 'Catchment', 'catchment');
                 } else {
-                    alert('Please upload terrain data and run "Watershed" first.'); 
+                    alert('Please upload terrain data and run "Catchment" first.'); 
                     e.target.checked = false; ok = false;
                 }
             }
@@ -192,7 +198,6 @@ function update() {
             minFill = response.content.min, maxFill = response.content.max;
             fillLayer = clearMap(fillLayer, map);
             fillLayer = L.tileLayer(response.content.tile_url, { tileSize: 256 }).addTo(map);
-            alert(response.message);
         } catch (error) { alert(`Running fill algorithm failed: ${error.message}`); }
         stopLoading();
         const fillRadio = document.querySelector('input[name="terrain"][value="terrain-fill"]');
@@ -202,7 +207,8 @@ function update() {
         const layerCheck = terrainInputText().value;
         if (layerCheck === '') { alert('Please upload terrain data first.'); return; }
         // Check if fill terrain has been run
-        const fillCheck = await sendQuery('fill_check', { projectName: getState().projectName, filename: layerCheck });
+        const content = { projectName: getState().projectName, filename: layerCheck, key: 'fill' };
+        const fillCheck = await sendQuery('raster_check', content);
         if (fillCheck.status === 'error') { alert(fillCheck.message); return; }
         startLoading(`Running flow direction algorithm. Please wait ...`);
         try {
@@ -212,14 +218,92 @@ function update() {
             minFlowDirection = response.content.min, maxFlowDirection = response.content.max;
             flowDirectionLayer = clearMap(flowDirectionLayer, map);
             flowDirectionLayer = L.tileLayer(response.content.tile_url, { tileSize: 256 }).addTo(map);
-            alert(response.message);
         } catch (error) { alert(`Running flow direction algorithm failed: ${error.message}`); }
         stopLoading();
         const flowDirectionRadio = document.querySelector('input[name="terrain"][value="terrain-direction"]');
         if (flowDirectionRadio) { flowDirectionRadio.checked = true; flowDirectionRadio.dispatchEvent(new Event('change')); }
     });
-
-
+    flowAccumulationBtn().addEventListener('click', async () => {
+        pourpointContainer().style.display = 'none';
+        const layerCheck = terrainInputText().value;
+        if (layerCheck === '') { alert('Please upload terrain data first.'); return; }
+        // Check if flow direction has been run
+        const content = { projectName: getState().projectName, filename: layerCheck, key: 'flow_direction' };
+        const flowDirectionCheck = await sendQuery('raster_check', content);
+        if (flowDirectionCheck.status === 'error') { alert(flowDirectionCheck.message); return; }
+        startLoading(`Running flow accumulation algorithm. Please wait ...`);
+        try {
+            const contents = { projectName: getState().projectName, filename: layerCheck };
+            const response = await sendQuery('flow_accumulation', contents);
+            if (response.status === "error") { alert(response.message); return; }
+            minFlowAccumulation = response.content.min, maxFlowAccumulation = response.content.max;
+            flowAccumulationLayer = clearMap(flowAccumulationLayer, map);
+            flowAccumulationLayer = L.tileLayer(response.content.tile_url, { tileSize: 256 }).addTo(map);
+            pourpointContainer().style.display = 'flex';
+        } catch (error) { alert(`Running flow accumulation algorithm failed: ${error.message}`); }
+        stopLoading();
+        const flowAccumulationRadio = document.querySelector('input[name="terrain"][value="terrain-accumulation"]');
+        if (flowAccumulationRadio) { flowAccumulationRadio.checked = true; flowAccumulationRadio.dispatchEvent(new Event('change')); }
+    });
+    pourpointCheckbox().addEventListener('change', (e) => {
+        const mapContainer = map.getContainer();
+        if (e.target.checked) { 
+            mapContainer.style.cursor = 'crosshair'; isTooltipActive = true;
+            map.on("click", function (e) {
+                const lat = e.latlng.lat.toFixed(10), lon = e.latlng.lng.toFixed(10);
+                pourpointLat().value = lat; pourpointLon().value = lon;
+                if (markerLayer) { map.removeLayer(markerLayer); markerLayer = null; }
+                markerLayer = L.circleMarker(e.latlng, {
+                    radius: 4, fillColor: 'blue', color: 'red', weight: 2, opacity: 1, fillOpacity: 1
+                }).addTo(map); catchmentExportBtn().click();
+            });
+            map.on("mousemove", function (e) {
+                if (isTooltipActive) { 
+                    hoverTooltip.setLatLng(e.latlng).setContent(`Click to set the pourpoint coordinates.`);
+                    map.openTooltip(hoverTooltip);
+                } else { map.closeTooltip(hoverTooltip); mapContainer.style.cursor = 'grab'; }
+            });
+        } else { 
+            mapContainer.style.cursor = 'grab'; isTooltipActive = false;
+            pourpointLat().value = ''; pourpointLon().value = ''; 
+        }
+    });
+    catchmentExportBtn().addEventListener('click', async () => { 
+        const layerCheck = terrainInputText().value;
+        if (layerCheck === '') { alert('Please upload terrain data first.'); return; }
+        // Check if flow direction and flow accumulation have been run
+        const contentDir = { projectName: getState().projectName, filename: layerCheck, key: 'flow_direction' };
+        const flowDirectionCheck = await sendQuery('raster_check', contentDir);
+        if (flowDirectionCheck.status === 'error') { alert(flowDirectionCheck.message); return; }
+        const contentAcc = { projectName: getState().projectName, filename: layerCheck, key: 'flow_accumulation' };
+        const flowAccumulationCheck = await sendQuery('raster_check', contentAcc);
+        if (flowAccumulationCheck.status === 'error') { alert(flowAccumulationCheck.message); return; }
+        const lat = pourpointLat().value, lon = pourpointLon().value;
+        if (lat === '' || lon === '') { alert('Please set the pourpoint coordinates first.'); return; }
+        const threshold = pourpointThreshold().value;
+        if (threshold === '') { alert('Please set the threshold first.'); return; }
+        const snapDistance = pourpointDist().value;
+        if (snapDistance === '') { alert('Please set the snap distance first.'); return; }
+        startLoading(`Running catchment algorithm. Please wait ...`);
+        try {
+            const contents = { projectName: getState().projectName, filename: layerCheck,
+                lat: lat, lon: lon, threshold: threshold, snapDistance: snapDistance
+            };
+            const response = await sendQuery('catchment', contents);
+            if (response.status === "error") { alert(response.message); return; }
+            catchmentLayer = clearMap(catchmentLayer, map);
+            catchmentLayer = L.geoJSON(response.content, { 
+                style: { color: 'blue', weight: 2, opacity: 1 },
+            }).addTo(map);
+            const bounds = catchmentLayer.getBounds();
+            if (bounds.isValid()) { 
+                setTimeout(() => { map.invalidateSize(); map.fitBounds(bounds); }, 0);
+            }
+        } catch (error) { alert(`Running catchment algorithm failed: ${error.message}`); }
+        stopLoading();
+        const catchmentRadio = document.querySelector('input[name="terrain"][value="terrain-catchment"]');
+        if (catchmentRadio) { catchmentRadio.checked = true; catchmentRadio.dispatchEvent(new Event('change')); }
+    });
 
 
 

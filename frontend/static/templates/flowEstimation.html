@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
-    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=003">
+    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=005">
 </head>
 <body>
     <section class="main-tab">
@@ -19,7 +19,7 @@
             <!-- Tab 1: Terrain Analysis -->
             <div class="main-panel" data-panel="terrain-tab">
                 <div class="grid">
-                    <div class="tile"><h3>Terrain Importing</h3>
+                    <div class="tile"><h3>Terrain Import</h3>
                         <div class="single-row">
                             <label for="terrain-input">Raw Terrain:</label>
                             <input type="file" id="terrain-input-file" accept=".tif" hidden>
@@ -49,6 +49,10 @@
                                     <input type="radio" name="terrain" value="terrain-direction">Show/Hide
                                 </label>
                             </div>
+                        </div>
+                    </div>
+                    <div class="tile"><h3>Watershed Delineation</h3>
+                        <div class="checkbox-grid" style="grid-template-columns: repeat(2, 1fr);">
                             <div class="checkbox-column">
                                 <button type="button" id="terrain-accumulation-btn">3. Flow accumulation</button>
                                 <label class="checkbox-right">
@@ -56,18 +60,26 @@
                                 </label>
                             </div>
                             <div class="checkbox-column">
-                                <button type="button" id="terrain-watershed-btn">4. Watershed</button>
+                                <button type="button" id="export-catchment-btn">Export Watershed</button>
                                 <label class="checkbox-right">
-                                    <input type="radio" name="terrain" value="terrain-watershed">Show/Hide
+                                    <input type="radio" name="terrain" value="terrain-catchment">Show/Hide
                                 </label>
                             </div>
+                            <div class="checkbox-column" style="grid-column: span 2; display: none;" id="pourpoint-container">
+                                <label class="checkbox-right">
+                                    <input type="checkbox" id="pourpoint-checkbox" style="font-weight: bold;">Select Pour point
+                                </label>
+                                <input type="text" id="pourpoint-lat" placeholder="Latitude" style="width: 110px; text-align: center;" readonly>
+                                <input type="text" id="pourpoint-lon" placeholder="Longitude" style="width: 110px; text-align: center;" readonly>
+                                <label>Threshold:</label>
+                                <input type="text" id="pourpoint-threshold" value="50.0" style="width: 50px; text-align: center;">
+                                <label>(m)</label><label>Distance:</label>
+                                <input type="text" id="pourpoint-dist" value="10.0" style="width: 50px; text-align: center;">
+                                <label>(m)</label>
+                            </div>
+
                         </div>
                     </div>
-
-
-
-
-
 
                 </div>
 

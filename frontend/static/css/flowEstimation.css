@@ -109,11 +109,10 @@ body {
   display: flex; align-items: center; gap: 0.5em; white-space: nowrap; margin-top: 0; cursor: pointer;
 }
 .checkbox-right input[type="checkbox"] { margin: 0; }
-
 .checkbox-grid {
-  display: grid; grid-template-columns: repeat(2, 1fr); 
-  column-gap: 80px; row-gap: 10px; justify-items: center;
+  display: grid; grid-template-columns: repeat(1, 1fr); row-gap: 20px; justify-items: center; column-gap: 80px;
 }
+
 .checkbox-column { display: flex; flex-direction: row; align-items: center; gap: 10px; }
 .checkbox-column button { 
   padding: 7px 7px; border-radius: 12px; border: none; display: flex; justify-content: center;
@@ -125,7 +124,10 @@ body {
 
 /* 
 
-
+.checkbox-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); 
+  column-gap: 50px; row-gap: 10px; justify-items: center;
+}
 
 
 @media (max-width: 900px) { .tile { grid-column: span 6; } }
