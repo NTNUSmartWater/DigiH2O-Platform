@@ -88,6 +88,7 @@ body {
 }
 
 /* ===== Grid / Tile ===== */
+.hidden { display: none }
 .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-top: 0; }
 .tile { 
   grid-column: span 1; background: rgba(255,255,255,0.03); 
@@ -108,19 +109,32 @@ body {
 .checkbox-right {
   display: flex; align-items: center; gap: 0.5em; white-space: nowrap; margin-top: 0; cursor: pointer;
 }
-.checkbox-right input[type="checkbox"] { margin: 0; }
+.checkbox-right input[type="checkbox"] { margin: 0;}
+.checkbox-right input[type="radio"] { margin: 8px;}
 .checkbox-grid {
-  display: grid; grid-template-columns: repeat(1, 1fr); row-gap: 20px; justify-items: center; column-gap: 80px;
+  display: grid; grid-template-columns: repeat(1, 1fr); row-gap: 20px; justify-items: center; column-gap: 30px;
 }
 
 .checkbox-column { display: flex; flex-direction: row; align-items: center; gap: 10px; }
 .checkbox-column button { 
   padding: 7px 7px; border-radius: 12px; border: none; display: flex; justify-content: center;
   background: var(--primary); color: #fff; font-weight: 600; cursor: pointer;
-  transition: background .2s ease, transform .15s ease; width: 200px; text-align: center;
+  transition: background .2s ease, transform .15s ease; width: 220px; text-align: center;
 }
 .checkbox-column button:hover { background: var(--primary-600); transform: translateY(-1px); }
 .checkbox-column label { font-size: 13px; cursor: pointer; }
+.item1 { grid-column: 1; grid-row: 1; }
+.item2 { grid-column: 2; grid-row: 1 / span 2; align-self: stretch; }
+.item3 { grid-column: 1; grid-row: 2; }
+
+#pourpoint-container {
+  display: flex; flex-direction: column;
+}
+.pourpoint-settings {
+  grid-column: 1 / span 2; display: flex; align-items: center; gap: 6px;
+}
+
+
 
 /* 
 

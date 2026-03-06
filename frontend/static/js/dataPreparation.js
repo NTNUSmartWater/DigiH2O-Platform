@@ -391,9 +391,11 @@ function updateManager() {
     downloadBtn().addEventListener('click', async () => { 
         const tableData = getDataFromTable(stationSelectedTable(), true);
         const n = stationSelectedTable().querySelectorAll('tr.selected').length;
-        if (tableData.rows.length === 0 || n === 0) { alert('No station selected. Please select a station from the map first.'); return; }
-        const startTime = downloadStart().value, endTime = downloadEnd().value;
-        const downloadType = typeDownload().value, interval = downloadInterval().value;
+        if (tableData.rows.length === 0 || n === 0) { 
+            alert('No station selected. Please select a station from the map first.'); return; 
+        }
+        const startTime = downloadStart().value, endTime = downloadEnd().value,
+            downloadType = typeDownload().value, interval = downloadInterval().value;
         try { 
             const dirHandle = await window.showDirectoryPicker();
             downloadListContainer().style.display = 'flex'; downloadListArea().value = '';
@@ -412,10 +414,21 @@ function updateManager() {
                 let nameSaved = name.replace('Å', 'Aa').replace('å', 'aa').replace('Æ', 'Ae').replace('æ', 'ae');
                 nameSaved = nameSaved.replace('Ø', 'oo').replace(/[^a-zA-Z0-9_\-]/g, '_');
                 nameSaved = `${nameSaved}.csv`;
-                const fileHandle = await dirHandle.getFileHandle(nameSaved, {create: true});
-                const writable = await fileHandle.createWritable();
-                await writable.write("\uFEFF" + response.content);
-                await writable.close();
+                if (dirHandle !== null) {
+                    const fileHandle = await dirHandle.getFileHandle(nameSaved, {create: true});
+                    const writable = await fileHandle.createWritable();
+                    await writable.write("\uFEFF" + response.content);
+                    await writable.close();
+                } else { 
+                    const blob = new Blob([response.content], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', nameSaved);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }
                 downloadListArea().value += `Saved file: ${nameSaved}.\n`;
             }
             downloadListArea().value += '\nDownload complete.'; alert('Download complete.');

@@ -3,20 +3,25 @@
 <head>
     <title>Flow Estimation</title>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
-    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=005">
+    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=007">
 </head>
 <body>
     <section class="main-tab">
         <div class="tabs-header">
             <div class="tabs-list">
-                <button class="tab-btn" data-tab="terrain-tab">Terrain Analysis<span class="ink"></span></button>
-                <button class="tab-btn" data-tab="another-tab">Another Source<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="terrain-tab">Topography<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="soil-tab">Soil<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="land-use-tab">Land Use/Land Cover<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="river-network-tab">River Network<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="weather-data-tab">Weather Data<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="initial-conditions-tab">Initial Conditions<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="flow-detection-tab">Flow Detection<span class="ink"></span></button>
             </div>
         </div>
         <div class="tabs-content">
-            <!-- Tab 1: Terrain Analysis -->
+            <!-- Tab 1: Topography -->
             <div class="main-panel" data-panel="terrain-tab">
                 <div class="grid">
                     <div class="tile"><h3>Terrain Import</h3>
@@ -51,42 +56,160 @@
                             </div>
                         </div>
                     </div>
-                    <div class="tile"><h3>Watershed Delineation</h3>
-                        <div class="checkbox-grid" style="grid-template-columns: repeat(2, 1fr);">
-                            <div class="checkbox-column">
+                    <div class="tile"><h3>Catchment Delineation</h3>
+                        <div class="checkbox-grid">
+                            <div class="checkbox-column item1">
                                 <button type="button" id="terrain-accumulation-btn">3. Flow accumulation</button>
                                 <label class="checkbox-right">
                                     <input type="radio" name="terrain" value="terrain-accumulation">Show/Hide
                                 </label>
                             </div>
-                            <div class="checkbox-column">
-                                <button type="button" id="export-catchment-btn">Export Watershed</button>
+                            <div class="checkbox-column item2" id="pourpoint-container" style="display: none;">
+                                <label class="checkbox-right">
+                                    <input type="checkbox" id="pourpoint-checkbox" style="font-weight: bold;">4. Select Pour point and Create Catchment
+                                </label>
+                                <div class="pourpoint-settings">
+                                    <input type="text" id="pourpoint-lat" placeholder="Latitude" style="width: 130px; text-align: center; margin-left: 10px;" readonly>
+                                    <input type="text" id="pourpoint-lon" placeholder="Longitude" style="width: 130px; text-align: center;" readonly>
+                                </div>
+                                <div class="pourpoint-settings">
+                                    <label>Threshold:</label>
+                                    <input type="text" id="pourpoint-threshold" value="50.0" style="width: 50px; text-align: center;">
+                                    <label>(m)</label><label>Distance:</label>
+                                    <input type="text" id="pourpoint-dist" value="10.0" style="width: 50px; text-align: center;">
+                                    <label>(m)</label>
+                                </div>
+                            </div>
+                            <div class="checkbox-column item3" id="export-container" style="display: none;">
+                                <button type="button" id="export-catchment-btn">Export Catchment (GeoJSON)</button>
                                 <label class="checkbox-right">
                                     <input type="radio" name="terrain" value="terrain-catchment">Show/Hide
                                 </label>
                             </div>
-                            <div class="checkbox-column" style="grid-column: span 2; display: none;" id="pourpoint-container">
-                                <label class="checkbox-right">
-                                    <input type="checkbox" id="pourpoint-checkbox" style="font-weight: bold;">Select Pour point
-                                </label>
-                                <input type="text" id="pourpoint-lat" placeholder="Latitude" style="width: 110px; text-align: center;" readonly>
-                                <input type="text" id="pourpoint-lon" placeholder="Longitude" style="width: 110px; text-align: center;" readonly>
-                                <label>Threshold:</label>
-                                <input type="text" id="pourpoint-threshold" value="50.0" style="width: 50px; text-align: center;">
-                                <label>(m)</label><label>Distance:</label>
-                                <input type="text" id="pourpoint-dist" value="10.0" style="width: 50px; text-align: center;">
-                                <label>(m)</label>
+                        </div>
+                    </div>
+                    <div class="tile" id="catchment-container"><h3>Catchment (for Flow Detection)</h3>
+                        <label class="checkbox-right">
+                            <input type="radio" name="catchment" value="catchment-current">Use Current Catchment on Map
+                        </label>
+                        <label class="checkbox-right">
+                            <input type="radio" name="catchment" value="catchment-upload">Use Uploaded Catchment
+                        </label>
+                        <div class="checkbox-grid" id="catchment-upload-container" style="display: none;">
+                            <div class="checkbox-column">
+                                <input type="file" id="catchment-input-file" accept=".geojson" hidden>
+                                <button type="button" id="catchment-upload-btn">Upload GeoJSON</button>
                             </div>
+                        </div>
+                        
+                        
 
+
+
+                    </div>
+                </div>
+            </div>
+            <!-- Tab 2: Soil Properties -->
+            <div class="main-panel" data-panel="soil-tab">
+                <div class="grid">
+                    <div class="tile"><h3>Soil Properties</h3>
+                        <div class="single-row">
+                            <label for="soil-input">Soil Properties:</label>
+                            <input type="file" id="soil-input-file" accept=".csv" hidden>
+                            <input type="text" id="soil-input-text" placeholder="No file selected" readonly>
+                            <button type="button" id="soil-btn">...</button>
                         </div>
                     </div>
 
+
+
                 </div>
-
-
             </div>
-            <!-- Tab 2: Another Source -->
-            <div class="main-panel" data-panel="another-tab">
+            <!-- Tab 3: Land Use/Land Cover -->
+            <div class="main-panel" data-panel="land-use-tab">
+                <div class="grid">
+                    <div class="tile"><h3>Land Use/Land Cover</h3>
+                        <div class="single-row">
+                            <label for="land-use-input">Land Use/Land Cover:</label>
+                            <input type="file" id="land-use-input-file" accept=".csv" hidden>
+                            <input type="text" id="land-use-input-text" placeholder="No file selected" readonly>
+                            <button type="button" id="land-use-btn">...</button>
+                        </div>
+                    </div>
+
+
+                </div>
+            </div>
+            <!-- Tab 4: River Network -->
+            <div class="main-panel" data-panel="river-network-tab">
+                <div class="grid">
+                    <div class="tile"><h3>River Network</h3>
+                        <div class="single-row">
+                            <label for="river-network-input">River Network:</label>
+                            <input type="file" id="river-network-input-file" accept=".geojson" hidden>
+                            <input type="text" id="river-network-input-text" placeholder="No file selected" readonly>
+                            <button type="button" id="river-network-btn">...</button>
+                        </div>
+                    </div>
+
+
+
+                </div>
+            </div>
+            <!-- Tab 5: Weather Data -->
+            <div class="main-panel" data-panel="weather-data-tab">
+                <div class="grid">
+                    <div class="tile"><h3>Weather Data</h3>
+                        <div class="single-row">
+                            <label for="weather-data-input">Weather Data:</label>
+                            <input type="file" id="weather-data-input-file" accept=".csv" hidden>
+                            <input type="text" id="weather-data-input-text" placeholder="No file selected" readonly>
+                            <button type="button" id="weather-data-btn">...</button>
+                        </div>
+
+
+
+
+                    </div>
+                </div>
+            </div>
+            <!-- Tab 6: Initial Conditions -->
+            <div class="main-panel" data-panel="initial-conditions-tab">
+                <div class="grid">
+                    <div class="tile"><h3>Initial Conditions</h3>
+                        <div class="single-row">
+                            <label for="initial-water-level">Water level (m):</label>
+                            <input type="text" id="initial-water-level" value='0'>
+                        </div>
+                        <div class="single-row">
+                            <label for="initial-salinity">Salinity (ppt):</label>
+                            <input type="text" id="initial-salinity" value='0.02'>
+                        </div>
+                        <div class="single-row">
+                            <label for="initial-temperature">Temperature (°C):</label>
+                            <input type="text" id="initial-temperature" value='3.45'>
+                        </div>
+
+
+                    </div>
+                </div>
+            </div>
+            <!-- Tab 7: Flow Detection -->
+            <div class="main-panel" data-panel="flow-detection-tab">
+                <div class="grid">
+                    <div class="tile"><h3>Catchment Import</h3>
+                        <!-- <div class="single-row">
+                            <label for="catchment-input">Catchment File:</label>
+                            <input type="file" id="catchment-input-file" accept=".geojson" hidden>
+                            <input type="text" id="catchment-input-text" placeholder="No file selected" readonly>
+                            <button type="button" id="catchment-btn">...</button>
+                        </div> -->
+
+
+
+
+                    </div>
+                </div>
 
 
 
@@ -105,7 +228,6 @@
                 <div class="loading-text">Processing Data. Please wait...</div>
                 <div class="spinner"></div>
             </div>
-
             <!-- Legend -->
             <div id="custom-colorbar">
                 <div class="colorbar-wrapper" id="colorbar-container" style="display: none;">
@@ -125,11 +247,5 @@
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="/static_frontend/js/tooltipManager.js"></script>
     <script type="module" src="/static_frontend/js/flowEstimation.js"></script>
-    <!-- <script>
-        const script = document.createElement('script');
-        script.type = 'module';
-        script.src = `/static_frontend/js/dataPreparation.js?v=${Date.now()}`;
-        document.body.appendChild(script);
-    </script> -->
 </body>
 </html>

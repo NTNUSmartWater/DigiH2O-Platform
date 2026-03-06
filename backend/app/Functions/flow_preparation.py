@@ -3,11 +3,10 @@ from fastapi import APIRouter, Request, Depends, UploadFile, File, Form, Respons
 from fastapi.responses import JSONResponse
 from Functions import functions, flowFunctions
 from config import PROJECT_STATIC_ROOT
-import numpy as np
+import numpy as np, matplotlib.cm as cm, geopandas as gpd
 from PIL import Image
 from rasterio.enums import Resampling
 from rasterio.warp import calculate_default_transform, reproject
-import matplotlib.cm as cm
 
 router = APIRouter()
 
@@ -221,6 +220,18 @@ async def catchment(request: Request, user=Depends(functions.basic_auth)):
         return JSONResponse({'status': 'ok', 'content': json.loads(catchment.to_json())})
     except Exception as e:
         print('/catchment:\n==============')
+        traceback.print_exc()
+        return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
+
+@router.post("/catchment_upload")
+async def catchment_upload(file: UploadFile = File(...)):
+    try:
+        gdf = gpd.read_file(file.file)
+        if gdf.empty: return JSONResponse({'status': 'error', 'message': 'No catchment found.'})
+        if gdf.crs != "EPSG:4326": gdf = gdf.to_crs("EPSG:4326")
+        return JSONResponse({'status': 'ok', 'content': json.loads(gdf.to_json())})
+    except Exception as e:
+        print('/catchment_export:\n==============')
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
