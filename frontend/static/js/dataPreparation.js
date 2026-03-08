@@ -243,13 +243,13 @@ async function pointPloter(points, pointType) {
                 note = `<hr style="border-top: 1px solid #5d5d61ff; margin: 5px 0 5px 0;">
                     <span style="display: block; font-weight: bold; text-align: center; line-height: 1.0;">Click to plot time-series data</span>`
             } else { note = ''; }
-            const content = `<div style="font-size: 14px; border-radius: 10px;">
+            const tooltip = `<div style="font-size: 14px; border-radius: 10px;">
                 <span style="display: block; text-align: center; font-weight: bold; line-height: 1.0;">${feature.properties.name || 'No name'}</span>
                 <hr style="border-top: 1px solid #5d5d61ff; margin: 5px 0 5px 0;">
                 ${Object.entries(feature.properties).filter(([key]) => key !== 'name' && key !== 'mode')
                 .map(([key, value]) => `<span>• ${key}: ${value}</span><br>`).join('')}${note}
             </div>`;
-            layer.bindTooltip(content, { sticky: true, permanent: false, direction: 'bottom', opacity: 1, offset: [0, 10] });
+            layer.bindTooltip(tooltip, { sticky: true, permanent: false, direction: 'bottom', opacity: 1, offset: [0, 10] });
         }
     }).addTo(map);
     const bounds = tempLayer.getBounds();

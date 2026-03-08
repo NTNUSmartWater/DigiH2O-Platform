@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
-    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=007">
+    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=003">
 </head>
 <body>
     <section class="main-tab">
@@ -24,6 +24,20 @@
             <!-- Tab 1: Topography -->
             <div class="main-panel" data-panel="terrain-tab">
                 <div class="grid">
+                    <div class="tile"><h3>Catchment Options</h3>
+                        <label class="checkbox-right">
+                            <input type="radio" name="catchment" value="catchment-current" checked>Create a Catchment from DTM
+                        </label>
+                        <label class="checkbox-right">
+                            <input type="radio" name="catchment" value="catchment-upload">Upload a Catchment
+                        </label>
+                        <div class="checkbox-grid" id="catchment-upload-container" style="display: none;">
+                            <div class="checkbox-column">
+                                <input type="file" id="catchment-input-file" accept=".geojson" hidden>
+                                <button type="button" id="catchment-upload-btn">Upload GeoJSON</button>
+                            </div>
+                        </div>
+                    </div>
                     <div class="tile"><h3>Terrain Import</h3>
                         <div class="single-row">
                             <label for="terrain-input">Raw Terrain:</label>
@@ -88,37 +102,40 @@
                             </div>
                         </div>
                     </div>
-                    <div class="tile" id="catchment-container"><h3>Catchment (for Flow Detection)</h3>
-                        <label class="checkbox-right">
-                            <input type="radio" name="catchment" value="catchment-current">Use Current Catchment on Map
-                        </label>
-                        <label class="checkbox-right">
-                            <input type="radio" name="catchment" value="catchment-upload">Use Uploaded Catchment
-                        </label>
-                        <div class="checkbox-grid" id="catchment-upload-container" style="display: none;">
-                            <div class="checkbox-column">
-                                <input type="file" id="catchment-input-file" accept=".geojson" hidden>
-                                <button type="button" id="catchment-upload-btn">Upload GeoJSON</button>
-                            </div>
-                        </div>
-                        
-                        
-
-
-
-                    </div>
                 </div>
             </div>
             <!-- Tab 2: Soil Properties -->
             <div class="main-panel" data-panel="soil-tab">
                 <div class="grid">
-                    <div class="tile"><h3>Soil Properties</h3>
+                    <div class="tile"><h3>Soil Import</h3>
                         <div class="single-row">
-                            <label for="soil-input">Soil Properties:</label>
-                            <input type="file" id="soil-input-file" accept=".csv" hidden>
+                            <label for="soil-input">Soil Data:</label>
+                            <input type="file" id="soil-input-file" accept=".tif,.geojson" hidden>
                             <input type="text" id="soil-input-text" placeholder="No file selected" readonly>
                             <button type="button" id="soil-btn">...</button>
                         </div>
+                        
+                    </div>
+                    <div class="tile"><h3>Soil Modification</h3>
+
+
+                        <div class="single-row">
+                            <a style="margin-top: 10px; font-size: 16px; width: 125px;">Data Reference:</a>
+                            <a class="data-link" href="https://scalgo.com/en-US/scalgo-live-documentation/soil-vegetation-atmosphere-properties/soil/mapping"
+                                target="_blank">Scalgo Soil Mapping
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="tile" style="grid-column: span 4;"><h3>Attribute Settings</h3>
+                        <table class="attributes-table" id="soil-attributes-table">
+                            <thead><tr>
+                                <th>Id</th><th>Soil thickness</th><th>Rooting depth</th><th>Rooting depth</th>
+                                <th>Ksat</th><th>theta_s</th><th>theta_r</th><th>Field capacity</th>
+                                <th>Wilting point</th><th>Soil texture</th>
+                            </tr></thead>
+                            <tbody></tbody>
+                        </table>
                     </div>
 
 

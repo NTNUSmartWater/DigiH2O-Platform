@@ -59,9 +59,9 @@ body {
   flex: 1; height: 100%; border-radius: 20px;
 }
 #compass {
-    position: absolute; top: 15px; right: 10px; background: none;
-    flex-direction: column; align-items: center; gap: 10px; z-index: 1000;
-    display: flex; justify-content: center; border: none;
+  position: absolute; top: 15px; right: 10px; background: none;
+  flex-direction: column; align-items: center; gap: 10px; z-index: 1000;
+  display: flex; justify-content: center; border: none;
 }
 #compass img {
   width: 70px; height: 70px; pointer-events: none; 
@@ -91,16 +91,16 @@ body {
 .hidden { display: none }
 .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-top: 0; }
 .tile { 
-  grid-column: span 1; background: rgba(255,255,255,0.03); 
+  grid-column: span 1; background: rgba(255,255,255,0.03);
   border: 1px solid var(--border); border-radius: 14px; padding: 16px; 
 }
 .tile h3 { margin: 0 0 15px 0; font-size: 17px; }
 .main-panel { display: none; animation: fade .25s ease; padding: 5px 4px 4px 4px; }
 .main-panel[aria-hidden="false"] { display: block; }
 .single-row { display: flex; align-items: center; gap: 8px; }
-.single-row label { display: flex; width: 130px; padding: 5px; font-size: 16px; padding-top: 10px; }
+.single-row label { display: flex; width: 100px;font-size: 16px; padding-top: 10px; }
 .single-row input { 
-  padding: 8px; border-radius: 12px; width: 150px;
+  padding: 8px; border-radius: 12px; width: 110px;
   border: 1px solid var(--border); background: var(--card); 
   color: var(--text); outline: none; box-sizing: border-box;
 }
@@ -133,6 +133,34 @@ body {
 .pourpoint-settings {
   grid-column: 1 / span 2; display: flex; align-items: center; gap: 6px;
 }
+
+/* ===== Table ===== */
+.attributes-table {
+  width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px;
+}
+.attributes-table thead { position: sticky; top: 0; z-index: 2; }
+.attributes-table tbody {
+  display: block; max-height: 110px; overflow-y: auto; width: 100%;
+}
+.attributes-table thead tr, .attributes-table tbody tr {
+  display: table; width: 100%; table-layout: fixed;
+}
+.attributes-table th, .attributes-table td {
+  border: 1px solid var(--border); padding: 2px 4px; text-align: center;
+  color: var(--text); font-size: 13px;
+}
+.attributes-table th { background: rgba(255,255,255,0.05); }
+.attributes-table td input {
+  width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--card); color: var(--text); outline: none; text-align: center;
+} 
+
+.data-link {
+  margin-top: 10px; font-size: 16px; color: aqua; 
+  text-decoration: underline; cursor: pointer; width: 160px;
+}
+
+.data-link:hover {color: yellow;}
 
 
 

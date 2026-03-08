@@ -91,7 +91,7 @@ body {
 .checkbox-right { display: flex; align-items: center; gap: 10px; }
 /* ===== Table ===== */
 .attributes-table {
-  width: 100%; border-collapse: collapse; table-layout: fixed;  font-size: 13px;
+  width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px;
 }
 .attributes-table thead { position: sticky; top: 0; z-index: 2; }
 .attributes-table tbody {

@@ -23,14 +23,12 @@ const colorbar_container = () => document.getElementById('colorbar-container');
 const colorbar_color = () => document.getElementById('colorbar-color');
 const colorbar_title = () => document.getElementById('colorbar-title');
 const colorbar_label = () => document.getElementById('colorbar-labels');
-
-
-const catchmentContainer = () => document.getElementById('catchment-container');
 const catchmentUploadContainer = () => document.getElementById('catchment-upload-container');
 const catchmentInputFile = () => document.getElementById('catchment-input-file');
-const catchmentUploadBtn = () => document.getElementById('ccatchment-upload-btn');
-
-
+const catchmentUploadBtn = () => document.getElementById('catchment-upload-btn');
+const soilInputText = () => document.getElementById('soil-input-text');
+const soilInputFile = () => document.getElementById('soil-input-file');
+const soilBtn = () => document.getElementById('soil-btn');
 
 
 
@@ -47,7 +45,8 @@ let map = null, terrainLayer = null, minTerrain = null, maxTerrain = null,
     fillLayer = null, minFill = null, maxFill = null, markerLayer = null,
     flowDirectionLayer = null, minFlowDirection = null, maxFlowDirection = null,
     flowAccumulationLayer = null, minFlowAccumulation = null, maxFlowAccumulation = null,
-    catchmentLayer = null, lastLayer = null, isTooltipActive = false, lat=null, lon=null;
+    catchmentLayer = null, lastLayer = null, isTooltipActive = false, lat=null, lon=null,
+    soilLayer = null;
 
 const hoverTooltip = L.tooltip({
     permanent: false, direction: 'bottom',
@@ -121,10 +120,10 @@ async function catchmentDelineation() {
     const layerCheck = terrainInputText().value;
     if (layerCheck === '') { alert('Please upload terrain data first.'); return; }
     // Check if flow direction and flow accumulation have been run
-    const contentDir = { projectName: getState().projectName, filename: layerCheck, key: 'flow_direction' };
+    const contentDir = { projectName: getState().currentProject, filename: layerCheck, key: 'flow_direction' };
     const flowDirectionCheck = await sendQuery('raster_check', contentDir);
     if (flowDirectionCheck.status === 'error') { alert(flowDirectionCheck.message); return; }
-    const contentAcc = { projectName: getState().projectName, filename: layerCheck, key: 'flow_accumulation' };
+    const contentAcc = { projectName: getState().currentProject, filename: layerCheck, key: 'flow_accumulation' };
     const flowAccumulationCheck = await sendQuery('raster_check', contentAcc);
     if (flowAccumulationCheck.status === 'error') { alert(flowAccumulationCheck.message); return; }
     if (lat === null || lon === null) { alert('Please set the pourpoint coordinates and create a catchment first.'); return; }
@@ -133,8 +132,9 @@ async function catchmentDelineation() {
     const snapDistance = pourpointDist().value;
     if (snapDistance === '') { alert('Please set the snap distance first.'); return; }
     startLoading(`Running catchment algorithm. Please wait ...`);
+    const currentCatchment = document.querySelector('input[name="catchment"][value="catchment-current"]');
     try {
-        const contents = { projectName: getState().projectName, filename: layerCheck,
+        const contents = { projectName: getState().currentProject, filename: layerCheck,
             lat: lat, lon: lon, threshold: threshold, snapDistance: snapDistance
         };
         const response = await sendQuery('catchment', contents);
@@ -147,10 +147,10 @@ async function catchmentDelineation() {
         if (bounds.isValid()) { 
             setTimeout(() => { map.invalidateSize(); map.fitBounds(bounds); }, 0);
         }
-        catchmentContainer().style.display = 'flex';
+        if (currentCatchment) { currentCatchment.checked = true; }
     } catch (error) { 
         alert(`Running catchment algorithm failed: ${error.message}`);
-        catchmentContainer().style.display = 'none';
+        if (currentCatchment) { currentCatchment.checked = false; }
     }
     stopLoading();
     const catchmentRadio = document.querySelector('input[name="terrain"][value="terrain-catchment"]');
@@ -228,7 +228,7 @@ function update() {
     terrainInputFile().addEventListener('change', async (event) => { 
         const file = event.target.files[0]; if (!file) return;
         const formData = new FormData();
-        formData.append('file', file); formData.append('projectName', getState().projectName);
+        formData.append('file', file); formData.append('projectName', getState().currentProject);
         startLoading('Uploading and processing terrain data. Please wait...');
         try {
             const response = await fetch('/terrain_upload', { method: 'POST', body: formData });
@@ -248,7 +248,7 @@ function update() {
         if (layerCheck === '') { alert('Please upload terrain data first.'); return; } 
         startLoading(`Running fill algorithm. Please wait ...`);
         try {
-            const contents = { projectName: getState().projectName, filename: layerCheck };
+            const contents = { projectName: getState().currentProject, filename: layerCheck };
             const response = await sendQuery('fill_terrain', contents); 
             if (response.status === "error") { alert(response.message); return; }
             minFill = response.content.min, maxFill = response.content.max;
@@ -263,12 +263,12 @@ function update() {
         const layerCheck = terrainInputText().value;
         if (layerCheck === '') { alert('Please upload terrain data first.'); return; }
         // Check if fill terrain has been run
-        const content = { projectName: getState().projectName, filename: layerCheck, key: 'fill' };
+        const content = { projectName: getState().currentProject, filename: layerCheck, key: 'fill' };
         const fillCheck = await sendQuery('raster_check', content);
         if (fillCheck.status === 'error') { alert(fillCheck.message); return; }
         startLoading(`Running flow direction algorithm. Please wait ...`);
         try {
-            const contents = { projectName: getState().projectName, filename: layerCheck };
+            const contents = { projectName: getState().currentProject, filename: layerCheck };
             const response = await sendQuery('flow_direction', contents);
             if (response.status === "error") { alert(response.message); return; }
             minFlowDirection = response.content.min, maxFlowDirection = response.content.max;
@@ -283,13 +283,13 @@ function update() {
         const layerCheck = terrainInputText().value;
         if (layerCheck === '') { alert('Please upload terrain data first.'); return; }
         // Check if flow direction has been run
-        const content = { projectName: getState().projectName, filename: layerCheck, key: 'flow_direction' };
+        const content = { projectName: getState().currentProject, filename: layerCheck, key: 'flow_direction' };
         const flowDirectionCheck = await sendQuery('raster_check', content);
         if (flowDirectionCheck.status === 'error') { alert(flowDirectionCheck.message); return; }
         startLoading(`Running flow accumulation algorithm. Please wait ...`);
         pourpointContainer().style.display = 'none'; exportContainer().style.display = 'none';
         try {
-            const contents = { projectName: getState().projectName, filename: layerCheck };
+            const contents = { projectName: getState().currentProject, filename: layerCheck };
             const response = await sendQuery('flow_accumulation', contents);
             if (response.status === "error") { alert(response.message); return; }
             minFlowAccumulation = response.content.min, maxFlowAccumulation = response.content.max;
@@ -357,18 +357,27 @@ function update() {
     });
     document.querySelectorAll('input[name="catchment"]').forEach(radio => {
         radio.addEventListener('change', (e) => { 
+            catchmentLayer = clearMap(catchmentLayer, map);
+            const tiles = document.querySelectorAll('.main-panel[data-panel="terrain-tab"] .tile');
             if (e.target.value === 'catchment-upload') { 
                 catchmentUploadContainer().style.display = 'block';
+                tiles.forEach(tile => {
+                    const title = tile.querySelector('h3')?.textContent.trim();
+                    if (title !== "Catchment Options") { tile.style.display = 'none';}
+                });
             } else {
                 catchmentUploadContainer().style.display = 'none';
+                tiles.forEach(tile => {
+                    const title = tile.querySelector('h3')?.textContent.trim();
+                    if (title !== "Catchment Options") { tile.style.display = 'block';}
+                });
             }
         });
     });
     catchmentUploadBtn().addEventListener('click', () => catchmentInputFile().click());
     catchmentInputFile().addEventListener('change', async (event) => {
         const file = event.target.files[0]; if (!file) return; 
-        const formData = new FormData();
-        formData.append('file', file);
+        const formData = new FormData(); formData.append('file', file);
         startLoading('Uploading catchment data. Please wait...');
         try {
             const response = await fetch('/catchment_upload', { method: 'POST', body: formData });
@@ -379,7 +388,32 @@ function update() {
         } catch (error) { alert(`Uploading catchment failed: ${error.message}`); }
         stopLoading(); event.target.value = '';
     });
-
+    soilBtn().addEventListener('click', () => soilInputFile().click());
+    soilInputFile().addEventListener('change', async (event) => { 
+        const file = event.target.files[0]; if (!file) return;
+        const formData = new FormData(); formData.append('file', file); 
+        formData.append('projectName', getState().currentProject);
+        startLoading('Uploading soil data. Please wait...');
+        try {
+            const response = await fetch('/soil_upload', { method: 'POST', body: formData });
+            const data = await response.json();
+            if (data.status === 'error') { alert(data.message); return; }
+            soilLayer = clearMap(soilLayer, map);
+            soilLayer = L.geoJSON(data.content, { 
+                style: { color: 'brown', weight: 1, opacity: 1, fillColor: 'yellow', fillOpacity: 0.7 },
+                onEachFeature: (feature, layer) => { 
+                    layer.on('click', () => { 
+                        console.log('Clicked soil feature:', feature.properties, layer);
+                    
+                    
+                    });
+                    layer.bindPopup('Click to change attributes', {sticky: true});
+                }
+            }).addTo(map);
+            soilInputText().value = file.name; event.target.value = '';
+        } catch (error) { alert(`Uploading soil data failed: ${error.message}`); }
+        stopLoading(); colorbar_container().style.display = 'none';
+    });
 
 
 
