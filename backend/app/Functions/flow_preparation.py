@@ -261,67 +261,18 @@ async def soil_upload(file: UploadFile = File(...), projectName: str = Form(...)
                 data = src.read(1)
                 mask = data != src.nodata
                 data = data.astype(np.int32)
-                results = ({"geometry": shape(geom), "_id": value}
+                results = ({"geometry": shape(geom), "code": flowFunctions.soil_codes.get(value, "Unknown")}
                     for geom, value in shapes(data, mask=mask, transform=src.transform))
                 geoms = list(results)
             soil_data = gpd.GeoDataFrame(geoms, crs=src.crs)
-        elif file_ext[-1].lower() in ["geojson"]: 
+        elif file_ext[-1].lower() in ["geojson"]:
             soil_data = gpd.read_file(file.file)
-            soil_data.insert(0, '_id', range(1, len(soil_data) + 1))
+            if not 'type' in soil_data.columns: soil_data['type'] = 0
+            soil_data['code'] = soil_data['type'].apply(lambda x: flowFunctions.soil_codes.get(x, "Unknown"))
+        soil_data.insert(0, '_id', range(1, len(soil_data) + 1))
         if soil_data.empty: return JSONResponse({'status': 'error', 'message': 'No soil data found.'})
         if soil_data.crs != "EPSG:4326": soil_data = soil_data.to_crs("EPSG:4326")
-        
-
-
-
-            # soil_path = os.path.normpath(os.path.join(dir, file.filename))
-            # soil_data.to_file(soil_path, driver="GeoJSON")
-            # tile_url = f"/{project_name.replace('/', '*')}/soils/{file.filename}/{{z}}/{{x}}/{{y}}.png"
-            # contents = {"tile_url": tile_url}
-
-        
-        
-        
-        
-        
-
-        # name, dst_crs = file.filename.rstrip(".tif"), "EPSG:3857"
-        # save_dir = os.path.normpath(os.path.join(dir, name))
-        # if os.path.exists(save_dir): shutil.rmtree(save_dir)
-        # os.makedirs(save_dir, exist_ok=True)
-        # terrain_path = os.path.normpath(os.path.join(save_dir, file.filename))
-        # with open(terrain_path, "wb") as buffer:
-        #     shutil.copyfileobj(file.file, buffer)
-        # # Convert to COG
-        # cog_path = os.path.splitext(terrain_path)[0] + "_cog.tif"
-        # with rasterio.open(terrain_path) as src:
-        #     transform, width, height = calculate_default_transform(
-        #         src.crs, dst_crs, src.width, src.height, *src.bounds
-        #     )
-        #     profile = src.profile.copy()
-        #     profile.update({"crs": dst_crs, "transform": transform, "width": width,
-        #         "height": height, "driver": "COG", "compress": "LZW", "tiled": True
-        #     })
-        #     with rasterio.open(cog_path, "w", **profile) as dst:
-        #         reproject(
-        #             source=rasterio.band(src, 1), destination=rasterio.band(dst, 1),
-        #             src_transform=src.transform, src_crs=src.crs,
-        #             dst_transform=transform, dst_crs=dst_crs,
-        #             resampling=Resampling.bilinear
-        #         )
-        # # Get min and max
-        # with rasterio.open(cog_path) as src:
-        #     data = src.read(1, masked=True)
-        #     global_min, global_max = float(data.min()), float(data.max())
-        # meta_path, meta = os.path.splitext(terrain_path)[0] + ".json", {}
-        # if os.path.exists(meta_path):
-        #     with open(meta_path, "r") as f: meta = json.load(f)
-        # meta['raw'] = {"min": global_min, "max": global_max}
-        # with open(meta_path, "w") as f: json.dump(meta, f)
-        # new_name = project_name.replace("/", "*")
-        # tile_url = f"/{new_name}/terrain/raw/{name}/{os.path.basename(cog_path)}/{{z}}/{{x}}/{{y}}.png"
-        # contents = {"tile_url": tile_url, "min": global_min, "max": global_max}
-        return JSONResponse({'status': 'ok', 'content': contents})
+        return JSONResponse({'status': 'ok', 'content': json.loads(soil_data.to_json())})
     except Exception as e:
         print('/soil_upload:\n==============')
         traceback.print_exc()

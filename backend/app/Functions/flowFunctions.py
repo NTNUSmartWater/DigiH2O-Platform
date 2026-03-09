@@ -7,6 +7,33 @@ import geopandas as gpd
 from shapely.geometry import shape, Polygon, MultiPolygon
 from shapely.ops import unary_union
 
+soil_type = {
+    "Rocks and boulders": 1,
+    "Gravel": 2,
+    "Coarse sand": 3,
+    "Fine sand": 4,
+    "Coarse sand with clay": 5,
+    "Fine sand with clay": 6,
+    "Coarse clay with sand": 7,
+    "Fine clay with sand": 8,
+    "Clay": 9,
+    "Fine clay": 10,
+    "Very fine clay": 11,
+    "Silt": 12,
+    "Gyttja/peat": 13,
+    "Bedrock": 14,
+    "Glacier": 15,
+    "Water": 16
+}
+soil_codes = {
+    1: "Rocks and boulders", 2: "Gravel", 3: "Coarse sand",
+    4: "Fine sand", 5: "Coarse sand with clay",
+    6: "Fine sand with clay", 7: "Coarse clay with sand",
+    8: "Fine clay with sand", 9: "Clay", 10: "Fine clay",
+    11: "Very fine clay", 12: "Silt", 13: "Gyttja/peat",
+    14: "Bedrock", 15: "Glacier", 16: "Water"
+}
+
 def remove_holes(geom):
     if isinstance(geom, Polygon): return Polygon(geom.exterior)
     elif isinstance(geom, MultiPolygon):

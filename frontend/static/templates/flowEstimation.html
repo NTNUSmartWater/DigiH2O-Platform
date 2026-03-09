@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
-    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=003">
+    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=005">
 </head>
 <body>
     <section class="main-tab">
@@ -46,10 +46,10 @@
                             <button type="button" id="terrain-btn">...</button>
                         </div>
                         <div class="checkbox-column">
-                            <label class="checkbox-right" style="margin-top: 20px; font-size: 16px;">
+                            <label class="checkbox-right" style="margin-top: 5px; font-size: 15px;">
                                 <input type="radio" name="terrain" value="terrain-raw">Show/Hide Terrain
                             </label>
-                            <label class="checkbox-right" style="margin-top: 20px; font-size: 16px;">
+                            <label class="checkbox-right" style="margin-top: 5px; font-size: 15px;">
                                 <input type="radio" name="terrain" value="hide-all" checked>Hide All
                             </label>
                         </div>
@@ -114,30 +114,83 @@
                             <input type="text" id="soil-input-text" placeholder="No file selected" readonly>
                             <button type="button" id="soil-btn">...</button>
                         </div>
-                        
-                    </div>
-                    <div class="tile"><h3>Soil Modification</h3>
-
-
-                        <div class="single-row">
-                            <a style="margin-top: 10px; font-size: 16px; width: 125px;">Data Reference:</a>
-                            <a class="data-link" href="https://scalgo.com/en-US/scalgo-live-documentation/soil-vegetation-atmosphere-properties/soil/mapping"
-                                target="_blank">Scalgo Soil Mapping
+                        <label class="checkbox-right" style="margin: 10px 0 0 0;">
+                            <label style="cursor: pointer; font-size: 14px; width: 125px;">
+                                <input type="checkbox" id="polygon-checker-checkbox">Show/Hide Layer
+                            </label>
+                            <button type="button" id="polygon-checker-btn">Check invalid polygons</button>
+                        </label>
+                        <div class="single-row" style="margin-top: 5px;">
+                            <a style="margin: 10px 0 0 0; font-size: 14px; width: 125px;">Data Reference:</a>
+                            <a class="data-link" href="https://scalgo.com/en-US/scalgo-live-documentation/soil-vegetation-atmosphere-properties/soil"
+                                target="_blank">Scalgo Soil Types
                             </a>
                         </div>
+                    </div>
+                    <div class="tile"><h3>Soil Modification</h3>
+                        <div class="single-row">
+                            <button type="button" id="soil-clip-btn">Clip Soil to Catchment</button>
+                        </div>
+                        <div class="single-row">
+                            <label for="ids">ID(s):</label>
+                            <select id="ids"></select>
+                        </div>
+                        <div class="single-row">
+                            <label for="soil-type">Soil Type:</label>
+                            <select id="soil-type">
+                                <option value="1">Rocks and boulders</option>
+                                <option value="2">Gravel</option>
+                                <option value="3">Coarse sand</option>
+                                <option value="4">Fine sand</option>
+                                <option value="5">Coarse sand with clay</option>
+                                <option value="6">Fine sand with clay</option>
+                                <option value="7">Coarse clay with sand</option>
+                                <option value="8">Fine clay with sand</option>
+                                <option value="9">Clay</option>
+                                <option value="10">Fine clay</option>
+                                <option value="11">Very fine clay</option>
+                                <option value="12">Silt</option>
+                                <option value="13">Gyttja/peat</option>
+                                <option value="14">Bedrock</option>
+                                <option value="15">Glacier</option>
+                                <option value="16">Water</option>
+                            </select>
+                        </div>
+                        <!-- <div class="single-row">
+
+
+                        </div> -->
+
+
+                        
                     </div>
 
                     <div class="tile" style="grid-column: span 4;"><h3>Attribute Settings</h3>
                         <table class="attributes-table" id="soil-attributes-table">
                             <thead><tr>
-                                <th>Id</th><th>Soil thickness</th><th>Rooting depth</th><th>Rooting depth</th>
+                                <th>Type</th><th>Soil thickness</th><th>Rooting depth</th>
                                 <th>Ksat</th><th>theta_s</th><th>theta_r</th><th>Field capacity</th>
                                 <th>Wilting point</th><th>Soil texture</th>
                             </tr></thead>
                             <tbody></tbody>
                         </table>
+                        <div class="single-row" style="margin-top: 15px;">
+                            <a style="margin-top: 10px;">References:</a>
+                            <a class="data-link" href="#"
+                                onclick="window.open('/static_frontend/pdfs/Rawlsetal1982TransASAE.pdf', '_blank'); return false;"
+                                target="_blank">W. J. Rawls et al., (1982),
+                            </a>
+                            <a class="data-link" href="#"
+                                onclick="window.open('/static_frontend/pdfs/Cosbyetal1984WRR.pdf', '_blank'); return false;"
+                                target="_blank">B. J. Cosby et al., (1984),
+                            </a>
+                            <a class="data-link" href="#"
+                                onclick="window.open('/static_frontend/pdfs/GordonBonan.pdf', '_blank'); return false;"
+                                target="_blank">Gordon Bonan (2019)
+                            </a>
+                        </div>
                     </div>
-
+                    
 
 
                 </div>

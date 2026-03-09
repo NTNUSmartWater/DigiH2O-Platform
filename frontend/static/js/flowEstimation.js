@@ -1,6 +1,6 @@
 import { getState, CENTER, ZOOM, L } from "./constants.js";
 import { sendQuery } from "./tableManager.js";
-import { clearMap, updateColorbar } from "./utils.js";
+import { clearMap, updateColorbar, getColor } from "./utils.js";
 
 const loading = () => document.getElementById('loadingOverlay');
 const leafletMap = () => document.getElementById('leaflet-map');
@@ -29,6 +29,12 @@ const catchmentUploadBtn = () => document.getElementById('catchment-upload-btn')
 const soilInputText = () => document.getElementById('soil-input-text');
 const soilInputFile = () => document.getElementById('soil-input-file');
 const soilBtn = () => document.getElementById('soil-btn');
+const soilCheckbox = () => document.getElementById('polygon-checker-checkbox');
+
+
+
+const polygonCheckerBtn = () => document.getElementById('polygon-checker-btn');
+const soilClipBtn = () => document.getElementById('soil-clip-btn');
 
 
 
@@ -45,8 +51,8 @@ let map = null, terrainLayer = null, minTerrain = null, maxTerrain = null,
     fillLayer = null, minFill = null, maxFill = null, markerLayer = null,
     flowDirectionLayer = null, minFlowDirection = null, maxFlowDirection = null,
     flowAccumulationLayer = null, minFlowAccumulation = null, maxFlowAccumulation = null,
-    catchmentLayer = null, lastLayer = null, isTooltipActive = false, lat=null, lon=null,
-    soilLayer = null;
+    catchmentLayer = null, lastLayer = null, lat=null, lon=null,
+    soilLayer = null, isPourpointActive = false, isSoilActive = false;
 
 const hoverTooltip = L.tooltip({
     permanent: false, direction: 'bottom',
@@ -109,6 +115,29 @@ function createMap() {
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
     L.control.scale({imperial: false, metric: true, maxWidth: 200}).addTo(map);
     setTimeout(() => { map.invalidateSize(); }, 100);
+    map.on("mousemove", function (e) {
+        if (isPourpointActive) { 
+            hoverTooltip.setLatLng(e.latlng).setContent("Click to set the pourpoint coordinates.");
+            map.openTooltip(hoverTooltip); return;
+        }
+        
+
+
+
+
+        map.closeTooltip(hoverTooltip); map.getContainer().style.cursor = 'grab';
+    });
+    map.on('click', async function (e) {
+        if (isPourpointActive) {
+            pourpointLat().value = e.latlng.lat.toFixed(8);
+            pourpointLon().value = e.latlng.lng.toFixed(8);
+            lat = e.latlng.lat; lon = e.latlng.lng;
+            markerLayer = clearMap(markerLayer, map);
+            markerLayer = L.circleMarker(e.latlng, {
+                radius: 4, fillColor: 'blue', color: 'red', weight: 2, opacity: 1, fillOpacity: 1
+            }).addTo(map); await catchmentDelineation(); 
+        }
+    });
 }
 
 function colorbarReset(vmin, vmax, title, colorKey) {
@@ -157,6 +186,17 @@ async function catchmentDelineation() {
     if (catchmentRadio) { catchmentRadio.checked = true; catchmentRadio.dispatchEvent(new Event('change')); }
 }
 
+function setActiveMode() { 
+    isPourpointActive = false; isSoilActive = false;
+    markerLayer = clearMap(markerLayer, map);
+    const mapContainer = map.getContainer();
+    mapContainer.style.cursor = "grab";
+    if (pourpointCheckbox().checked) { pourpointCheckbox().checked = false; }
+    pourpointCheckbox().dispatchEvent(new Event("change"));
+    if (map) { map.closeTooltip(hoverTooltip); }
+}
+
+
 function update() {
     if (!map) { createMap(); }; compass().style.display = 'flex';
     terrainBtn().addEventListener('click', () => { 
@@ -173,7 +213,7 @@ function update() {
             const value = e.target.value; let ok = true, layer = null;
             if (value === 'hide-all') { 
                 colorbar_container().style.display = 'none';
-                if (lastLayer) lastLayer.remove(); lastLayer = null;
+                lastLayer = clearMap(lastLayer, map);
             } else if (value === 'terrain-raw') { 
                 if (terrainLayer) { 
                     layer = terrainLayer;
@@ -224,6 +264,9 @@ function update() {
                 if (lastLayer) lastLayer.addTo(map); e.target.checked = false;
             }
         });
+    });
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', function () { setActiveMode(); });
     });
     terrainInputFile().addEventListener('change', async (event) => { 
         const file = event.target.files[0]; if (!file) return;
@@ -304,31 +347,15 @@ function update() {
     pourpointCheckbox().addEventListener('change', (e) => {
         const mapContainer = map.getContainer();
         if (e.target.checked) { 
-            mapContainer.style.cursor = 'crosshair'; isTooltipActive = true;
-            map.on("click", async function (e) {
-                pourpointLat().value = e.latlng.lat.toFixed(8);
-                pourpointLon().value = e.latlng.lng.toFixed(8);
-                lat = e.latlng.lat; lon = e.latlng.lng;
-                if (markerLayer) { map.removeLayer(markerLayer); markerLayer = null; }
-                markerLayer = L.circleMarker(e.latlng, {
-                    radius: 4, fillColor: 'blue', color: 'red', weight: 2, opacity: 1, fillOpacity: 1
-                }).addTo(map); await catchmentDelineation();
-            });
-            map.on("mousemove", function (e) {
-                if (isTooltipActive) { 
-                    hoverTooltip.setLatLng(e.latlng).setContent(`Click to set the pourpoint coordinates.`);
-                    map.openTooltip(hoverTooltip);
-                } else { map.closeTooltip(hoverTooltip); mapContainer.style.cursor = 'grab'; }
-            });
+            mapContainer.style.cursor = 'crosshair'; isPourpointActive = true;
         } else { 
-            mapContainer.style.cursor = 'grab'; isTooltipActive = false;
             pourpointLat().value = ''; pourpointLon().value = ''; lat = null; lon = null;
         }
     });
     catchmentExportBtn().addEventListener('click', async () => { 
         const layerCheck = terrainInputText().value;
         if (layerCheck === '') { alert('Please upload terrain data first.'); return; }
-        if (catchmentLayer === null) { alert('Please run catchment delineation first.'); return; }
+        if (catchmentLayer === null) { alert('Please select pourpoint and create a catchment first.'); return; }
         try { 
             const data = JSON.stringify(catchmentLayer.toGeoJSON(), null, 2);
             if ('showSaveFilePicker' in window) {
@@ -393,26 +420,73 @@ function update() {
         const file = event.target.files[0]; if (!file) return;
         const formData = new FormData(); formData.append('file', file); 
         formData.append('projectName', getState().currentProject);
-        startLoading('Uploading soil data. Please wait...');
+        startLoading('Uploading and processing soil data. Please wait...');
         try {
             const response = await fetch('/soil_upload', { method: 'POST', body: formData });
             const data = await response.json();
             if (data.status === 'error') { alert(data.message); return; }
             soilLayer = clearMap(soilLayer, map);
             soilLayer = L.geoJSON(data.content, { 
-                style: { color: 'brown', weight: 1, opacity: 1, fillColor: 'yellow', fillOpacity: 0.7 },
+                style: function(feature) { 
+                    const id = feature.properties._id;
+                    return { color: 'black', weight: 1, opacity: 1, fillOpacity: 0.8, fillColor: getColor(id) }; 
+                },
                 onEachFeature: (feature, layer) => { 
                     layer.on('click', () => { 
+                        const id = feature.properties._id;
                         console.log('Clicked soil feature:', feature.properties, layer);
                     
                     
                     });
-                    layer.bindPopup('Click to change attributes', {sticky: true});
+                    const tooltip = `
+                    <div style="font-weight: bold; text-align: center;">ID: ${feature.properties._id || 'Unknown'}</div>
+                    <hr style="margin: 5px 0 5px 0;">
+                    <div style="font-weight: bold; text-align: center;">Compulsory attributes:</div>
+                    <hr style="margin: 0 10px 0 10px; color: #1808f3ff;">
+                    <strong>• Code:</strong> ${feature.properties.code || 'Unknown'}<br>
+                    <strong>• Name:</strong> ${feature.properties.name || 'Unknown'}<br>
+                    <strong>• Region:</strong> ${feature.properties.region || 'Unknown'}<br>
+                    <strong>• Area:</strong> ${feature.properties.area || 0} (m²)<br>
+                    <strong>• Perimeter:</strong> ${feature.properties.perimeter || 0} (m)<br>
+                    <strong>• Depth:</strong> ${feature.properties.depth || 0} (m)<br>
+                    <strong>• Drainage:</strong> ${feature.properties.drainage || 'Unknown'}<br>
+                    <hr style="margin: 5px 0 5px 0;">`;
+                    layer.bindTooltip(`${tooltip}<strong>Click to change attributes</strong>`, {sticky: true});
                 }
             }).addTo(map);
-            soilInputText().value = file.name; event.target.value = '';
-        } catch (error) { alert(`Uploading soil data failed: ${error.message}`); }
+            soilInputText().value = file.name; event.target.value = ''; soilCheckbox().checked = true;
+            polygonCheckerBtn().style.display = 'block'; isSoilActive = true;
+        } catch (error) { 
+            alert(`Uploading soil data failed: ${error.message}`); 
+            polygonCheckerBtn().style.display = 'none';
+        }
         stopLoading(); colorbar_container().style.display = 'none';
+    });
+    soilCheckbox().addEventListener('change', (e) => {
+        if (!soilLayer) { alert('Please upload/create a soil layer first.'); return; }
+        if (e.target.checked) { soilLayer.addTo(map);
+        } else { soilLayer.remove(); }
+    });
+    polygonCheckerBtn().addEventListener('click', () => { 
+        if (soilLayer === null) { alert('Please upload/create a soil layer first.'); return; }
+        soilLayer.eachLayer((feature, layer) => { 
+            layer.closeTooltip(); 
+        
+        
+        });
+    });
+
+
+
+    soilClipBtn().addEventListener('click', () => { 
+        if (soilLayer === null) { alert('Please upload/create a soil layer first.'); return; }
+        if (catchmentLayer === null) { alert('Please upload/create a catchment layer first.'); return; }
+
+
+
+
+        soilLayer = clearMap(soilLayer, map);
+        colorbar_container().style.display = 'none';
     });
 
 
