@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
-    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=008">
+    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=002">
 </head>
 <body>
     <section class="main-tab">
@@ -115,7 +115,7 @@
                             <button type="button" id="soil-btn">...</button>
                         </div>
                         <label class="checkbox-right" style="margin-top: 15px;">
-                            <input type="checkbox" id="soil-checker-checkbox">Show/Hide Layer
+                            <input type="checkbox" id="soil-checker-checkbox">Show/Hide Soil Layer
                         </label>
                         <div class="single-row" style="margin-top: 5px;">
                             <button type="button" id="soil-invalid-checker-btn" style="display: none;">Check invalid polygons</button>
@@ -161,7 +161,7 @@
                             <button type="button" id="save-soil-btn">Save map</button>
                         </div>
                     </div>
-                    <div class="tile" style="grid-column: span 4;"><h3>Attribute Settings</h3>
+                    <div class="tile" style="grid-column: span 4;"><h3>Attribute Table</h3>
                         <div class="table-container">
                             <table class="attributes-table" id="soil-attributes-table">
                                 <thead><tr>
@@ -192,14 +192,24 @@
             <!-- Tab 3: Land Use/Land Cover -->
             <div class="main-panel" data-panel="land-use-tab">
                 <div class="grid">
-                    <div class="tile"><h3>Land Use/Land Cover</h3>
+                    <div class="tile"><h3>Land Use/Land Cover (LU/LC)</h3>
                         <div class="single-row">
-                            <label for="land-use-input">Land Use/Land Cover:</label>
-                            <input type="file" id="land-use-input-file" accept=".csv" hidden>
+                            <label for="land-use-input">LU/LC Data:</label>
+                            <input type="file" id="land-use-input-file" accept=".tif,.geojson" hidden>
                             <input type="text" id="land-use-input-text" placeholder="No file selected" readonly>
                             <button type="button" id="land-use-btn">...</button>
                         </div>
+                        <label class="checkbox-right" style="margin-top: 10px;">
+                            <input type="checkbox" id="land-checker-checkbox">Show/Hide LU/LC Layer
+                        </label>
+
+
+
                     </div>
+
+
+
+
 
 
                 </div>
@@ -261,7 +271,7 @@
             <!-- Tab 7: Flow Detection -->
             <div class="main-panel" data-panel="flow-detection-tab">
                 <div class="grid">
-                    <div class="tile"><h3>Catchment Import</h3>
+                    <div class="tile"><h3>Data Import</h3>
                         <!-- <div class="single-row">
                             <label for="catchment-input">Catchment File:</label>
                             <input type="file" id="catchment-input-file" accept=".geojson" hidden>

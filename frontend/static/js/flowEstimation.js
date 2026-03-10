@@ -38,6 +38,11 @@ const assignSoilBtn = () => document.getElementById('assign-soil-btn');
 const saveSoilBtn = () => document.getElementById('save-soil-btn');
 const soilAttributesTable = () => document.getElementById('soil-attributes-table');
 
+const landUseInputFile = () => document.getElementById('land-use-input-file');
+const landUseInputText = () => document.getElementById('land-use-input-text');
+const landUseBtn = () => document.getElementById('land-use-btn');
+const landUseCheckbox = () => document.getElementById('land-checker-checkbox');
+
 
 
 
@@ -54,7 +59,8 @@ let map = null, terrainLayer = null, minTerrain = null, maxTerrain = null,
     flowDirectionLayer = null, minFlowDirection = null, maxFlowDirection = null,
     flowAccumulationLayer = null, minFlowAccumulation = null, maxFlowAccumulation = null,
     catchmentLayer = null, lastLayer = null, lat=null, lon=null,
-    soilLayer = null, isPourpointActive = false, isSoilActive = false;
+    soilLayer = null, isPourpointActive = false, isSoilActive = false,
+    landUseLayer = null, isLandUseActive = false;
 
 const hoverTooltip = L.tooltip({
     permanent: false, direction: 'bottom',
@@ -217,6 +223,12 @@ async function mapPlotter(data, map, key) {
                     color: 'black', weight: 1, opacity: 1, 
                     fillOpacity: 0.8, fillColor: getColor(id) 
                 }; 
+            } else if (key === 'landUse') {
+                // const id = feature.properties._id;
+                // return { 
+                //     color: 'black', weight: 1, opacity: 1, 
+                //     fillOpacity: 0.8, fillColor: getColor(id) 
+                // }; 
             }
         },
         onEachFeature: (feature, featureLayer) => { 
@@ -235,6 +247,12 @@ async function mapPlotter(data, map, key) {
                     soilModifier(feature.properties); 
                 });
                 featureLayer.bindTooltip(`${buildSoilTooltip(feature.properties)}`, {sticky: true});
+            } else if (key === 'landUse') { 
+
+
+
+                
+                
             }
         }
     }).addTo(map);
@@ -489,11 +507,13 @@ function update() {
             if (data.status === 'error') { alert(data.message); return; }
             soilLayer = clearMap(soilLayer, map);
             soilLayer = await mapPlotter(data.content, map, 'soil');
-            soilInputText().value = file.name; event.target.value = ''; soilCheckbox().checked = true;
-            soilInvalidCheckerBtn().style.display = 'block'; isSoilActive = true;
+            soilInputText().value = file.name; event.target.value = ''; 
+            soilCheckbox().checked = true; isSoilActive = true;
+            soilInvalidCheckerBtn().style.display = 'block'; 
         } catch (error) { 
             alert(`Uploading soil data failed: ${error.message}`); 
             soilInvalidCheckerBtn().style.display = 'none';
+            soilCheckbox().checked = false; isSoilActive = false;
         }
         stopLoading(); colorbar_container().style.display = 'none';
     });
@@ -546,7 +566,6 @@ function update() {
             soilLayer = await mapPlotter(request.content, map, 'soil');
         } else {alert('Please upload/create a soil layer and a catchment layer.');}
     });
-    // soilIds().addEventListener('change', (e) => { soilModifier(e.target.value); });
     assignSoilBtn().addEventListener('click', async () => { 
         if (soilLayer === null) { alert('Please upload/create a soil layer first.'); return; }
         const soilID = soilIds().value;
@@ -581,6 +600,32 @@ function update() {
         if (soilLayer === null) { alert('Please upload/create a soil layer first.'); return; }
         await geoJSONExporter(soilLayer.toGeoJSON(), 'soil.geojson');
     });
+    landUseBtn().addEventListener('click',  () => { landUseInputFile().click(); });
+    landUseInputFile().addEventListener('change', async (event) => { 
+        // if (landUseLayer) { map.removeLayer(landUseLayer); landUseLayer = null; }
+        // if (landUseInputFile().files.length === 0) { return; }
+        const file = event.target.files[0]; if (!file) return;
+        const formData = new FormData(); formData.append('file', file); 
+        formData.append('projectName', getState().currentProject);
+        startLoading('Uploading and processing Land Use/Land Cover data. Please wait...');
+        try { 
+            const response = await fetch('/land_upload', { method: 'POST', body: formData });
+            const data = await response.json();
+            if (data.status === "error") { alert(data.message); return; }
+            landUseLayer = clearMap(landUseLayer, map);
+            landUseLayer = await mapPlotter(data.content, map, 'landUse');
+            landUseInputText().value = file.name; event.target.value = '';
+            landUseCheckbox().checked = true; isLandUseActive = true;
+        } catch (err) {
+            alert(`Uploading Land Use/Land Cover data failed. Error: ${err}`);
+            landUseCheckbox().checked = false; isLandUseActive = false;
+        }
+        stopLoading(); colorbar_container().style.display = 'none';
+    });
+    // saveLandUseBtn().addEventListener('click', async () => { 
+    //     if (landUseLayer === null) { alert('Please upload/create a land use layer first.'); return; }
+    //     await geoJSONExporter(landUseLayer.toGeoJSON(), 'landUse.geojson');
+    // });
 
 
 

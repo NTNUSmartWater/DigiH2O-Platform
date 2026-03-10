@@ -119,8 +119,6 @@ body {
 }
 .single-row a {font-size: 13px; text-align: center;}
 
-
-
 .checkbox-right {
   display: flex; align-items: center; gap: 0.5em; white-space: nowrap; margin-top: 0; cursor: pointer;
 }
@@ -129,6 +127,7 @@ body {
 .checkbox-grid {
   display: grid; grid-template-columns: repeat(1, 1fr); row-gap: 5px; justify-items: center; column-gap: 30px;
 }
+.checkbox-right label { font-size: 12px; cursor: pointer; }
 
 .checkbox-column { display: flex; flex-direction: row; align-items: center; gap: 5px; }
 .checkbox-column button { 
