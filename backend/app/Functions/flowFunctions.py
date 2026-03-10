@@ -7,7 +7,7 @@ import geopandas as gpd
 from shapely.geometry import shape, Polygon, MultiPolygon
 from shapely.ops import unary_union
 
-soil_type = {
+soil_types = {
     "Rocks and boulders": [0.10, 0.01, 5000, 200, 0.03, 2],
     "Gravel": [0.25, 0.02, 3000, 500, 0.03, 3],
     "Coarse sand": [0.38, 0.03, 2000, 1000, 0.025, 3],

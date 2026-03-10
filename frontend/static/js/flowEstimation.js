@@ -35,6 +35,7 @@ const soilIds = () => document.getElementById('soil-id');
 const soilTypes = () => document.getElementById('soil-type');
 const soilClipBtn = () => document.getElementById('soil-clip-btn');
 const assignSoilBtn = () => document.getElementById('assign-soil-btn');
+const saveSoilBtn = () => document.getElementById('save-soil-btn');
 const soilAttributesTable = () => document.getElementById('soil-attributes-table');
 
 
@@ -194,13 +195,13 @@ function buildSoilTooltip(props) {
     return `
     <div style="font-weight: bold; text-align: center;">ID: ${props._id || 'Unknown'}</div>
     <hr style="margin: 5px 0 5px 0;">
-    <strong>• Type:</strong> ${props.code || 'Unknown'}<br>
+    <strong>• Type:</strong> ${props.soil}<br>
     <strong>• θS (m³/m³):</strong> ${props.theta_s ?? 'Unknown'}<br>
     <strong>• θR (m³/m³):</strong> ${props.theta_r ?? 'Unknown'}<br>
     <strong>• KsatVer (mm/day):</strong> ${props.k_sat_ver ?? 0}<br>
     <strong>• SoilDepth (mm):</strong> ${props.soil_depth ?? 0}<br>
     <strong>• Conductivity decay:</strong> ${props.conductivity_decay ?? 0}<br>
-    <strong>• Brooks–Corey:</strong> ${props.brooks_corey ?? 'Unknown'}<br>
+    <strong>• Brooks-Corey:</strong> ${props.brooks_corey ?? 'Unknown'}<br>
     <hr style="margin: 5px 0 5px 0;">
     <strong>Click to change attributes</strong>
     `;
@@ -231,7 +232,7 @@ async function mapPlotter(data, map, key) {
                     });
                     // Highlight the clicked feature
                     featureLayer.setStyle({ color: 'yellow', weight: 3 }); 
-                    soilModifier(feature.properties._id); 
+                    soilModifier(feature.properties); 
                 });
                 featureLayer.bindTooltip(`${buildSoilTooltip(feature.properties)}`, {sticky: true});
             }
@@ -240,11 +241,44 @@ async function mapPlotter(data, map, key) {
     return layer;
 }
 
-function soilModifier(id) { 
+function soilModifier(props) { 
     soilIds().textContent = '';
     var option = document.createElement('option');
-    option.value = id; option.textContent = id;
+    option.value = props._id; option.textContent = props._id;
     soilIds().appendChild(option);
+    const values = [
+        props._id, props.soil, props.theta_s, props.theta_r, props.k_sat_ver, 
+        props.soil_depth, props.conductivity_decay, props.brooks_corey
+    ];
+    fillTable([values], soilAttributesTable());
+}
+
+async function geoJSONExporter(data, fileName) {
+    try { 
+        const json = JSON.stringify(data, null, 2);
+        if ('showSaveFilePicker' in window) {
+            // --- Chrome/Edge/Opera ---
+            const fileHandle = await window.showSaveFilePicker({
+                suggestedName: fileName,
+                types: [{
+                    description: 'GeoJSON',
+                    accept: { 'application/json': ['.geojson'] }
+                }]
+            });
+            const writable = await fileHandle.createWritable();
+            await writable.write(json); await writable.close();
+        } else {
+            // --- Fallback cho Firefox, Safari ---
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = fileName;
+            document.body.appendChild(a); a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        alert(`Exporting succeeded: ${fileName}`);
+    } catch (error) { alert(`Exporting failed: ${error.message}`); }
 }
 
 
@@ -408,31 +442,7 @@ function update() {
         const layerCheck = terrainInputText().value;
         if (layerCheck === '') { alert('Please upload terrain data first.'); return; }
         if (catchmentLayer === null) { alert('Please select pourpoint and create a catchment first.'); return; }
-        try { 
-            const data = JSON.stringify(catchmentLayer.toGeoJSON(), null, 2);
-            if ('showSaveFilePicker' in window) {
-                // --- Chrome/Edge/Opera ---
-                const fileHandle = await window.showSaveFilePicker({
-                    suggestedName: 'catchment.geojson',
-                    types: [{
-                        description: 'GeoJSON',
-                        accept: { 'application/json': ['.geojson'] }
-                    }]
-                });
-                const writable = await fileHandle.createWritable();
-                await writable.write(data); await writable.close();
-            } else {
-                // --- Fallback cho Firefox, Safari ---
-                const blob = new Blob([data], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url; a.download = 'catchment.geojson';
-                document.body.appendChild(a); a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }
-            alert('Catchment delineation exported successfully.');
-        } catch (error) { alert(`Exporting catchment delineation failed: ${error.message}`); }
+        await geoJSONExporter(catchmentLayer.toGeoJSON(), 'catchment.geojson');
     });
     document.querySelectorAll('input[name="catchment"]').forEach(radio => {
         radio.addEventListener('change', (e) => { 
@@ -506,7 +516,11 @@ function update() {
                 if (layer.feature.properties.soil === '') {
                     layer.setStyle({ color: 'yellow', weight: 3 });
                     const id = layer.feature.properties._id;
-                    invalidSoil.push([id,'','','','','','']); invalidIDs.push(id);
+                    const values = [
+                        id,'Unknown','Unknown','Unknown',
+                        'Unknown','Unknown','Unknown','Unknown'
+                    ]
+                    invalidSoil.push(values); invalidIDs.push(id);
                 }
             }); stopLoading();
             if (invalidSoil.length === 0) { alert('All soil polygons are valid.'); 
@@ -532,7 +546,7 @@ function update() {
             soilLayer = await mapPlotter(request.content, map, 'soil');
         } else {alert('Please upload/create a soil layer and a catchment layer.');}
     });
-    soilIds().addEventListener('change', (e) => { soilModifier(e.target.value); });
+    // soilIds().addEventListener('change', (e) => { soilModifier(e.target.value); });
     assignSoilBtn().addEventListener('click', async () => { 
         if (soilLayer === null) { alert('Please upload/create a soil layer first.'); return; }
         const soilID = soilIds().value;
@@ -544,7 +558,7 @@ function update() {
         soilLayer.eachLayer((layer) => { 
             if (layer.feature.properties._id === Number(soilID)) {
                 const values = [...response.content];
-                layer.feature.properties.code = soilType;
+                layer.feature.properties.soil = soilType;
                 layer.feature.properties.theta_s = values[0];
                 layer.feature.properties.theta_r = values[1];
                 layer.feature.properties.k_sat_ver = values[2];
@@ -562,6 +576,10 @@ function update() {
                 );
             }
         }); stopLoading();
+    });
+    saveSoilBtn().addEventListener('click', async () => { 
+        if (soilLayer === null) { alert('Please upload/create a soil layer first.'); return; }
+        await geoJSONExporter(soilLayer.toGeoJSON(), 'soil.geojson');
     });
 
 

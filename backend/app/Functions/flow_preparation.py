@@ -3,7 +3,8 @@ from fastapi import APIRouter, Request, Depends, UploadFile, File, Form, Respons
 from fastapi.responses import JSONResponse
 from Functions import functions, flowFunctions
 from config import PROJECT_STATIC_ROOT
-import numpy as np, matplotlib.cm as cm, geopandas as gpd
+import numpy as np, matplotlib.cm as cm
+import geopandas as gpd, pandas as pd
 from PIL import Image
 from rasterio.enums import Resampling
 from rasterio.warp import calculate_default_transform, reproject
@@ -265,11 +266,13 @@ async def soil_upload(file: UploadFile = File(...), projectName: str = Form(...)
                     for geom, value in shapes(data, mask=mask, transform=src.transform))
                 geoms = list(results)
             soil_data = gpd.GeoDataFrame(geoms, crs=src.crs)
-        elif file_ext[-1].lower() in ["geojson"]:
-            soil_data = gpd.read_file(soil_path)
-            if not 'soil' in soil_data.columns: soil_data['soil'] = ""
-        soil_data.insert(0, '_id', range(1, len(soil_data) + 1))
-        if soil_data.empty: return JSONResponse({'status': 'error', 'message': 'No soil data found.'})
+        elif file_ext[-1].lower() in ["geojson"]: soil_data = gpd.read_file(soil_path)
+        if soil_data.empty: return JSONResponse({'status': 'error', 'message': 'No soil data found.'})        
+        if '_id' not in soil_data.columns: soil_data.insert(0, '_id', range(1, len(soil_data) + 1))
+        if 'soil' in soil_data.columns:
+            new_cols = ["theta_s", "theta_r", "k_sat_ver", "soil_depth", "conductivity_decay", "brooks_corey"]
+            soil_data[new_cols] = soil_data['soil'].map(flowFunctions.soil_types).apply(pd.Series)
+        else: soil_data['soil'] = 'Unknown'
         if soil_data.crs != "EPSG:4326": soil_data = soil_data.to_crs("EPSG:4326")
         return JSONResponse({'status': 'ok', 'content': json.loads(soil_data.to_json())})
     except Exception as e:
@@ -299,13 +302,14 @@ async def polygon_clip(request: Request):
 async def assign_soil_type(request: Request):
     try:
         body = await request.json()
-        content = flowFunctions.soil_type[body.get('soilType')]
+        soil_type = body.get('soilType')
+        content = flowFunctions.soil_type[soil_type]
+        content.insert(0, soil_type)
         return JSONResponse({'status': 'ok', 'content': content})
     except Exception as e:
         print('/assign_soil_type:\n==============')
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
-
 
 
 
