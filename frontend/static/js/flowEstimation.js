@@ -1,5 +1,5 @@
 import { getState, CENTER, ZOOM, L } from "./constants.js";
-import { sendQuery } from "./tableManager.js";
+import { sendQuery, fillTable, getDataFromTable, deleteTable } from "./tableManager.js";
 import { clearMap, updateColorbar, getColor } from "./utils.js";
 
 const loading = () => document.getElementById('loadingOverlay');
@@ -29,12 +29,13 @@ const catchmentUploadBtn = () => document.getElementById('catchment-upload-btn')
 const soilInputText = () => document.getElementById('soil-input-text');
 const soilInputFile = () => document.getElementById('soil-input-file');
 const soilBtn = () => document.getElementById('soil-btn');
-const soilCheckbox = () => document.getElementById('polygon-checker-checkbox');
-
-
-
-const polygonCheckerBtn = () => document.getElementById('polygon-checker-btn');
+const soilCheckbox = () => document.getElementById('soil-checker-checkbox');
+const soilInvalidCheckerBtn = () => document.getElementById('soil-invalid-checker-btn');
+const soilIds = () => document.getElementById('soil-id');
+const soilTypes = () => document.getElementById('soil-type');
 const soilClipBtn = () => document.getElementById('soil-clip-btn');
+const assignSoilBtn = () => document.getElementById('assign-soil-btn');
+const soilAttributesTable = () => document.getElementById('soil-attributes-table');
 
 
 
@@ -120,11 +121,6 @@ function createMap() {
             hoverTooltip.setLatLng(e.latlng).setContent("Click to set the pourpoint coordinates.");
             map.openTooltip(hoverTooltip); return;
         }
-        
-
-
-
-
         map.closeTooltip(hoverTooltip); map.getContainer().style.cursor = 'grab';
     });
     map.on('click', async function (e) {
@@ -169,9 +165,7 @@ async function catchmentDelineation() {
         const response = await sendQuery('catchment', contents);
         if (response.status === "error") { alert(response.message); return; }
         catchmentLayer = clearMap(catchmentLayer, map);
-        catchmentLayer = L.geoJSON(response.content, { 
-            style: { color: 'blue', weight: 2, opacity: 1 },
-        }).addTo(map);
+        catchmentLayer = L.geoJSON(response.content, { style: { color: 'red', weight: 2, opacity: 1 }}).addTo(map);
         const bounds = catchmentLayer.getBounds();
         if (bounds.isValid()) { 
             setTimeout(() => { map.invalidateSize(); map.fitBounds(bounds); }, 0);
@@ -194,6 +188,63 @@ function setActiveMode() {
     if (pourpointCheckbox().checked) { pourpointCheckbox().checked = false; }
     pourpointCheckbox().dispatchEvent(new Event("change"));
     if (map) { map.closeTooltip(hoverTooltip); }
+}
+
+function buildSoilTooltip(props) {
+    return `
+    <div style="font-weight: bold; text-align: center;">ID: ${props._id || 'Unknown'}</div>
+    <hr style="margin: 5px 0 5px 0;">
+    <strong>• Type:</strong> ${props.code || 'Unknown'}<br>
+    <strong>• θS (m³/m³):</strong> ${props.theta_s ?? 'Unknown'}<br>
+    <strong>• θR (m³/m³):</strong> ${props.theta_r ?? 'Unknown'}<br>
+    <strong>• KsatVer (mm/day):</strong> ${props.k_sat_ver ?? 0}<br>
+    <strong>• SoilDepth (mm):</strong> ${props.soil_depth ?? 0}<br>
+    <strong>• Conductivity decay:</strong> ${props.conductivity_decay ?? 0}<br>
+    <strong>• Brooks–Corey:</strong> ${props.brooks_corey ?? 'Unknown'}<br>
+    <hr style="margin: 5px 0 5px 0;">
+    <strong>Click to change attributes</strong>
+    `;
+}
+
+async function mapPlotter(data, map, key) {
+    const layer = L.geoJSON(data, { 
+        pointToLayer: (feature, latlng)  => { return null; }, 
+        style: feature => { 
+            if (key === 'soil') { 
+                const id = feature.properties._id;
+                return { 
+                    color: 'black', weight: 1, opacity: 1, 
+                    fillOpacity: 0.8, fillColor: getColor(id) 
+                }; 
+            }
+        },
+        onEachFeature: (feature, featureLayer) => { 
+            if (key === 'soil') { 
+                featureLayer.on('click', () => { 
+                    // Reset the color of all features
+                    layer.eachLayer(l => { 
+                        const id = l.feature.properties._id;
+                        l.setStyle({
+                            color: 'black', weight: 1, opacity: 1, 
+                            fillOpacity: 0.8, fillColor: getColor(id) 
+                        }); 
+                    });
+                    // Highlight the clicked feature
+                    featureLayer.setStyle({ color: 'yellow', weight: 3 }); 
+                    soilModifier(feature.properties._id); 
+                });
+                featureLayer.bindTooltip(`${buildSoilTooltip(feature.properties)}`, {sticky: true});
+            }
+        }
+    }).addTo(map);
+    return layer;
+}
+
+function soilModifier(id) { 
+    soilIds().textContent = '';
+    var option = document.createElement('option');
+    option.value = id; option.textContent = id;
+    soilIds().appendChild(option);
 }
 
 
@@ -327,7 +378,8 @@ function update() {
         if (layerCheck === '') { alert('Please upload terrain data first.'); return; }
         // Check if flow direction has been run
         const content = { projectName: getState().currentProject, filename: layerCheck, key: 'flow_direction' };
-        const flowDirectionCheck = await sendQuery('raster_check', content);
+        startLoading(`Checking flow direction data. Please wait ...`);
+        const flowDirectionCheck = await sendQuery('raster_check', content); stopLoading();
         if (flowDirectionCheck.status === 'error') { alert(flowDirectionCheck.message); return; }
         startLoading(`Running flow accumulation algorithm. Please wait ...`);
         pourpointContainer().style.display = 'none'; exportContainer().style.display = 'none';
@@ -411,7 +463,7 @@ function update() {
             const data = await response.json();
             if (data.status === 'error') { alert(data.message); return; }
             catchmentLayer = clearMap(catchmentLayer, map);
-            catchmentLayer = L.geoJSON(data.content).addTo(map);
+            catchmentLayer = L.geoJSON(data.content, { style: { color: 'red', weight: 2, opacity: 1 }}).addTo(map);
         } catch (error) { alert(`Uploading catchment failed: ${error.message}`); }
         stopLoading(); event.target.value = '';
     });
@@ -426,67 +478,90 @@ function update() {
             const data = await response.json();
             if (data.status === 'error') { alert(data.message); return; }
             soilLayer = clearMap(soilLayer, map);
-            soilLayer = L.geoJSON(data.content, { 
-                style: function(feature) { 
-                    const id = feature.properties._id;
-                    return { color: 'black', weight: 1, opacity: 1, fillOpacity: 0.8, fillColor: getColor(id) }; 
-                },
-                onEachFeature: (feature, layer) => { 
-                    layer.on('click', () => { 
-                        const id = feature.properties._id;
-                        console.log('Clicked soil feature:', feature.properties, layer);
-                    
-                    
-                    });
-                    const tooltip = `
-                    <div style="font-weight: bold; text-align: center;">ID: ${feature.properties._id || 'Unknown'}</div>
-                    <hr style="margin: 5px 0 5px 0;">
-                    <div style="font-weight: bold; text-align: center;">Compulsory attributes:</div>
-                    <hr style="margin: 0 10px 0 10px; color: #1808f3ff;">
-                    <strong>• Code:</strong> ${feature.properties.code || 'Unknown'}<br>
-                    <strong>• Name:</strong> ${feature.properties.name || 'Unknown'}<br>
-                    <strong>• Region:</strong> ${feature.properties.region || 'Unknown'}<br>
-                    <strong>• Area:</strong> ${feature.properties.area || 0} (m²)<br>
-                    <strong>• Perimeter:</strong> ${feature.properties.perimeter || 0} (m)<br>
-                    <strong>• Depth:</strong> ${feature.properties.depth || 0} (m)<br>
-                    <strong>• Drainage:</strong> ${feature.properties.drainage || 'Unknown'}<br>
-                    <hr style="margin: 5px 0 5px 0;">`;
-                    layer.bindTooltip(`${tooltip}<strong>Click to change attributes</strong>`, {sticky: true});
-                }
-            }).addTo(map);
+            soilLayer = await mapPlotter(data.content, map, 'soil');
             soilInputText().value = file.name; event.target.value = ''; soilCheckbox().checked = true;
-            polygonCheckerBtn().style.display = 'block'; isSoilActive = true;
+            soilInvalidCheckerBtn().style.display = 'block'; isSoilActive = true;
         } catch (error) { 
             alert(`Uploading soil data failed: ${error.message}`); 
-            polygonCheckerBtn().style.display = 'none';
+            soilInvalidCheckerBtn().style.display = 'none';
         }
         stopLoading(); colorbar_container().style.display = 'none';
     });
     soilCheckbox().addEventListener('change', (e) => {
-        if (!soilLayer) { alert('Please upload/create a soil layer first.'); return; }
-        if (e.target.checked) { soilLayer.addTo(map);
+        if (e.target.checked) { 
+            if (!soilLayer) { 
+                alert('Please upload/create a soil layer first.');
+                e.target.checked = false; soilInputFile().click(); return; 
+            } else { soilLayer.addTo(map); }
         } else { soilLayer.remove(); }
     });
-    polygonCheckerBtn().addEventListener('click', () => { 
+    soilInvalidCheckerBtn().addEventListener('click', () => { 
         if (soilLayer === null) { alert('Please upload/create a soil layer first.'); return; }
-        soilLayer.eachLayer((feature, layer) => { 
-            layer.closeTooltip(); 
-        
-        
-        });
+        deleteTable(soilAttributesTable());
+        startLoading('Checking for invalid soil polygons. Please wait...');
+        setTimeout(() => { 
+            const invalidSoil = [], invalidIDs = [];
+            soilLayer.eachLayer((layer) => { 
+                // Highlight invalid polygons
+                if (layer.feature.properties.soil === '') {
+                    layer.setStyle({ color: 'yellow', weight: 3 });
+                    const id = layer.feature.properties._id;
+                    invalidSoil.push([id,'','','','','','']); invalidIDs.push(id);
+                }
+            }); stopLoading();
+            if (invalidSoil.length === 0) { alert('All soil polygons are valid.'); 
+            } else { 
+                fillTable(invalidSoil, soilAttributesTable());
+                alert(`Number of invalid soil polygons: ${invalidSoil.length}.`);
+                // Add ids to invalid id list
+                invalidIDs.forEach((id) => { 
+                    var option = document.createElement('option');
+                    option.value = id; option.textContent = id;
+                    soilIds().appendChild(option);
+                });
+            }
+        }, 50);
     });
-
-
-
-    soilClipBtn().addEventListener('click', () => { 
+    soilClipBtn().addEventListener('click', async () => { 
+        if (soilLayer !== null && catchmentLayer !== null) { 
+            const content = { baseLayer: soilLayer.toGeoJSON(), clipLayer: catchmentLayer.toGeoJSON() };
+            startLoading(`Clipping soil layer with catchment layer. Please wait ...`);
+            const request = await sendQuery('polygon_clip', content); stopLoading();
+            if (request.status === 'error') { alert(request.message); return; }
+            catchmentLayer.remove(); soilLayer = clearMap(soilLayer, map);
+            soilLayer = await mapPlotter(request.content, map, 'soil');
+        } else {alert('Please upload/create a soil layer and a catchment layer.');}
+    });
+    soilIds().addEventListener('change', (e) => { soilModifier(e.target.value); });
+    assignSoilBtn().addEventListener('click', async () => { 
         if (soilLayer === null) { alert('Please upload/create a soil layer first.'); return; }
-        if (catchmentLayer === null) { alert('Please upload/create a catchment layer first.'); return; }
-
-
-
-
-        soilLayer = clearMap(soilLayer, map);
-        colorbar_container().style.display = 'none';
+        const soilID = soilIds().value;
+        if (soilID === '') { alert('Please select a soil polygon first.'); return; }
+        const soilType = soilTypes().options[soilTypes().selectedIndex].textContent;
+        startLoading('Assigning soil type to selected polygon. Please wait...');
+        const response = await sendQuery('assign_soil_type', { soilType: soilType });
+        if (response.status === "error") { alert(response.message); return; }
+        soilLayer.eachLayer((layer) => { 
+            if (layer.feature.properties._id === Number(soilID)) {
+                const values = [...response.content];
+                layer.feature.properties.code = soilType;
+                layer.feature.properties.theta_s = values[0];
+                layer.feature.properties.theta_r = values[1];
+                layer.feature.properties.k_sat_ver = values[2];
+                layer.feature.properties.soil_depth = values[3];
+                layer.feature.properties.conductivity_decay = values[4];
+                layer.feature.properties.brooks_corey = values[5];
+                values.unshift(soilID);
+                fillTable([values], soilAttributesTable());
+                alert(`Soil type "${soilType}" assigned to polygon "${soilID}".`);
+                layer.setStyle({ color: 'green', weight: 3, fillOpacity: 0.8, fillColor: 'green' });
+            }
+            if (layer.getTooltip()) {
+                layer.getTooltip().setContent(
+                    buildSoilTooltip(layer.feature.properties)
+                );
+            }
+        }); stopLoading();
     });
 
 

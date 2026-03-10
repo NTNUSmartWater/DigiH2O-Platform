@@ -261,14 +261,13 @@ async def soil_upload(file: UploadFile = File(...), projectName: str = Form(...)
                 data = src.read(1)
                 mask = data != src.nodata
                 data = data.astype(np.int32)
-                results = ({"geometry": shape(geom), "code": flowFunctions.soil_codes.get(value, "Unknown")}
+                results = ({"geometry": shape(geom), "soil": flowFunctions.soil_codes.get(value, "")}
                     for geom, value in shapes(data, mask=mask, transform=src.transform))
                 geoms = list(results)
             soil_data = gpd.GeoDataFrame(geoms, crs=src.crs)
         elif file_ext[-1].lower() in ["geojson"]:
-            soil_data = gpd.read_file(file.file)
-            if not 'type' in soil_data.columns: soil_data['type'] = 0
-            soil_data['code'] = soil_data['type'].apply(lambda x: flowFunctions.soil_codes.get(x, "Unknown"))
+            soil_data = gpd.read_file(soil_path)
+            if not 'soil' in soil_data.columns: soil_data['soil'] = ""
         soil_data.insert(0, '_id', range(1, len(soil_data) + 1))
         if soil_data.empty: return JSONResponse({'status': 'error', 'message': 'No soil data found.'})
         if soil_data.crs != "EPSG:4326": soil_data = soil_data.to_crs("EPSG:4326")
@@ -278,12 +277,34 @@ async def soil_upload(file: UploadFile = File(...), projectName: str = Form(...)
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
+@router.post("/polygon_clip")
+async def polygon_clip(request: Request):
+    try:
+        body = await request.json()
+        base_layer, clip_layer = body.get('baseLayer'), body.get('clipLayer')
+        base_layer = gpd.GeoDataFrame.from_features(base_layer, crs="EPSG:4326")
+        clip_layer = gpd.GeoDataFrame.from_features(clip_layer, crs="EPSG:4326")
+        # Clip the base layer to the clip layer
+        clipped_layer = gpd.clip(base_layer, clip_layer)
+        if clipped_layer.empty: return JSONResponse({'status': 'error', 'message': 'No data found.'})
+        clipped_layer = clipped_layer.reset_index(drop=True)
+        clipped_layer['_id'] = clipped_layer.index + 1
+        return JSONResponse({'status': 'ok', 'content': json.loads(clipped_layer.to_json())})
+    except Exception as e:
+        print('/polygon_clip:\n==============')
+        traceback.print_exc()
+        return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
-
-
-
-
-
+@router.post("/assign_soil_type")
+async def assign_soil_type(request: Request):
+    try:
+        body = await request.json()
+        content = flowFunctions.soil_type[body.get('soilType')]
+        return JSONResponse({'status': 'ok', 'content': content})
+    except Exception as e:
+        print('/assign_soil_type:\n==============')
+        traceback.print_exc()
+        return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
 
 

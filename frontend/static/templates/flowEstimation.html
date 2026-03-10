@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
-    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=005">
+    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=008">
 </head>
 <body>
     <section class="main-tab">
@@ -114,13 +114,13 @@
                             <input type="text" id="soil-input-text" placeholder="No file selected" readonly>
                             <button type="button" id="soil-btn">...</button>
                         </div>
-                        <label class="checkbox-right" style="margin: 10px 0 0 0;">
-                            <label style="cursor: pointer; font-size: 14px; width: 125px;">
-                                <input type="checkbox" id="polygon-checker-checkbox">Show/Hide Layer
-                            </label>
-                            <button type="button" id="polygon-checker-btn">Check invalid polygons</button>
+                        <label class="checkbox-right" style="margin-top: 15px;">
+                            <input type="checkbox" id="soil-checker-checkbox">Show/Hide Layer
                         </label>
                         <div class="single-row" style="margin-top: 5px;">
+                            <button type="button" id="soil-invalid-checker-btn" style="display: none;">Check invalid polygons</button>
+                        </div>
+                        <div class="single-row">
                             <a style="margin: 10px 0 0 0; font-size: 14px; width: 125px;">Data Reference:</a>
                             <a class="data-link" href="https://scalgo.com/en-US/scalgo-live-documentation/soil-vegetation-atmosphere-properties/soil"
                                 target="_blank">Scalgo Soil Types
@@ -132,8 +132,8 @@
                             <button type="button" id="soil-clip-btn">Clip Soil to Catchment</button>
                         </div>
                         <div class="single-row">
-                            <label for="ids">ID(s):</label>
-                            <select id="ids"></select>
+                            <label for="soil-id">ID(s):</label>
+                            <select id="soil-id"></select>
                         </div>
                         <div class="single-row">
                             <label for="soil-type">Soil Type:</label>
@@ -156,25 +156,21 @@
                                 <option value="16">Water</option>
                             </select>
                         </div>
-                        <!-- <div class="single-row">
-
-
-                        </div> -->
-
-
-                        
+                        <div class="single-row" style="margin-top: 5px;">
+                            <button type="button" id="assign-soil-btn">Assign soil type for selected ID</button>
+                        </div>
                     </div>
-
                     <div class="tile" style="grid-column: span 4;"><h3>Attribute Settings</h3>
-                        <table class="attributes-table" id="soil-attributes-table">
-                            <thead><tr>
-                                <th>Type</th><th>Soil thickness</th><th>Rooting depth</th>
-                                <th>Ksat</th><th>theta_s</th><th>theta_r</th><th>Field capacity</th>
-                                <th>Wilting point</th><th>Soil texture</th>
-                            </tr></thead>
-                            <tbody></tbody>
-                        </table>
-                        <div class="single-row" style="margin-top: 15px;">
+                        <div class="table-container">
+                            <table class="attributes-table" id="soil-attributes-table">
+                                <thead><tr>
+                                    <th>ID</th><th>θS (m³/m³)</th><th>θR (m³/m³)</th>
+                                    <th>KsatVer (mm/day)</th><th>SoilDepth (mm)</th>
+                                    <th>f (Conductivity decay)</th><th>c (Brooks–Corey)</th>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        <div class="single-row" style="margin-top: 5px;">
                             <a style="margin-top: 10px;">References:</a>
                             <a class="data-link" href="#"
                                 onclick="window.open('/static_frontend/pdfs/Rawlsetal1982TransASAE.pdf', '_blank'); return false;"
@@ -190,9 +186,6 @@
                             </a>
                         </div>
                     </div>
-                    
-
-
                 </div>
             </div>
             <!-- Tab 3: Land Use/Land Cover -->

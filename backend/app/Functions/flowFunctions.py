@@ -8,22 +8,22 @@ from shapely.geometry import shape, Polygon, MultiPolygon
 from shapely.ops import unary_union
 
 soil_type = {
-    "Rocks and boulders": 1,
-    "Gravel": 2,
-    "Coarse sand": 3,
-    "Fine sand": 4,
-    "Coarse sand with clay": 5,
-    "Fine sand with clay": 6,
-    "Coarse clay with sand": 7,
-    "Fine clay with sand": 8,
-    "Clay": 9,
-    "Fine clay": 10,
-    "Very fine clay": 11,
-    "Silt": 12,
-    "Gyttja/peat": 13,
-    "Bedrock": 14,
-    "Glacier": 15,
-    "Water": 16
+    "Rocks and boulders": [0.10, 0.01, 5000, 200, 0.03, 2],
+    "Gravel": [0.25, 0.02, 3000, 500, 0.03, 3],
+    "Coarse sand": [0.38, 0.03, 2000, 1000, 0.025, 3],
+    "Fine sand": [0.41, 0.04, 1200, 1200, 0.020, 3],
+    "Coarse sand with clay": [0.42, 0.05, 600, 1500, 0.018, 4],
+    "Fine sand with clay": [0.43, 0.05, 400, 1500, 0.017, 4],
+    "Coarse clay with sand": [0.45, 0.06, 200, 1800, 0.015, 5],
+    "Fine clay with sand": [0.46, 0.07, 120, 1800, 0.014, 6],
+    "Clay": [0.48, 0.08, 60, 2000, 0.012, 7],
+    "Fine clay": [0.50, 0.09, 40, 2000, 0.011, 8],
+    "Very fine clay": [0.52, 0.10, 20, 2000, 0.010, 9],
+    "Silt": [0.46, 0.07, 150, 1800, 0.014, 6],
+    "Gyttja/peat": [0.80, 0.20, 50, 2500, 0.008, 4],
+    "Bedrock": [0.05, 0.01, 100, 100, 0.040, 1],
+    "Glacier": [0.30, 0.02, 500, 500, 0.020, 2],
+    "Water": [1.00, 1.00, 10000, 0, 0, 0]
 }
 soil_codes = {
     1: "Rocks and boulders", 2: "Gravel", 3: "Coarse sand",
