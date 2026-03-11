@@ -38,10 +38,11 @@ const assignSoilBtn = () => document.getElementById('assign-soil-btn');
 const saveSoilBtn = () => document.getElementById('save-soil-btn');
 const soilAttributesTable = () => document.getElementById('soil-attributes-table');
 
-const landUseInputFile = () => document.getElementById('land-use-input-file');
-const landUseInputText = () => document.getElementById('land-use-input-text');
-const landUseBtn = () => document.getElementById('land-use-btn');
-const landUseCheckbox = () => document.getElementById('land-checker-checkbox');
+const landInputFile = () => document.getElementById('land-input-file');
+const landInputText = () => document.getElementById('land-input-text');
+const landBtn = () => document.getElementById('land-btn');
+const landCheckbox = () => document.getElementById('land-checker-checkbox');
+const landInvalidCheckerBtn = () => document.getElementById('land-invalid-checker-btn');
 
 
 
@@ -60,7 +61,7 @@ let map = null, terrainLayer = null, minTerrain = null, maxTerrain = null,
     flowAccumulationLayer = null, minFlowAccumulation = null, maxFlowAccumulation = null,
     catchmentLayer = null, lastLayer = null, lat=null, lon=null,
     soilLayer = null, isPourpointActive = false, isSoilActive = false,
-    landUseLayer = null, isLandUseActive = false;
+    landLayer = null, isLandActive = false;
 
 const hoverTooltip = L.tooltip({
     permanent: false, direction: 'bottom',
@@ -197,63 +198,64 @@ function setActiveMode() {
     if (map) { map.closeTooltip(hoverTooltip); }
 }
 
-function buildSoilTooltip(props) {
-    return `
-    <div style="font-weight: bold; text-align: center;">ID: ${props._id || 'Unknown'}</div>
-    <hr style="margin: 5px 0 5px 0;">
-    <strong>• Type:</strong> ${props.soil}<br>
-    <strong>• θS (m³/m³):</strong> ${props.theta_s ?? 'Unknown'}<br>
-    <strong>• θR (m³/m³):</strong> ${props.theta_r ?? 'Unknown'}<br>
-    <strong>• KsatVer (mm/day):</strong> ${props.k_sat_ver ?? 0}<br>
-    <strong>• SoilDepth (mm):</strong> ${props.soil_depth ?? 0}<br>
-    <strong>• Conductivity decay:</strong> ${props.conductivity_decay ?? 0}<br>
-    <strong>• Brooks-Corey:</strong> ${props.brooks_corey ?? 'Unknown'}<br>
-    <hr style="margin: 5px 0 5px 0;">
-    <strong>Click to change attributes</strong>
-    `;
+function buildTooltip(props, key) {
+    if (key === 'soil') {
+        return `
+            <div style="font-weight: bold; text-align: center;">ID: ${props._id || 'Unknown'}</div>
+            <hr style="margin: 5px 0 5px 0;">
+            <strong>• Type:</strong> ${props.soil}<br>
+            <strong>• θS (m³/m³):</strong> ${props.theta_s ?? 'Unknown'}<br>
+            <strong>• θR (m³/m³):</strong> ${props.theta_r ?? 'Unknown'}<br>
+            <strong>• KsatVer (mm/day):</strong> ${props.k_sat_ver ?? 0}<br>
+            <strong>• SoilDepth (mm):</strong> ${props.soil_depth ?? 0}<br>
+            <strong>• Conductivity decay:</strong> ${props.conductivity_decay ?? 0}<br>
+            <strong>• Brooks-Corey:</strong> ${props.brooks_corey ?? 'Unknown'}<br>
+            <hr style="margin: 5px 0 5px 0;">
+            <strong>Click to change attributes</strong>
+        `;
+    } else if (key === 'land') {
+        return `
+            <div style="font-weight: bold; text-align: center;">ID: ${props._id || 'Unknown'}</div>
+            <hr style="margin: 5px 0 5px 0;">
+            <strong>• Type:</strong> ${props.land}<br>
+            <strong>• Leaf Area Index (ha):</strong> ${props.LAI ?? 0}<br>
+            <strong>• Root Depth (m):</strong> ${props.root_depth ?? 0}<br>
+            <strong>• Interception (mm):</strong> ${props.interception ?? 'Unknown'}<br>
+            <strong>• Manning roughness:</strong> ${props.manning_n ?? 'Unknown'}<br>
+            <strong>• Albedo:</strong> ${props.albedo ?? 'Unknown'}<br>
+            <strong>• Crop coefficient:</strong> ${props.kc ?? 'Unknown'}<br>
+            <hr style="margin: 5px 0 5px 0;">
+            <strong>Click to change attributes</strong>
+        `;
+    }
 }
 
 async function mapPlotter(data, map, key) {
     const layer = L.geoJSON(data, { 
         pointToLayer: (feature, latlng)  => { return null; }, 
         style: feature => { 
-            if (key === 'soil') { 
-                const id = feature.properties._id;
-                return { 
-                    color: 'black', weight: 1, opacity: 1, 
-                    fillOpacity: 0.8, fillColor: getColor(id) 
-                }; 
-            } else if (key === 'landUse') {
-                // const id = feature.properties._id;
-                // return { 
-                //     color: 'black', weight: 1, opacity: 1, 
-                //     fillOpacity: 0.8, fillColor: getColor(id) 
-                // }; 
-            }
+            const id = feature.properties._id;
+            return { 
+                color: 'black', weight: 1, opacity: 1, 
+                fillOpacity: 0.8, fillColor: getColor(id) 
+            }; 
         },
         onEachFeature: (feature, featureLayer) => { 
-            if (key === 'soil') { 
-                featureLayer.on('click', () => { 
-                    // Reset the color of all features
-                    layer.eachLayer(l => { 
-                        const id = l.feature.properties._id;
-                        l.setStyle({
-                            color: 'black', weight: 1, opacity: 1, 
-                            fillOpacity: 0.8, fillColor: getColor(id) 
-                        }); 
-                    });
-                    // Highlight the clicked feature
-                    featureLayer.setStyle({ color: 'yellow', weight: 3 }); 
-                    soilModifier(feature.properties); 
+            featureLayer.on('click', () => { 
+                // Reset the color of all features
+                layer.eachLayer(l => { 
+                    const id = l.feature.properties._id;
+                    l.setStyle({
+                        color: 'black', weight: 1, opacity: 1, 
+                        fillOpacity: 0.8, fillColor: getColor(id) 
+                    }); 
                 });
-                featureLayer.bindTooltip(`${buildSoilTooltip(feature.properties)}`, {sticky: true});
-            } else if (key === 'landUse') { 
-
-
-
-                
-                
-            }
+                // Highlight the clicked feature
+                featureLayer.setStyle({ color: 'yellow', weight: 3 }); 
+                if (key === 'soil') { soilModifier(feature.properties); }
+                if (key === 'land') { landUseModifier(feature.properties); }
+            });
+            featureLayer.bindTooltip(`${buildTooltip(feature.properties, key)}`, {sticky: true});
         }
     }).addTo(map);
     return layer;
@@ -499,10 +501,10 @@ function update() {
     soilInputFile().addEventListener('change', async (event) => { 
         const file = event.target.files[0]; if (!file) return;
         const formData = new FormData(); formData.append('file', file); 
-        formData.append('projectName', getState().currentProject);
+        formData.append('projectName', getState().currentProject); formData.append('key', 'soil');
         startLoading('Uploading and processing soil data. Please wait...');
         try {
-            const response = await fetch('/soil_upload', { method: 'POST', body: formData });
+            const response = await fetch('/data_upload', { method: 'POST', body: formData });
             const data = await response.json();
             if (data.status === 'error') { alert(data.message); return; }
             soilLayer = clearMap(soilLayer, map);
@@ -590,9 +592,7 @@ function update() {
                 layer.setStyle({ color: 'green', weight: 3, fillOpacity: 0.8, fillColor: 'green' });
             }
             if (layer.getTooltip()) {
-                layer.getTooltip().setContent(
-                    buildSoilTooltip(layer.feature.properties)
-                );
+                layer.getTooltip().setContent( buildTooltip(layer.feature.properties, 'soil'));
             }
         }); stopLoading();
     });
@@ -600,29 +600,42 @@ function update() {
         if (soilLayer === null) { alert('Please upload/create a soil layer first.'); return; }
         await geoJSONExporter(soilLayer.toGeoJSON(), 'soil.geojson');
     });
-    landUseBtn().addEventListener('click',  () => { landUseInputFile().click(); });
-    landUseInputFile().addEventListener('change', async (event) => { 
-        // if (landUseLayer) { map.removeLayer(landUseLayer); landUseLayer = null; }
-        // if (landUseInputFile().files.length === 0) { return; }
+    landBtn().addEventListener('click',  () => { landInputFile().click(); });
+    landInputFile().addEventListener('change', async (event) => {
         const file = event.target.files[0]; if (!file) return;
         const formData = new FormData(); formData.append('file', file); 
-        formData.append('projectName', getState().currentProject);
-        startLoading('Uploading and processing Land Use/Land Cover data. Please wait...');
+        formData.append('projectName', getState().currentProject); formData.append('key', 'land');
+        startLoading('Uploading and processing Land Cover data. Please wait...');
         try { 
-            const response = await fetch('/land_upload', { method: 'POST', body: formData });
+            const response = await fetch('/data_upload', { method: 'POST', body: formData });
             const data = await response.json();
             if (data.status === "error") { alert(data.message); return; }
             landUseLayer = clearMap(landUseLayer, map);
-            landUseLayer = await mapPlotter(data.content, map, 'landUse');
-            landUseInputText().value = file.name; event.target.value = '';
-            landUseCheckbox().checked = true; isLandUseActive = true;
+            landUseLayer = await mapPlotter(data.content, map, 'land');
+            landInputText().value = file.name; event.target.value = '';
+            landCheckbox().checked = true; isLandActive = true;
+            landInvalidCheckerBtn().style.display = 'block';
         } catch (err) {
             alert(`Uploading Land Use/Land Cover data failed. Error: ${err}`);
-            landUseCheckbox().checked = false; isLandUseActive = false;
+            landInvalidCheckerBtn().style.display = 'none';
+            landCheckbox().checked = false; isLandActive = false;
         }
         stopLoading(); colorbar_container().style.display = 'none';
     });
-    // saveLandUseBtn().addEventListener('click', async () => { 
+    landCheckbox().addEventListener('change', (e) => {
+        if (e.target.checked) { 
+            if (!landLayer) { 
+                alert('Please upload/create a land layer first.');
+                e.target.checked = false; landInputFile().click(); return; 
+            } else { landLayer.addTo(map); }
+        } else { landLayer.remove(); }
+    });
+
+
+
+
+
+    // saveLandBtn().addEventListener('click', async () => { 
     //     if (landUseLayer === null) { alert('Please upload/create a land use layer first.'); return; }
     //     await geoJSONExporter(landUseLayer.toGeoJSON(), 'landUse.geojson');
     // });

@@ -243,12 +243,21 @@ async def catchment_upload(file: UploadFile = File(...)):
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
-@router.post("/soil_upload")
-async def soil_upload(file: UploadFile = File(...), projectName: str = Form(...),
-                         user=Depends(functions.basic_auth)):
+@router.post("/data_upload")
+async def data_upload(file: UploadFile = File(...), projectName: str = Form(...),
+    key: str = Form(...), user=Depends(functions.basic_auth)):
     try:
         project_name, _ = functions.project_definer(projectName, user)
-        dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "soils"))
+        if key == "soil": 
+            folder, func_codes = "soils", flowFunctions.soil_codes
+            func_types = flowFunctions.soil_types
+            new_cols = ["theta_s", "theta_r", "k_sat_ver", "soil_depth", "conductivity_decay", "brooks_corey"]
+        elif key == "land": 
+            folder, func_codes = "lands", flowFunctions.land_codes
+            func_types = flowFunctions.land_types
+            new_cols = ["LAI", "root_depth", "interception", "manning_n", "albedo", "kc"]
+
+        dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, folder))
         os.makedirs(dir, exist_ok=True)
         file_ext = file.filename.split(".")
         save_dir = os.path.normpath(os.path.join(dir, file_ext[0]))
@@ -262,21 +271,20 @@ async def soil_upload(file: UploadFile = File(...), projectName: str = Form(...)
                 data = src.read(1)
                 mask = data != src.nodata
                 data = data.astype(np.int32)
-                results = ({"geometry": shape(geom), "soil": flowFunctions.soil_codes.get(value, "")}
-                    for geom, value in shapes(data, mask=mask, transform=src.transform))
+                results = ({ "geometry": shape(geom), key: func_codes.get(value, "")
+                } for geom, value in shapes(data, mask=mask, transform=src.transform))
                 geoms = list(results)
-            soil_data = gpd.GeoDataFrame(geoms, crs=src.crs)
-        elif file_ext[-1].lower() in ["geojson"]: soil_data = gpd.read_file(soil_path)
-        if soil_data.empty: return JSONResponse({'status': 'error', 'message': 'No soil data found.'})        
-        if '_id' not in soil_data.columns: soil_data.insert(0, '_id', range(1, len(soil_data) + 1))
-        if 'soil' in soil_data.columns:
-            new_cols = ["theta_s", "theta_r", "k_sat_ver", "soil_depth", "conductivity_decay", "brooks_corey"]
-            soil_data[new_cols] = soil_data['soil'].map(flowFunctions.soil_types).apply(pd.Series)
-        else: soil_data['soil'] = 'Unknown'
-        if soil_data.crs != "EPSG:4326": soil_data = soil_data.to_crs("EPSG:4326")
-        return JSONResponse({'status': 'ok', 'content': json.loads(soil_data.to_json())})
+            data = gpd.GeoDataFrame(geoms, crs=src.crs)
+        elif file_ext[-1].lower() in ["geojson"]: data = gpd.read_file(soil_path)
+        if data.empty: return JSONResponse({'status': 'error', 'message': 'No data found.'})
+        if '_id' not in data.columns: data.insert(0, '_id', range(1, len(data) + 1))
+        if key in data.columns:
+            data[new_cols] = data[key].map(func_types).apply(pd.Series)
+        else: data[key] = 'Unknown'
+        if data.crs != "EPSG:4326": data = data.to_crs("EPSG:4326")
+        return JSONResponse({'status': 'ok', 'content': json.loads(data.to_json())})
     except Exception as e:
-        print('/soil_upload:\n==============')
+        print('/data_upload:\n==============')
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
@@ -303,7 +311,7 @@ async def assign_soil_type(request: Request):
     try:
         body = await request.json()
         soil_type = body.get('soilType')
-        content = flowFunctions.soil_type[soil_type]
+        content = flowFunctions.soil_types[soil_type]
         content.insert(0, soil_type)
         return JSONResponse({'status': 'ok', 'content': content})
     except Exception as e:
@@ -311,42 +319,13 @@ async def assign_soil_type(request: Request):
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
-@router.post("/land_upload")
-async def land_upload(file: UploadFile = File(...), projectName: str = Form(...),
-                         user=Depends(functions.basic_auth)):
-    try:
-        # project_name, _ = functions.project_definer(projectName, user)
-        # dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "soils"))
-        # os.makedirs(dir, exist_ok=True)
-        # file_ext = file.filename.split(".")
-        # save_dir = os.path.normpath(os.path.join(dir, file_ext[0]))
-        # if os.path.exists(save_dir): shutil.rmtree(save_dir)
-        # os.makedirs(save_dir, exist_ok=True)
-        # soil_path = os.path.normpath(os.path.join(save_dir, file.filename))
-        # with open(soil_path, "wb") as buffer:
-        #     shutil.copyfileobj(file.file, buffer)
-        # if file_ext[-1].lower() in ["tif"]:
-        #     with rasterio.open(soil_path) as src:
-        #         data = src.read(1)
-        #         mask = data != src.nodata
-        #         data = data.astype(np.int32)
-        #         results = ({"geometry": shape(geom), "soil": flowFunctions.soil_codes.get(value, "")}
-        #             for geom, value in shapes(data, mask=mask, transform=src.transform))
-        #         geoms = list(results)
-        #     soil_data = gpd.GeoDataFrame(geoms, crs=src.crs)
-        # elif file_ext[-1].lower() in ["geojson"]: soil_data = gpd.read_file(soil_path)
-        # if soil_data.empty: return JSONResponse({'status': 'error', 'message': 'No soil data found.'})        
-        # if '_id' not in soil_data.columns: soil_data.insert(0, '_id', range(1, len(soil_data) + 1))
-        # if 'soil' in soil_data.columns:
-        #     new_cols = ["theta_s", "theta_r", "k_sat_ver", "soil_depth", "conductivity_decay", "brooks_corey"]
-        #     soil_data[new_cols] = soil_data['soil'].map(flowFunctions.soil_types).apply(pd.Series)
-        # else: soil_data['soil'] = 'Unknown'
-        # if soil_data.crs != "EPSG:4326": soil_data = soil_data.to_crs("EPSG:4326")
-        return JSONResponse({'status': 'ok', 'content': json.loads(soil_data.to_json())})
-    except Exception as e:
-        print('/land_upload:\n==============')
-        traceback.print_exc()
-        return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
+
+
+
+
+
+
+
 
 
 

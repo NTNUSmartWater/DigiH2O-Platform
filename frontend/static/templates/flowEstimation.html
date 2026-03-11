@@ -13,7 +13,7 @@
             <div class="tabs-list">
                 <button class="tab-btn" data-tab="terrain-tab">Topography<span class="ink"></span></button>
                 <button class="tab-btn" data-tab="soil-tab">Soil<span class="ink"></span></button>
-                <button class="tab-btn" data-tab="land-use-tab">Land Use/Land Cover<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="land-tab">Land Cover<span class="ink"></span></button>
                 <button class="tab-btn" data-tab="river-network-tab">River Network<span class="ink"></span></button>
                 <button class="tab-btn" data-tab="weather-data-tab">Weather Data<span class="ink"></span></button>
                 <button class="tab-btn" data-tab="initial-conditions-tab">Initial Conditions<span class="ink"></span></button>
@@ -189,29 +189,59 @@
                     </div>
                 </div>
             </div>
-            <!-- Tab 3: Land Use/Land Cover -->
-            <div class="main-panel" data-panel="land-use-tab">
+            <!-- Tab 3: Land Cover -->
+            <div class="main-panel" data-panel="land-tab">
                 <div class="grid">
-                    <div class="tile"><h3>Land Use/Land Cover (LU/LC)</h3>
+                    <div class="tile"><h3>Land Cover (LC) Import</h3>
                         <div class="single-row">
-                            <label for="land-use-input">LU/LC Data:</label>
-                            <input type="file" id="land-use-input-file" accept=".tif,.geojson" hidden>
-                            <input type="text" id="land-use-input-text" placeholder="No file selected" readonly>
-                            <button type="button" id="land-use-btn">...</button>
+                            <label for="land-input">LC Data:</label>
+                            <input type="file" id="land-input-file" accept=".tif,.geojson" hidden>
+                            <input type="text" id="land-input-text" placeholder="No file selected" readonly>
+                            <button type="button" id="land-btn">...</button>
                         </div>
                         <label class="checkbox-right" style="margin-top: 10px;">
-                            <input type="checkbox" id="land-checker-checkbox">Show/Hide LU/LC Layer
+                            <input type="checkbox" id="land-checker-checkbox">Show/Hide LC Layer
                         </label>
+                        <div class="single-row" style="margin-top: 5px;">
+                            <button type="button" id="land-invalid-checker-btn" style="display: none;">Check invalid polygons</button>
+                        </div>
 
+
+
+
+                        <div class="single-row">
+                            <a style="margin: 10px 0 0 0; font-size: 14px; width: 125px;">Data Reference:</a>
+                            <a class="data-link" href="https://scalgo.com/en-US/scalgo-live-documentation/soil-vegetation-atmosphere-properties/land-cover/mapping"
+                                target="_blank">Scalgo Land Cover
+                            </a>
+                        </div>
+                    </div>
+                    <div class="tile" style="width: 350px;"><h3>Land Cover Modification</h3>
 
 
                     </div>
-
-
-
-
-
-
+                    <div class="tile" style="width: 1100px;"><h3>Attribute Table</h3>
+                        <div class="table-container">
+                            <table class="attributes-table" id="soil-attributes-table">
+                                <thead><tr>
+                                    <th>ID</th><th>Land Cover</th><th>LAI</th>
+                                    <th>Root Depth (m)</th><th>Interception (mm)</th>
+                                    <th>Manning n</th><th>Albedo</th><th>Kc</th>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        <div class="single-row" style="margin-top: 5px;">
+                            <a style="margin-top: 10px;">References:</a>
+                            <a class="data-link" href="#" style="width: 195px;"
+                                onclick="window.open('/static_frontend/pdfs/WillemWflow2024.pdf', '_blank'); return false;"
+                                target="_blank">W. J. v. Verseveld et al., (2024),
+                            </a>
+                            <a class="data-link" href="#" style="width: 190px;"
+                                onclick="window.open('/static_frontend/pdfs/Schenk2002.pdf', '_blank'); return false;"
+                                target="_blank">H. J. Schenk et al., (2002),
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </div>
             <!-- Tab 4: River Network -->

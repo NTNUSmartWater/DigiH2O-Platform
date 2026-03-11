@@ -7,6 +7,15 @@ import geopandas as gpd
 from shapely.geometry import shape, Polygon, MultiPolygon
 from shapely.ops import unary_union
 
+
+soil_codes = {
+    1: "Rocks and boulders", 2: "Gravel", 3: "Coarse sand",
+    4: "Fine sand", 5: "Coarse sand with clay",
+    6: "Fine sand with clay", 7: "Coarse clay with sand",
+    8: "Fine clay with sand", 9: "Clay", 10: "Fine clay",
+    11: "Very fine clay", 12: "Silt", 13: "Gyttja/peat",
+    14: "Bedrock", 15: "Glacier", 16: "Water"
+}
 soil_types = {
     "Rocks and boulders": [0.10, 0.01, 5000, 200, 0.03, 2],
     "Gravel": [0.25, 0.02, 3000, 500, 0.03, 3],
@@ -25,14 +34,27 @@ soil_types = {
     "Glacier": [0.30, 0.02, 500, 500, 0.020, 2],
     "Water": [1.00, 1.00, 10000, 0, 0, 0]
 }
-soil_codes = {
-    1: "Rocks and boulders", 2: "Gravel", 3: "Coarse sand",
-    4: "Fine sand", 5: "Coarse sand with clay",
-    6: "Fine sand with clay", 7: "Coarse clay with sand",
-    8: "Fine clay with sand", 9: "Clay", 10: "Fine clay",
-    11: "Very fine clay", 12: "Silt", 13: "Gyttja/peat",
-    14: "Bedrock", 15: "Glacier", 16: "Water"
+
+land_codes = {
+    1: "Bare soil", 15: "Bare soil", 17: "Bare soil",
+    2: "Water", 8: "Agriculture", 6: "Low vegetation", 
+    7: "Forest/High vegetation", 9: "Impervious/Urban",
+    3: "Impervious/Urban", 16: "Impervious/Urban",
+    12: "Impervious/Urban", 10: "Impervious/Urban", 4: "Snow/Ice"
 }
+land_types = {
+    "Bare soil": [0.1, 0.1, 0.2, 0.02, 0.25, 0.2],
+    "Water": [0, 0, 0, 0.03, 0.07, 1.05],
+    "Agriculture": [3.0, 0.8, 1.5, 0.20, 0.20, 1.0],
+    "Low vegetation": [2.0, 0.5, 1.0, 0.15, 0.23, 0.9],
+    "Forest/High vegetation": [5.0, 1.5, 3.0, 0.40, 0.13, 1.1],
+    "Impervious/Urban": [0.5, 0.1, 0.5, 0.05, 0.15, 0.3],
+    "Snow/Ice": [0, 0, 0, 0.03, 0.80, 0.1]
+}
+
+
+
+
 
 def remove_holes(geom):
     if isinstance(geom, Polygon): return Polygon(geom.exterior)
