@@ -15,8 +15,8 @@
                 <button class="tab-btn" data-tab="soil-tab">Soil<span class="ink"></span></button>
                 <button class="tab-btn" data-tab="land-tab">Land Cover<span class="ink"></span></button>
                 <button class="tab-btn" data-tab="river-network-tab">River Network<span class="ink"></span></button>
-                <button class="tab-btn" data-tab="weather-data-tab">Weather Data<span class="ink"></span></button>
                 <button class="tab-btn" data-tab="initial-conditions-tab">Initial Conditions<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="weather-data-tab">Weather Data<span class="ink"></span></button>
                 <button class="tab-btn" data-tab="flow-detection-tab">Flow Detection<span class="ink"></span></button>
             </div>
         </div>
@@ -118,7 +118,7 @@
                             <input type="checkbox" id="soil-checker-checkbox">Show/Hide Soil Layer
                         </label>
                         <div class="single-row" style="margin-top: 5px;">
-                            <button type="button" id="soil-invalid-checker-btn" style="display: none;">Check invalid polygons</button>
+                            <button type="button" id="soil-invalid-checker-btn" style="display: none;">Check invalid soils</button>
                         </div>
                         <div class="single-row">
                             <a style="margin: 10px 0 0 0; font-size: 14px; width: 125px;">Data Reference:</a>
@@ -203,12 +203,8 @@
                             <input type="checkbox" id="land-checker-checkbox">Show/Hide LC Layer
                         </label>
                         <div class="single-row" style="margin-top: 5px;">
-                            <button type="button" id="land-invalid-checker-btn" style="display: none;">Check invalid polygons</button>
+                            <button type="button" id="land-invalid-checker-btn" style="display: none;">Check invalid lands</button>
                         </div>
-
-
-
-
                         <div class="single-row">
                             <a style="margin: 10px 0 0 0; font-size: 14px; width: 125px;">Data Reference:</a>
                             <a class="data-link" href="https://scalgo.com/en-US/scalgo-live-documentation/soil-vegetation-atmosphere-properties/land-cover/mapping"
@@ -217,12 +213,33 @@
                         </div>
                     </div>
                     <div class="tile" style="width: 350px;"><h3>Land Cover Modification</h3>
-
-
+                        <div class="single-row">
+                            <button type="button" id="land-clip-btn">Clip Land Cover to Catchment</button>
+                        </div>
+                        <div class="single-row">
+                            <label for="land-id">ID(s):</label>
+                            <select id="land-id"></select>
+                        </div>
+                        <div class="single-row">
+                            <label for="land-type">Land Type:</label>
+                            <select id="land-type">
+                                <option value="1">Bare soil</option>
+                                <option value="2">Water</option>
+                                <option value="3">Impervious/Urban</option>
+                                <option value="4">Snow/Ice</option>
+                                <option value="5">Field</option>
+                                <option value="6">Shallow vegetationy</option>
+                                <option value="7">Dense vegetation</option>
+                            </select>
+                        </div>
+                        <div class="single-row" style="margin-top: 5px;">
+                            <button type="button" id="assign-land-btn">Assign LC type for selected ID</button>
+                            <button type="button" id="save-land-btn">Save map</button>
+                        </div>
                     </div>
                     <div class="tile" style="width: 1100px;"><h3>Attribute Table</h3>
                         <div class="table-container">
-                            <table class="attributes-table" id="soil-attributes-table">
+                            <table class="attributes-table" id="land-attributes-table">
                                 <thead><tr>
                                     <th>ID</th><th>Land Cover</th><th>LAI</th>
                                     <th>Root Depth (m)</th><th>Interception (mm)</th>
@@ -247,37 +264,34 @@
             <!-- Tab 4: River Network -->
             <div class="main-panel" data-panel="river-network-tab">
                 <div class="grid">
-                    <div class="tile"><h3>River Network</h3>
+                    <div class="tile"><h3>River Options</h3>
+                        <label class="checkbox-right">
+                            <input type="radio" name="river" value="river-flow-accumulation" checked>Use Flow Accumulation (Raster)
+                        </label>
+                        <label class="checkbox-right">
+                            <input type="radio" name="river" value="river-vector">Upload River (Vector)
+                        </label>
+                        <div class="checkbox-column" style="margin-top: 5px;">
+                            <input type="file" id="river-input-file" accept=".tif,.geojson" hidden>
+                            <button type="button" id="river-upload-btn">Upload Data</button>
+                        </div>
+                    </div>
+                    <div class="tile"><h3>River Data</h3>
                         <div class="single-row">
-                            <label for="river-network-input">River Network:</label>
-                            <input type="file" id="river-network-input-file" accept=".geojson" hidden>
+                            <label for="river-network-input-text">River Data:</label>
                             <input type="text" id="river-network-input-text" placeholder="No file selected" readonly>
-                            <button type="button" id="river-network-btn">...</button>
-                        </div>
-                    </div>
-
-
-
-                </div>
-            </div>
-            <!-- Tab 5: Weather Data -->
-            <div class="main-panel" data-panel="weather-data-tab">
-                <div class="grid">
-                    <div class="tile"><h3>Weather Data</h3>
-                        <div class="single-row">
-                            <label for="weather-data-input">Weather Data:</label>
-                            <input type="file" id="weather-data-input-file" accept=".csv" hidden>
-                            <input type="text" id="weather-data-input-text" placeholder="No file selected" readonly>
-                            <button type="button" id="weather-data-btn">...</button>
                         </div>
 
 
 
 
                     </div>
+
+
+
                 </div>
             </div>
-            <!-- Tab 6: Initial Conditions -->
+            <!-- Tab 5: Initial Conditions -->
             <div class="main-panel" data-panel="initial-conditions-tab">
                 <div class="grid">
                     <div class="tile"><h3>Initial Conditions</h3>
@@ -293,6 +307,23 @@
                             <label for="initial-temperature">Temperature (°C):</label>
                             <input type="text" id="initial-temperature" value='3.45'>
                         </div>
+
+
+                    </div>
+                </div>
+            </div>
+            <!-- Tab 6: Weather Data -->
+            <div class="main-panel" data-panel="weather-data-tab">
+                <div class="grid">
+                    <div class="tile"><h3>Weather Data</h3>
+                        <div class="single-row">
+                            <label for="weather-data-input">Weather Data:</label>
+                            <input type="file" id="weather-data-input-file" accept=".csv" hidden>
+                            <input type="text" id="weather-data-input-text" placeholder="No file selected" readonly>
+                            <button type="button" id="weather-data-btn">...</button>
+                        </div>
+
+
 
 
                     </div>

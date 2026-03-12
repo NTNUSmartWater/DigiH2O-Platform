@@ -54,7 +54,9 @@ async def terrain_upload(file: UploadFile = File(...), projectName: str = Form(.
                          user=Depends(functions.basic_auth)):
     try:
         project_name, _ = functions.project_definer(projectName, user)
-        dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "terrains"))
+        flow_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "flows"))
+        os.makedirs(flow_dir, exist_ok=True)
+        dir = os.path.normpath(os.path.join(flow_dir, "terrains"))
         os.makedirs(dir, exist_ok=True)
         name, dst_crs = file.filename.rstrip(".tif"), "EPSG:3857"
         save_dir = os.path.normpath(os.path.join(dir, name))
@@ -106,7 +108,9 @@ async def fill_terrain(request: Request, user=Depends(functions.basic_auth)):
         folder = file_name.rstrip(".tif")
         fill_name, json_file = folder + "_filled.tif", f"{folder}.json"
         project_name, _ = functions.project_definer(body.get('projectName'), user)
-        dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "terrains", folder))
+        flow_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "flows"))
+        os.makedirs(flow_dir, exist_ok=True)
+        dir = os.path.normpath(os.path.join(flow_dir, "terrains", folder))
         os.makedirs(dir, exist_ok=True)
         dtm_path = os.path.normpath(os.path.join(dir, file_name))
         fill_path = os.path.normpath(os.path.join(dir, fill_name))
@@ -135,7 +139,9 @@ async def raster_check(request: Request, user=Depends(functions.basic_auth)):
     file_name, key = body.get('filename'), body.get('key')
     folder = file_name.rstrip(".tif")
     project_name, _ = functions.project_definer(body.get('projectName'), user)
-    dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "terrains", folder))
+    flow_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "flows"))
+    os.makedirs(flow_dir, exist_ok=True)
+    dir = os.path.normpath(os.path.join(flow_dir, "terrains", folder))
     if key == "fill":
         status, message = "error", 'No fill terrain found. Please upload terrain data and run "Fill sinks/depressions".'
         path = os.path.normpath(os.path.join(dir, folder + "_filled.tif"))
@@ -156,7 +162,9 @@ async def flow_direction(request: Request, user=Depends(functions.basic_auth)):
         folder = file_name.rstrip(".tif")
         flowdir_name, json_file = folder + "_flowdir.tif", f"{folder}.json"
         project_name, _ = functions.project_definer(body.get('projectName'), user)
-        dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "terrains", folder))
+        flow_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "flows"))
+        os.makedirs(flow_dir, exist_ok=True)
+        dir = os.path.normpath(os.path.join(flow_dir, "terrains", folder))
         fill_path = os.path.normpath(os.path.join(dir, folder + "_filled.tif"))
         flow_path = os.path.normpath(os.path.join(dir, flowdir_name))
         if os.path.exists(flow_path): functions.safe_remove(flow_path)
@@ -186,7 +194,9 @@ async def flow_accumulation(request: Request, user=Depends(functions.basic_auth)
         folder = file_name.rstrip(".tif")
         flowdir_name, flowacc_name = f"{folder}_flowdir.tif", f"{folder}_flowacc.tif"
         project_name, _ = functions.project_definer(body.get('projectName'), user)
-        dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "terrains", folder))
+        flow_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "flows"))
+        os.makedirs(flow_dir, exist_ok=True)
+        dir = os.path.normpath(os.path.join(flow_dir, "terrains", folder))
         flowdir_path = os.path.normpath(os.path.join(dir, flowdir_name))
         flowacc_path = os.path.normpath(os.path.join(dir, flowacc_name))
         if os.path.exists(flowacc_path): functions.safe_remove(flowacc_path)
@@ -218,7 +228,9 @@ async def catchment(request: Request, user=Depends(functions.basic_auth)):
         flowdir_name, flowacc_name = f"{folder}_flowdir.tif", f"{folder}_flowacc.tif"
         catchment_name = f"{folder}_catchment.tif"
         project_name, _ = functions.project_definer(body.get('projectName'), user)
-        dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "terrains", folder))
+        flow_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "flows"))
+        os.makedirs(flow_dir, exist_ok=True)
+        dir = os.path.normpath(os.path.join(flow_dir, "terrains", folder))
         flowdir_path = os.path.normpath(os.path.join(dir, flowdir_name))
         flowacc_path = os.path.normpath(os.path.join(dir, flowacc_name))
         catchment_path = os.path.normpath(os.path.join(dir, catchment_name))
@@ -248,6 +260,8 @@ async def data_upload(file: UploadFile = File(...), projectName: str = Form(...)
     key: str = Form(...), user=Depends(functions.basic_auth)):
     try:
         project_name, _ = functions.project_definer(projectName, user)
+        flow_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "flows"))
+        os.makedirs(flow_dir, exist_ok=True)
         if key == "soil": 
             folder, func_codes = "soils", flowFunctions.soil_codes
             func_types = flowFunctions.soil_types
@@ -256,8 +270,7 @@ async def data_upload(file: UploadFile = File(...), projectName: str = Form(...)
             folder, func_codes = "lands", flowFunctions.land_codes
             func_types = flowFunctions.land_types
             new_cols = ["LAI", "root_depth", "interception", "manning_n", "albedo", "kc"]
-
-        dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, folder))
+        dir = os.path.normpath(os.path.join(flow_dir, folder))
         os.makedirs(dir, exist_ok=True)
         file_ext = file.filename.split(".")
         save_dir = os.path.normpath(os.path.join(dir, file_ext[0]))
@@ -288,6 +301,38 @@ async def data_upload(file: UploadFile = File(...), projectName: str = Form(...)
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
+@router.post("/river_upload")
+async def river_upload(file: UploadFile = File(...), projectName: str = Form(...),
+    key: str = Form(...), user=Depends(functions.basic_auth)):
+    try:
+        project_name, _ = functions.project_definer(projectName, user)
+        flow_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "flows"))
+        os.makedirs(flow_dir, exist_ok=True)
+        dir = os.path.normpath(os.path.join(flow_dir, 'rivers'))
+        os.makedirs(dir, exist_ok=True)
+        file_ext = file.filename.split(".")
+        save_dir = os.path.normpath(os.path.join(dir, file_ext[0]))
+        if os.path.exists(save_dir): shutil.rmtree(save_dir)
+        os.makedirs(save_dir, exist_ok=True)
+        river_path = os.path.normpath(os.path.join(save_dir, file.filename))
+        with open(river_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        ext = file_ext[-1].lower()
+        if key == "river-flow-accumulation" and not ext in ["tif"]:
+            return JSONResponse({'status': 'error', 'message': 'Flow accumulation data must be in *.tif format.'})
+        if key == "river-vector" and not ext in ["geojson"]:
+            return JSONResponse({'status': 'error', 'message': 'Vector data must be in *.geojson format.'})
+
+        
+
+
+        if data.crs != "EPSG:4326": data = data.to_crs("EPSG:4326")
+        return JSONResponse({'status': 'ok', 'content': json.loads(data.to_json())})
+    except Exception as e:
+        print('/river_upload:\n==============')
+        traceback.print_exc()
+        return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
+
 @router.post("/polygon_clip")
 async def polygon_clip(request: Request):
     try:
@@ -306,16 +351,17 @@ async def polygon_clip(request: Request):
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
-@router.post("/assign_soil_type")
-async def assign_soil_type(request: Request):
+@router.post("/assign_type")
+async def assign_type(request: Request):
     try:
         body = await request.json()
-        soil_type = body.get('soilType')
-        content = flowFunctions.soil_types[soil_type]
-        content.insert(0, soil_type)
+        key, data = body.get('key'), body.get('data')
+        if key == "soil": content = flowFunctions.soil_types[data]
+        elif key == "land": content = flowFunctions.land_types[data]
+        content.insert(0, data)
         return JSONResponse({'status': 'ok', 'content': content})
     except Exception as e:
-        print('/assign_soil_type:\n==============')
+        print('/assign_type:\n==============')
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 

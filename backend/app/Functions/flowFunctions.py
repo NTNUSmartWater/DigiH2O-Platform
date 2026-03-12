@@ -36,18 +36,16 @@ soil_types = {
 }
 
 land_codes = {
-    1: "Bare soil", 15: "Bare soil", 17: "Bare soil",
-    2: "Water", 8: "Agriculture", 6: "Low vegetation", 
-    7: "Forest/High vegetation", 9: "Impervious/Urban",
-    3: "Impervious/Urban", 16: "Impervious/Urban",
-    12: "Impervious/Urban", 10: "Impervious/Urban", 4: "Snow/Ice"
+    1: "Bare soil", # 1-Bare land, 15-Bare rock, 17-Unclassified
+    3: "Impervious/Urban", # 3-Other paved, 9-Paved road, 10-Unpaved road, 12-Railroad, 16-Building
+    2: "Water", 4: "Snow/Ice", 5: "Field", 6: "Shallow vegetation", 7: "Dense vegetation",
 }
 land_types = {
     "Bare soil": [0.1, 0.1, 0.2, 0.02, 0.25, 0.2],
     "Water": [0, 0, 0, 0.03, 0.07, 1.05],
-    "Agriculture": [3.0, 0.8, 1.5, 0.20, 0.20, 1.0],
-    "Low vegetation": [2.0, 0.5, 1.0, 0.15, 0.23, 0.9],
-    "Forest/High vegetation": [5.0, 1.5, 3.0, 0.40, 0.13, 1.1],
+    "Field": [3.0, 0.8, 1.5, 0.20, 0.20, 1.0],
+    "Shallow vegetation": [2.0, 0.5, 1.0, 0.15, 0.23, 0.9],
+    "Dense vegetation": [5.0, 1.5, 3.0, 0.40, 0.13, 1.1],
     "Impervious/Urban": [0.5, 0.1, 0.5, 0.05, 0.15, 0.3],
     "Snow/Ice": [0, 0, 0, 0.03, 0.80, 0.1]
 }
