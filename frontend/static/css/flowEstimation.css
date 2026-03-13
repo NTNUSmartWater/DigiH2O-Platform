@@ -89,10 +89,10 @@ body {
 
 /* ===== Grid / Tile ===== */
 .hidden { display: none }
-.grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-top: 0; }
+.grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin-top: 0; }
 .tile { 
   grid-column: span 1; background: rgba(255,255,255,0.03); align-items: center;
-  border: 1px solid var(--border); border-radius: 14px; padding: 16px; flex-direction: column;
+  border: 1px solid var(--border); border-radius: 14px; padding: 15px; flex-direction: column;
 }
 .tile button { 
   flex: 1 1 auto; padding: 5px; border-radius: 5px; border: none; 

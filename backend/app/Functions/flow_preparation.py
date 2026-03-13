@@ -1,4 +1,4 @@
-import os, traceback, json, shutil, io, mercantile, rasterio
+import os, traceback, json, shutil, io, mercantile, rasterio, sknw
 from fastapi import APIRouter, Request, Depends, UploadFile, File, Form, Response
 from fastapi.responses import JSONResponse
 from Functions import functions, flowFunctions
@@ -9,7 +9,8 @@ from PIL import Image
 from rasterio.enums import Resampling
 from rasterio.warp import calculate_default_transform, reproject
 from rasterio.features import shapes
-from shapely.geometry import shape
+from shapely.geometry import shape, LineString
+from skimage.morphology import skeletonize
 
 router = APIRouter()
 
@@ -86,6 +87,7 @@ async def terrain_upload(file: UploadFile = File(...), projectName: str = Form(.
         with rasterio.open(cog_path) as src:
             data = src.read(1, masked=True)
             global_min, global_max = float(data.min()), float(data.max())
+        del data
         meta_path, meta = os.path.splitext(terrain_path)[0] + ".json", {}
         if os.path.exists(meta_path):
             with open(meta_path, "r") as f: meta = json.load(f)
@@ -119,6 +121,7 @@ async def fill_terrain(request: Request, user=Depends(functions.basic_auth)):
         with rasterio.open(fill_path) as src:
             data = src.read(1, masked=True)
             global_min, global_max = float(data.min()), float(data.max())
+        del data
         meta_path, meta = os.path.normpath(os.path.join(dir, json_file)), {}
         if os.path.exists(meta_path):
             with open(meta_path, "r") as f: meta = json.load(f)
@@ -172,6 +175,7 @@ async def flow_direction(request: Request, user=Depends(functions.basic_auth)):
         with rasterio.open(flow_path) as src:
             data = src.read(1, masked=True)
             global_min, global_max = float(data.min()), float(data.max())
+        del data
         meta_path, meta = os.path.normpath(os.path.join(dir, json_file)), {}
         if os.path.exists(meta_path):
             with open(meta_path, "r") as f: meta = json.load(f)
@@ -204,6 +208,7 @@ async def flow_accumulation(request: Request, user=Depends(functions.basic_auth)
         with rasterio.open(flowacc_path) as src:
             data = src.read(1, masked=True)
             global_min, global_max = float(data.min()), float(data.max())
+        del data
         meta_path, meta = os.path.normpath(os.path.join(dir, f"{folder}.json")), {}
         if os.path.exists(meta_path):
             with open(meta_path, "r") as f: meta = json.load(f)
@@ -287,15 +292,16 @@ async def data_upload(file: UploadFile = File(...), projectName: str = Form(...)
                 results = ({ "geometry": shape(geom), key: func_codes.get(value, "")
                 } for geom, value in shapes(data, mask=mask, transform=src.transform))
                 geoms = list(results)
-            data = gpd.GeoDataFrame(geoms, crs=src.crs)
-        elif file_ext[-1].lower() in ["geojson"]: data = gpd.read_file(soil_path)
-        if data.empty: return JSONResponse({'status': 'error', 'message': 'No data found.'})
-        if '_id' not in data.columns: data.insert(0, '_id', range(1, len(data) + 1))
-        if key in data.columns:
-            data[new_cols] = data[key].map(func_types).apply(pd.Series)
-        else: data[key] = 'Unknown'
-        if data.crs != "EPSG:4326": data = data.to_crs("EPSG:4326")
-        return JSONResponse({'status': 'ok', 'content': json.loads(data.to_json())})
+            del data
+            gdf = gpd.GeoDataFrame(geoms, crs=src.crs)
+        elif file_ext[-1].lower() in ["geojson"]: gdf = gpd.read_file(soil_path)
+        if gdf.empty: return JSONResponse({'status': 'error', 'message': 'No data found.'})
+        if '_id' not in gdf.columns: gdf.insert(0, '_id', range(1, len(gdf) + 1))
+        if key in gdf.columns:
+            gdf[new_cols] = gdf[key].map(func_types).apply(pd.Series)
+        else: gdf[key] = 'Unknown'
+        if gdf.crs != "EPSG:4326": gdf = gdf.to_crs("EPSG:4326")
+        return JSONResponse({'status': 'ok', 'content': json.loads(gdf.to_json())})
     except Exception as e:
         print('/data_upload:\n==============')
         traceback.print_exc()
@@ -303,7 +309,7 @@ async def data_upload(file: UploadFile = File(...), projectName: str = Form(...)
 
 @router.post("/river_upload")
 async def river_upload(file: UploadFile = File(...), projectName: str = Form(...),
-    key: str = Form(...), user=Depends(functions.basic_auth)):
+    key: str = Form(...), threshold: float = Form(...), user=Depends(functions.basic_auth)):
     try:
         project_name, _ = functions.project_definer(projectName, user)
         flow_dir = os.path.normpath(os.path.join(PROJECT_STATIC_ROOT, project_name, "flows"))
@@ -311,23 +317,39 @@ async def river_upload(file: UploadFile = File(...), projectName: str = Form(...
         dir = os.path.normpath(os.path.join(flow_dir, 'rivers'))
         os.makedirs(dir, exist_ok=True)
         file_ext = file.filename.split(".")
+        ext = file_ext[-1].lower()
+        if key == "river-flow-accumulation" and not ext in ["tif"]:
+            return JSONResponse({'status': 'error', 'message': 'Flow accumulation data must be in *.tif format.'})
+        if key == "river-vector" and not ext in ["geojson"]:
+            return JSONResponse({'status': 'error', 'message': 'Vector data must be in *.geojson format.'})
         save_dir = os.path.normpath(os.path.join(dir, file_ext[0]))
         if os.path.exists(save_dir): shutil.rmtree(save_dir)
         os.makedirs(save_dir, exist_ok=True)
         river_path = os.path.normpath(os.path.join(save_dir, file.filename))
         with open(river_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        ext = file_ext[-1].lower()
-        if key == "river-flow-accumulation" and not ext in ["tif"]:
-            return JSONResponse({'status': 'error', 'message': 'Flow accumulation data must be in *.tif format.'})
-        if key == "river-vector" and not ext in ["geojson"]:
-            return JSONResponse({'status': 'error', 'message': 'Vector data must be in *.geojson format.'})
-
-        
-
-
-        if data.crs != "EPSG:4326": data = data.to_crs("EPSG:4326")
-        return JSONResponse({'status': 'ok', 'content': json.loads(data.to_json())})
+        if file_ext[-1].lower() in ["tif"]:
+            with rasterio.open(river_path) as src:
+                data = src.read(1, masked=True)
+                transform = src.transform
+            mask = (data >= float(threshold)).astype(np.uint8)
+            skeleton = skeletonize(mask).astype(np.uint8)
+            graph = sknw.build_sknw(skeleton, multi=True)  # multi=True to keep branches separate
+            del skeleton, mask, data
+            lines = []
+            for s, e, k in graph.edges(keys=True):
+                attrs = graph[s][e][k]  # Nx2 array: row, col
+                if 'pts' not in attrs: continue
+                # Convert row, col → x, y CRS
+                xy_pts = [transform * (c, r) for r, c in attrs['pts']]
+                lines.append(LineString(xy_pts))
+            gdf = gpd.GeoDataFrame(geometry=lines, crs=src.crs)
+        elif file_ext[-1].lower() in ["geojson"]: gdf = gpd.read_file(river_path)
+        if gdf.empty: return JSONResponse({'status': 'error', 'message': 'No data found.'})
+        if '_id' not in gdf.columns: gdf.insert(0, '_id', range(1, len(gdf) + 1))
+        gdf[['width', 'depth', 'manning_n']] = 'Unknown'
+        if gdf.crs != "EPSG:4326": gdf = gdf.to_crs("EPSG:4326")
+        return JSONResponse({'status': 'ok', 'content': json.loads(gdf.to_json())})
     except Exception as e:
         print('/river_upload:\n==============')
         traceback.print_exc()

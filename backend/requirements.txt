@@ -20,6 +20,7 @@ hydrolib-core==0.9.9
 hydrolib==0.4.1
 optuna==4.7.0
 pysheds==0.5
+sknw==0.15
 # python.exe -m pip install --upgrade pip
 # pip install --upgrade -r .\backend\requirements.txt
 # pip install --upgrade dfm-tools hydrolib hydrolib-core

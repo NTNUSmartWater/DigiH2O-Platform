@@ -48,11 +48,17 @@ const landTypes = () => document.getElementById('land-type');
 const assignLandBtn = () => document.getElementById('assign-land-btn');
 const saveLandBtn = () => document.getElementById('save-land-btn');
 const landAttributesTable = () => document.getElementById('land-attributes-table');
-
 const riverInputFile = () => document.getElementById('river-input-file');
 const riverUploadBtn = () => document.getElementById('river-upload-btn');
 const riverInputText = () => document.getElementById('river-network-input-text');
-
+const thresholdLabel = () => document.getElementById('river-threshold-label');
+const riverThreshold = () => document.getElementById('river-network-threshold');
+const riverAttributesTable = () => document.getElementById('river-attributes-table');
+const assignRiverBtn = () => document.getElementById('river-assign-btn');
+const saveRiverBtn = () => document.getElementById('river-save-btn');
+const lakeInputFile = () => document.getElementById('lake-input-file');
+const lakeUploadBtn = () => document.getElementById('lake-upload-btn');
+const lakeClipBtn = () => document.getElementById('lake-clip-btn');
 
 
 
@@ -66,7 +72,8 @@ let map = null, terrainLayer = null, minTerrain = null, maxTerrain = null,
     flowAccumulationLayer = null, minFlowAccumulation = null, maxFlowAccumulation = null,
     catchmentLayer = null, lastLayer = null, lat=null, lon=null,
     soilLayer = null, isPourpointActive = false, isSoilActive = false,
-    landLayer = null, isLandActive = false, riverLayer = null, isRiverActive = false;
+    landLayer = null, isLandActive = false, riverLayer = null, isRiverActive = false,
+    lakeLayer = null;
 
 const hoverTooltip = L.tooltip({
     permanent: false, direction: 'bottom',
@@ -231,12 +238,22 @@ function buildTooltip(props, key) {
             <hr style="margin: 5px 0 5px 0;">
             <strong>Click to change attributes</strong>
         `;
+    } else if (key === 'river') {
+        return `
+            <div style="font-weight: bold; text-align: center;">ID: ${props._id || 'Unknown'}</div>
+            <hr style="margin: 5px 0 5px 0;">
+            <strong>• Width (m):</strong> ${props.width ?? 'Unknown'}<br>
+            <strong>• Depth (m):</strong> ${props.depth ?? 'Unknown'}<br>
+            <strong>• Manning roughness:</strong> ${props.manning_n ?? 'Unknown'}<br>
+            <hr style="margin: 5px 0 5px 0;">
+            <strong>Click to change attributes</strong>
+        `;
     }
 }
 
 async function mapPlotter(data, map, key) {
     const layer = L.geoJSON(data, { 
-        pointToLayer: (feature, latlng)  => { return null; }, 
+        pointToLayer: (feature, latlng) => null,
         style: feature => { 
             const id = feature.properties._id;
             return { 
@@ -285,7 +302,11 @@ function tableAdjust(props, key) {
             props.manning_n, props.albedo, props.kc
         ];
         fillTable([values], landAttributesTable());
+    } else if (key === 'river') {
+        const values = [props._id, props.width, props.depth, props.manning_n];
+        fillTable([values], riverAttributesTable());
     }
+    
 }
 
 async function geoJSONExporter(data, fileName) {
@@ -385,7 +406,6 @@ function update() {
             }
         });
     });
-
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', function () { setActiveMode(); });
     });
@@ -721,11 +741,23 @@ function update() {
         if (landLayer === null) { alert('Please upload/create a land cover layer first.'); return; }
         await geoJSONExporter(landLayer.toGeoJSON(), 'land.geojson');
     });
+    document.querySelectorAll('input[name="river"]').forEach((radio) => {
+        radio.addEventListener('change', (e) => {
+            const value = e.target.value; riverInputText().value = '';
+            if (value === 'river-vector') { 
+                thresholdLabel().style.display = 'none'; riverThreshold().style.display = 'none';
+            } else { thresholdLabel().style.display = 'flex'; riverThreshold().style.display = 'flex'; }
+        });
+    });
     riverUploadBtn().addEventListener('click', () => { riverInputFile().click(); });
     riverInputFile().addEventListener('change', async (e) => {
         const riverOption = document.querySelector('input[name="river"]:checked').value;
+        const threshold = Number(riverThreshold().value);
+        if (riverOption === 'river-flow-accumulation' && threshold <= 0) {
+            alert('Please select a threshold value greater than 0.'); return; 
+        }
         const file = e.target.files[0]; if (!file) return;
-        const formData = new FormData();
+        const formData = new FormData(); formData.append('threshold', threshold);
         formData.append('file', file); formData.append('key', riverOption);
         formData.append('projectName', getState().currentProject);
         startLoading('Uploading and processing river data. Please wait...');
@@ -733,21 +765,61 @@ function update() {
             const response = await fetch('/river_upload', { method: 'POST', body: formData });
             const data = await response.json();
             if (data.status === 'error') { alert(data.message); return; }
-            riverLayer = clearMap(riverLayer, map);
-            // soilLayer = await mapPlotter(data.content, map, 'soil');
-            soilInputText().value = file.name;
-            // soilCheckbox().checked = true; isSoilActive = true;
-            // soilInvalidCheckerBtn().style.display = 'block'; 
-
+            riverLayer = clearMap(riverLayer, map); isRiverActive = true;
+            riverLayer = await mapPlotter(data.content, map, 'river');
+            riverInputText().value = file.name;
         } catch (error) { 
             alert(`Uploading river data failed: ${error.message}`);
-            soilInputText().value = '';
+            soilInputText().value = ''; isRiverActive = false;
         }
         e.target.value = ''; stopLoading();
     });
-
-
-
+    assignRiverBtn().addEventListener('click', async () => { 
+        if (riverLayer === null) { alert('Please upload/create a river layer first.'); return; }
+        const data = getDataFromTable(riverAttributesTable(), true).rows;
+        if (data.length === 0) { alert('Please select a segment of the river on map to edit first.'); return; }
+        if (data[0].some(v => !v.trim() || Number.isNaN(Number(v)))) {
+            alert('Values in the table must be numeric.'); return;
+        }
+        riverLayer.eachLayer((layer) => {
+            if (layer.feature.properties._id === Number(data[0][0])) {
+                layer.feature.properties.width = data[0][1];
+                layer.feature.properties.depth = data[0][2];
+                layer.feature.properties.manning_n = data[0][3];
+                alert(`Attributes were assigned to segment "${data[0][0]}".`);
+                layer.setStyle({ color: 'green', weight: 3, fillOpacity: 0.8 });
+            }
+            if (layer.getTooltip()) {
+                layer.getTooltip().setContent( buildTooltip(layer.feature.properties, 'river'));
+            }
+        });
+    });
+    saveRiverBtn().addEventListener('click', async () => { 
+        if (riverLayer === null) { alert('Please upload/create a river layer first.'); return; }
+        await geoJSONExporter(riverLayer.toGeoJSON(), 'river.geojson');
+    });
+    lakeUploadBtn().addEventListener('click', () => { lakeInputFile().click(); });
+    lakeInputFile().addEventListener('change', async (event) => {
+        // const file = event.target.files[0]; if (!file) return;
+        // const formData = new FormData(); formData.append('file', file); 
+        // formData.append('projectName', getState().currentProject); formData.append('key', 'land');
+        // startLoading('Uploading and processing Land Cover data. Please wait...');
+        // try { 
+        //     const response = await fetch('/data_upload', { method: 'POST', body: formData });
+        //     const data = await response.json();
+        //     if (data.status === "error") { alert(data.message); return; }
+        //     landLayer = clearMap(landLayer, map);
+        //     landLayer = await mapPlotter(data.content, map, 'land');
+        //     landInputText().value = file.name; event.target.value = '';
+        //     landCheckbox().checked = true; isLandActive = true;
+        //     landInvalidCheckerBtn().style.display = 'block';
+        // } catch (err) {
+        //     alert(`Uploading Land Use/Land Cover data failed. Error: ${err}`);
+        //     landInvalidCheckerBtn().style.display = 'none';
+        //     landCheckbox().checked = false; isLandActive = false;
+        // }
+        // stopLoading(); colorbar_container().style.display = 'none';
+    });
 
 
 

@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
-    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=002">
+    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=001">
 </head>
 <body>
     <section class="main-tab">
@@ -158,7 +158,7 @@
                         </div>
                         <div class="single-row" style="margin-top: 5px;">
                             <button type="button" id="assign-soil-btn">Assign soil type for selected ID</button>
-                            <button type="button" id="save-soil-btn">Save map</button>
+                            <button type="button" id="save-soil-btn">Export</button>
                         </div>
                     </div>
                     <div class="tile" style="grid-column: span 4;"><h3>Attribute Table</h3>
@@ -234,7 +234,7 @@
                         </div>
                         <div class="single-row" style="margin-top: 5px;">
                             <button type="button" id="assign-land-btn">Assign LC type for selected ID</button>
-                            <button type="button" id="save-land-btn">Save map</button>
+                            <button type="button" id="save-land-btn">Export</button>
                         </div>
                     </div>
                     <div class="tile" style="width: 1100px;"><h3>Attribute Table</h3>
@@ -264,30 +264,52 @@
             <!-- Tab 4: River Network -->
             <div class="main-panel" data-panel="river-network-tab">
                 <div class="grid">
-                    <div class="tile"><h3>River Options</h3>
+                    <div class="tile"><h3>River Data</h3>
                         <label class="checkbox-right">
                             <input type="radio" name="river" value="river-flow-accumulation" checked>Use Flow Accumulation (Raster)
                         </label>
                         <label class="checkbox-right">
                             <input type="radio" name="river" value="river-vector">Upload River (Vector)
                         </label>
-                        <div class="checkbox-column" style="margin-top: 5px;">
+                        <div class="single-row">
+                            <label for="river-network-threshold" id="river-threshold-label">Threshold:</label>
+                            <input type="text" id="river-network-threshold" value="1000.0" style="width: 60px; text-align: center;">
                             <input type="file" id="river-input-file" accept=".tif,.geojson" hidden>
-                            <button type="button" id="river-upload-btn">Upload Data</button>
+                            <button type="button" id="river-upload-btn">Upload</button>
                         </div>
-                    </div>
-                    <div class="tile"><h3>River Data</h3>
                         <div class="single-row">
                             <label for="river-network-input-text">River Data:</label>
                             <input type="text" id="river-network-input-text" placeholder="No file selected" readonly>
                         </div>
-
-
-
-
                     </div>
+                    <div class="tile" style="grid-column: span 3;"><h3>Lake Data</h3>
+                        <div class="single-row">
+                            <input type="file" id="lake-input-file" accept=".geojson" hidden>
+                            <button type="button" id="lake-upload-btn">Upload Lake Boundary</button>
+                        </div>
+                        <div class="single-row">
+                            <button type="button" id="lake-clip-btn">Clip Lake to River</button>
+                        </div>
+                        
 
 
+
+                        
+                        
+                    </div>
+                    <div class="tile" style="width: 1100px;"><h3>Attribute Table</h3>
+                        <div class="table-container">
+                            <table class="attributes-table" id="river-attributes-table">
+                                <thead><tr>
+                                    <th>Segment</th><th>Width (m)</th><th>Depth (m)</th><th>Manning roughness</th>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        <div class="single-row" style="display: block; margin-top: 5px;">
+                            <button type="button" id="river-assign-btn" style="width: 350px; margin-right: 20px;">Save Attributes for the selected segment</button>
+                            <button type="button" id="river-save-btn" style="width: 100px;">Export</button>
+                        </div>
+                    </div>
 
                 </div>
             </div>
