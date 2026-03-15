@@ -24,7 +24,7 @@
             <!-- Tab 1: Topography -->
             <div class="main-panel" data-panel="terrain-tab">
                 <div class="grid">
-                    <div class="tile"><h3>Catchment Options</h3>
+                    <div class="tile"><h3>Catchment Import</h3>
                         <label class="checkbox-right">
                             <input type="radio" name="catchment" value="catchment-current" checked>Create a Catchment from DTM
                         </label>
@@ -264,7 +264,7 @@
             <!-- Tab 4: River Network -->
             <div class="main-panel" data-panel="river-network-tab">
                 <div class="grid">
-                    <div class="tile"><h3>River Data</h3>
+                    <div class="tile"><h3>River Import</h3>
                         <label class="checkbox-right">
                             <input type="radio" name="river" value="river-flow-accumulation" checked>Use Flow Accumulation (Raster)
                         </label>
@@ -282,22 +282,24 @@
                             <input type="text" id="river-network-input-text" placeholder="No file selected" readonly>
                         </div>
                     </div>
-                    <div class="tile" style="grid-column: span 3;"><h3>Lake Data</h3>
+                    <div class="tile" style="width: 300px;"><h3>River Processing</h3>
                         <div class="single-row">
                             <input type="file" id="lake-input-file" accept=".geojson" hidden>
                             <button type="button" id="lake-upload-btn">Upload Lake Boundary</button>
                         </div>
                         <div class="single-row">
-                            <button type="button" id="lake-clip-btn">Clip Lake to River</button>
+                            <button type="button" id="river-clip-lake-btn">Clip River to Lake</button>
+                            <button type="button" id="river-clip-catchment-btn">Clip River to Catchment</button>
                         </div>
-                        
-
-
-
-                        
-                        
+                        <div class="single-row">
+                            <button type="button" id="river-delete-btn"
+                                style="background-color: azure; color: brown;">Delete the selected segment</button>
+                        </div>
+                        <label class="checkbox-right" style="margin-top: 5px;">
+                            <input type="checkbox" id="river-checker-checkbox">Show/Hide River Layer
+                        </label>
                     </div>
-                    <div class="tile" style="width: 1100px;"><h3>Attribute Table</h3>
+                    <div class="tile" style="width: 600px;"><h3>Attribute Table</h3>
                         <div class="table-container">
                             <table class="attributes-table" id="river-attributes-table">
                                 <thead><tr>
@@ -310,7 +312,6 @@
                             <button type="button" id="river-save-btn" style="width: 100px;">Export</button>
                         </div>
                     </div>
-
                 </div>
             </div>
             <!-- Tab 5: Initial Conditions -->
@@ -318,18 +319,37 @@
                 <div class="grid">
                     <div class="tile"><h3>Initial Conditions</h3>
                         <div class="single-row">
-                            <label for="initial-water-level">Water level (m):</label>
+                            <label for="initial-water-level">Top soil moisture (m):</label>
                             <input type="text" id="initial-water-level" value='0'>
                         </div>
                         <div class="single-row">
-                            <label for="initial-salinity">Salinity (ppt):</label>
+                            <label for="initial-salinity">Sub soil moisture (m):</label>
                             <input type="text" id="initial-salinity" value='0.02'>
                         </div>
                         <div class="single-row">
-                            <label for="initial-temperature">Temperature (°C):</label>
+                            <label for="initial-temperature">Groundwater level (m):</label>
                             <input type="text" id="initial-temperature" value='3.45'>
                         </div>
-
+                        <div class="single-row">
+                            <label for="initial-temperature">Overland flow:</label>
+                            <input type="text" id="initial-temperature" value='3.45'>
+                        </div>
+                        <div class="single-row">
+                            <label for="initial-temperature">Lake storage:</label>
+                            <input type="text" id="initial-temperature" value='3.45'>
+                        </div>
+                        <div class="single-row">
+                            <label for="initial-temperature">Initial snow depth</data>:</label>
+                            <input type="text" id="initial-temperature" value='3.45'>
+                        </div>
+                        <div class="single-row">
+                            <label for="initial-temperature">Initial river flow:</label>
+                            <input type="text" id="initial-temperature" value='3.45'>
+                        </div>
+                        <div class="single-row">
+                            <label for="initial-temperature">Saturation deficit:</label>
+                            <input type="text" id="initial-temperature" value='3.45'>
+                        </div>
 
                     </div>
                 </div>

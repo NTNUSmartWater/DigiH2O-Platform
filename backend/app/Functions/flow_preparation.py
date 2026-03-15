@@ -10,6 +10,7 @@ from rasterio.enums import Resampling
 from rasterio.warp import calculate_default_transform, reproject
 from rasterio.features import shapes
 from shapely.geometry import shape, LineString
+from shapely.ops import unary_union, linemerge
 from skimage.morphology import skeletonize
 
 router = APIRouter()
@@ -248,15 +249,15 @@ async def catchment(request: Request, user=Depends(functions.basic_auth)):
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
-@router.post("/catchment_upload")
-async def catchment_upload(file: UploadFile = File(...)):
+@router.post("/geojson_upload")
+async def geojson_upload(file: UploadFile = File(...)):
     try:
         gdf = gpd.read_file(file.file)
-        if gdf.empty: return JSONResponse({'status': 'error', 'message': 'No catchment data found.'})
+        if gdf.empty: return JSONResponse({'status': 'error', 'message': 'No data found.'})
         if gdf.crs != "EPSG:4326": gdf = gdf.to_crs("EPSG:4326")
         return JSONResponse({'status': 'ok', 'content': json.loads(gdf.to_json())})
     except Exception as e:
-        print('/catchment_export:\n==============')
+        print('/geojson_upload:\n==============')
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
@@ -334,15 +335,17 @@ async def river_upload(file: UploadFile = File(...), projectName: str = Form(...
                 transform = src.transform
             mask = (data >= float(threshold)).astype(np.uint8)
             skeleton = skeletonize(mask).astype(np.uint8)
-            graph = sknw.build_sknw(skeleton, multi=True)  # multi=True to keep branches separate
+            graph = sknw.build_sknw(skeleton, multi=False) 
             del skeleton, mask, data
             lines = []
-            for s, e, k in graph.edges(keys=True):
-                attrs = graph[s][e][k]  # Nx2 array: row, col
-                if 'pts' not in attrs: continue
+            for s, e in graph.edges():
+                pts = graph[s][e]['pts']  # Nx2 array: row, col
                 # Convert row, col → x, y CRS
-                xy_pts = [transform * (c, r) for r, c in attrs['pts']]
+                xy_pts = [transform * (c, r) for r, c in pts]
                 lines.append(LineString(xy_pts))
+            merged = linemerge(unary_union(lines))
+            if merged.geom_type == "LineString": lines = [merged]
+            else: lines = list(merged.geoms)
             gdf = gpd.GeoDataFrame(geometry=lines, crs=src.crs)
         elif file_ext[-1].lower() in ["geojson"]: gdf = gpd.read_file(river_path)
         if gdf.empty: return JSONResponse({'status': 'error', 'message': 'No data found.'})
@@ -362,8 +365,10 @@ async def polygon_clip(request: Request):
         base_layer, clip_layer = body.get('baseLayer'), body.get('clipLayer')
         base_layer = gpd.GeoDataFrame.from_features(base_layer, crs="EPSG:4326")
         clip_layer = gpd.GeoDataFrame.from_features(clip_layer, crs="EPSG:4326")
+        get_area = body.get('getArea')
         # Clip the base layer to the clip layer
-        clipped_layer = gpd.clip(base_layer, clip_layer)
+        if get_area == 'inside': clipped_layer = gpd.clip(base_layer, clip_layer)
+        elif get_area == 'outside': clipped_layer = base_layer.overlay(clip_layer, how='difference')
         if clipped_layer.empty: return JSONResponse({'status': 'error', 'message': 'No data found.'})
         clipped_layer = clipped_layer.reset_index(drop=True)
         clipped_layer['_id'] = clipped_layer.index + 1
