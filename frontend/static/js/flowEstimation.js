@@ -828,10 +828,6 @@ function update() {
             } else { riverLayer.addTo(map); }
         } else { riverLayer.remove(); }
     });
-
-
-
-
     assignRiverBtn().addEventListener('click', async () => { 
         if (riverLayer === null) { alert('Please upload/create a river layer first.'); return; }
         const data = getDataFromTable(riverAttributesTable(), true).rows;
