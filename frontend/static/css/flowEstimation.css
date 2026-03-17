@@ -111,10 +111,10 @@ body {
 }
 
 .initial-conditions-tile .single-row label {
-  width: 150px; flex-shrink: 0; font-size: 15px;
+  width: 170px; flex-shrink: 0; font-size: 14px;
 }
 .initial-conditions-tile .single-row input {
-  width: 80px; flex-shrink: 0; font-size: 15px;
+  width: 100px; flex-shrink: 0; font-size: 13px; text-align: center;
 }
 
 .main-panel { display: none; animation: fade .25s ease; padding: 5px 4px 4px 4px; }
@@ -177,11 +177,12 @@ body {
 .attributes-table tr { width: 100%; table-layout: fixed; }
 .attributes-table th, .attributes-table td {
   border: 1px solid var(--border); padding: 6px 8px; text-align: center;
-  color: var(--text); font-weight: 500; font-size: 12px;
+  color: var(--text); font-weight: 500; 
 }
-.attributes-table th { background: rgba(255,255,255,0.05); font-weight: bold; font-size: 13px;}
+.attributes-table th { background: rgba(255,255,255,0.05); font-weight: bold; }
 .attributes-table thead th {
-  position: sticky; top: 0; z-index: 20; background: rgb(122, 121, 121); padding: 5px 0 5px 0;
+  position: sticky; top: 0; z-index: 20; background: rgb(122, 121, 121); 
+  padding: 5px 0 5px 0; font-size: 12px;
 }
 .attributes-table td input {
   width: 100%; padding: 4px 0; border-radius: 8px; 

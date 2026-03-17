@@ -6,6 +6,7 @@ from Functions import functions
 import geopandas as gpd
 from shapely.geometry import shape, Polygon, MultiPolygon
 from shapely.ops import unary_union
+from datetime import datetime
 
 
 soil_codes = {
@@ -115,3 +116,25 @@ def watershed(flowdir_path:str, flowacc_path:str, lat:float, lon:float,
     merged_geom_no_holes = remove_holes(merged_geom)
     polygon = gpd.GeoDataFrame(geometry=[merged_geom_no_holes], crs="EPSG:4326")
     return polygon
+
+def weather_downloader(id:str, start:datetime, end:datetime) -> list:
+    content = []
+    if id == 'eklima':
+        pass
+    elif id == 'nmi':
+        content = []
+    elif id == 'nve':
+        content = []
+    elif id == 'ecmwf':
+        content = []
+    elif id == 'power':
+        content = []
+    return content
+
+
+
+
+
+
+
+

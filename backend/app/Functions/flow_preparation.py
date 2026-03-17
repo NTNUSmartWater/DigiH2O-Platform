@@ -12,6 +12,7 @@ from rasterio.features import shapes
 from shapely.geometry import shape, LineString
 from shapely.ops import unary_union, linemerge
 from skimage.morphology import skeletonize
+from datetime import datetime
 
 router = APIRouter()
 
@@ -392,7 +393,23 @@ async def assign_type(request: Request):
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
-
+@router.post("/weather_provider")
+async def weather_provider(request: Request):
+    try:
+        body = await request.json()
+        station = body.get('station')
+        start, end = body.get('start'), body.get('end')
+        start_time = datetime.strptime(start, '%Y-%m-%d %H:%M:%S')
+        end_time = datetime.strptime(end, '%Y-%m-%d %H:%M:%S')
+        if start_time >= end_time: 
+            return JSONResponse({'status': 'error', 'message': "Error: Start time is later than end time."})
+        content = flowFunctions.weather_downloader(station, start_time, end_time)
+        if len(content) == 0: return JSONResponse({'status': 'error', 'message': 'No data found.'})
+        return JSONResponse({'status': 'ok', 'content': content})
+    except Exception as e:
+        print('/weather_provider:\n==============')
+        traceback.print_exc()
+        return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
 
 

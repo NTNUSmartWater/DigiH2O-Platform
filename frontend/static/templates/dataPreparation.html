@@ -12,23 +12,32 @@
     <section class="card tabs" id="parent-tab">
         <div class="tabs__header" id="main-tabs">
             <div class="tabs__list">
-                <button class="tab-btn" data-tab="regnbyge-tab">Regnbyge.no<span class="ink"></span></button>
-                <button class="tab-btn" data-tab="another-tab">Another Source<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="rosim-tab">ROSIM<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="eklima-tab">MET Norway - eKlima<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="nmi-tab">Norwegian Meteorological Institute<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="nve-tab">NVE<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="copernicus-tab">Copernicus Climate Data Store<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="power-tab">POWER<span class="ink"></span></button>
             </div>
         </div>
         <div class="tabs__content">
-            <!-- Tab 1: Regnbyge -->
-            <div class="tabpanel main-panel" data-panel="regnbyge-tab">
+            <!-- Tab 1: ROSIM -->
+            <div class="tabpanel main-panel" data-panel="rosim-tab">
+                <h2 style="text-align: center;">
+                    The data is sourced through the official
+                    <a href="https://web.rosim.no/regnbyge/" target="_blank" rel="noopener noreferrer">
+                        ROSIM</a> platform
+                </h2>
                 <!-- Sub Tabs -->
                 <div class="card tabs tabs--sub">
                     <div class="tabs__header">
                         <div class="tabs__list">
-                            <button class="tab-btn" data-tab="regnbyge-tab-1">Map<span class="ink"></span></button>
-                            <button class="tab-btn" data-tab="regnbyge-tab-2">Download Settings<span class="ink"></span></button>
+                            <button class="tab-btn" data-tab="rosim-tab-1">Map<span class="ink"></span></button>
+                            <button class="tab-btn" data-tab="rosim-tab-2">Download Settings<span class="ink"></span></button>
                         </div>
                     </div>
                     <div class="tabs__content">
-                        <div class="tabpanel" data-panel="regnbyge-tab-1">
+                        <div class="tabpanel" data-panel="rosim-tab-1">
                             <div class="grid">
                                 <!-- Stations -->
                                 <div class="tile"><h3>Station Types</h3>
@@ -74,7 +83,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="tabpanel" data-panel="regnbyge-tab-2">
+                        <div class="tabpanel" data-panel="rosim-tab-2">
                             <div class="grid">
                                 <!-- Selected Names -->
                                 <div class="tile" style="grid-column: span 2;">
@@ -135,13 +144,75 @@
                     </div>
                 </div>
             </div>
-            <!-- Tab 2: Another -->
-            <div class="tabpanel main-panel" data-panel="another-tab">
+            <!-- Tab 2: eKlima -->
+            <div class="tabpanel main-panel" data-panel="eklima-tab">
+                <h2 style="text-align: center;">
+                    The data is sourced through the official
+                    <a href="https://api.met.no/" target="_blank" rel="noopener noreferrer">
+                        Norwegian Meteorological Institute</a> platform
+                </h2>
+                <!-- <div class="single-row" id="weather-station-container" style="display: none;">
+                    
+                    
 
+
+                </div> -->
 
 
 
             </div>
+            <!-- Tab 3: NMI -->
+            <div class="tabpanel main-panel" data-panel="nmi-tab">
+                <h2 style="text-align: center;">
+                    The data is sourced through the official
+                    <a href="https://seklima.met.no/" target="_blank" rel="noopener noreferrer">
+                        Norwegian Centre for Climate Services</a> platform
+                </h2>
+                <!-- <div class="single-row" id="weather-station-container" style="display: none;">
+                    
+                </div> -->
+            </div>
+            <!-- Tab 4: NVE -->
+            <div class="tabpanel main-panel" data-panel="nve-tab">
+                <h2 style="text-align: center;">
+                    The data is sourced through the official
+                    <a href="https://www.nve.no/" target="_blank" rel="noopener noreferrer">
+                        Norwegian Water Resources and Energy Directorate</a> platform
+                </h2>
+                <!-- <div class="single-row" id="weather-station-container" style="display: none;">
+                    
+
+
+                </div> -->
+            </div>
+            <!-- Tab 5: Copernicus -->
+            <div class="tabpanel main-panel" data-panel="copernicus-tab">
+                <h2 style="text-align: center;">
+                    The data is sourced through the official
+                    <a href="https://cds.climate.copernicus.eu/" target="_blank" rel="noopener noreferrer">
+                        Copernicus Climate Data Store</a> platform
+                </h2>
+                <!-- <div class="single-row" id="weather-station-container" style="display: none;">
+                    
+
+
+                </div> -->
+            </div>
+            <!-- Tab 6: POWER -->
+            <div class="tabpanel main-panel" data-panel="power-tab">
+                <h2 style="text-align: center;">
+                    The data is sourced through the official
+                    <a href="https://power.larc.nasa.gov/" target="_blank" rel="noopener noreferrer">
+                        NASA Prediction Of Worldwide Energy Resources</a> platform
+                </h2>
+                <!-- <div class="single-row" id="weather-station-container" style="display: none;">
+                    
+
+
+                </div> -->
+            </div>
+
+
         </div>
         <!-- Add the map -->
         <div class="map-container" id="map-container">

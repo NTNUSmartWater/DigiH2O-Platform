@@ -189,44 +189,54 @@ export function renderProjects(objectList, objectInput, fullList, filter) {
 
 export async function csvUploader(event, targetText, table, nCols, isIgnoreHeader=true,
                 objName=null, latitude=null, longitude=null){
-    const file = event.target.files[0];
-    if (!file) return;
-    targetText.value = file.name;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const text = e.target.result;
-        const lines = text.split('\n').map(line => line.trim()).filter(line => line !== '');
-        const parts = lines[0].split(',').map(item => item.trim());
-        if (parts.length !== nCols) { alert('Number of columns should be ' + nCols + '.'); target.value = ''; return; }
-        let dataLines = lines;
-        if (isIgnoreHeader) dataLines = dataLines.slice(1); // Skip header
-        dataLines.forEach((line, idx) => {
-            const parts = line.split(',').map(item => item.trim());
-            let data_arr = [];
-            if (parts.length === 2) {
-                data_arr = [[parts[0], parseFloat(parts[1])]];
-            } else if (parts.length === 3) {
-                data_arr = [[parts[0], parseFloat(parts[1]), parseFloat(parts[2])]];
-            } else if (parts.length === 5) {
-                if (objName && latitude && longitude) {
-                    objName.value = file.name.replace('.csv', ''); 
-                    if (idx === 0) {
-                        latitude.value = parts[0]; longitude.value = parts[1];
-                    } else if (idx === 1) { return;
-                    } else {
-                        data_arr = [[parts[0], parseFloat(parts[1]), parseFloat(parts[2]), 
-                                parseFloat(parts[3]), parseFloat(parts[4])]];
-                    }
-                } else {
-                    data_arr = [[parts[0], parseFloat(parts[1]), parseFloat(parts[2]), 
-                            parseFloat(parts[3]), parseFloat(parts[4])]];
+    return new Promise((resolve, reject) => {
+        const file = event.target.files[0];
+        if (!file) { resolve(); return; }
+        targetText.value = file.name;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const text = e.target.result;
+                const lines = text.split('\n').map(line => line.trim()).filter(line => line !== '');
+                const parts = lines[0].split(',').map(item => item.trim());
+                if (parts.length !== nCols) { 
+                    alert('Number of columns should be ' + nCols + '.'); 
+                    target.value = ''; resolve(); return; 
                 }
-            }
-            if (data_arr.length === 0) return;
-            fillTable(data_arr, table, false);
-        })
-    }
-    reader.readAsText(file);
+                let dataLines = lines;
+                if (isIgnoreHeader) dataLines = dataLines.slice(1); // Skip header
+                dataLines.forEach((line, idx) => {
+                    const parts = line.split(',').map(item => item.trim());
+                    let data_arr = [];
+                    if (parts.length === 2) {
+                        data_arr = [[parts[0], parseFloat(parts[1])]];
+                    } else if (parts.length === 3) {
+                        data_arr = [[parts[0], parseFloat(parts[1]), parseFloat(parts[2])]];
+                    } else if (parts.length === 5) {
+                        if (objName && latitude && longitude) {
+                            objName.value = file.name.replace('.csv', ''); 
+                            if (idx === 0) {
+                                latitude.value = parts[0]; longitude.value = parts[1];
+                            } else if (idx === 1) { return;
+                            } else {
+                                data_arr = [[parts[0], parseFloat(parts[1]), parseFloat(parts[2]), 
+                                    parseFloat(parts[3]), parseFloat(parts[4])]];
+                            }
+                        } else {
+                            data_arr = [[parts[0], parseFloat(parts[1]), parseFloat(parts[2]), 
+                                parseFloat(parts[3]), parseFloat(parts[4])]];
+                        }
+                    } else {
+                        data_arr = [[parts[0], ...parts.slice(1).map(item => parseFloat(item))]];
+                    }
+                    if (data_arr.length === 0) return;
+                    fillTable(data_arr, table, false);
+                });
+                resolve();
+            } catch (err) { reject(err); }
+        };
+        reader.onerror = reject; reader.readAsText(file);
+    });
 }
 export function mapPicker(obj, type, content=null, pointType=null){
     const handler = () => {

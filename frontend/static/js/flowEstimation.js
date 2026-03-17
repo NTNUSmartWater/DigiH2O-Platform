@@ -1,5 +1,5 @@
 import { getState, CENTER, ZOOM, L } from "./constants.js";
-import { sendQuery, fillTable, getDataFromTable, deleteTable } from "./tableManager.js";
+import { sendQuery, fillTable, getDataFromTable, deleteTable, csvUploader } from "./tableManager.js";
 import { clearMap, updateColorbar, getColor } from "./utils.js";
 
 const loading = () => document.getElementById('loadingOverlay');
@@ -62,7 +62,27 @@ const riverLakeClipBtn = () => document.getElementById('river-clip-lake-btn');
 const riverCatchmentClipBtn = () => document.getElementById('river-clip-catchment-btn');
 const riverDeleteBtn = () => document.getElementById('river-delete-btn');
 const riverCheckbox = () => document.getElementById('river-checker-checkbox');
+const initialTopMoisture = () => document.getElementById('initial-top-moisture');
+const initialSubMoisture = () => document.getElementById('initial-sub-moisture');
+const initialGroundwater = () => document.getElementById('initial-groundwater');
+const initialOverlandFlow = () => document.getElementById('initial-overland-flow');
+const initialRiverStorage = () => document.getElementById('initial-river-storage');
+const initialLakeStorage = () => document.getElementById('initial-lake-storage');
+const initialSnowDepth = () => document.getElementById('initial-snow-depth');
+const initialWaterDepth = () => document.getElementById('initial-water-depth');
+const initialSaturationDeficit = () => document.getElementById('initial-saturation-deficit');
 
+const weatherCSVContainer = () => document.getElementById('weather-csv-container');
+const weatherInputFile = () => document.getElementById('weather-input-file');
+const weatherInputText = () => document.getElementById('weather-input-text');
+const weatherBtn = () => document.getElementById('weather-btn');
+const weatherStationSelector = () => document.getElementById('weather-station');
+const weatherStationContainer = () => document.getElementById('weather-station-container');
+const weatherStationStartContainer = () => document.getElementById('weather-station-start');
+const weatherStationEndContainer = () => document.getElementById('weather-station-end');
+const weatherStart = () => document.getElementById('weather-start-date');
+const weatherEnd = () => document.getElementById('weather-end-date');
+const weatherAttributesTable = () => document.getElementById('weather-attributes-table');
 
 
 
@@ -852,6 +872,52 @@ function update() {
         if (riverLayer === null) { alert('Please upload/create a river layer first.'); return; }
         await geoJSONExporter(riverLayer.toGeoJSON(), 'river.geojson');
     });
+    document.querySelectorAll('input[name="weather"]').forEach(radio => {
+        radio.addEventListener('change', (e) => { 
+            if (e.target.value === 'weather-csv') { 
+                weatherCSVContainer().style.display = 'flex';
+                weatherStationContainer().style.display = 'none';
+                weatherStationStartContainer().style.display = 'none';
+                weatherStationEndContainer().style.display = 'none';
+            } else {
+                weatherCSVContainer().style.display = 'none';
+                weatherStationContainer().style.display = 'flex';
+                weatherStationStartContainer().style.display = 'flex';
+                weatherStationEndContainer().style.display = 'flex';
+            }
+        });
+    });
+    weatherBtn().addEventListener('click', () => { weatherInputFile().click(); });
+    weatherInputFile().addEventListener('change', async (e) => {
+        startLoading('Uploading weather data from CSV file. Please wait...');
+        try { await csvUploader(e, weatherInputText(), weatherAttributesTable(), 8);
+        } finally { stopLoading(); }
+    });
+    weatherStationSelector().addEventListener('change', async(e) => {
+        const value = e.target.value; if (!value || value === '') return;
+        const start = weatherStart().value, end = weatherEnd().value;
+        if (start === '' || end === '') { 
+            alert('Please select start and end dates first.');
+            e.target.value = ''; return; 
+        }
+        if (value == 'eklima') {
+
+        } else if (value == 'nmi') {
+
+        } else if (value == 'nve') {
+
+        } else if (value == 'ecmwf') {
+
+        } else if (value == 'power') {
+
+        }
+        const content = { start: start, end: end, station: value };
+        startLoading('Downloading weather data for selected station. Please wait...');
+        const response = await sendQuery('weather_provider', content); stopLoading();
+        if (response.status === 'error') { alert(response.message); e.target.value = ''; return; }
+        fillTable(response.content, weatherAttributesTable());
+    });
+
 
 
 

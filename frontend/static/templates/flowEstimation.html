@@ -5,7 +5,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
-    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=003">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=005">
 </head>
 <body>
     <section class="main-tab">
@@ -283,7 +284,7 @@
                             <input type="text" id="river-network-input-text" placeholder="No file selected" readonly>
                         </div>
                     </div>
-                    <div class="tile" style="width: 300px;"><h3>River Processing</h3>
+                    <div class="tile" style="width: 400px;"><h3>River Processing</h3>
                         <div class="single-row">
                             <input type="file" id="lake-input-file" accept=".geojson" hidden>
                             <button type="button" id="lake-upload-btn">Upload Lake Boundary</button>
@@ -305,7 +306,7 @@
                             <table class="attributes-table" id="river-attributes-table">
                                 <thead><tr>
                                     <th>Segment</th><th>Width (m)</th><th>Depth (m)</th><th>Manning roughness</th>
-                                <tbody></tbody>
+                                </tr></thead><tbody></tbody>
                             </table>
                         </div>
                         <div class="single-row" style="display: block; margin-top: 5px;">
@@ -320,40 +321,40 @@
                 <div class="grid">
                     <div class="tile initial-conditions-tile"><h3>Initial Conditions</h3>
                         <div class="single-row">
-                            <label for="initial-water-level">Top soil moisture (m³/m³):</label>
-                            <input type="text" id="initial-water-level" value='0.25'>
+                            <label for="initial-top-moisture">Top soil moisture (m³/m³):</label>
+                            <input type="text" id="initial-top-moisture" value='0.25'>
                         </div>
                         <div class="single-row">
-                            <label for="initial-salinity">Sub soil moisture (m³/m³):</label>
-                            <input type="text" id="initial-salinity" value='0.30'>
+                            <label for="initial-sub-moisture">Sub soil moisture (m³/m³):</label>
+                            <input type="text" id="initial-sub-moisture" value='0.30'>
                         </div>
                         <div class="single-row">
-                            <label for="initial-temperature">Groundwater level (mm):</label>
-                            <input type="text" id="initial-temperature" value='50'>
+                            <label for="initial-groundwater">Groundwater level (mm):</label>
+                            <input type="text" id="initial-groundwater" value='50'>
                         </div>
                         <div class="single-row">
-                            <label for="initial-temperature">Overland flow (mm):</label>
-                            <input type="text" id="initial-temperature" value='0'>
+                            <label for="initial-overland-flow">Overland flow (mm):</label>
+                            <input type="text" id="initial-overland-flow" value='0'>
                         </div>
                         <div class="single-row">
-                            <label for="initial-temperature">River/Channel storage (mm):</label>
-                            <input type="text" id="initial-temperature" value='0'>
+                            <label for="initial-river-storage">River/Channel storage (mm):</label>
+                            <input type="text" id="initial-river-storage" value='0'>
                         </div>
                         <div class="single-row">
-                            <label for="initial-temperature">Lake storage (mm):</label>
-                            <input type="text" id="initial-temperature" value='500'>
+                            <label for="initial-lake-storage">Lake storage (mm):</label>
+                            <input type="text" id="initial-lake-storage" value='500'>
                         </div>
                         <div class="single-row">
-                            <label for="initial-temperature">Initial snow depth (mm):</label>
-                            <input type="text" id="initial-temperature" value='0'>
+                            <label for="initial-snow-depth">Initial snow depth (mm):</label>
+                            <input type="text" id="initial-snow-depth" value='0'>
                         </div>
                         <div class="single-row">
-                            <label for="initial-temperature">Initial water depth (mm) or discharge (m³/s):</label>
-                            <input type="text" id="initial-temperature" value='0'>
+                            <label for="initial-water-depth">Initial water depth (mm) or discharge (m³/s):</label>
+                            <input type="text" id="initial-water-depth" value='0'>
                         </div>
                         <div class="single-row">
-                            <label for="initial-temperature">Saturation deficit (mm):</label>
-                            <input type="text" id="initial-temperature" value='100'>
+                            <label for="initial-saturation-deficit">Saturation deficit (mm):</label>
+                            <input type="text" id="initial-saturation-deficit" value='100'>
                         </div>
                     </div>
                 </div>
@@ -366,21 +367,47 @@
                             <input type="radio" name="weather" value="weather-csv" checked>Upload from CSV file
                         </label>
                         <label class="checkbox-right">
-                            <input type="radio" name="weather" value="weather-station">Upload from a Weather Station
+                            <input type="radio" name="weather" value="weather-station">Get from a Weather Station
                         </label>
                     </div>
                     <div class="tile"><h3>Data Import</h3>
-                        <div class="single-row">
+                        <div class="single-row" id="weather-csv-container">
                             <label for="weather-input">Weather:</label>
                             <input type="file" id="weather-input-file" accept=".csv" hidden>
                             <input type="text" id="weather-input-text" placeholder="No file selected" readonly>
                             <button type="button" id="weather-btn">...</button>
                         </div>
+                        <div class="single-row" id="weather-station-start" style="display: none;">
+                            <label for="weather-start-date">Start time:</label>
+                            <input type="text" class="datetime" id="weather-start-date" placeholder="YYYY-mm-dd HH:mm:ss" style="width: auto;">
+                        </div>
+                        <div class="single-row" id="weather-station-end" style="display: none;">
+                            <label for="weather-end-date">End time:</label>
+                            <input type="text" class="datetime" id="weather-end-date" placeholder="YYYY-mm-dd HH:mm:ss" style="width: auto;">
+                        </div>
+                        <div class="single-row" id="weather-station-container" style="display: none;">
+                            <label for="weather-station">Source:</label>
+                            <select id="weather-station">
+                                <option value="" selected>Select a source</option>
+                                <option value="eklima">MET Norway - eKlima</option>
+                                <option value="nmi">Norwegian Meteorological Institute</option>
+                                <option value="nve">Norwegian Water Resources and Energy Directorate - NVE</option>
+                                <option value="ecmwf">Copernicus Climate Data Store</option>
+                                <option value="power">NASA Prediction Of Worldwide Energy Resources (POWER)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="tile" style="grid-column: span 4;"><h3>Attribute Table</h3>
+                        <div class="table-container">
+                            <table class="attributes-table" id="weather-attributes-table">
+                                <thead><tr>
+                                    <th>Time</th><th>Precipitation (mm/h)</th><th>Temperature (°C)</th><th>Shortwave Radiation (W/m²)</th>
+                                    <th>Longwave Radiation (W/m²)</th><th>Wind Speed (m/s)</th><th>Relative Humidity (%)</th><th>Pressure (Pa)</th>
+                                </tr></thead><tbody></tbody>
+                            </table>
+                        </div>
 
                     </div>
-
-
-
 
 
                 </div>
@@ -448,6 +475,13 @@
     </section>
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="/static_frontend/js/tooltipManager.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script>
+        flatpickr(".datetime", {
+            enableTime: true, enableSeconds: true, dateFormat: "Y-m-d H:i:S", time_24hr: true,
+            defaultHour: 0, defaultMinute: 0, defaultSecond: 0
+        });
+    </script>
     <script type="module" src="/static_frontend/js/flowEstimation.js"></script>
 </body>
 </html>
