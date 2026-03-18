@@ -1,4 +1,4 @@
-import os, dotenv, base64, requests, json
+import os, dotenv, base64, requests
 import pandas as pd
 from datetime import datetime
 

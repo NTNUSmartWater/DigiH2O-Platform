@@ -1,6 +1,18 @@
 import { startLoading, showLeafletMap } from "./mapManager.js";
 import { n_decimals, superscriptMap, getState, setState} from "./constants.js";
 
+
+export function formatDate(date) {
+    const pad = (n) => String(n).padStart(2, '0');
+    const Y = date.getFullYear();
+    const M = pad(date.getMonth() + 1);
+    const D = pad(date.getDate());
+    const h = pad(date.getHours());
+    const m = pad(date.getMinutes());
+    const s = pad(date.getSeconds());
+    return `${Y}-${M}-${D} ${h}:${m}:${s}`;
+}
+
 function toSuperscript(num) {
     return String(num).split('').map(ch => superscriptMap[ch] || ch).join('');
 }

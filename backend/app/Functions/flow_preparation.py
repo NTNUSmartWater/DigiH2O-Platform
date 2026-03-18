@@ -393,23 +393,37 @@ async def assign_type(request: Request):
         traceback.print_exc()
         return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
 
+@router.post("/weather_location")
+async def weather_location(request: Request):
+    try:
+        body = await request.json()
+        content = flowFunctions.weather_init(body.get('key'))
+        if len(content) == 0: return JSONResponse({'status': 'error', 'message': 'No data found.'})
+        return JSONResponse({'status': 'ok', 'content': json.loads(content.to_json())})
+    except Exception as e:
+        print('/weather_location:\n==============')
+        traceback.print_exc()
+        return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
+
 @router.post("/weather_provider")
 async def weather_provider(request: Request):
     try:
         body = await request.json()
-        station = body.get('station')
+        source, station = body.get('source'), body.get('station')
         start, end = body.get('start'), body.get('end')
         start_time = datetime.strptime(start, '%Y-%m-%d %H:%M:%S')
         end_time = datetime.strptime(end, '%Y-%m-%d %H:%M:%S')
         if start_time >= end_time: 
             return JSONResponse({'status': 'error', 'message': "Error: Start time is later than end time."})
-        content = flowFunctions.weather_downloader(station, start_time, end_time)
-        if len(content) == 0: return JSONResponse({'status': 'error', 'message': 'No data found.'})
-        return JSONResponse({'status': 'ok', 'content': content})
+        start_time = start_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+        end_time = end_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+        content, checker = flowFunctions.weather_downloader(source, station, start_time, end_time)
+        if len(content) == 0: return JSONResponse({'status': 'error', 'checker': checker, 'message': 'No data found.'})
+        return JSONResponse({'status': 'ok', 'checker': checker, 'content': content})
     except Exception as e:
         print('/weather_provider:\n==============')
         traceback.print_exc()
-        return JSONResponse({'status': 'error', 'message': f"Error: {e}"})
+        return JSONResponse({'status': 'error', 'checker': 0, 'message': f"Error: {e}"})
 
 
 

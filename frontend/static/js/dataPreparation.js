@@ -1,6 +1,6 @@
 import { getState, L, CENTER, ZOOM } from "./constants.js";
 import { sendQuery, fillTable, getDataFromTable, deleteTable } from "./tableManager.js";
-import { plotTimeSeries, viewDatafromPlot, saveToExcelFromPlot, moveWindow } from "./utils.js";
+import { plotTimeSeries, viewDatafromPlot, saveToExcelFromPlot, moveWindow, formatDate } from "./utils.js";
 
 
 const compass = () => document.getElementById('custom_compass_btn');
@@ -141,16 +141,6 @@ function startLoading(str = '') {
 }
 function stopLoading() { 
     loading().style.display = "none"; loading().style.pointerEvents = "none";
-}
-function formatDate(date) {
-    const pad = (n) => String(n).padStart(2, '0');
-    const Y = date.getFullYear();
-    const M = pad(date.getMonth() + 1);
-    const D = pad(date.getDate());
-    const h = pad(date.getHours());
-    const m = pad(date.getMinutes());
-    const s = pad(date.getSeconds());
-    return `${Y}-${M}-${D} ${h}:${m}:${s}`;
 }
 
 function updateLayerTooltips(layerGroup) {

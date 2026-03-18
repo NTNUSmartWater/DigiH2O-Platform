@@ -1,6 +1,6 @@
 import { getState, CENTER, ZOOM, L } from "./constants.js";
 import { sendQuery, fillTable, getDataFromTable, deleteTable, csvUploader } from "./tableManager.js";
-import { clearMap, updateColorbar, getColor } from "./utils.js";
+import { clearMap, updateColorbar, getColor, formatDate } from "./utils.js";
 
 const loading = () => document.getElementById('loadingOverlay');
 const leafletMap = () => document.getElementById('leaflet-map');
@@ -83,6 +83,7 @@ const weatherStationEndContainer = () => document.getElementById('weather-statio
 const weatherStart = () => document.getElementById('weather-start-date');
 const weatherEnd = () => document.getElementById('weather-end-date');
 const weatherAttributesTable = () => document.getElementById('weather-attributes-table');
+const weatherNotes = () => document.getElementById('weather-attributes-notes');
 
 
 
@@ -94,7 +95,8 @@ let map = null, terrainLayer = null, minTerrain = null, maxTerrain = null,
     flowDirectionLayer = null, minFlowDirection = null, maxFlowDirection = null,
     flowAccumulationLayer = null, minFlowAccumulation = null, maxFlowAccumulation = null,
     catchmentLayer = null, lastLayer = null, lat=null, lon=null, soilLayer = null, 
-    isPourpointActive = false, landLayer = null, riverLayer = null, lakeLayer = null;
+    isPourpointActive = false, landLayer = null, riverLayer = null, lakeLayer = null,
+    weatherLayer = null;
 
 const hoverTooltip = L.tooltip({
     permanent: false, direction: 'bottom',
@@ -269,6 +271,20 @@ function buildTooltip(props, key) {
             <hr style="margin: 5px 0 5px 0;">
             <strong>Click to change attributes</strong>
         `;
+    } else if (key === 'eklima') {
+        return `
+            <div style="font-weight: bold; text-align: center;">Name: ${props.shortName || 'Unknown'}</div>
+            <hr style="margin: 5px 0 5px 0;">
+            <strong>• Full name:</strong> ${props.name ?? 'Unknown'}<br>
+            <strong>• ID:</strong> ${props.id ?? 'Unknown'}<br>
+            <strong>• Type:</strong> ${props.type ?? 'Unknown'}<br>
+            <strong>• Valid from:</strong> ${props.validFrom ?? 'Unknown'}<br>
+            <strong>• County:</strong> ${props.county ?? 'Unknown'}<br>
+            <strong>• Municipality:</strong> ${props.municipality	 ?? 'Unknown'}<br>
+            <strong>• Station Holders:</strong> ${props.stationHolders ?? 'Unknown'}<br>
+            <hr style="margin: 5px 0 5px 0;">
+            <strong>Click to get weather data</strong>
+        `;
     }
 }
 
@@ -358,9 +374,23 @@ async function geoJSONExporter(data, fileName) {
     } catch (error) { alert(`Exporting failed: ${error.message}`); }
 }
 
+async function getWeatherData(source, station) {
+    const start = weatherStart().value, end = weatherEnd().value;
+    if (start === '' || end === '') { 
+        alert('Please select start and end dates first.'); return; 
+    }
+    const content = { source : source, station: station, start: start, end: end };
+    startLoading('Downloading weather data for selected station. Please wait...');
+    const response = await sendQuery('weather_provider', content); stopLoading();
+    if (response.status === 'error') { alert(response.message); return; }
+    weatherNotes().style.display = response.checker === 1 ? 'flex' : 'none';
+    fillTable(response.content, weatherAttributesTable());
+}
+
 
 function update() {
     if (!map) { createMap(); }; compass().style.display = 'flex';
+    const startOfDay = new Date(), now = new Date(); startOfDay.setHours(0, 0, 0, 0);
     terrainBtn().addEventListener('click', () => { 
         terrainInputText().value = ''; terrainInputFile().value = '';
         colorbar_container().style.display = 'none';
@@ -877,13 +907,9 @@ function update() {
             if (e.target.value === 'weather-csv') { 
                 weatherCSVContainer().style.display = 'flex';
                 weatherStationContainer().style.display = 'none';
-                weatherStationStartContainer().style.display = 'none';
-                weatherStationEndContainer().style.display = 'none';
             } else {
                 weatherCSVContainer().style.display = 'none';
                 weatherStationContainer().style.display = 'flex';
-                weatherStationStartContainer().style.display = 'flex';
-                weatherStationEndContainer().style.display = 'flex';
             }
         });
     });
@@ -894,28 +920,45 @@ function update() {
         } finally { stopLoading(); }
     });
     weatherStationSelector().addEventListener('change', async(e) => {
-        const value = e.target.value; if (!value || value === '') return;
-        const start = weatherStart().value, end = weatherEnd().value;
-        if (start === '' || end === '') { 
-            alert('Please select start and end dates first.');
-            e.target.value = ''; return; 
+        const value = e.target.value; 
+        if (!value || value === '') {
+            weatherStationStartContainer().style.display = 'none';
+            weatherStationEndContainer().style.display = 'none'; return;
         }
-        if (value == 'eklima') {
+        weatherStationStartContainer().style.display = 'flex';
+        weatherStationEndContainer().style.display = 'flex';
+        weatherStart().value = formatDate(startOfDay); 
+        weatherEnd().value = formatDate(now);
+        if (value == 'ntnu') {
 
-        } else if (value == 'nmi') {
 
+
+        } else if (value == 'eklima') {
+            startLoading('Getting location of weather stations from Norwegian Meteorological Institute. Please wait...');
+            const response = await sendQuery('weather_location', { key: 'eklima' }); stopLoading();
+            if (response.status === 'error') { alert(response.message); e.target.value = ''; return; }
+            weatherLayer = clearMap(weatherLayer, map);
+            weatherLayer = L.geoJSON(response.content, { 
+                pointToLayer: (_, latlng) => {
+                    const marker = L.marker(latlng, {
+                        icon: L.icon({
+                            iconUrl: `/static_backend/images/rain.png?v=${Date.now()}`,
+                            iconSize: [20, 20], iconAnchor: [10, 10]
+                        }),
+                    });
+                    return marker;
+                },
+                onEachFeature: (feature, featureLayer) => {
+                    featureLayer.on('click', async (e) => { 
+                        L.DomEvent.stopPropagation(e);
+                        await getWeatherData(value, feature.properties.id);
+                    });
+                    featureLayer.bindTooltip(`${buildTooltip(feature.properties, value)}`, {sticky: true});
+                }
+            }).addTo(map);
         } else if (value == 'nve') {
 
-        } else if (value == 'ecmwf') {
-
-        } else if (value == 'power') {
-
         }
-        const content = { start: start, end: end, station: value };
-        startLoading('Downloading weather data for selected station. Please wait...');
-        const response = await sendQuery('weather_provider', content); stopLoading();
-        if (response.status === 'error') { alert(response.message); e.target.value = ''; return; }
-        fillTable(response.content, weatherAttributesTable());
     });
 
 

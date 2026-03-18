@@ -20,6 +20,7 @@
                 <button class="tab-btn" data-tab="weather-data-tab">Weather Data<span class="ink"></span></button>
                 <button class="tab-btn" data-tab="settings-tab">Settings<span class="ink"></span></button>
                 <button class="tab-btn" data-tab="flow-detection-tab">Flow Detection<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="flow-prediction-tab">Flow Prediction<span class="ink"></span></button>
             </div>
         </div>
         <div class="tabs-content">
@@ -369,14 +370,23 @@
                         <label class="checkbox-right">
                             <input type="radio" name="weather" value="weather-station">Get from a Weather Station
                         </label>
-                    </div>
-                    <div class="tile"><h3>Data Import</h3>
                         <div class="single-row" id="weather-csv-container">
-                            <label for="weather-input">Weather:</label>
+                            <label for="weather-input">CSV Data:</label>
                             <input type="file" id="weather-input-file" accept=".csv" hidden>
                             <input type="text" id="weather-input-text" placeholder="No file selected" readonly>
                             <button type="button" id="weather-btn">...</button>
                         </div>
+                        <div class="single-row" id="weather-station-container" style="display: none;">
+                            <label for="weather-station">Source:</label>
+                            <select id="weather-station">
+                                <option value="" selected>--- Select a source ---</option>
+                                <option value="ntnu">NTNU Weather Station</option>
+                                <option value="eklima">Norwegian Meteorological Institute - MET</option>
+                                <option value="nve">Norwegian Water Resources and Energy Directorate - NVE</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="tile"><h3>Data Period</h3>
                         <div class="single-row" id="weather-station-start" style="display: none;">
                             <label for="weather-start-date">Start time:</label>
                             <input type="text" class="datetime" id="weather-start-date" placeholder="YYYY-mm-dd HH:mm:ss" style="width: auto;">
@@ -385,17 +395,7 @@
                             <label for="weather-end-date">End time:</label>
                             <input type="text" class="datetime" id="weather-end-date" placeholder="YYYY-mm-dd HH:mm:ss" style="width: auto;">
                         </div>
-                        <div class="single-row" id="weather-station-container" style="display: none;">
-                            <label for="weather-station">Source:</label>
-                            <select id="weather-station">
-                                <option value="" selected>Select a source</option>
-                                <option value="eklima">MET Norway - eKlima</option>
-                                <option value="nmi">Norwegian Meteorological Institute</option>
-                                <option value="nve">Norwegian Water Resources and Energy Directorate - NVE</option>
-                                <option value="ecmwf">Copernicus Climate Data Store</option>
-                                <option value="power">NASA Prediction Of Worldwide Energy Resources (POWER)</option>
-                            </select>
-                        </div>
+                        
                     </div>
                     <div class="tile" style="grid-column: span 4;"><h3>Attribute Table</h3>
                         <div class="table-container">
@@ -406,10 +406,26 @@
                                 </tr></thead><tbody></tbody>
                             </table>
                         </div>
-
+                        <div class="single-row" style="margin-top: 5px;">
+                            <a style="margin-top: 10px;">References:</a>
+                            <a class="data-link" href="https://frost.met.no/elementtable" style="width: 100%; text-align: left;"
+                                target="_blank">Weather and Climate Elements
+                            </a>
+                        </div>
+                        <div class="single-row" id="weather-attributes-notes"
+                            style="margin-top: 20px; flex-direction: column; align-items: flex-start; display: none;">
+                            <a style="color: rgb(0, 255, 13)">
+                                NOTE: Shortwave and Longwave Radiation are not available at this source/time range. These values are computed from other meteorological variables
+                            </a>
+                            <div style="display: flex; gap: 6px; align-items: left;">
+                                <a style="margin-top: 5px;">References:</a>
+                                <a class="data-link" href="#" style="width: 100%; margin-top: 5px;"
+                                    onclick="window.open('/static_frontend/pdfs/CropEvapotranspiration.pdf', '_blank'); return false;"
+                                    target="_blank">Allen et al., (1998): Crop Evapotranspiration – FAO Irrigation and Drainage Paper 56
+                                </a>
+                            </div>
+                        </div>
                     </div>
-
-
                 </div>
             </div>
             <!-- Tab 7: Settings -->
@@ -445,6 +461,13 @@
 
                     </div>
                 </div>
+            </div>
+            <!-- Tab 9: Flow Prediction -->
+            <div class="main-panel" data-panel="flow-prediction-tab">
+
+
+
+
             </div>
         </div>
         <!-- Add the map -->
