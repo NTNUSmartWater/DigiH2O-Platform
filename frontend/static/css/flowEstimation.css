@@ -165,14 +165,14 @@ body {
 }
 
 /* ===== Table ===== */
-.table-container { max-height: 120px; margin-top: 0; overflow-y: auto; scrollbar-gutter: stable; }
+.table-container { max-height: 140px; margin-top: 0; overflow-y: auto; scrollbar-gutter: stable; }
 .attributes-table {
-  width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px;
-  display: table; margin-top: 0;
+  width: 100%; border-collapse: collapse; table-layout: fixed;
+  font-size: 13px; display: table; margin-top: 0;
 }
 .attributes-table thead { width: 100%; table-layout: fixed; }
 .attributes-table tbody {
-  max-height: 120px; width: 100%; scrollbar-gutter: stable;
+  max-height: 140px; width: 100%; scrollbar-gutter: stable;
 }
 .attributes-table tr { width: 100%; table-layout: fixed; }
 .attributes-table th, .attributes-table td {

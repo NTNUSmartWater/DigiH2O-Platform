@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=005">
+    <link rel="stylesheet" href="/static_frontend/css/flowEstimation.css?v=006">
 </head>
 <body>
     <section class="main-tab">
@@ -385,8 +385,6 @@
                                 <option value="nve">Norwegian Water Resources and Energy Directorate - NVE</option>
                             </select>
                         </div>
-                    </div>
-                    <div class="tile"><h3>Data Period</h3>
                         <div class="single-row" id="weather-station-start" style="display: none;">
                             <label for="weather-start-date">Start time:</label>
                             <input type="text" class="datetime" id="weather-start-date" placeholder="YYYY-mm-dd HH:mm:ss" style="width: auto;">
@@ -395,35 +393,37 @@
                             <label for="weather-end-date">End time:</label>
                             <input type="text" class="datetime" id="weather-end-date" placeholder="YYYY-mm-dd HH:mm:ss" style="width: auto;">
                         </div>
-                        
                     </div>
-                    <div class="tile" style="grid-column: span 4;"><h3>Attribute Table</h3>
+                    <div class="tile" style="grid-column: span 5;"><h3>Attribute Table</h3>
                         <div class="table-container">
                             <table class="attributes-table" id="weather-attributes-table">
                                 <thead><tr>
                                     <th>Time</th><th>Precipitation (mm/h)</th><th>Temperature (°C)</th><th>Shortwave Radiation (W/m²)</th>
-                                    <th>Longwave Radiation (W/m²)</th><th>Wind Speed (m/s)</th><th>Relative Humidity (%)</th><th>Pressure (Pa)</th>
+                                    <th>Longwave Radiation (W/m²)</th><th>Wind Speed (m/s)</th><th>Relative Humidity (%)</th><th>Pressure (hPa)</th>
                                 </tr></thead><tbody></tbody>
                             </table>
                         </div>
-                        <div class="single-row" style="margin-top: 5px;">
+                        <!-- <div class="single-row" style="display: block; align-items: center; margin-top: 5px;">
+                            <button type="button" id="weather-save-btn" style="width: 200px;">Export</button>
+                        </div> -->
+                        <div class="single-row" style="margin-top: 5px; display: flex; align-items: center;">
                             <a style="margin-top: 10px;">References:</a>
-                            <a class="data-link" href="https://frost.met.no/elementtable" style="width: 100%; text-align: left;"
-                                target="_blank">Weather and Climate Elements
+                            <a class="data-link" href="https://frost.met.no/elementtable" style="width: 195px; text-align: left;"
+                                target="_blank">Weather and Climate Elements,
                             </a>
+                            <a class="data-link" href="#" style="width: 520px; margin-top: 10px;"
+                                onclick="window.open('/static_frontend/pdfs/CropEvapotranspiration.pdf', '_blank'); return false;"
+                                target="_blank">Allen et al., (1998): Crop Evapotranspiration – FAO Irrigation and Drainage Paper 56
+                            </a>
+                            <button type="button" id="save-weather-btn" 
+                                style="width: 100px; margin-right: 50px; margin-left: auto; ">
+                                Export Table</button>
                         </div>
                         <div class="single-row" id="weather-attributes-notes"
-                            style="margin-top: 20px; flex-direction: column; align-items: flex-start; display: none;">
+                            style="margin-top: 5px; flex-direction: column; align-items: flex-start;">
                             <a style="color: rgb(0, 255, 13)">
                                 NOTE: Shortwave and Longwave Radiation are not available at this source/time range. These values are computed from other meteorological variables
                             </a>
-                            <div style="display: flex; gap: 6px; align-items: left;">
-                                <a style="margin-top: 5px;">References:</a>
-                                <a class="data-link" href="#" style="width: 100%; margin-top: 5px;"
-                                    onclick="window.open('/static_frontend/pdfs/CropEvapotranspiration.pdf', '_blank'); return false;"
-                                    target="_blank">Allen et al., (1998): Crop Evapotranspiration – FAO Irrigation and Drainage Paper 56
-                                </a>
-                            </div>
                         </div>
                     </div>
                 </div>

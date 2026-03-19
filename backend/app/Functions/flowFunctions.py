@@ -3,11 +3,11 @@ from rasterio.shutil import copy as rio_copy
 from rasterio.features import shapes
 from pysheds.grid import Grid
 from Functions import functions
-import geopandas as gpd, pandas as pd
+import geopandas as gpd, pandas as pd, numpy as np
 from shapely.geometry import shape, Polygon, MultiPolygon, Point
 from shapely.ops import unary_union
-from datetime import datetime
 from requests.auth import HTTPBasicAuth
+from datetime import datetime
 dotenv.load_dotenv()
 MET_url = os.getenv('MET_ProstAPI_URL')
 MET_client_id = os.getenv('MET_ProstAPI_CLIENT_ID')
@@ -121,13 +121,12 @@ def watershed(flowdir_path:str, flowacc_path:str, lat:float, lon:float,
     return polygon
 
 def weather_init(id:str) -> gpd.GeoDataFrame:
-    gdf = gpd.GeoDataFrame()
     if id == 'ntnu':
-        content = []
-
-
-
-
+        data = {
+            'name': 'NTNU', 'county': 'MØRE OG ROMSDAL',
+            'municipality': 'ÅLESUND', 'geometry': Point((6.4797, 62.4848))
+        }
+        gdf = gpd.GeoDataFrame(data=[data], geometry='geometry', crs="EPSG:4326")
     elif id == 'eklima':
         url = f'{MET_url}/sources/v0.jsonld'
         headers = {'Accept': 'application/json'}
@@ -140,8 +139,7 @@ def weather_init(id:str) -> gpd.GeoDataFrame:
         df.dropna(subset=['geometry'], inplace=True)
         gdf = gpd.GeoDataFrame(df, crs="EPSG:4326")
     elif id == 'nve':
-        content = []
-
+        gdf = gpd.GeoDataFrame()
 
 
 
@@ -149,8 +147,10 @@ def weather_init(id:str) -> gpd.GeoDataFrame:
     return gdf
 
 
-def weather_downloader(source:str, stationId:str, start:str, end:str) -> list:
-    content, checker = [], 0
+def weather_downloader(source:str, stationId:str, start:datetime, end:datetime) -> tuple:
+    start_time = start.strftime('%Y-%m-%dT%H:%M:%SZ')
+    end_time = end.strftime('%Y-%m-%dT%H:%M:%SZ')
+    checker = 0
     if source == 'ntnu':
         content = []
 
@@ -161,35 +161,65 @@ def weather_downloader(source:str, stationId:str, start:str, end:str) -> list:
         # Reference: https://frost.met.no/elementtable
         url = f'{MET_url}/observations/v0.jsonld'
         headers = {'Accept': 'application/json'}
+        columns = [
+            "mean(air_temperature PT1H)", "mean(wind_speed PT1H)", 
+            "mean(surface_air_pressure PT1H)", "mean(relative_humidity PT1H)",
+            "sum(precipitation_amount PT1H)", 
+            "mean(surface_downwelling_shortwave_flux_in_air PT1H)",
+            'mean(surface_downwelling_longwave_flux_in_air PT1H)'
+        ]
         params = {
-            "sources": stationId, "referencetime": f"{start}/{end}",
-            "elements": ",".join([
-                "precipitation_amount", "air_temperature",
-                
-                "wind_speed", "relative_humidity", 'air_pressure'
-            ]),
+            "sources": stationId, "elements": ",".join(columns),
+            "referencetime": f"{start_time}/{end_time}"
         }
         response = requests.request("GET", url, params=params,
             headers=headers, auth=HTTPBasicAuth(MET_client_id, ''))
-        data, checker = pd.DataFrame(response.json()["data"]), 1
-        data['timestamp'] = pd.to_datetime(data['referenceTime']).dt.strftime('%Y-%m-%d %H:%M:%S')
-        data.drop(columns=['sourceId', 'referenceTime'], inplace=True)
-
-        
-        print(data)
-
-
-
-
-
-        
-
-
-
-
-
-
-
+        data, rows = response.json()["data"], []
+        for item in data:
+            time = item['referenceTime']
+            for obs in item['observations']:
+                rows.append({
+                    "timestamp": time, 'element': obs['elementId'],
+                    "value": obs['value'], 'timeResolution': obs['timeResolution'],
+                    "height": obs.get('level', {}).get('value'), "qualityCode": obs.get('qualityCode')
+                })
+        df = pd.DataFrame(rows)
+        df['timestamp'] = pd.to_datetime(df['timestamp']).dt.strftime('%Y-%m-%d %H:%M:%S')
+        df = df[df['timeResolution'] == 'PT1H'].reset_index(drop=True)
+        weather_df = pd.DataFrame(data={'timestamp': df['timestamp'].unique()})
+        pre_mask = (df['element'] == 'sum(precipitation_amount PT1H)')
+        df.loc[pre_mask, 'precipitation'] = df.loc[pre_mask, 'value']
+        pre_df = df[~df['precipitation'].isna()]
+        weather_df = weather_df.merge(pre_df[['timestamp', 'precipitation']], how='left', on='timestamp')
+        temp_mask = (df['element'] == 'mean(air_temperature PT1H)') & (df['height'] == 2)
+        df.loc[temp_mask, 'temperature'] = df.loc[temp_mask, 'value']
+        temp_df = df[~df['temperature'].isna()]
+        weather_df = weather_df.merge(temp_df[['timestamp', 'temperature']], how='left', on='timestamp')
+        short_mask = (df['element'] == 'mean(surface_downwelling_shortwave_flux_in_air PT1H)')
+        df.loc[short_mask, 'short_wave_radiation'] = df.loc[short_mask, 'value']
+        short_df = df[~df['short_wave_radiation'].isna()]
+        weather_df = weather_df.merge(short_df[['timestamp', 'short_wave_radiation']], how='left', on='timestamp')
+        long_mask = (df['element'] == 'mean(surface_downwelling_longwave_flux_in_air PT1H)')
+        df.loc[long_mask, 'long_wave_radiation'] = df.loc[long_mask, 'value']
+        long_df = df[~df['long_wave_radiation'].isna()]
+        weather_df = weather_df.merge(long_df[['timestamp', 'long_wave_radiation']], how='left', on='timestamp')
+        wind_mask = (df['element'] == 'mean(wind_speed PT1H)') & (df['height'] == 10)
+        df.loc[wind_mask, 'wind_speed'] = df.loc[wind_mask, 'value']
+        wind_df = df[~df['wind_speed'].isna()]
+        weather_df = weather_df.merge(wind_df[['timestamp', 'wind_speed']], how='left', on='timestamp')
+        humidity_mask = (df['element'] == 'mean(relative_humidity PT1H)')
+        df.loc[humidity_mask, 'humidity'] = df.loc[humidity_mask, 'value']
+        humidity_df = df[~df['humidity'].isna()]
+        weather_df = weather_df.merge(humidity_df[['timestamp', 'humidity']], how='left', on='timestamp')
+        pressure_mask = (df['element'] == 'mean(surface_air_pressure PT1H)')
+        df.loc[pressure_mask, 'pressure'] = df.loc[pressure_mask, 'value']
+        pressure_df = df[~df['pressure'].isna()]
+        weather_df = weather_df.merge(pressure_df[['timestamp', 'pressure']], how='left', on='timestamp')
+        # Fill missing values with None
+        weather_df = weather_df.replace([np.inf, -np.inf], None)
+        weather_df = weather_df.astype(object)
+        weather_df = weather_df.where(weather_df.notna(), None)
+        content = weather_df.values.tolist()
     elif source == 'nve':
         content = []
 

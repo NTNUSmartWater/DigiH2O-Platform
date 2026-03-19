@@ -415,8 +415,6 @@ async def weather_provider(request: Request):
         end_time = datetime.strptime(end, '%Y-%m-%d %H:%M:%S')
         if start_time >= end_time: 
             return JSONResponse({'status': 'error', 'message': "Error: Start time is later than end time."})
-        start_time = start_time.strftime('%Y-%m-%dT%H:%M:%SZ')
-        end_time = end_time.strftime('%Y-%m-%dT%H:%M:%SZ')
         content, checker = flowFunctions.weather_downloader(source, station, start_time, end_time)
         if len(content) == 0: return JSONResponse({'status': 'error', 'checker': checker, 'message': 'No data found.'})
         return JSONResponse({'status': 'ok', 'checker': checker, 'content': content})

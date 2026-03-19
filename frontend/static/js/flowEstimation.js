@@ -374,8 +374,7 @@ async function geoJSONExporter(data, fileName) {
     } catch (error) { alert(`Exporting failed: ${error.message}`); }
 }
 
-async function getWeatherData(source, station) {
-    const start = weatherStart().value, end = weatherEnd().value;
+async function getWeatherData(source, station, start, end) {
     if (start === '' || end === '') { 
         alert('Please select start and end dates first.'); return; 
     }
@@ -920,45 +919,44 @@ function update() {
         } finally { stopLoading(); }
     });
     weatherStationSelector().addEventListener('change', async(e) => {
-        const value = e.target.value; 
+        const value = e.target.value; let response = null;
         if (!value || value === '') {
             weatherStationStartContainer().style.display = 'none';
             weatherStationEndContainer().style.display = 'none'; return;
         }
         weatherStationStartContainer().style.display = 'flex';
         weatherStationEndContainer().style.display = 'flex';
-        weatherStart().value = formatDate(startOfDay); 
-        weatherEnd().value = formatDate(now);
+        weatherStart().value = formatDate(startOfDay); weatherEnd().value = formatDate(now);
         if (value == 'ntnu') {
-
-
-
+            startLoading('Getting location of the NTNU weather station. Please wait...');
+            response = await sendQuery('weather_location', { key: 'ntnu' }); stopLoading();
+            if (response.status === 'error') { alert(response.message); e.target.value = ''; return; }
         } else if (value == 'eklima') {
             startLoading('Getting location of weather stations from Norwegian Meteorological Institute. Please wait...');
-            const response = await sendQuery('weather_location', { key: 'eklima' }); stopLoading();
+            response = await sendQuery('weather_location', { key: 'eklima' }); stopLoading();
             if (response.status === 'error') { alert(response.message); e.target.value = ''; return; }
-            weatherLayer = clearMap(weatherLayer, map);
-            weatherLayer = L.geoJSON(response.content, { 
-                pointToLayer: (_, latlng) => {
-                    const marker = L.marker(latlng, {
-                        icon: L.icon({
-                            iconUrl: `/static_backend/images/rain.png?v=${Date.now()}`,
-                            iconSize: [20, 20], iconAnchor: [10, 10]
-                        }),
-                    });
-                    return marker;
-                },
-                onEachFeature: (feature, featureLayer) => {
-                    featureLayer.on('click', async (e) => { 
-                        L.DomEvent.stopPropagation(e);
-                        await getWeatherData(value, feature.properties.id);
-                    });
-                    featureLayer.bindTooltip(`${buildTooltip(feature.properties, value)}`, {sticky: true});
-                }
-            }).addTo(map);
         } else if (value == 'nve') {
 
         }
+        weatherLayer = clearMap(weatherLayer, map);
+        weatherLayer = L.geoJSON(response.content, { 
+            pointToLayer: (_, latlng) => {
+                const marker = L.marker(latlng, {
+                    icon: L.icon({
+                        iconUrl: `/static_backend/images/rain.png?v=${Date.now()}`,
+                        iconSize: [20, 20], iconAnchor: [10, 10]
+                    }),
+                });
+                return marker;
+            },
+            onEachFeature: (feature, featureLayer) => {
+                featureLayer.on('click', async (e) => { 
+                    L.DomEvent.stopPropagation(e);
+                    await getWeatherData(value, feature.properties.id, weatherStart().value, weatherEnd().value);
+                });
+                featureLayer.bindTooltip(`${buildTooltip(feature.properties, value)}`, {sticky: true});
+            }
+        }).addTo(map);
     });
 
 
