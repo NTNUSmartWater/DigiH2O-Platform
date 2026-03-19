@@ -123,7 +123,9 @@ def watershed(flowdir_path:str, flowacc_path:str, lat:float, lon:float,
 def weather_init(id:str) -> gpd.GeoDataFrame:
     if id == 'ntnu':
         data = {
-            'name': 'NTNU', 'county': 'MØRE OG ROMSDAL',
+            'name': 'Norwegian University of Science and Technology',
+            'county': 'MØRE OG ROMSDAL', 'shortName': 'NTNU',
+            'stationHolders': 'NTNU I ÅLESUND', 'type': 'Weather Station',
             'municipality': 'ÅLESUND', 'geometry': Point((6.4797, 62.4848))
         }
         gdf = gpd.GeoDataFrame(data=[data], geometry='geometry', crs="EPSG:4326")
@@ -139,20 +141,21 @@ def weather_init(id:str) -> gpd.GeoDataFrame:
         df.dropna(subset=['geometry'], inplace=True)
         gdf = gpd.GeoDataFrame(df, crs="EPSG:4326")
     elif id == 'nve':
+
+
+
+
+
         gdf = gpd.GeoDataFrame()
-
-
-
-
     return gdf
 
 
 def weather_downloader(source:str, stationId:str, start:datetime, end:datetime) -> tuple:
     start_time = start.strftime('%Y-%m-%dT%H:%M:%SZ')
     end_time = end.strftime('%Y-%m-%dT%H:%M:%SZ')
-    checker = 0
     if source == 'ntnu':
         content = []
+        missing = 0
 
 
 
@@ -215,6 +218,8 @@ def weather_downloader(source:str, stationId:str, start:datetime, end:datetime) 
         df.loc[pressure_mask, 'pressure'] = df.loc[pressure_mask, 'value']
         pressure_df = df[~df['pressure'].isna()]
         weather_df = weather_df.merge(pressure_df[['timestamp', 'pressure']], how='left', on='timestamp')
+        # Check for missing values
+        missing = 1 if weather_df.isna().sum().sum() > 0 else 0
         # Fill missing values with None
         weather_df = weather_df.replace([np.inf, -np.inf], None)
         weather_df = weather_df.astype(object)
@@ -222,10 +227,11 @@ def weather_downloader(source:str, stationId:str, start:datetime, end:datetime) 
         content = weather_df.values.tolist()
     elif source == 'nve':
         content = []
+        missing = 0
 
 
 
-    return content, checker
+    return content, missing
 
 
 

@@ -71,7 +71,6 @@ const initialLakeStorage = () => document.getElementById('initial-lake-storage')
 const initialSnowDepth = () => document.getElementById('initial-snow-depth');
 const initialWaterDepth = () => document.getElementById('initial-water-depth');
 const initialSaturationDeficit = () => document.getElementById('initial-saturation-deficit');
-
 const weatherCSVContainer = () => document.getElementById('weather-csv-container');
 const weatherInputFile = () => document.getElementById('weather-input-file');
 const weatherInputText = () => document.getElementById('weather-input-text');
@@ -83,7 +82,6 @@ const weatherStationEndContainer = () => document.getElementById('weather-statio
 const weatherStart = () => document.getElementById('weather-start-date');
 const weatherEnd = () => document.getElementById('weather-end-date');
 const weatherAttributesTable = () => document.getElementById('weather-attributes-table');
-const weatherNotes = () => document.getElementById('weather-attributes-notes');
 
 
 
@@ -271,7 +269,7 @@ function buildTooltip(props, key) {
             <hr style="margin: 5px 0 5px 0;">
             <strong>Click to change attributes</strong>
         `;
-    } else if (key === 'eklima') {
+    } else if (key === 'eklima' || key === 'ntnu') {
         return `
             <div style="font-weight: bold; text-align: center;">Name: ${props.shortName || 'Unknown'}</div>
             <hr style="margin: 5px 0 5px 0;">
@@ -381,11 +379,14 @@ async function getWeatherData(source, station, start, end) {
     const content = { source : source, station: station, start: start, end: end };
     startLoading('Downloading weather data for selected station. Please wait...');
     const response = await sendQuery('weather_provider', content); stopLoading();
-    if (response.status === 'error') { alert(response.message); return; }
-    weatherNotes().style.display = response.checker === 1 ? 'flex' : 'none';
-    fillTable(response.content, weatherAttributesTable());
+    requestAnimationFrame(() => { 
+        if (response.status === 'error') { alert(response.message); return; }
+        fillTable(response.content, weatherAttributesTable());
+        if (response.missing === 1) { 
+            setTimeout(() => { alert('There is missing data. Please fill in the missing data or select another data source.'); }, 100);
+        }
+    });
 }
-
 
 function update() {
     if (!map) { createMap(); }; compass().style.display = 'flex';
@@ -901,8 +902,8 @@ function update() {
         if (riverLayer === null) { alert('Please upload/create a river layer first.'); return; }
         await geoJSONExporter(riverLayer.toGeoJSON(), 'river.geojson');
     });
-    document.querySelectorAll('input[name="weather"]').forEach(radio => {
-        radio.addEventListener('change', (e) => { 
+    document.querySelectorAll('input[name="weather"]').forEach(item => {
+        item.addEventListener('change', (e) => {            
             if (e.target.value === 'weather-csv') { 
                 weatherCSVContainer().style.display = 'flex';
                 weatherStationContainer().style.display = 'none';
@@ -920,6 +921,7 @@ function update() {
     });
     weatherStationSelector().addEventListener('change', async(e) => {
         const value = e.target.value; let response = null;
+        deleteTable(weatherAttributesTable());
         if (!value || value === '') {
             weatherStationStartContainer().style.display = 'none';
             weatherStationEndContainer().style.display = 'none'; return;
