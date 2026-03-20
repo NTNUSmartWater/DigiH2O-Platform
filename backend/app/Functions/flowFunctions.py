@@ -134,8 +134,8 @@ def weather_init(id:str) -> gpd.GeoDataFrame:
         headers = {'Accept': 'application/json'}
         response = requests.request("GET", url, 
             headers=headers, auth=HTTPBasicAuth(MET_client_id, ''))
-        data = response.json()['data']
-        df = pd.DataFrame(data)[['@type', 'id', 'name', 'shortName', 'validFrom', 'county', 'municipality', 'stationHolders', 'geometry']]
+        columns = ['@type', 'id', 'name', 'shortName', 'validFrom', 'county', 'municipality', 'stationHolders', 'geometry']
+        df = pd.DataFrame(response.json()['data'])[columns]
         df.rename(columns={'@type': 'type'}, inplace=True)
         df['geometry'] = df['geometry'].apply(lambda x: Point(*x['coordinates']) if isinstance(x, dict) else None)
         df.dropna(subset=['geometry'], inplace=True)
