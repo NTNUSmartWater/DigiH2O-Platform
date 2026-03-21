@@ -269,16 +269,13 @@ function buildTooltip(props, key) {
             <hr style="margin: 5px 0 5px 0;">
             <strong>Click to change attributes</strong>
         `;
-    } else if (key === 'eklima' || key === 'ntnu') {
+    } else if (key === 'eklima' || key === 'ntnu' || key === 'nve') {
         return `
-            <div style="font-weight: bold; text-align: center;">Name: ${props.shortName || 'Unknown'}</div>
+            <div style="font-weight: bold; text-align: center;">Name: ${props.name || 'Unknown'}</div>
             <hr style="margin: 5px 0 5px 0;">
-            <strong>• Full name:</strong> ${props.name ?? 'Unknown'}<br>
             <strong>• ID:</strong> ${props.id ?? 'Unknown'}<br>
-            <strong>• Type:</strong> ${props.type ?? 'Unknown'}<br>
-            <strong>• Valid from:</strong> ${props.validFrom ?? 'Unknown'}<br>
             <strong>• County:</strong> ${props.county ?? 'Unknown'}<br>
-            <strong>• Municipality:</strong> ${props.municipality	 ?? 'Unknown'}<br>
+            <strong>• Municipality:</strong> ${props.municipality ?? 'Unknown'}<br>
             <strong>• Station Holders:</strong> ${props.stationHolders ?? 'Unknown'}<br>
             <hr style="margin: 5px 0 5px 0;">
             <strong>Click to get weather data</strong>
@@ -383,7 +380,9 @@ async function getWeatherData(source, station, start, end) {
         if (response.status === 'error') { alert(response.message); return; }
         fillTable(response.content, weatherAttributesTable());
         if (response.missing === 1) { 
-            setTimeout(() => { alert('There is missing data. Please fill in the missing data or select another data source.'); }, 100);
+            setTimeout(() => { 
+                alert('There is missing data. Please fill in the missing data or select another data source.'); 
+            }, 100);
         }
     });
 }
@@ -920,7 +919,7 @@ function update() {
         } finally { stopLoading(); }
     });
     weatherStationSelector().addEventListener('change', async(e) => {
-        const value = e.target.value; let response = null;
+        const value = e.target.value; let response = null, iCon = null;
         deleteTable(weatherAttributesTable());
         if (!value || value === '') {
             weatherStationStartContainer().style.display = 'none';
@@ -933,20 +932,24 @@ function update() {
             startLoading('Getting location of the NTNU weather station. Please wait...');
             response = await sendQuery('weather_location', { key: 'ntnu' }); stopLoading();
             if (response.status === 'error') { alert(response.message); e.target.value = ''; return; }
+            iCon = `/static_backend/images/ntnu.png?v=${Date.now()}`;
         } else if (value == 'eklima') {
             startLoading('Getting location of weather stations from Norwegian Meteorological Institute. Please wait...');
             response = await sendQuery('weather_location', { key: 'eklima' }); stopLoading();
             if (response.status === 'error') { alert(response.message); e.target.value = ''; return; }
+            iCon = `/static_backend/images/met.png?v=${Date.now()}`;
         } else if (value == 'nve') {
-
+            startLoading('Getting location of weather stations from Norwegian Water Resources and Energy Directorate. Please wait...');
+            response = await sendQuery('weather_location', { key: 'nve' }); stopLoading();
+            if (response.status === 'error') { alert(response.message); e.target.value = ''; return; }
+            iCon = `/static_backend/images/nve.png?v=${Date.now()}`;
         }
         weatherLayer = clearMap(weatherLayer, map);
         weatherLayer = L.geoJSON(response.content, { 
             pointToLayer: (_, latlng) => {
                 const marker = L.marker(latlng, {
                     icon: L.icon({
-                        iconUrl: `/static_backend/images/rain.png?v=${Date.now()}`,
-                        iconSize: [20, 20], iconAnchor: [10, 10]
+                        iconUrl: iCon, iconSize: [30, 30], iconAnchor: [10, 10]
                     }),
                 });
                 return marker;

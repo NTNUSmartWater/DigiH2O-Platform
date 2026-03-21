@@ -11,6 +11,8 @@ from datetime import datetime
 dotenv.load_dotenv()
 MET_url = os.getenv('MET_ProstAPI_URL')
 MET_client_id = os.getenv('MET_ProstAPI_CLIENT_ID')
+NVE_url = os.getenv('NVE_URL')
+NVE_client_id = os.getenv('NVE_API_KEY')
 
 soil_codes = {
     1: "Rocks and boulders", 2: "Gravel", 3: "Coarse sand",
@@ -54,7 +56,10 @@ land_types = {
     "Snow/Ice": [0, 0, 0, 0.03, 0.80, 0.1]
 }
 
-
+NVE_codes = {
+    'precipitation': 0, 'temperature': 17, 'short_wave_radiation': 8, 
+    'long_wave_radiation': 9, 'wind_speed': 15, 'humidity': 2, 'pressure': 4
+}
 
 
 
@@ -124,9 +129,9 @@ def weather_init(id:str) -> gpd.GeoDataFrame:
     if id == 'ntnu':
         data = {
             'name': 'Norwegian University of Science and Technology',
-            'county': 'MØRE OG ROMSDAL', 'shortName': 'NTNU',
-            'stationHolders': 'NTNU I ÅLESUND', 'type': 'Weather Station',
-            'municipality': 'ÅLESUND', 'geometry': Point((6.4797, 62.4848))
+            'county': 'MØRE OG ROMSDAL', 'municipality': 'ÅLESUND', 
+            'stationHolders': 'NTNU I ÅLESUND',
+            'geometry': Point((6.4797, 62.4848))
         }
         gdf = gpd.GeoDataFrame(data=[data], geometry='geometry', crs="EPSG:4326")
     elif id == 'eklima':
@@ -134,28 +139,49 @@ def weather_init(id:str) -> gpd.GeoDataFrame:
         headers = {'Accept': 'application/json'}
         response = requests.request("GET", url, 
             headers=headers, auth=HTTPBasicAuth(MET_client_id, ''))
-        columns = ['@type', 'id', 'name', 'shortName', 'validFrom', 'county', 'municipality', 'stationHolders', 'geometry']
+        columns = ['id', 'name', 'county', 'municipality', 'stationHolders', 'geometry']
+        if response.status_code != 200 or 'data' not in response.json():
+            return gpd.GeoDataFrame()
         df = pd.DataFrame(response.json()['data'])[columns]
-        df.rename(columns={'@type': 'type'}, inplace=True)
         df['geometry'] = df['geometry'].apply(lambda x: Point(*x['coordinates']) if isinstance(x, dict) else None)
         df.dropna(subset=['geometry'], inplace=True)
         gdf = gpd.GeoDataFrame(df, crs="EPSG:4326")
     elif id == 'nve':
-
-
-
-
-
-        gdf = gpd.GeoDataFrame()
+        url = f'{NVE_url}/Stations'
+        headers = {'Accept': 'application/json', "X-API-Key": NVE_client_id}
+        response = requests.request("GET", url, headers=headers, params={"Active": 1})
+        if response.status_code != 200 or 'data' not in response.json():
+            return gpd.GeoDataFrame()
+        columns = [
+            'stationId', 'stationName', 'latitude', 
+            'longitude', 'councilName', 'countyName', 'owner'
+            ]
+        allowed_params, filtered_data = {0, 2, 4, 8, 9, 11}, []
+        for station in response.json()['data']:
+            filtered_series = [
+                s for s in station.get("seriesList", [])
+                if s.get("parameter") in allowed_params
+            ]
+            if filtered_series:
+                new_station = station.copy()
+                new_station["seriesList"] = filtered_series
+                filtered_data.append(new_station)
+        df = pd.DataFrame(filtered_data)[columns]
+        if df.empty: return gpd.GeoDataFrame()
+        columns_renamed = {
+            'stationId': 'id', 'stationName': 'name', 'councilName': 'municipality', 
+            'countyName': 'county', 'owner': 'stationHolders'
+        }
+        df.rename(columns=columns_renamed, inplace=True)
+        gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.longitude, df.latitude), crs='EPSG:4326')
+        gdf.drop(columns=['latitude', 'longitude'], inplace=True)
     return gdf
-
 
 def weather_downloader(source:str, stationId:str, start:datetime, end:datetime) -> tuple:
     start_time = start.strftime('%Y-%m-%dT%H:%M:%SZ')
     end_time = end.strftime('%Y-%m-%dT%H:%M:%SZ')
     if source == 'ntnu':
         content = []
-        missing = 0
 
 
 
@@ -218,19 +244,36 @@ def weather_downloader(source:str, stationId:str, start:datetime, end:datetime) 
         df.loc[pressure_mask, 'pressure'] = df.loc[pressure_mask, 'value']
         pressure_df = df[~df['pressure'].isna()]
         weather_df = weather_df.merge(pressure_df[['timestamp', 'pressure']], how='left', on='timestamp')
-        # Check for missing values
-        missing = 1 if weather_df.isna().sum().sum() > 0 else 0
-        # Fill missing values with None
-        weather_df = weather_df.replace([np.inf, -np.inf], None)
-        weather_df = weather_df.astype(object)
-        weather_df = weather_df.where(weather_df.notna(), None)
-        content = weather_df.values.tolist()
     elif source == 'nve':
-        content = []
-        missing = 0
-
-
-
+        # Reference: https://hydapi.nve.no/swagger/index.html?urls.primaryName=V1
+        url, weather_df = f'{NVE_url}/Observations', pd.DataFrame()
+        weather_df['time'] = pd.date_range(start=start_time, end=end_time, freq='H').strftime('%Y-%m-%d %H:%M:%S')
+        headers = {'Accept': 'application/json', "X-API-Key": NVE_client_id}
+        # Get observations
+        observations = ['precipitation', 'temperature', 'short_wave_radiation',
+            'long_wave_radiation', 'wind_speed', 'humidity', 'pressure']
+        for obs in observations:
+            params = {
+                "StationId": str(stationId), "Parameter": NVE_codes[obs], 
+                "ResolutionTime": 60, "ReferenceTime": f"{start_time}/{end_time}"
+            }
+            response = requests.request("GET", url, params=params, headers=headers)
+            obs_data = response.json().get('data', [])
+            if response.status_code == 200 and obs_data:
+                observations = obs_data[0].get('observations', [])
+                if observations:
+                    temp_df = pd.DataFrame(observations)[['time', 'value']]
+                    temp_df.rename(columns={'value': obs}, inplace=True)
+                    weather_df = weather_df.merge(temp_df, how='left', on='time')
+                    continue
+            weather_df[obs] = None
+    # Check for missing values
+    missing = 1 if weather_df.isna().sum().sum() > 0 else 0
+    # Fill missing values with None
+    weather_df = weather_df.replace([np.inf, -np.inf], None)
+    weather_df = weather_df.astype(object)
+    weather_df = weather_df.where(weather_df.notna(), None)
+    content = weather_df.values.tolist()
     return content, missing
 
 
