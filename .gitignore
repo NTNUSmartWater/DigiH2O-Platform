@@ -5,6 +5,7 @@ backend/Delft_Projects
 .vscode
 backend/x64
 logs
+test
 
 # Files
 Variable_names.txt
