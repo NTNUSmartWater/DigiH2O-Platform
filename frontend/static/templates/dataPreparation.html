@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Data Preparation</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="/static_frontend/css/data_style.css?v=003">
+</head>
+<body>
+    <section class="card tabs" id="parent-tab">
+        <div class="tabs__header" id="main-tabs">
+            <div class="tabs__list">
+                <button class="tab-btn" data-tab="ntnu-tab">NTNU Weather Data<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="rosim-tab">ROSIM<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="eklima-tab">Norwegian Meteorological Institute - MET<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="nve-tab">Norwegian Water Resources and Energy Directorate<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="copernicus-tab">Copernicus Climate Data Store<span class="ink"></span></button>
+                <button class="tab-btn" data-tab="power-tab">POWER<span class="ink"></span></button>
+            </div>
+        </div>
+        <div class="tabs__content">
+            <!-- Tab 1: NTNU -->
+            <div class="tabpanel main-panel" data-panel="ntnu-tab">
+                <h2 style="text-align: center;">
+                    The data is sourced through the official
+                    <a href="https://web.rosim.no/regnbyge/" target="_blank" rel="noopener noreferrer" style="color: aqua;">
+                        NTNU</a> platform
+                </h2>
+
+
+
+            </div>
+            <!-- Tab 2: ROSIM -->
+            <div class="tabpanel main-panel" data-panel="rosim-tab">
+                <h2 style="text-align: center;">
+                    The data is sourced through the official
+                    <a href="https://web.rosim.no/regnbyge/" target="_blank" rel="noopener noreferrer" style="color: aqua;">
+                        ROSIM</a> platform
+                </h2>
+                <!-- Sub Tabs -->
+                <div class="card tabs tabs--sub">
+                    <div class="tabs__header">
+                        <div class="tabs__list">
+                            <button class="tab-btn" data-tab="rosim-tab-1">Map<span class="ink"></span></button>
+                            <button class="tab-btn" data-tab="rosim-tab-2">Download Settings<span class="ink"></span></button>
+                        </div>
+                    </div>
+                    <div class="tabs__content">
+                        <div class="tabpanel" data-panel="rosim-tab-1">
+                            <div class="grid">
+                                <!-- Stations -->
+                                <div class="tile"><h3>Station Types</h3>
+                                    <div class="control-tab">
+                                        <label class="checkbox-right"><input type="checkbox" id="water-flow-checkbox">Water Flow</label>
+                                        <label class="checkbox-right"><input type="checkbox" id="water-level-checkbox">Water Level</label>
+                                        <label class="checkbox-right"><input type="checkbox" id="rainfall-checkbox">Rainfall</label>
+                                        <!-- <label class="checkbox-right"><input type="checkbox" id="overflow-checkbox">Overflow</label>
+                                        <label class="checkbox-right"><input type="checkbox" id="temperature-checkbox">Temperature</label>
+                                        <label class="checkbox-right"><input type="checkbox" id="evaporation-checkbox">Evaporation</label>
+                                        <label class="checkbox-right"><input type="checkbox" id="weir-checkbox">Weir</label> -->
+                                    </div>
+                                </div>
+                                <!-- Names -->
+                                <div class="tile" style="grid-column: span 2; flex-direction: column;">
+                                    <h3>List of Stations</h3>
+                                    <table class="attributes-table" id="station-table">
+                                        <thead><tr><th>Name</th><th>Type</th></tr></thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                                <!-- Plot options -->
+                                <div class="tile" id="plot-container" style="display: none; flex-direction: column; width: 350px;">
+                                    <h3>Plot Options</h3>
+                                    <div class="row inline-row">
+                                        <label for="start-plot">Start time:</label>
+                                        <input type="text" class="datetime" id="start-plot" placeholder="YYYY-mm-dd HH:mm:ss">
+                                    </div>
+                                    <div class="row inline-row">
+                                        <label for="end-plot">Start time:</label>
+                                        <input type="text" class="datetime" id="end-plot" placeholder="YYYY-mm-dd HH:mm:ss">
+                                    </div>
+                                    <div class="row inline-row">
+                                        <label for="interval-plot">Interval:</label>
+                                        <select id="interval-plot">
+                                            <option value="Raw">Raw data</option>
+                                            <option value="Minute">1min data</option>
+                                            <option value="FiveMinute">5min data</option>
+                                            <option value="Hour" selected>Hourly data</option>
+                                            <option value="Day">Daily data</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tabpanel" data-panel="rosim-tab-2">
+                            <div class="grid">
+                                <!-- Selected Names -->
+                                <div class="tile" style="grid-column: span 2;">
+                                    <h3>Selected Stations</h3>
+                                    <table class="attributes-table" id="station-selected-table">
+                                        <thead><tr><th>Name</th><th>id</th><th>Type</th></tr></thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                                <!-- Download period -->
+                                <div class="tile" style="min-width: 250px;">
+                                    <h3>Download Period</h3>
+                                    <div class="row"><label for="start-download">Start download time:</label></div>
+                                    <div class="row">
+                                        <input type="text" class="datetime" id="start-download" placeholder="YYYY-mm-dd HH:mm:ss">
+                                    </div>
+                                    <div class="row"><label for="end-download">End download time:</label></div>
+                                    <div class="row">
+                                        <input type="text" class="datetime" id="end-download" placeholder="YYYY-mm-dd HH:mm:ss">
+                                    </div>
+                                </div>
+                                <!-- Download Options -->
+                                <div class="tile" style="width: 300px;">
+                                    <h3>Download Options</h3>
+                                    <div class="row inline-row">
+                                        <label for="type-download">Data type:</label>
+                                        <select id="type-download">
+                                            <option value="flow">Water Flow</option>
+                                            <option value="level">Water Level</option>
+                                            <option value="rain">Rainfall</option>
+                                            <!-- <option value="temperature">Temperature</option> -->
+                                        </select>
+                                    </div>
+                                    <div class="row inline-row">
+                                        <label for="interval-download">Interval:</label>
+                                        <select id="interval-download">
+                                            <option value="Raw">Raw data</option>
+                                            <option value="Minute">1min data</option>
+                                            <option value="FiveMinute">5min data</option>
+                                            <option value="Hour" selected>Hourly data</option>
+                                            <option value="Day">Daily data</option>
+                                        </select>
+                                    </div>
+                                    <div style="display: flex; font-size: 13px; margin: 15px 0 15px 0; text-align: center; color: greenyellow;">
+                                        <label id="station-selected-label"></label>
+                                    </div>
+                                    <div class="row" style="display: flex; justify-content: center;">
+                                        <button type="button" id="download-btn">Download</button>
+                                    </div>
+                                </div>
+                                <!-- Download List -->
+                                <div class="tile" id="download-list-container" style="grid-column: span 2; flex-direction: column; display: none;">
+                                    <h3>Downloaded File(s)</h3>
+                                    <textarea class="data-textarea" id="download-list" readonly></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Tab 3: eKlima -->
+            <div class="tabpanel main-panel" data-panel="eklima-tab">
+                <h2 style="text-align: center;">
+                    The data is sourced through the official
+                    <a href="https://api.met.no/" target="_blank" rel="noopener noreferrer" style="color: aqua;">
+                        Norwegian Meteorological Institute</a> platform
+                </h2>
+                <!-- <div class="single-row" id="weather-station-container" style="display: none;">
+                    
+                    
+
+
+                </div> -->
+
+
+
+            </div>
+            <!-- Tab 4: NVE -->
+            <div class="tabpanel main-panel" data-panel="nve-tab">
+                <h2 style="text-align: center;">
+                    The data is sourced through the official
+                    <a href="https://www.nve.no/" target="_blank" rel="noopener noreferrer" style="color: aqua;">
+                        Norwegian Water Resources and Energy Directorate</a> platform
+                </h2>
+                <!-- <div class="single-row" id="weather-station-container" style="display: none;">
+                    
+
+
+                </div> -->
+            </div>
+            <!-- Tab 5: Copernicus -->
+            <div class="tabpanel main-panel" data-panel="copernicus-tab">
+                <h2 style="text-align: center;">
+                    The data is sourced through the official
+                    <a href="https://cds.climate.copernicus.eu/" target="_blank" rel="noopener noreferrer" style="color: aqua;">
+                        Copernicus Climate Data Store</a> platform
+                </h2>
+                <!-- <div class="single-row" id="weather-station-container" style="display: none;">
+                    
+
+
+                </div> -->
+            </div>
+            <!-- Tab 6: POWER -->
+            <div class="tabpanel main-panel" data-panel="power-tab">
+                <h2 style="text-align: center;">
+                    The data is sourced through the official
+                    <a href="https://power.larc.nasa.gov/" target="_blank" rel="noopener noreferrer" style="color: aqua;">
+                        NASA Prediction Of Worldwide Energy Resources</a> platform
+                </h2>
+                <!-- <div class="single-row" id="weather-station-container" style="display: none;">
+                    
+
+
+                </div> -->
+            </div>
+
+
+        </div>
+        <!-- Add the map -->
+        <div class="map-container" id="map-container">
+            <!-- Add the control for the map -->
+            <div id="right-side-controls">
+                <button type="button" id="custom_compass_btn" style="display: none;">
+                    <img src="/static_backend/images/compass.png?v=2"alt="Compass">
+                </button>
+            </div>
+            <div id="leaflet-map"></div>
+            <div id="loadingOverlay" style="display: none;">
+                <div class="loading-text">Processing Data. Please wait...</div>
+                <div class="spinner"></div>
+            </div>
+            <!-- Legend -->
+            <div id="custom-colorbar">
+                <div class="colorbar-wrapper">
+                    <div class="colorbar-title" id="colorbar-title">Legend</div>
+                    <div class="colorbar-gradient" id="colorbar-gradient"></div>
+                    <div class="colorbar-labels" id="colorbar-labels">
+                        <div></div> <!-- max -->
+                        <div></div> <!-- 75% -->
+                        <div></div> <!-- 50% -->
+                        <div></div> <!-- 25% -->
+                        <div></div> <!-- min -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Add a floating plot window -->
+        <div id="plot-station-window">
+            <div id="plot-station-header"><span id="plot-title">Time-series Plot</span><span id="close-station-plot">×</span></div>
+            <div class="plot-controls">
+                <label for="select-object" style="margin-left: 30px;">Select:</label>
+                <div class="select-object" id="select-object" style="color: black;">
+                    <div class="select-box">
+                        <span class="label-text">Select one or more options</span>
+                        <span class="arrow">▼</span>
+                    </div>
+                    <div class="checkbox-list"></div>
+                </div>
+                <button type="button" id="view-station-btn">View Data</button>
+                <button type="button" id="download-station-excel">Download as Excel File</button>
+            </div>
+            <div id="plot-station-content"><div id="station-chart"></div></div>
+        </div>
+    </section>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.26.1.min.js"></script>
+    <script src="/static_frontend/js/tooltipManager.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script>
+        flatpickr(".datetime", {
+            enableTime: true, enableSeconds: true, dateFormat: "Y-m-d H:i:S", time_24hr: true,
+            defaultHour: 0, defaultMinute: 0, defaultSecond: 0
+        });
+    </script>
+    <script>
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = `/static_frontend/js/dataPreparation.js?v=${Date.now()}`;
+        document.body.appendChild(script);
+    </script>
+</body>
+</html>

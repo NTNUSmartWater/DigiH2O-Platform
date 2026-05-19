@@ -1,12 +1,47 @@
 import { startLoading, showLeafletMap } from "./mapManager.js";
 import { n_decimals, superscriptMap, getState, setState} from "./constants.js";
 
+
+export function formatDate(date) {
+    const pad = (n) => String(n).padStart(2, '0');
+    const Y = date.getFullYear();
+    const M = pad(date.getMonth() + 1);
+    const D = pad(date.getDate());
+    const h = pad(date.getHours());
+    const m = pad(date.getMinutes());
+    const s = pad(date.getSeconds());
+    return `${Y}-${M}-${D} ${h}:${m}:${s}`;
+}
+
 function toSuperscript(num) {
     return String(num).split('').map(ch => superscriptMap[ch] || ch).join('');
+}
+export function numberFormatter(num, decimals) {
+    if (num === null || num === undefined || isNaN(num)) return '';
+    if (num === 0) return '0';
+    if (Math.abs(num) < 1e-3 || Math.abs(num) >= 1e6) { return num.toExponential(decimals); }
+    return num.toFixed(decimals);
 }
 
 export function nameChecker(name) {
     return !/^[A-Za-z0-9_-]+$/.test(name);
+}
+
+export function moveWindow(window, header){
+    let dragging = false, offsetX = 0, offsetY = 0;
+    header().addEventListener("mousedown", function(e) {
+        dragging = true;
+        offsetX = e.clientX - window().offsetLeft;
+        offsetY = e.clientY - window().offsetTop;
+        e.preventDefault();
+    });
+    header().addEventListener("mouseup", function() { dragging = false; });
+    document.addEventListener("mousemove", function(e) {
+        if (dragging) {
+            window().style.left = (e.clientX - offsetX) + "px";
+            window().style.top = (e.clientY - offsetY) + "px";
+        }
+    });
 }
 
 export function decodeArray(base64Str, n_decimals=3) {
@@ -40,8 +75,8 @@ export function valueFormatter(value, minDiff) {
     const absVal = Math.abs(value);
     let decimalPlaces = 2;
     if (minDiff >= 0.01) decimalPlaces = 2;
-    else if (minDiff >= 0.001) decimalPlaces = 3;
-    else if (minDiff >= 0.0001) decimalPlaces = 4;
+    else if (0.001 <= minDiff < 0.01) decimalPlaces = 3;
+    else if (0.0001 <= minDiff < 0.001) decimalPlaces = 4;
     else decimalPlaces = 6;
     if (absVal < 0.01) {
         const expStr = value.toExponential(n_decimals);
@@ -90,28 +125,29 @@ export function interpolateValue(location, centroids, power = 5, maxDistance = I
 
 // Convert value to color
 export function getColorFromValue(value, vmin, vmax, colorbarKey) {
-    if (typeof value !== 'number' || isNaN(value)) {
-        return { r: 150, g: 150, b: 150, a: 0 };
+    if (typeof value !== 'number' || isNaN(value) || value === null) {
+        return { r: 0, g: 0, b: 0, a: 0 };
     }
     if (vmin === vmax) return { r: 0, g: 0, b: 100, a: 1 };
     // Minimum difference
     const minDiff = 1e-2, epsilon = 1e-6;
     if (vmax - vmin < minDiff) vmax = vmin + minDiff;
-    let t;
-    if (vmin + epsilon <=0 || vmax + epsilon <=0) { // avoid zero division error for vmin or vmax = 0
-        t = (value - vmin) / (vmax - vmin);
+    let t0, t, colors;
+    // avoid zero division error for vmin or vmax = 0
+    if (vmin + epsilon <=0 || vmax + epsilon <=0 || colorbarKey === "terrain") { 
+        t0 = (value - vmin) / (vmax - vmin);
     } else {
-        t = (Math.log(value + epsilon) - Math.log(vmin + epsilon)) / (Math.log(vmax + epsilon) - Math.log(vmin + epsilon));
+        t0 = (Math.log(value + epsilon) - Math.log(vmin + epsilon)) / 
+        (Math.log(vmax + epsilon) - Math.log(vmin + epsilon));
     }
-    t = 1 - Math.max(0, Math.min(1, t));
-    let colors;
+    t = 1 - Math.max(0, Math.min(1, t0));
     if (colorbarKey === "depth") { // used for depth
         colors = [
             { r: 160, g: 216, b: 239 },  // very light blue
             { r: 80,  g: 180, b: 220 },  // light blue
             { r: 0,   g: 119, b: 190 },  // medium blue
             { r: 0,   g: 70,  b: 130 },  // dark blue
-            { r: 0,   g: 25,  b: 51  },  // very dark blue
+            { r: 0,   g: 25,  b: 51  }   // very dark blue
         ];
     } else if (colorbarKey === "vector") { // used for vector
         colors = [
@@ -121,13 +157,22 @@ export function getColorFromValue(value, vmin, vmax, colorbarKey) {
             { r: 255, g: 0,   b: 255 },  // magenta
             { r: 255, g: 255, b: 255 }   // white
         ];
+    } else if (colorbarKey === "terrain") { // used for terrain
+        t = 1 - t;
+        colors = [
+            { r: 0,   g: 70,  b: 0   },   // dark green
+            { r: 120, g: 180, b: 0   },   // green
+            { r: 210, g: 185, b: 139 },   // tan
+            { r: 139, g: 90,  b: 43  },   // brown
+            { r: 255, g: 255, b: 255 }    // white
+        ];
     } else { // used for temperature, salinity, contaminant, ...
         colors = [
             { r: 255, g: 0,   b: 0   },    // red
             { r: 255, g: 165, b: 0   },   // orange
             { r: 255, g: 255, b: 0   },   // yellow
             { r: 100, g: 150, b: 255 },   // light blue 
-            { r: 0,   g: 0,   b: 255 },   // blue
+            { r: 0,   g: 0,   b: 255 }    // blue
         ];
     }
     const binCount = colors.length - 1;
@@ -297,4 +342,203 @@ export async function fileUploader(targetFile, targetText, projectName, gridName
         alert(data.message); targetFile.value = ''; return;
     }
     alert(data.message);
+}
+
+function updateChart(windowContainer, plotDiv, checkboxObj, selectBoxObj, plotTitle) {
+    const checkboxes = checkboxObj.querySelectorAll('input[type="checkbox"]');
+    const selectedColumns = Array.from(checkboxes)
+        .filter(cb => cb.checked && cb.value !== 'All').map(cb => cb.value);
+    const {data, chartTitle, titleX, titleY, undefined} = getState().globalChartData;
+    plotTimeSeries(windowContainer, plotDiv, checkboxObj, selectBoxObj, plotTitle,
+        data, chartTitle, titleX, titleY, selectedColumns);
+}
+
+export function populateCheckboxList(windowContainer, plotDiv, checkboxObj, selectBoxObj, plotTitle, columns) {
+    checkboxObj.innerHTML = '';
+    // Create "All" checkbox
+    const allLabel = document.createElement('label');
+    allLabel.innerHTML = `<input type="checkbox" value="All" checked> All`;
+    const allCheckbox = allLabel.querySelector('input');
+    checkboxObj.appendChild(allLabel);
+    // Create checkbox for each column
+    let maxWidth = allLabel.scrollWidth;
+    const colCheckBoxes = [];
+    columns.forEach(col => {
+        const label = document.createElement('label');
+        label.innerHTML = `<input type="checkbox" value="${col}"> ${col}`;
+        const cb = label.querySelector('input');
+        cb.checked = true;
+        checkboxObj.appendChild(label); colCheckBoxes.push(cb);
+        maxWidth = Math.max(maxWidth, label.scrollWidth);
+    });
+    // Select all columns by default
+    allCheckbox.addEventListener('change', () => {
+        if (allCheckbox.checked) colCheckBoxes.forEach(cb => cb.checked = true);
+        else colCheckBoxes.forEach(cb => cb.checked = false);
+        updateChart(windowContainer, plotDiv, checkboxObj, selectBoxObj, plotTitle);
+    })
+    // Select other columns
+    colCheckBoxes.forEach(cb => {
+        cb.addEventListener('change', () => {
+            allCheckbox.checked = colCheckBoxes.every(cb => cb.checked);
+            updateChart(windowContainer, plotDiv, checkboxObj, selectBoxObj, plotTitle);
+        });
+    });
+    // Set width of checkbox list
+    selectBoxObj.style.width = maxWidth + "px";
+}
+
+// Draw the chart using Plotly
+export async function plotTimeSeries(windowContainer, plotDiv, checkboxList, selectBox,
+    plotTitle, data, chartTitle, titleX, titleY, selectedColumns=null) {
+    const cols = data.columns, rows = data.data;
+    let checkboxInputs = checkboxList.querySelectorAll('input[type="checkbox"]');
+    const x = rows.map(r => r[0]);
+    if (selectedColumns === null) checkboxInputs = [];
+    // Populate checkbox list
+    if (checkboxInputs.length === 0) {
+        const validColumns = [];
+        for (let i = 1; i < cols.length; i++) {
+            const y = rows.map(r => r[i]);
+            const hasValid = y.some(val => val !== null && !isNaN(val));
+            if (hasValid) validColumns.push(i);
+        }
+        // Update global variable
+        setState({ globalChartData: { data, chartTitle, titleX, titleY, validColumns }});
+        populateCheckboxList(windowContainer, plotDiv, checkboxList, selectBox, plotTitle, validColumns.map(i => data.columns[i]));
+        checkboxInputs = checkboxList.querySelectorAll('input[type="checkbox"]');
+    }
+    // Get selected columns
+    if (!selectedColumns) {
+        selectedColumns = Array.from(checkboxInputs)
+            .filter(cb => cb.checked && cb.value !== 'All').map(cb => cb.value);
+    }
+    const allCheckbox = Array.from(checkboxInputs).find(cb => cb.value === 'All');
+    let drawColumns, traceIndex = 0;
+    if (allCheckbox && allCheckbox.checked) drawColumns = cols.slice(1);
+    else drawColumns = selectedColumns;
+    if (drawColumns.length === 0) { Plotly.purge(plotDiv); return; }
+    const traces = [], n = drawColumns.length;  
+    for (const colName of drawColumns) {
+        const i = cols.indexOf(colName);
+        if (i === -1) continue;
+        const y = rows.map(r => r[i]);
+        const t = n <= 1 ? 0 : traceIndex / (n - 1);
+        const color = interpolateJet(1-t);
+        traces.push({ x: x, y: y, name: cols[i], type: 'scatter', mode: 'lines', line: { color: color } });
+        traceIndex++;
+    }
+    if (traces.length === 0) { Plotly.purge(plotDiv); return; }
+    const layout = {
+        margin: {l: 60, r: 20, t: 30, b: 20}, paper_bgcolor: '#c2bdbdff', plot_bgcolor: '#c2bdbdff',
+        xaxis: {
+            title:{text: titleX, font: { size: 16, weight: 'bold', color: 'black' }},
+            showgrid: false, linecolor: 'black', tickfont: { color: 'black' },
+            automargin: true, ticks: 'outside', linewidth: 1, tickmode: 'auto'
+        },
+        yaxis: {
+            title:{ text: titleY, automargin: true, font: { size: 16, weight: 'bold', color: 'black' }}, 
+            showgrid: false, linecolor: 'black', tickfont: { color: 'black' },
+            automargin: true, ticks: 'outside', linewidth: 1, tickmode: 'auto'
+        },
+        legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: -0.25,
+            font: { size: 14, color: 'black', weight: 'bold' } }
+    };
+    plotTitle.innerHTML = chartTitle; // Update the header and maintain the close button
+    windowContainer.style.display = "flex"; // Show the chart
+    setTimeout(() => {
+        Plotly.react(plotDiv, traces, layout, { responsive: true });
+        new ResizeObserver(() => {
+            Plotly.Plots.resize(plotDiv);
+        }).observe(plotDiv.parentElement);
+    }, 50);
+}
+
+function formatDateTime(value) {
+    const d = new Date(value);
+    if (isNaN(d)) return value;
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ` +
+        `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+// Export chart data to new tab as CSV format
+export function viewDatafromPlot(plotDiv) {
+    const data = plotDiv.data?.[0];
+    if (!data) { alert("No data to view."); return; }
+    // Get the y values
+    const numTraces = plotDiv.data.length;
+    const title = plotDiv.layout?.title?.text || "Chart";
+    const titleText = typeof title === "string"
+        ? (title.includes(':') ? title.split(':')[1].trim() : title) : "Chart";
+    const titleY = plotDiv.layout?.yaxis?.title?.text || "Value";
+    let csvHeader = plotDiv.layout?.xaxis?.title?.text || 'Unknown';
+    for (let i = 0; i < numTraces; i++) {
+        const traceName = plotDiv.data[i].name || `${titleText}_${titleY}_${i}`;
+        csvHeader += `,${traceName}`;
+    }
+    let csvContent = `${csvHeader}\n`;
+    for (let i = 0; i < plotDiv.data[0].x.length; i++) {
+        let rawTime = plotDiv.data[0].x[i];
+        let formattedTime = formatDateTime(rawTime);
+        let row = `${formattedTime}`;
+        for (let j = 0; j < numTraces; j++) {
+            row += `,${numberFormatter(plotDiv.data[j].y[i], 5)}`;
+        }
+        csvContent += `${row}\n`;
+    }
+    const newWindow = window.open("", "_blank");
+    if (newWindow) {
+        const doc = newWindow.document;
+        doc.title = titleY.split(' (')[0];
+        const pre = doc.createElement("pre");
+        pre.style.fontFamily = "monospace";
+        pre.style.whiteSpace = "pre-wrap";
+        pre.textContent = csvContent;
+        const body = doc.body || doc.createElement("body");
+        body.appendChild(pre); doc.body = body;
+    } else { alert("Pop-up blocked. Please allow popups for this site."); }
+}
+
+// Save to Excel
+export function saveToExcelFromPlot(plotDiv) {
+    const data = plotDiv.data?.[0];
+    if (!data) { alert("No data to save."); return; }
+    // Get the y values
+    const numTraces = plotDiv.data.length;
+    const title = plotDiv.layout?.title?.text || "Chart";
+    const titleText = typeof title === "string"
+        ? (title.includes(':') ? title.split(':')[1].trim() : title): "Chart";
+    const titleY = plotDiv.layout?.yaxis?.title?.text || "Value";
+    // Prepare the data
+    const title_ = plotDiv.layout?.xaxis?.title?.text || 'Unknown';
+    const headers = [title_];
+    for (let i = 0; i < numTraces; i++) {
+        const traceName = plotDiv.data[i].name || `${titleText}_${titleY}_${i}`;
+        headers.push(traceName);
+    }
+    const table = [headers], numPoints = plotDiv.data[0].x.length;
+    for (let i = 0; i < numPoints; i++) {
+        const row = [plotDiv.data[0].x[i]];
+        for (let j = 0; j < numTraces; j++) {
+            row.push(numberFormatter(plotDiv.data[j].y[i], 4));
+        }
+        table.push(row);
+    }
+    // Create workbook and worksheet
+    const worksheet = XLSX.utils.aoa_to_sheet(table);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "ChartData");
+    // Download the Excel file
+    XLSX.writeFile(workbook, `${titleY.split(' (')[0]}.xlsx`);
+}
+
+export function getColor(id){
+    const hue = (id * 57) % 360;
+    return `hsl(${hue},70%,60%)`;
+}
+
+export function clearMap(layer, map) {
+    if (layer) { map.removeLayer(layer); }
+    return null;
 }

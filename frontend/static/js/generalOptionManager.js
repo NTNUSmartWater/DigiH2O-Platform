@@ -1,8 +1,8 @@
 import { loadData, initOptions, splitLines } from './utils.js';
 import { colorbar_title, timeControl, colorbar_container, colorbar_vector_container } from './map2DManager.js';
 import { plotChart, plotProfileSingleLayer, plotProfileMultiLayer } from "./chartManager.js";
-import { getState, setState } from "./constants.js";
-import { startLoading, showLeafletMap, map, L, ZOOM } from "./mapManager.js";
+import { getState, setState, L, ZOOM } from "./constants.js";
+import { startLoading, showLeafletMap, map } from "./mapManager.js";
 import { sendQuery } from './tableManager.js';
 
 
@@ -330,23 +330,6 @@ async function loadWAQLoads() {
 }
 
 // ============================ Path Manager ============================
-export function moveWindow(window, header){
-    let dragging = false, offsetX = 0, offsetY = 0;
-    header().addEventListener("mousedown", function(e) {
-        dragging = true;
-        offsetX = e.clientX - window().offsetLeft;
-        offsetY = e.clientY - window().offsetTop;
-        e.preventDefault();
-    });
-    header().addEventListener("mouseup", function() { dragging = false; });
-    document.addEventListener("mousemove", function(e) {
-        if (dragging) {
-            window().style.left = (e.clientX - offsetX) + "px";
-            window().style.top = (e.clientY - offsetY) + "px";
-        }
-    });
-}
-
 export function updatePathManager() {
     pathQuery().checked = getState().isPathQuery;
     if (getState().isPathQuery === false) deActivePathQuery();

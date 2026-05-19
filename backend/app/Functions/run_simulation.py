@@ -6,13 +6,6 @@ from config import PROJECT_STATIC_ROOT, DELFT_PATH
 
 router, processes = APIRouter(), {}
 
-# Utility: append to file log
-def append_log(log_path, text):
-    os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    with open(log_path, "a", encoding=functions.encoding_detect(log_path), errors="replace") as f:
-        f.write(text.strip() + "\n")
-        f.flush()
-
 @router.post("/check_folder")
 async def check_folder(request: Request, user=Depends(functions.basic_auth)):
     body = await request.json()
@@ -88,14 +81,14 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
                     if not proc_info: return
                     line = line.strip()
                     if not line: continue
-                    append_log(log_path, line)
+                    functions.append_log(log_path, line)
                     # Catch error messages
                     if "forrtl:" in line.lower() or "error" in line.lower():
                         processes[project_name]["status"] = "error"
                         processes[project_name]["message"] = line
-                        append_log(log_path, line)
+                        functions.append_log(log_path, line)
                         res = functions.kill_process(process)
-                        append_log(log_path, res["message"])
+                        functions.append_log(log_path, res["message"])
                         return
                     # Check for progress
                     match_pct = percent_re.search(line)
@@ -113,7 +106,7 @@ async def start_sim_hyd(request: Request, user=Depends(functions.basic_auth)):
                 if proc_info:
                     processes[project_name]["status"] = "failed"
                     processes[project_name]["message"] = f"Internal error: {e}"
-                append_log(log_path, f"[INTERNAL ERROR] {e}")
+                functions.append_log(log_path, f"[INTERNAL ERROR] {e}")
             finally:
                 process.wait()
                 proc_info = processes.get(project_name)

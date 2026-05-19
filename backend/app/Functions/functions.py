@@ -5,7 +5,7 @@ import numpy as np, xarray as xr, dask.array as da
 from scipy.spatial import cKDTree
 from uuid import uuid4
 from scipy.ndimage import distance_transform_edt, gaussian_filter
-from config import PROJECT_STATIC_ROOT, ALLOWED_USERS_PATH
+from config import PROJECT_STATIC_ROOT, ALLOWED_USERS_PATH, STATIC_DIR_BACKEND
 from redis.asyncio.lock import Lock
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi import Depends, HTTPException, status
@@ -36,12 +36,19 @@ def basic_auth(credentials: HTTPBasicCredentials=Depends(security)):
 def project_definer(old_name, username='admin'):
     new_name = f'{username}/{old_name}' if username!='admin' else 'demo'
     name_id = f'{new_name}/{uuid4()}'
+    if old_name == '': new_name = new_name.rstrip('/')
     return new_name, name_id
 
 def remove_readonly(func, path, excinfo):
     # Change the readonly bit, but not the file contents
     os.chmod(path, stat.S_IWRITE)
     func(path)
+
+def append_log(log_path, text):
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    with open(log_path, "a", encoding=encoding_detect(log_path), errors="replace") as f:
+        f.write(text.strip() + "\n")
+        f.flush()
 
 def safe_remove(path, retries=10, delay=1):
     for _ in range(retries):
@@ -975,19 +982,20 @@ def unstructuredGridCreator(data_map: xr.Dataset) -> gpd.GeoDataFrame:
         The GeoDataFrame of unstructured grid.
     """
     # Use dask array to speed up, keep lazy-load
-    node_x, node_y = data_map['mesh2d_node_x'].data, data_map['mesh2d_node_y'].data
+    node_x = data_map['mesh2d_node_x'].data
+    node_y = data_map['mesh2d_node_y'].data
+    face_nodes = data_map['mesh2d_face_nodes'].data
     coords = da.stack([node_x, node_y], axis=1)
-    faces = xr.where(np.isnan(data_map['mesh2d_face_nodes']), 0, data_map['mesh2d_face_nodes']).data.astype(int)-1
+    faces = xr.where(np.isnan(face_nodes), 0, face_nodes).astype(int)-1
     counts = da.sum(faces != -1, axis=1)
+    if hasattr(coords, 'compute'): coords = coords.compute()
+    if hasattr(faces, 'compute'): faces = faces.compute()
+    if hasattr(counts, 'compute'): counts = counts.compute()
     # Compute to create polygons
-    coords_np, faces_np, counts_np = coords.compute(), faces.compute(), counts.compute()
-    polygons = [shapely.geometry.Polygon(coords_np[face[:count]]) for face, count in zip(faces_np, counts_np)]
+    polygons = [shapely.geometry.Polygon(coords[face[:count]]) for face, count in zip(faces, counts)]
     # Check coordinate reference system
-    if 'wgs84' in data_map.variables:
-        crs_code = data_map['wgs84'].attrs.get('EPSG_code', 4326)
-        grid = gpd.GeoDataFrame(geometry=polygons, crs=crs_code)
-    elif 'projected_coordinate_system' in data_map.variables:
-        crs_code = data_map['projected_coordinate_system'].attrs.get('EPSG_code', 4326)
+    if 'projected_coordinate_system' in data_map.variables:
+        crs_code = data_map['projected_coordinate_system'].attrs.get('EPSG_code')
         # Convert to WGS84 if not already
         grid = gpd.GeoDataFrame(geometry=polygons, crs=crs_code).to_crs(epsg=4326)
     else: grid = gpd.GeoDataFrame(geometry=polygons, crs="EPSG:4326")
@@ -1020,8 +1028,9 @@ def interpolation_Z(grid_net: gpd.GeoDataFrame, x_coords: np.ndarray, y_coords: 
     np.ndarray
         The interpolated z values.
     """
-    gdf_known = gpd.GeoDataFrame(geometry=gpd.points_from_xy(x_coords, y_coords), crs = grid_net.crs).to_crs(epsg=32632)
-    gdf_points = grid_net.copy().to_crs(epsg=32632)
+    gdf_known = gpd.GeoDataFrame(geometry=gpd.points_from_xy(x_coords, y_coords), crs = grid_net.crs)
+    gdf_known = gdf_known.to_crs(gdf_known.estimate_utm_crs())
+    gdf_points = grid_net.copy().to_crs(grid_net.estimate_utm_crs())
     if geo_type == 'polygon': gdf_points['geometry'] = gdf_points['geometry'].centroid
     tree = cKDTree(list(zip(gdf_known['geometry'].x, gdf_known['geometry'].y)))
     dists, idx = tree.query(list(zip(gdf_points['geometry'].x, gdf_points['geometry'].y)), k = n_neighbors)
@@ -1344,3 +1353,4 @@ def kill_process(process):
         return {"status": "ok", "message": "Simulation force killed"}
     except Exception as e: 
         return {"status": "error", "message": str(e)}
+

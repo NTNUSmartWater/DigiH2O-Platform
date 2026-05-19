@@ -238,32 +238,29 @@ function updateOption(){
     // Event when user uploads CSV file
     obsPointUploadText().addEventListener('click', () => { obsPointUploadFile().click(); });
     obsPointUploadFile().addEventListener('change', async (event) => { 
-        await csvUploader(event, obsPointUploadText(), obsPointTable(), 3);
-        obsPointUploadFile().value = '';
+        await csvUploader(event, obsPointUploadText(), obsPointTable(), 3); event.target.value = '';
     });
     sourceUploadText().addEventListener('click', () => { sourceUploadFile().click(); });
     sourceUploadFile().addEventListener('change', async (event) => { 
         deleteTable(sourceTable());
         await csvUploader(event, sourceUploadText(), sourceTable(), 5, false, sourceName(), sourceLatitude(), sourceLongitude()); 
-        sourceUploadFile().value = '';
+        event.target.value = ''; 
     });
     meteoUploadText().addEventListener('click', () => { meteoUploadFile().click(); });
     meteoUploadFile().addEventListener('change', async (event) => {
-        await csvUploader(event, meteoUploadText(), meteoTable(), 5);
-        meteoUploadFile().value = '';
+        await csvUploader(event, meteoUploadText(), meteoTable(), 5); event.target.value = '';
     });
     weatherCSVUploadText().addEventListener('click', () => { weatherCSVUploadFile().click(); });
     weatherCSVUploadFile().addEventListener('change', async (event) => {
-        await csvUploader(event, weatherCSVUploadText(), weatherTable(), 3);
-        weatherCSVUploadFile().value = '';
+        await csvUploader(event, weatherCSVUploadText(), weatherTable(), 3); event.target.value = '';
     });
     // Upload file to server
     gridPathText().addEventListener('click', () => { gridPathFile().click(); });
-    gridPathFile().addEventListener('change', async() => {
+    gridPathFile().addEventListener('change', async (event) => {
         await fileUploader(gridPathFile(), gridPathText(), projectName().value, 'FlowFM_net.nc', 'Uploading grid to project...', 'grid');
         window.parent.postMessage({type: 'showGrid', projectName: projectName().value, 
             gridName: 'FlowFM_net.nc', message: 'Uploading grid to project...'}, '*');
-        gridPathFile().value = '';
+        event.target.value = '';
     });
     // Copy and paste to tables
     copyPaste(boundaryEditTable(), 2); copyPaste(sourceTable(), 5); 
@@ -591,7 +588,7 @@ async function initializeProject(){
         if (value === '') {
             sectionTab().style.display = "none"; sectionDescription().style.display = "block";
         }
-        renderProjects(projects(), projectList, value);
+        renderProjects(projects(), projectName(), projectList, value);
     });
     projectName().addEventListener('blur', () => { 
         setTimeout(() => { projects().style.display = "none"; }, 100);
@@ -618,7 +615,7 @@ async function initializeProject(){
         const data = await sendQuery('copy_project', {oldName: name, newName: newName});
         alert(data.message); projectList = []; projectName().value = ''; 
         await getProjectList(); projectCloner().innerHTML = 'Clone Scenario';
-    })
+    });
     // Delete project
     projectRemover().addEventListener('click', async () => {
         const name = projectName().value.trim();

@@ -130,7 +130,7 @@ async def load_general_dynamic(request: Request, user=Depends(functions.basic_au
         if temp[2] == 'load': # Initiate skeleton polygon for the first load
             await redis.delete(dynamic_cache_key)
             grid = project_cache.get("grid")
-            if grid is None: return JSONResponse({"status": "error", "message": "Grid data not found in cache."})
+            if grid is None: return JSONResponse({"status": "error", "message": "Grid data not found in cache"})
             # Construct GeoJSON features
             features = [{"type": "Feature", "properties": {"index": idx}, "geometry": mapping(row['geometry'])}
                         for idx, row in grid.iterrows()]
@@ -418,7 +418,6 @@ async def upload_data(file: UploadFile = File(...), projectName: str = Form(...)
         traceback.print_exc()
         return JSONResponse({"status": "error", "message": str(e)})
     finally: 
-        if os.path.exists(file_path): functions.safe_remove(file_path)
         temp_dir = os.path.normpath(os.path.join(save_dir, 'temp'))
         if os.path.exists(temp_dir): shutil.rmtree(temp_dir)
         await file.close()

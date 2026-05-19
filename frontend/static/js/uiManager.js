@@ -1,12 +1,13 @@
 // Import necessary functions
 import { initializeMap, baseMapButtonFunctionality, startLoading, showLeafletMap, map } from './mapManager.js';
-import { plotChart, plotEvents, drawChart, plotWindow, thermoclinePlotter } from './chartManager.js';
+import { plotChart, plotEvents, plotWindow, thermoclinePlotter, chartDiv } from './chartManager.js';
 import { timeControl, colorbar_container, colorbar_vector_container, plot2DMapDynamic } from "./map2DManager.js";
 import { generalOptionsManager, summaryWindow } from './generalOptionManager.js';
 import { spatialMapManager, substanceWindowHis, substanceWindowMap } from './spatialMapManager.js';
 import { sendQuery } from './tableManager.js';
-import { fileUploader } from './utils.js';
-import { getState, resetState, setState } from './constants.js'; 
+import { fileUploader, plotTimeSeries, moveWindow } from './utils.js';
+import { getState, resetState, setState } from './constants.js';
+
 
 let pickerState = { location: false, point: false, crosssection: false, boundary: false, source: false },
     cachedMenus = {}, markersPoints = [], hoverTooltip, markersBoundary = [], boundaryContainer = [], gisLayers = {},
@@ -144,7 +145,7 @@ async function initializeMenu(){
                 content.innerHTML = `
                     <ul class="sub-menu" style="display:block; z-index: 100000;">
                         <li><a id="help-contact">About Us</a></li>
-                        <li><a id="help-docs">Manual</a></li>
+                        <li><a id="help-docs">User Manual</a></li>
                     </ul>
                 `;
                 const aboutLink = document.getElementById('help-contact');
@@ -170,23 +171,6 @@ async function initializeMenu(){
             pm.classList.add('show');
         };
     })
-}
-
-function moveWindow(window, header){
-    let dragging = false, offsetX = 0, offsetY = 0;
-    header().addEventListener("mousedown", function(e) {
-        dragging = true;
-        offsetX = e.clientX - window().offsetLeft;
-        offsetY = e.clientY - window().offsetTop;
-        e.preventDefault();
-    });
-    header().addEventListener("mouseup", function() { dragging = false; });
-    document.addEventListener("mousemove", function(e) {
-        if (dragging) {
-            window().style.left = (e.clientX - offsetX) + "px";
-            window().style.top = (e.clientY - offsetY) + "px";
-        }
-    });
 }
 
 function iframeInit(scr, objWindow, objHeader, objContent, title){
@@ -256,7 +240,7 @@ function updateEvents() {
         timeOut = setTimeout(() => {
             fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(value)}&addressdetails=1&limit=5`)
             .then(response => response.json()).then(data => {
-                if (data.length === 0) {sugesstionSearcher().style.display = 'none';}
+                if (data.length === 0) {sugesstionSearcher().style.display = 'none'; return;}
                 sugesstionSearcher().innerHTML = '';
                 data.forEach(location => {
                     var div = document.createElement('div');
@@ -401,12 +385,26 @@ function updateEvents() {
                 }
                 projectChecker();
             } else if (name === 'grid-generation') {
-                // projectChecker();
-                // // Grid Generation
-                // iframeInit("grid_generation", projectSetting(), projectSettingHeader(), 
-                //     projectSettingContent(), "Grid Generation");
-                return;
-            } 
+                // Grid Generation
+                projectChecker(); updateStatus().innerHTML = 'Last Option: Grid Generation from Lake Database';
+                const win = window.open('static_frontend/templates/gridGenerator.html', '_blank');
+                if (!win) alert('Please allow popups for opening the page.');
+            } else if (name === 'data-preparation') {
+                // Data Preparation
+                projectChecker(); updateStatus().innerHTML = 'Last Option: Data Preparation';
+                const win = window.open('static_frontend/templates/dataPreparation.html', '_blank');
+                if (!win) alert('Please allow popups for opening the page.');
+            } else if (name === 'flow-estimation') {
+                // Flow Estimation
+                projectChecker(); updateStatus().innerHTML = 'Last Option: Flow Estimation';
+                const win = window.open('static_frontend/templates/flowEstimation.html', '_blank');
+                if (!win) alert('Please allow popups for opening the page.');
+            } else if (name === 'model-calibration') {
+                // Model Calibration
+                projectChecker(); updateStatus().innerHTML = 'Last Option: Model Calibration';
+                const win = window.open('static_frontend/templates/modelManagement.html', '_blank');
+                if (!win) alert('Please allow popups for opening the page.');
+            }
         }
         // Delete GIS layer
         if (e.target.classList.contains('delete-btn')) {
@@ -545,7 +543,7 @@ function updateEvents() {
             const rows = event.data.rows;
             const columns = event.data.columns;
             const chartData = { columns, data: rows };
-            drawChart(chartData, 'Source Data Chart', 'Time', 'Value', false);
+            plotTimeSeries(plotWindow(), chartDiv(), chartData, 'Source Data Chart', 'Time', 'Value', false);
         }
         if (event.data?.type === 'addWQSource') {
             const sources = event.data.sources;
@@ -701,16 +699,15 @@ function updateEvents() {
         }
     });
     map.on('contextmenu', function(e) {
+        e.originalEvent.preventDefault(); // Suppress context menu
         // Right-click
         if (pickerState.crosssection) {
-            e.originalEvent.preventDefault(); // Suppress context menu
             if (crosssectionContainer.length < 2) {
                 alert("Not enough points selected. Please select at least two points."); return;
             }
             hidePicker('crosssection', crosssectionContainer, 'crossSectionPicked');
         }
         if (pickerState.boundary) {
-            e.originalEvent.preventDefault(); // Suppress context menu
             if (boundaryContainer.length < 2) {
                 alert("Not enough points selected. Please select at least two points."); return;
             }
