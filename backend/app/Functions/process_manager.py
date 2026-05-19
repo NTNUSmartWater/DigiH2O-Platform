@@ -418,7 +418,6 @@ async def upload_data(file: UploadFile = File(...), projectName: str = Form(...)
         traceback.print_exc()
         return JSONResponse({"status": "error", "message": str(e)})
     finally: 
-        if os.path.exists(file_path): functions.safe_remove(file_path)
         temp_dir = os.path.normpath(os.path.join(save_dir, 'temp'))
         if os.path.exists(temp_dir): shutil.rmtree(temp_dir)
         await file.close()
